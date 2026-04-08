@@ -13,7 +13,7 @@ using Silk.NET.Windowing;
 namespace Cyberland.Engine;
 
 /// <summary>
-/// Host-facing bootstrap: window, GL, audio, ECS tick, mod load, and input. Keeps Program.cs thin.
+/// Host-facing bootstrap: window + Vulkan, audio, ECS tick, mod load, and input. Keeps Program.cs thin.
 /// </summary>
 public sealed class GameApplication : IDisposable
 {
@@ -24,7 +24,7 @@ public sealed class GameApplication : IDisposable
     private readonly ModLoader _mods = new();
     private readonly LocalizationManager _localization = new();
     private OpenALAudioDevice? _audio;
-    private OpenGLRenderer? _renderer;
+    private VulkanRenderer? _renderer;
     private IWindow? _window;
     private IInputContext? _input;
     private readonly KeyBindingStore _bindings = new();
@@ -36,7 +36,7 @@ public sealed class GameApplication : IDisposable
 
     public void Run()
     {
-        var options = WindowOptions.Default;
+        var options = WindowOptions.DefaultVulkan;
         options.Size = new Vector2D<int>(1280, 720);
         options.Title = "Cyberland";
 
@@ -54,7 +54,7 @@ public sealed class GameApplication : IDisposable
         if (_window is null)
             return;
 
-        _renderer = new OpenGLRenderer(_window);
+        _renderer = new VulkanRenderer(_window);
         _renderer.Initialize();
 
         try
@@ -98,8 +98,7 @@ public sealed class GameApplication : IDisposable
 
     private void OnRender(double _)
     {
-        _renderer?.BeginFrame();
-        _renderer?.EndFrame();
+        _renderer?.DrawFrame();
     }
 
     private void OnClosing()
