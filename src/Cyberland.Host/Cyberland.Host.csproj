@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cyberland.Engine\Cyberland.Engine.csproj" />
+    <ProjectReference Include="..\..\mods\Cyberland.Game\Cyberland.Game.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <_BaseModContent Include="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Game\Content\**\*" />
+  </ItemGroup>
+
+  <Target Name="StageBaseMod" AfterTargets="Build">
+    <PropertyGroup>
+      <_ModOut>$(OutDir)Mods\Cyberland.Game\</_ModOut>
+    </PropertyGroup>
+    <MakeDir Directories="$(_ModOut)" />
+    <Copy SourceFiles="$(OutDir)Cyberland.Game.dll" DestinationFolder="$(_ModOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Game\manifest.json" DestinationFolder="$(_ModOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_BaseModContent)" DestinationFolder="$(_ModOut)Content\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

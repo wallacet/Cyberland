@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{8BAED4DD-ADD0-4556-A38E-EAE3F271EAE6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyberland.Engine", "src\Cyberland.Engine\Cyberland.Engine.csproj", "{3AEF5CB6-12B7-4A47-A5E1-6820B87CF4D8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyberland.Host", "src\Cyberland.Host\Cyberland.Host.csproj", "{BCE728C3-10BB-4E6D-AF2E-0C134EABB0EA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "mods", "mods", "{1018775A-53D1-4C17-8C58-50FDDE130D37}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyberland.Game", "mods\Cyberland.Game\Cyberland.Game.csproj", "{558DF3CC-97AD-48FF-9CCE-827CEFC78A81}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3AEF5CB6-12B7-4A47-A5E1-6820B87CF4D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3AEF5CB6-12B7-4A47-A5E1-6820B87CF4D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3AEF5CB6-12B7-4A47-A5E1-6820B87CF4D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3AEF5CB6-12B7-4A47-A5E1-6820B87CF4D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BCE728C3-10BB-4E6D-AF2E-0C134EABB0EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BCE728C3-10BB-4E6D-AF2E-0C134EABB0EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BCE728C3-10BB-4E6D-AF2E-0C134EABB0EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BCE728C3-10BB-4E6D-AF2E-0C134EABB0EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{558DF3CC-97AD-48FF-9CCE-827CEFC78A81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{558DF3CC-97AD-48FF-9CCE-827CEFC78A81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{558DF3CC-97AD-48FF-9CCE-827CEFC78A81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{558DF3CC-97AD-48FF-9CCE-827CEFC78A81}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{3AEF5CB6-12B7-4A47-A5E1-6820B87CF4D8} = {8BAED4DD-ADD0-4556-A38E-EAE3F271EAE6}
+		{BCE728C3-10BB-4E6D-AF2E-0C134EABB0EA} = {8BAED4DD-ADD0-4556-A38E-EAE3F271EAE6}
+		{558DF3CC-97AD-48FF-9CCE-827CEFC78A81} = {1018775A-53D1-4C17-8C58-50FDDE130D37}
+	EndGlobalSection
+EndGlobal
