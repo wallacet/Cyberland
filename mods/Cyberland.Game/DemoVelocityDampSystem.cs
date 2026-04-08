@@ -8,7 +8,7 @@ namespace Cyberland.Game;
 /// Demonstrates parallel iteration: <see cref="Parallel.For"/> cannot close over <see cref="Span{T}"/>,
 /// so we rent a scratch buffer, fan out, then write back (real systems will use fixed chunks or SoA views).
 /// </summary>
-public sealed class DemoMoveSystem : IParallelSystem
+public sealed class DemoVelocityDampSystem : IParallelSystem
 {
     public void OnParallelUpdate(World world, ParallelOptions parallelOptions)
     {

@@ -1,0 +1,40 @@
+---
+description: Unit tests and line coverage obligations for Cyberland.Engine
+globs: "**/Cyberland.Engine/**/*.cs,**/Cyberland.Engine.Tests/**/*.cs,**/Cyberland.TestMod/**/*.cs"
+alwaysApply: false
+---
+
+# Cyberland — Engine tests and coverage
+
+## When you touch `Cyberland.Engine`
+
+1. **Add or update tests** in `tests/Cyberland.Engine.Tests/` for every behavior change (fixes, new APIs, edge cases).
+2. Run from repo root:
+   ```powershell
+   dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug /p:CollectCoverage=true
+   ```
+   The test project is configured for **100% line coverage** of **`Cyberland.Engine`** (coverlet `Include` filter). The build **fails** if coverage drops.
+3. Do **not** lower the coverage threshold to “make CI green.” Increase tests or refactor to keep logic testable.
+
+## Excluded from coverage (by design)
+
+These require hardware or native UI and use **`[ExcludeFromCodeCoverage]`** with a justification:
+
+- `VulkanRenderer`
+- `GameApplication`
+- `OpenALAudioDevice`
+- `UserMessageDialog.ShowError` (user32 path); **do** test `WriteErrorToStderr` / stderr formatting when relevant.
+- `GlslSpirvCompiler`: **`ThrowIfSpirvIssues`** and **`LinkProgramOrThrow`** (toolchain-sensitive failure paths).
+
+If you add **new** GPU/audio/host-only code, either:
+
+- Keep it thin and mark the integration shell with **`[ExcludeFromCodeCoverage]`** + justification, **or**
+- Extract pure logic into testable helpers **without** attributes.
+
+## ModLoader / `IMod` tests
+
+`tests/Cyberland.TestMod` is a tiny **`IMod`** implementation used to verify discovery, ordering, and `UnloadAll`. Prefer extending it over loading random assemblies from disk.
+
+## Mods and host
+
+**`Cyberland.Game`**, **`Cyberland.Host`**, and integration scenarios are **outside** the engine coverage gate unless you add separate test projects. Engine changes that only affect mods should still get **engine-level** tests if they touch shared APIs in `Cyberland.Engine`.

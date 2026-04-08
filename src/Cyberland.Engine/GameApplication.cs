@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Audio;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
@@ -13,8 +15,10 @@ using Silk.NET.Windowing;
 namespace Cyberland.Engine;
 
 /// <summary>
-/// Host-facing bootstrap: window + Vulkan, audio, ECS tick, mod load, and input. Keeps Program.cs thin.
+/// Host-facing bootstrap: window, Vulkan, audio, ECS tick, mod load, and input. Keeps Program.cs thin.
+/// Gameplay lives in mods (see <see cref="Hosting.GameHostServices"/>).
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Requires a real window, input, and mod staging; covered by manual / integration runs.")]
 public sealed class GameApplication : IDisposable
 {
     private readonly ParallelismSettings _parallelism = new();
@@ -23,15 +27,17 @@ public sealed class GameApplication : IDisposable
     private readonly SystemScheduler _scheduler;
     private readonly ModLoader _mods = new();
     private readonly LocalizationManager _localization = new();
+    private readonly KeyBindingStore _bindings = new();
+    private readonly GameHostServices _host;
     private OpenALAudioDevice? _audio;
     private VulkanRenderer? _renderer;
     private IWindow? _window;
     private IInputContext? _input;
-    private readonly KeyBindingStore _bindings = new();
 
     public GameApplication()
     {
         _scheduler = new SystemScheduler(_parallelism);
+        _host = new GameHostServices(_bindings);
     }
 
     public void Run()
@@ -55,7 +61,18 @@ public sealed class GameApplication : IDisposable
             return;
 
         _renderer = new VulkanRenderer(_window);
-        _renderer.Initialize();
+        try
+        {
+            _renderer.Initialize();
+        }
+        catch (GraphicsInitializationException ex)
+        {
+            UserMessageDialog.ShowError("Cyberland — Graphics unavailable", ex.UserMessage);
+            _renderer.Dispose();
+            _renderer = null;
+            _window.Close();
+            return;
+        }
 
         try
         {
@@ -68,6 +85,8 @@ public sealed class GameApplication : IDisposable
         }
 
         _input = _window.CreateInput();
+        _host.Renderer = _renderer;
+        _host.Input = _input;
 
         var bindingsFile = Path.Combine(AppContext.BaseDirectory, "keybindings.json");
         _bindings.LoadOrCreateUserFileAsync(bindingsFile).GetAwaiter().GetResult();
@@ -78,7 +97,8 @@ public sealed class GameApplication : IDisposable
             _vfs,
             _localization,
             _world,
-            _scheduler);
+            _scheduler,
+            _host);
 
         LocalizationBootstrap.LoadAsync(_localization, assets, "Locale/en/strings.json").GetAwaiter().GetResult();
     }

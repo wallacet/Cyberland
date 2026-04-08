@@ -1,13 +1,17 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Glslang.NET;
 using Silk.NET.Core.Contexts;
 using Silk.NET.Core.Native;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
+using Cyberland.Engine;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
+using VkBuffer = Silk.NET.Vulkan.Buffer;
 
 namespace Cyberland.Engine.Rendering;
 
@@ -15,6 +19,7 @@ namespace Cyberland.Engine.Rendering;
 /// Full swapchain path: instance, KHR surface (via GLFW/<see cref="IVkSurface"/>), device, swapchain,
 /// render pass (clear-only), framebuffers, command buffers, acquire → submit → present.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Requires a Vulkan-capable GPU and window surface.")]
 public sealed unsafe class VulkanRenderer : IDisposable
 {
     private const int MaxFramesInFlight = 2;
@@ -42,8 +47,21 @@ public sealed unsafe class VulkanRenderer : IDisposable
     private Framebuffer[]? _swapchainFramebuffers;
 
     private RenderPass _renderPass;
+    private PipelineLayout _pipelineLayout;
+    private Pipeline _graphicsPipeline;
+    private ShaderModule _vertShaderModule;
+    private ShaderModule _fragShaderModule;
+    private VkBuffer _vertexBuffer;
+    private DeviceMemory _vertexBufferMemory;
+    private VkBuffer _indexBuffer;
+    private DeviceMemory _indexBufferMemory;
+
     private CommandPool _commandPool;
     private CommandBuffer[]? _commandBuffers;
+
+    private float _spriteCenterX;
+    private float _spriteCenterY;
+    private float _spriteHalfExtent;
 
     private Semaphore[]? _imageAvailableSemaphores;
     private Semaphore[]? _renderFinishedSemaphores;
@@ -53,13 +71,32 @@ public sealed unsafe class VulkanRenderer : IDisposable
 
     public VulkanRenderer(IWindow window) => _window = window;
 
+    /// <summary>Current swapchain size in pixels — use for world-space clamps (matches shader <c>screenSize</c>).</summary>
+    public Vector2D<int> SwapchainPixelSize => new((int)_swapchainExtent.Width, (int)_swapchainExtent.Height);
+
+    /// <summary>
+    /// Sprite in <see cref="WorldScreenSpace"/> world units (bottom-left origin, +Y up, same pixel scale as the framebuffer).
+    /// Converts to screen pixels internally for the draw path.
+    /// </summary>
+    public void SetSpriteWorld(float centerXWorld, float centerYWorld, float halfExtentWorld)
+    {
+        var size = SwapchainPixelSize;
+        var screen = WorldScreenSpace.WorldCenterToScreenPixel(
+            new Vector2D<float>(centerXWorld, centerYWorld),
+            size);
+        _spriteCenterX = screen.X;
+        _spriteCenterY = screen.Y;
+        _spriteHalfExtent = halfExtentWorld;
+    }
+
     public void Initialize()
     {
         if (!_window.IsInitialized)
             _window.Initialize();
 
         if (((IVkSurfaceSource)_window).VkSurface is null)
-            throw new InvalidOperationException("Window does not expose a Vulkan surface (wrong window backend or Initialize order).");
+            throw new GraphicsInitializationException(
+                "The window does not expose a Vulkan surface (wrong window backend or initialization order).");
 
         _vk = Vk.GetApi();
         CreateInstance();
@@ -69,6 +106,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
         CreateSwapchain();
         CreateImageViews();
         CreateRenderPass();
+        CreateGraphicsPipelineAndMesh();
         CreateFramebuffers();
         CreateCommandPool();
         CreateCommandBuffers();
@@ -118,7 +156,9 @@ public sealed unsafe class VulkanRenderer : IDisposable
 
         var waitSemaphores = stackalloc[] { _imageAvailableSemaphores[_currentFrame] };
         var waitStages = stackalloc[] { PipelineStageFlags.ColorAttachmentOutputBit };
-        var buffer = _commandBuffers![imageIndex];
+        var buffer = _commandBuffers![_currentFrame];
+        RecordCommandBuffer(buffer, _swapchainFramebuffers![imageIndex]);
+
         var signalSemaphores = stackalloc[] { _renderFinishedSemaphores![_currentFrame] };
 
         SubmitInfo submitInfo = new()
@@ -166,18 +206,24 @@ public sealed unsafe class VulkanRenderer : IDisposable
         if (_vk is null)
             return;
 
-        _vk.DeviceWaitIdle(_device);
+        if (_device.Handle != default)
+            _vk.DeviceWaitIdle(_device);
 
         CleanupSwapchain();
 
-        if (_renderPass.Handle != default)
+        DestroyGraphicsPipelineAndMesh();
+
+        if (_renderPass.Handle != default && _device.Handle != default)
             _vk.DestroyRenderPass(_device, _renderPass, null);
 
-        for (var i = 0; i < MaxFramesInFlight; i++)
+        if (_imageAvailableSemaphores is not null && _renderFinishedSemaphores is not null && _inFlightFences is not null)
         {
-            _vk.DestroySemaphore(_device, _renderFinishedSemaphores![i], null);
-            _vk.DestroySemaphore(_device, _imageAvailableSemaphores![i], null);
-            _vk.DestroyFence(_device, _inFlightFences![i], null);
+            for (var i = 0; i < MaxFramesInFlight; i++)
+            {
+                _vk.DestroySemaphore(_device, _renderFinishedSemaphores[i], null);
+                _vk.DestroySemaphore(_device, _imageAvailableSemaphores[i], null);
+                _vk.DestroyFence(_device, _inFlightFences[i], null);
+            }
         }
 
         if (_commandPool.Handle != default)
@@ -219,15 +265,21 @@ public sealed unsafe class VulkanRenderer : IDisposable
             PpEnabledExtensionNames = (byte**)SilkMarshal.StringArrayToPtr(extensionNames)
         };
 
-        if (_vk!.CreateInstance(in createInfo, null, out _instance) != Result.Success)
-            throw new InvalidOperationException("vkCreateInstance failed.");
+        var createResult = _vk!.CreateInstance(in createInfo, null, out _instance);
 
         Marshal.FreeHGlobal((nint)appInfo.PApplicationName);
         Marshal.FreeHGlobal((nint)appInfo.PEngineName);
         SilkMarshal.Free((nint)createInfo.PpEnabledExtensionNames);
 
+        if (createResult != Result.Success)
+            throw new GraphicsInitializationException($"vkCreateInstance failed with VkResult {createResult}.");
+
         if (!_vk.TryGetInstanceExtension(_instance, out _khrSurface))
-            throw new InvalidOperationException("VK_KHR_surface not available.");
+        {
+            _vk.DestroyInstance(_instance, null);
+            _instance = default;
+            throw new GraphicsInitializationException("VK_KHR_surface extension is not available on this Vulkan instance.");
+        }
     }
 
     private static string[] GetInstanceExtensions(IVkSurface vkSurface)
@@ -256,7 +308,8 @@ public sealed unsafe class VulkanRenderer : IDisposable
             }
         }
 
-        throw new InvalidOperationException("No suitable Vulkan physical device found.");
+        throw new GraphicsInitializationException(
+            "No suitable Vulkan GPU was found (graphics + present queues, swapchain support, and required device extensions).");
     }
 
     private bool IsDeviceSuitable(PhysicalDevice device)
@@ -322,7 +375,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
             };
 
             if (_vk!.CreateDevice(_physicalDevice, in createInfo, null, out _device) != Result.Success)
-                throw new InvalidOperationException("vkCreateDevice failed.");
+                throw new GraphicsInitializationException("vkCreateDevice failed.");
 
             SilkMarshal.Free((nint)createInfo.PpEnabledExtensionNames);
         }
@@ -331,7 +384,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
         _vk.GetDeviceQueue(_device, indices.PresentFamily!.Value, 0, out _presentQueue);
 
         if (!_vk.TryGetDeviceExtension(_instance, _device, out _khrSwapchain))
-            throw new InvalidOperationException("VK_KHR_swapchain not available.");
+            throw new GraphicsInitializationException("VK_KHR_swapchain extension is not available on this device.");
     }
 
     private QueueFamilyIndices FindQueueFamilies(PhysicalDevice device)
@@ -445,7 +498,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
         }
 
         if (_khrSwapchain!.CreateSwapchain(_device, in creatInfo, null, out _swapchain) != Result.Success)
-            throw new InvalidOperationException("vkCreateSwapchainKHR failed.");
+            throw new GraphicsInitializationException("vkCreateSwapchainKHR failed.");
 
         _khrSwapchain.GetSwapchainImages(_device, _swapchain, ref imageCount, null);
         _swapchainImages = new Image[imageCount];
@@ -486,7 +539,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
             };
 
             if (_vk!.CreateImageView(_device, in createInfo, null, out _swapchainImageViews[i]) != Result.Success)
-                throw new InvalidOperationException("vkCreateImageView failed.");
+                throw new GraphicsInitializationException("vkCreateImageView failed.");
         }
     }
 
@@ -539,7 +592,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
         };
 
         if (_vk!.CreateRenderPass(_device, in renderPassInfo, null, out _renderPass) != Result.Success)
-            throw new InvalidOperationException("vkCreateRenderPass failed.");
+            throw new GraphicsInitializationException("vkCreateRenderPass failed.");
     }
 
     private void CreateFramebuffers()
@@ -562,7 +615,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
             };
 
             if (_vk!.CreateFramebuffer(_device, in framebufferInfo, null, out _swapchainFramebuffers[i]) != Result.Success)
-                throw new InvalidOperationException("vkCreateFramebuffer failed.");
+                throw new GraphicsInitializationException("vkCreateFramebuffer failed.");
         }
     }
 
@@ -573,16 +626,17 @@ public sealed unsafe class VulkanRenderer : IDisposable
         CommandPoolCreateInfo poolInfo = new()
         {
             SType = StructureType.CommandPoolCreateInfo,
+            Flags = CommandPoolCreateFlags.ResetCommandBufferBit,
             QueueFamilyIndex = queueFamilyIndex
         };
 
         if (_vk!.CreateCommandPool(_device, in poolInfo, null, out _commandPool) != Result.Success)
-            throw new InvalidOperationException("vkCreateCommandPool failed.");
+            throw new GraphicsInitializationException("vkCreateCommandPool failed.");
     }
 
     private void CreateCommandBuffers()
     {
-        _commandBuffers = new CommandBuffer[_swapchainFramebuffers!.Length];
+        _commandBuffers = new CommandBuffer[MaxFramesInFlight];
 
         CommandBufferAllocateInfo allocInfo = new()
         {
@@ -595,18 +649,29 @@ public sealed unsafe class VulkanRenderer : IDisposable
         fixed (CommandBuffer* commandBuffersPtr = _commandBuffers)
         {
             if (_vk!.AllocateCommandBuffers(_device, in allocInfo, commandBuffersPtr) != Result.Success)
-                throw new InvalidOperationException("vkAllocateCommandBuffers failed.");
+                throw new GraphicsInitializationException("vkAllocateCommandBuffers failed.");
         }
+    }
 
-        for (var i = 0; i < _commandBuffers.Length; i++)
-            RecordCommandBuffer(_commandBuffers[i], _swapchainFramebuffers[i]);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SpritePushConstants
+    {
+        public float CenterX;
+        public float CenterY;
+        public float HalfW;
+        public float HalfH;
+        public float ScreenW;
+        public float ScreenH;
     }
 
     private void RecordCommandBuffer(CommandBuffer commandBuffer, Framebuffer framebuffer)
     {
+        if (_vk!.ResetCommandBuffer(commandBuffer, 0) != Result.Success)
+            throw new InvalidOperationException("vkResetCommandBuffer failed.");
+
         CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
 
-        if (_vk!.BeginCommandBuffer(commandBuffer, in beginInfo) != Result.Success)
+        if (_vk.BeginCommandBuffer(commandBuffer, in beginInfo) != Result.Success)
             throw new InvalidOperationException("vkBeginCommandBuffer failed.");
 
         ClearValue clearColor = new()
@@ -631,10 +696,389 @@ public sealed unsafe class VulkanRenderer : IDisposable
         };
 
         _vk.CmdBeginRenderPass(commandBuffer, &renderPassInfo, SubpassContents.Inline);
+
+        Viewport viewport = new()
+        {
+            X = 0f,
+            Y = 0f,
+            Width = _swapchainExtent.Width,
+            Height = _swapchainExtent.Height,
+            MinDepth = 0f,
+            MaxDepth = 1f
+        };
+
+        Rect2D scissor = new() { Offset = default, Extent = _swapchainExtent };
+
+        _vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
+        _vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        _vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, _graphicsPipeline);
+
+        var vertexBuffers = stackalloc[] { _vertexBuffer };
+        var offsets = stackalloc ulong[] { 0 };
+        _vk.CmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        _vk.CmdBindIndexBuffer(commandBuffer, _indexBuffer, 0, IndexType.Uint16);
+
+        SpritePushConstants push = new()
+        {
+            CenterX = _spriteCenterX,
+            CenterY = _spriteCenterY,
+            HalfW = _spriteHalfExtent,
+            HalfH = _spriteHalfExtent,
+            ScreenW = _swapchainExtent.Width,
+            ScreenH = _swapchainExtent.Height
+        };
+
+        _vk.CmdPushConstants(commandBuffer, _pipelineLayout, ShaderStageFlags.VertexBit, 0, (uint)sizeof(SpritePushConstants), &push);
+
+        _vk.CmdDrawIndexed(commandBuffer, 6, 1, 0, 0, 0);
+
         _vk.CmdEndRenderPass(commandBuffer);
 
         if (_vk.EndCommandBuffer(commandBuffer) != Result.Success)
             throw new InvalidOperationException("vkEndCommandBuffer failed.");
+    }
+
+    private void CreateGraphicsPipelineAndMesh()
+    {
+        uint[] vertSpv;
+        uint[] fragSpv;
+        try
+        {
+            vertSpv = GlslSpirvCompiler.CompileGlslToSpirv(
+                """
+                #version 450
+                layout(push_constant) uniform Push {
+                    vec2 center;
+                    vec2 halfSize;
+                    vec2 screenSize;
+                } push;
+                layout(location = 0) in vec2 inPos;
+                void main() {
+                    vec2 pixel = push.center + inPos * push.halfSize;
+                    float nx = pixel.x / push.screenSize.x * 2.0 - 1.0;
+                    // Top-left pixels (y=0 top) → NDC for default viewport (positive height): small pixel y → ndc -1 (top of framebuffer).
+                    float ny = pixel.y / push.screenSize.y * 2.0 - 1.0;
+                    gl_Position = vec4(nx, ny, 0.0, 1.0);
+                }
+                """,
+                ShaderStage.Vertex);
+
+            fragSpv = GlslSpirvCompiler.CompileGlslToSpirv(
+                """
+                #version 450
+                layout(location = 0) out vec4 outColor;
+                void main() {
+                    outColor = vec4(0.35, 0.85, 0.45, 1.0);
+                }
+                """,
+                ShaderStage.Fragment);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new GraphicsInitializationException("Shader compilation to SPIR-V failed.", ex);
+        }
+
+        _vertShaderModule = CreateShaderModule(vertSpv);
+        _fragShaderModule = CreateShaderModule(fragSpv);
+
+        PushConstantRange pushConstantRange = new()
+        {
+            StageFlags = ShaderStageFlags.VertexBit,
+            Offset = 0,
+            Size = (uint)sizeof(SpritePushConstants)
+        };
+
+        PipelineLayoutCreateInfo pipelineLayoutInfo = new()
+        {
+            SType = StructureType.PipelineLayoutCreateInfo,
+            PushConstantRangeCount = 1,
+            PPushConstantRanges = &pushConstantRange
+        };
+
+        if (_vk!.CreatePipelineLayout(_device, in pipelineLayoutInfo, null, out _pipelineLayout) != Result.Success)
+            throw new GraphicsInitializationException("vkCreatePipelineLayout failed.");
+
+        var mainName = Marshal.StringToHGlobalAnsi("main");
+
+        PipelineShaderStageCreateInfo vertShaderStageInfo = new()
+        {
+            SType = StructureType.PipelineShaderStageCreateInfo,
+            Stage = ShaderStageFlags.VertexBit,
+            Module = _vertShaderModule,
+            PName = (byte*)mainName
+        };
+
+        PipelineShaderStageCreateInfo fragShaderStageInfo = new()
+        {
+            SType = StructureType.PipelineShaderStageCreateInfo,
+            Stage = ShaderStageFlags.FragmentBit,
+            Module = _fragShaderModule,
+            PName = (byte*)mainName
+        };
+
+        var shaderStages = stackalloc PipelineShaderStageCreateInfo[2];
+        shaderStages[0] = vertShaderStageInfo;
+        shaderStages[1] = fragShaderStageInfo;
+
+        VertexInputBindingDescription bindingDescription = new()
+        {
+            Binding = 0,
+            Stride = 2 * sizeof(float),
+            InputRate = VertexInputRate.Vertex
+        };
+
+        VertexInputAttributeDescription attributeDescription = new()
+        {
+            Binding = 0,
+            Location = 0,
+            Format = Format.R32G32Sfloat,
+            Offset = 0
+        };
+
+        PipelineVertexInputStateCreateInfo vertexInputInfo = new()
+        {
+            SType = StructureType.PipelineVertexInputStateCreateInfo,
+            VertexBindingDescriptionCount = 1,
+            PVertexBindingDescriptions = &bindingDescription,
+            VertexAttributeDescriptionCount = 1,
+            PVertexAttributeDescriptions = &attributeDescription
+        };
+
+        PipelineInputAssemblyStateCreateInfo inputAssembly = new()
+        {
+            SType = StructureType.PipelineInputAssemblyStateCreateInfo,
+            Topology = PrimitiveTopology.TriangleList,
+            PrimitiveRestartEnable = false
+        };
+
+        PipelineViewportStateCreateInfo viewportState = new()
+        {
+            SType = StructureType.PipelineViewportStateCreateInfo,
+            ViewportCount = 1,
+            ScissorCount = 1
+        };
+
+        PipelineRasterizationStateCreateInfo rasterizer = new()
+        {
+            SType = StructureType.PipelineRasterizationStateCreateInfo,
+            DepthClampEnable = false,
+            RasterizerDiscardEnable = false,
+            PolygonMode = PolygonMode.Fill,
+            LineWidth = 1f,
+            CullMode = CullModeFlags.None,
+            FrontFace = FrontFace.CounterClockwise,
+            DepthBiasEnable = false
+        };
+
+        PipelineMultisampleStateCreateInfo multisampling = new()
+        {
+            SType = StructureType.PipelineMultisampleStateCreateInfo,
+            SampleShadingEnable = false,
+            RasterizationSamples = SampleCountFlags.Count1Bit
+        };
+
+        PipelineColorBlendAttachmentState colorBlendAttachment = new()
+        {
+            ColorWriteMask = ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit,
+            BlendEnable = false
+        };
+
+        PipelineColorBlendStateCreateInfo colorBlending = new()
+        {
+            SType = StructureType.PipelineColorBlendStateCreateInfo,
+            LogicOpEnable = false,
+            AttachmentCount = 1,
+            PAttachments = &colorBlendAttachment
+        };
+
+        DynamicState[] dynamicStates = [DynamicState.Viewport, DynamicState.Scissor];
+        fixed (DynamicState* pDynamicStates = dynamicStates)
+        {
+            PipelineDynamicStateCreateInfo dynamicState = new()
+            {
+                SType = StructureType.PipelineDynamicStateCreateInfo,
+                DynamicStateCount = (uint)dynamicStates.Length,
+                PDynamicStates = pDynamicStates
+            };
+
+            GraphicsPipelineCreateInfo pipelineInfo = new()
+            {
+                SType = StructureType.GraphicsPipelineCreateInfo,
+                StageCount = 2,
+                PStages = shaderStages,
+                PVertexInputState = &vertexInputInfo,
+                PInputAssemblyState = &inputAssembly,
+                PTessellationState = null,
+                PViewportState = &viewportState,
+                PRasterizationState = &rasterizer,
+                PMultisampleState = &multisampling,
+                PDepthStencilState = null,
+                PColorBlendState = &colorBlending,
+                PDynamicState = &dynamicState,
+                Layout = _pipelineLayout,
+                RenderPass = _renderPass,
+                Subpass = 0,
+                BasePipelineHandle = default,
+                BasePipelineIndex = -1
+            };
+
+            if (_vk!.CreateGraphicsPipelines(_device, default, 1, in pipelineInfo, null, out _graphicsPipeline) != Result.Success)
+                throw new GraphicsInitializationException("vkCreateGraphicsPipelines failed.");
+        }
+
+        Marshal.FreeHGlobal(mainName);
+
+        Span<float> vertices = stackalloc float[8]
+        {
+            -1f, -1f,
+            1f, -1f,
+            1f, 1f,
+            -1f, 1f
+        };
+
+        Span<ushort> indices = stackalloc ushort[6] { 0, 1, 2, 2, 3, 0 };
+
+        CreateHostVisibleBuffer(
+            (ulong)(vertices.Length * sizeof(float)),
+            BufferUsageFlags.VertexBufferBit,
+            out _vertexBuffer,
+            out _vertexBufferMemory);
+
+        CreateHostVisibleBuffer(
+            (ulong)(indices.Length * sizeof(ushort)),
+            BufferUsageFlags.IndexBufferBit,
+            out _indexBuffer,
+            out _indexBufferMemory);
+
+        void* data;
+        if (_vk.MapMemory(_device, _vertexBufferMemory, 0, (ulong)(vertices.Length * sizeof(float)), 0, &data) != Result.Success)
+            throw new GraphicsInitializationException("vkMapMemory (vertex) failed.");
+
+        vertices.CopyTo(new Span<float>((float*)data, vertices.Length));
+        _vk.UnmapMemory(_device, _vertexBufferMemory);
+
+        if (_vk.MapMemory(_device, _indexBufferMemory, 0, (ulong)(indices.Length * sizeof(ushort)), 0, &data) != Result.Success)
+            throw new GraphicsInitializationException("vkMapMemory (index) failed.");
+
+        indices.CopyTo(new Span<ushort>((ushort*)data, indices.Length));
+        _vk.UnmapMemory(_device, _indexBufferMemory);
+    }
+
+    private ShaderModule CreateShaderModule(uint[] code)
+    {
+        fixed (uint* codePtr = code)
+        {
+            ShaderModuleCreateInfo createInfo = new()
+            {
+                SType = StructureType.ShaderModuleCreateInfo,
+                CodeSize = (nuint)(code.Length * sizeof(uint)),
+                PCode = codePtr
+            };
+
+            if (_vk!.CreateShaderModule(_device, in createInfo, null, out var module) != Result.Success)
+                throw new GraphicsInitializationException("vkCreateShaderModule failed.");
+
+            return module;
+        }
+    }
+
+    private void CreateHostVisibleBuffer(ulong size, BufferUsageFlags usage, out VkBuffer buffer, out DeviceMemory memory)
+    {
+        BufferCreateInfo bufferInfo = new()
+        {
+            SType = StructureType.BufferCreateInfo,
+            Size = size,
+            Usage = usage,
+            SharingMode = SharingMode.Exclusive
+        };
+
+        if (_vk!.CreateBuffer(_device, in bufferInfo, null, out buffer) != Result.Success)
+            throw new GraphicsInitializationException("vkCreateBuffer failed.");
+
+        _vk.GetBufferMemoryRequirements(_device, buffer, out var memRequirements);
+
+        MemoryAllocateInfo allocInfo = new()
+        {
+            SType = StructureType.MemoryAllocateInfo,
+            AllocationSize = memRequirements.Size,
+            MemoryTypeIndex = FindMemoryType(memRequirements.MemoryTypeBits, MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit)
+        };
+
+        if (_vk.AllocateMemory(_device, in allocInfo, null, out memory) != Result.Success)
+            throw new GraphicsInitializationException("vkAllocateMemory failed.");
+
+        _vk.BindBufferMemory(_device, buffer, memory, 0);
+    }
+
+    private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
+    {
+        _vk!.GetPhysicalDeviceMemoryProperties(_physicalDevice, out var memProperties);
+
+        for (uint i = 0; i < memProperties.MemoryTypeCount; i++)
+        {
+            if ((typeFilter & (1u << (int)i)) != 0 &&
+                (memProperties.MemoryTypes[(int)i].PropertyFlags & properties) == properties)
+            {
+                return i;
+            }
+        }
+
+        throw new GraphicsInitializationException("Failed to find a host-visible memory type for GPU buffers.");
+    }
+
+    private void DestroyGraphicsPipelineAndMesh()
+    {
+        if (_vk is null)
+            return;
+
+        if (_indexBuffer.Handle != default)
+        {
+            _vk.DestroyBuffer(_device, _indexBuffer, null);
+            _indexBuffer = default;
+        }
+
+        if (_vertexBuffer.Handle != default)
+        {
+            _vk.DestroyBuffer(_device, _vertexBuffer, null);
+            _vertexBuffer = default;
+        }
+
+        if (_indexBufferMemory.Handle != default)
+        {
+            _vk.FreeMemory(_device, _indexBufferMemory, null);
+            _indexBufferMemory = default;
+        }
+
+        if (_vertexBufferMemory.Handle != default)
+        {
+            _vk.FreeMemory(_device, _vertexBufferMemory, null);
+            _vertexBufferMemory = default;
+        }
+
+        if (_graphicsPipeline.Handle != default)
+        {
+            _vk.DestroyPipeline(_device, _graphicsPipeline, null);
+            _graphicsPipeline = default;
+        }
+
+        if (_pipelineLayout.Handle != default)
+        {
+            _vk.DestroyPipelineLayout(_device, _pipelineLayout, null);
+            _pipelineLayout = default;
+        }
+
+        if (_vertShaderModule.Handle != default)
+        {
+            _vk.DestroyShaderModule(_device, _vertShaderModule, null);
+            _vertShaderModule = default;
+        }
+
+        if (_fragShaderModule.Handle != default)
+        {
+            _vk.DestroyShaderModule(_device, _fragShaderModule, null);
+            _fragShaderModule = default;
+        }
     }
 
     private void CreateSyncObjects()
@@ -660,7 +1104,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
                 _vk.CreateSemaphore(_device, in semaphoreInfo, null, out _renderFinishedSemaphores[i]) != Result.Success ||
                 _vk.CreateFence(_device, in fenceInfo, null, out _inFlightFences[i]) != Result.Success)
             {
-                throw new InvalidOperationException("Failed to create synchronization objects.");
+                throw new GraphicsInitializationException("Failed to create Vulkan synchronization objects (semaphores/fences).");
             }
         }
     }

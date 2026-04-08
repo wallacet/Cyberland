@@ -19,3 +19,9 @@ This is a cyberpunk 2D single-player RPG optimized for **low footprint** and **b
 - **Scaling up**: Use optional quality settings (resolution, effects, parallelism) so modern hardware improves visuals or frame pacing without forking code paths unnecessarily.
 
 When adding a feature, note **who pays the cost** (CPU, GPU, memory, disk, load time) and **how it degrades** on weak machines.
+
+## Where code belongs
+
+Shipped gameplay and demos live in **mods** (e.g. `mods/Cyberland.Game`) via `IMod` and ECS systems — not in `GameApplication`. See **cyberland-mod-host-architecture** for host vs mod boundaries.
+
+Engine changes to **`Cyberland.Engine`** must keep **`Cyberland.Engine.Tests`** passing with **100% line coverage** on the engine assembly; see **cyberland-engine-tests**.

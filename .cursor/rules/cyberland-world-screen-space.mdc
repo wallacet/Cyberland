@@ -1,0 +1,30 @@
+---
+description: World-space (+Y up) vs screen-space for Cyberland gameplay and rendering
+globs: "**/GameApplication.cs,**/WorldScreenSpace.cs,**/Input/**/*.cs,**/Rendering/VulkanRenderer.cs,**/mods/**/*.cs"
+alwaysApply: false
+---
+
+# Cyberland — World space vs screen space
+
+## Screen space (framebuffer / Vulkan)
+
+**Top-left origin, +Y down** — same as Silk `FramebufferSize`. The GPU path uses pixel centers internally; **`VulkanRenderer.SetSpriteWorld`** converts from world space via `WorldScreenSpace.WorldCenterToScreenPixel` — gameplay code should not pass raw screen pixels unless debugging.
+
+## World space (+Y up, gameplay math)
+
+**Origin bottom-left, +X right, +Y up** (pixels). Use for sprite position, ECS, and physics.
+
+- “Move up” → **increase** world Y (`dy += 1` for normalized input).
+- Integrate in world space, then call **`SetSpriteWorld`** each frame; do not apply `WorldCenterToScreenPixel` in gameplay code — conversion lives in the renderer (e.g. `DemoSpriteMoveSystem` in the base mod).
+
+**Velocity** world → screen (one frame): `WorldScreenSpace.WorldVelocityToScreenVelocity(worldV)` (flips Y only) — for UI or other consumers; the sprite draw path uses world → screen inside the renderer.
+
+**From** screen pixel center back to world (e.g. initial placement): `WorldScreenSpace.ScreenPixelToWorldCenter`.
+
+## Do not mix without converting
+
+Do not integrate **world** (+Y up) velocity into a **screen-space** position (or the reverse) without `WorldScreenSpace` helpers — that was the source of inverted W/S and arrows.
+
+## Rebasing keys
+
+If `keybindings.json` binds arrow keys to `move_*`, avoid double-applying the same physical key in separate branches.

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Silk.NET.OpenAL;
 
 namespace Cyberland.Engine.Audio;
@@ -5,6 +6,7 @@ namespace Cyberland.Engine.Audio;
 /// <summary>
 /// OpenAL Soft via Silk: device + context + AL entry points. Playback APIs extend this later.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Requires an OpenAL device at runtime.")]
 public sealed class OpenALAudioDevice : IDisposable
 {
     private readonly ALContext _alc;

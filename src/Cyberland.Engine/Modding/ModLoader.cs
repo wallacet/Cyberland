@@ -3,6 +3,7 @@ using System.Text.Json;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Localization;
 
 namespace Cyberland.Engine.Modding;
@@ -23,7 +24,8 @@ public sealed class ModLoader
         VirtualFileSystem vfs,
         LocalizationManager localization,
         World world,
-        SystemScheduler scheduler)
+        SystemScheduler scheduler,
+        GameHostServices host)
     {
         if (!Directory.Exists(modsRootDirectory))
             return;
@@ -69,7 +71,7 @@ public sealed class ModLoader
                 continue;
 
             var mod = (IMod)Activator.CreateInstance(modType)!;
-            var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localization, world, scheduler);
+            var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localization, world, scheduler, host);
             mod.OnLoad(ctx);
             _instances.Add(mod);
         }

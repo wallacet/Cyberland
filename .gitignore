@@ -1,31 +1,84 @@
 # OS
 Thumbs.db
+ehthumbs.db
 Desktop.ini
+$RECYCLE.BIN/
 .DS_Store
+.AppleDouble
+.LSOverride
 
-# Editors / IDE (keep team-shared Cursor rules committed)
+# Editors / IDE (keep team-shared .vscode and .cursor/ rules committed)
 *.swp
 *.swo
 *~
+*.orig
+*.bak
 
-# Logs and temp
-*.log
-*.tmp
+# Visual Studio / MSBuild
+.vs/
+*.rsuser
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.userprefs
+*.pidb
+*.pdb
+*.ilk
 *.cache
 
-# Common build / output (adjust when engine/tooling is chosen)
-build/
-dist/
-out/
-bin/
-obj/
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Build outputs (.NET — any folder depth)
+**/bin/
+**/obj/
+**/artifacts/
+**/publish/
+**/out/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Compiled / native binaries (catch stragglers outside bin/)
 *.o
 *.obj
 *.exe
 *.dll
-*.pdb
-*.ilk
+*.dylib
+*.so
+*.a
+*.lib
+*.wasm
 
-# Package managers (if used later)
+# Packaging
+*.nupkg
+*.snupkg
+
+# Testing & coverage
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+coverage*
+*.coverage
+*.coveragexml
+**/coverage.cobertura.xml
+
+# Logs and temp
+*.log
+*.tmp
+*.temp
+*.cache
+*.dmp
+
+# Legacy / tool-generated
+build/
+dist/
 node_modules/
 vendor/
+project.lock.json
+**/appsettings.*.local.json
+*.pfx

@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Cyberland.Host",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/Cyberland.Host/bin/Debug/net8.0/Cyberland.Host.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/Cyberland.Host/bin/Debug/net8.0",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ]
+}

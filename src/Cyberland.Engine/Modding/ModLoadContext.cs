@@ -1,6 +1,7 @@
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Localization;
 
 namespace Cyberland.Engine.Modding;
@@ -16,7 +17,8 @@ public sealed class ModLoadContext
         VirtualFileSystem vfs,
         LocalizationManager localization,
         World world,
-        SystemScheduler scheduler)
+        SystemScheduler scheduler,
+        GameHostServices host)
     {
         Manifest = manifest;
         ModDirectory = modDirectory;
@@ -24,6 +26,7 @@ public sealed class ModLoadContext
         Localization = localization;
         World = world;
         Scheduler = scheduler;
+        Host = host;
     }
 
     public ModManifest Manifest { get; }
@@ -32,6 +35,9 @@ public sealed class ModLoadContext
     public LocalizationManager Localization { get; }
     public World World { get; }
     public SystemScheduler Scheduler { get; }
+
+    /// <summary>Window input, key bindings, and renderer — populated by the host before mods load.</summary>
+    public GameHostServices Host { get; }
 
     /// <summary>Mounts <see cref="ModManifest.ContentRoot"/> under this mod's folder.</summary>
     public void MountDefaultContent() =>

@@ -1,0 +1,81 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/Cyberland.sln", "-c", "Debug"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "run",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/src/Cyberland.Host/Cyberland.Host.csproj",
+        "-c",
+        "Debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {}
+      },
+      "group": "none",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "test-engine",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj",
+        "-c",
+        "Debug",
+        "/p:CollectCoverage=true"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "watch",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "watch",
+        "run",
+        "--project",
+        "${workspaceFolder}/src/Cyberland.Host/Cyberland.Host.csproj",
+        "-c",
+        "Debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "none",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

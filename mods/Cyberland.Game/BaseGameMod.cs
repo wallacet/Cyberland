@@ -19,7 +19,12 @@ public sealed class BaseGameMod : IMod
 
     public void OnLoad(ModLoadContext context)
     {
-        context.Scheduler.Register(new DemoMoveSystem());
+        var demoEntity = context.World.CreateEntity();
+        ref var v = ref context.World.Components<Velocity>().GetOrAdd(demoEntity);
+        v = new Velocity { X = 100f, Y = 0f };
+
+        context.Scheduler.Register(new DemoSpriteMoveSystem(context.Host));
+        context.Scheduler.Register(new DemoVelocityDampSystem());
     }
 
     public void OnUnload()
