@@ -1,0 +1,21 @@
+---
+description: Performance, build size, and hardware scaling goals for Cyberland
+alwaysApply: true
+---
+
+# Cyberland — Design Goals (Engineering)
+
+This is a cyberpunk 2D single-player RPG optimized for **low footprint** and **broad hardware**.
+
+## Performance and disk size
+
+- Prefer algorithms and data layouts that scale well; avoid accidental O(n²) hot paths and hidden allocations in update loops.
+- Treat asset size as a first-class constraint: compress sensibly, avoid duplicate data, and document trade-offs when choosing formats.
+- Load work should be **predictable**: streaming, batching, and fixed budgets beat spikes that stutter on older CPUs or disks.
+
+## Hardware range
+
+- **Baseline**: Design and test so the game runs comfortably on older integrated GPUs and mechanical disks where reasonable.
+- **Scaling up**: Use optional quality settings (resolution, effects, parallelism) so modern hardware improves visuals or frame pacing without forking code paths unnecessarily.
+
+When adding a feature, note **who pays the cost** (CPU, GPU, memory, disk, load time) and **how it degrades** on weak machines.

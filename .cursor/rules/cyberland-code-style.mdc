@@ -1,0 +1,37 @@
+---
+description: Tutorial-style comments and readability for all Cyberland code
+alwaysApply: true
+---
+
+# Cyberland — Code Style and Comments
+
+Code should be easy to follow for someone new to the file: **clear names first**, comments where they teach **why** and **how pieces connect**.
+
+## Tutorial-style comments
+
+- At the top of non-trivial modules, a short note on **purpose** and **main data flow** (a few lines).
+- Before non-obvious logic: explain **intent**, **invariants**, and **edge cases**—not a restatement of the syntax.
+- For performance-sensitive or size-sensitive code, tie comments to project goals (e.g. why this avoids extra copies or allocations).
+
+## Readability
+
+- Prefer small functions with one obvious job; extract when nesting or duplication hurts scanning.
+- Use consistent naming for game concepts (systems, resources, entities) once chosen.
+- Avoid clever one-liners when a straightforward form is clearer; optimize only when measured or clearly on a hot path.
+
+## Examples
+
+```cpp
+// ❌ Noise: repeats what the line already says
+// Increment i by 1
+i++;
+
+// ✅ Teaches context
+// Advance to the next tile in row-major order; width is fixed for this layer.
+i++;
+```
+
+```cpp
+// ✅ Links behavior to project goals
+// Reuse this buffer across frames to avoid per-frame heap traffic on low-end machines.
+```
