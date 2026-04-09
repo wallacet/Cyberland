@@ -4,8 +4,7 @@ on:
   pull_request:
     paths:
       - "src/Cyberland.Engine/**"
-      - "tests/Cyberland.Engine.Tests/**"
-      - "tests/Cyberland.TestMod/**"
+      - "tests/**"
       - "Directory.Build.props"
       - ".github/workflows/engine-tests.yml"
   push:
@@ -13,8 +12,7 @@ on:
       - main
     paths:
       - "src/Cyberland.Engine/**"
-      - "tests/Cyberland.Engine.Tests/**"
-      - "tests/Cyberland.TestMod/**"
+      - "tests/**"
       - "Directory.Build.props"
       - ".github/workflows/engine-tests.yml"
   workflow_dispatch:
