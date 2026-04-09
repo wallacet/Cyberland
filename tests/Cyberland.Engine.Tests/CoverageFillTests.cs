@@ -33,7 +33,8 @@ public sealed class CoverageFillTests
     [Fact]
     public void ComponentStore_TryGet_false_and_Remove_noops_when_far_or_empty_slot()
     {
-        var store = new ComponentStore<Cmp>();
+        var world = new World();
+        var store = world.Components<Cmp>();
         Assert.False(store.TryGet(EntityId.FromParts(9_999, 1), out _));
         store.Remove(EntityId.FromParts(9_999, 1));
         store.Remove(EntityId.FromParts(1, 1));
@@ -42,10 +43,11 @@ public sealed class CoverageFillTests
     [Fact]
     public void ComponentStore_Remove_first_of_three_uses_swap_with_tail()
     {
-        var store = new ComponentStore<Cmp>();
-        var a = EntityId.FromParts(0, 1);
-        var b = EntityId.FromParts(1, 1);
-        var c = EntityId.FromParts(2, 1);
+        var world = new World();
+        var store = world.Components<Cmp>();
+        var a = world.CreateEntity();
+        var b = world.CreateEntity();
+        var c = world.CreateEntity();
         store.GetOrAdd(a).V = 1;
         store.GetOrAdd(b).V = 2;
         store.GetOrAdd(c).V = 3;
@@ -54,16 +56,17 @@ public sealed class CoverageFillTests
 
         Assert.False(store.Contains(a));
         Assert.True(store.Contains(c));
-        Assert.Equal(2, store.Count);
+        Assert.True(store.Contains(b));
     }
 
     [Fact]
     public void ComponentStore_Remove_middle_element()
     {
-        var store = new ComponentStore<Cmp>();
-        var a = EntityId.FromParts(0, 1);
-        var b = EntityId.FromParts(1, 1);
-        var c = EntityId.FromParts(2, 1);
+        var world = new World();
+        var store = world.Components<Cmp>();
+        var a = world.CreateEntity();
+        var b = world.CreateEntity();
+        var c = world.CreateEntity();
         store.GetOrAdd(a).V = 1;
         store.GetOrAdd(b).V = 2;
         store.GetOrAdd(c).V = 3;
@@ -78,32 +81,39 @@ public sealed class CoverageFillTests
     [Fact]
     public void ComponentStore_Get_throws_when_slot_empty()
     {
-        var store = new ComponentStore<Cmp>();
+        var world = new World();
+        var store = world.Components<Cmp>();
         var ex = Assert.Throws<InvalidOperationException>(() => _ = store.Get(EntityId.FromParts(0, 1)));
         Assert.Contains("missing", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void ComponentStore_Entities_and_AsSpan_visible()
+    public void ComponentStore_QueryChunks_visible()
     {
-        var store = new ComponentStore<Cmp>();
-        var a = EntityId.FromParts(0, 1);
-        var b = EntityId.FromParts(1, 1);
+        var world = new World();
+        var store = world.Components<Cmp>();
+        var a = world.CreateEntity();
+        var b = world.CreateEntity();
         store.GetOrAdd(a).V = 11;
         store.GetOrAdd(b).V = 22;
 
-        var entities = store.Entities;
-        var dense = store.AsSpan();
+        var total = 0;
+        foreach (var chunk in world.QueryChunks<Cmp>())
+        {
+            total += chunk.Count;
+            Assert.Equal(chunk.Entities.Length, chunk.Count);
+            Assert.Equal(chunk.Components.Length, chunk.Count);
+        }
 
-        Assert.Equal(2, entities.Length);
-        Assert.Equal(2, dense.Length);
+        Assert.Equal(2, total);
     }
 
     [Fact]
     public void ComponentStore_GetOrAdd_second_call_returns_existing_component()
     {
-        var store = new ComponentStore<Cmp>();
-        var e = EntityId.FromParts(0, 1);
+        var world = new World();
+        var store = world.Components<Cmp>();
+        var e = world.CreateEntity();
         store.GetOrAdd(e).V = 7;
         ref var second = ref store.GetOrAdd(e, new Cmp { V = 99 });
         Assert.Equal(7, second.V);
@@ -112,27 +122,32 @@ public sealed class CoverageFillTests
     [Fact]
     public void ComponentStore_Remove_only_element_skips_swap_block()
     {
-        var store = new ComponentStore<Cmp>();
-        var e = EntityId.FromParts(0, 1);
+        var world = new World();
+        var store = world.Components<Cmp>();
+        var e = world.CreateEntity();
         store.GetOrAdd(e).V = 1;
         store.Remove(e);
-        Assert.Equal(0, store.Count);
+        Assert.False(store.Contains(e));
     }
 
     [Fact]
     public void ComponentStore_Remove_when_not_present_returns_early()
     {
-        var store = new ComponentStore<Cmp>();
-        store.GetOrAdd(EntityId.FromParts(0, 1)).V = 1;
+        var world = new World();
+        var store = world.Components<Cmp>();
+        var e = world.CreateEntity();
+        store.GetOrAdd(e).V = 1;
         store.Remove(EntityId.FromParts(4, 1));
-        Assert.Equal(1, store.Count);
+        Assert.True(store.Contains(e));
+        Assert.True(store.TryGet(e, out var got) && got.V == 1);
     }
 
     [Fact]
     public void ComponentStore_Get_returns_ref_when_present()
     {
-        var store = new ComponentStore<Cmp>();
-        var e = EntityId.FromParts(0, 1);
+        var world = new World();
+        var store = world.Components<Cmp>();
+        var e = world.CreateEntity();
         store.GetOrAdd(e).V = 10;
         ref var v = ref store.Get(e);
         v.V = 12;

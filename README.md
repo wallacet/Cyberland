@@ -230,8 +230,9 @@ flowchart TB
 
 ### ECS (`Core/Ecs`)
 
-- **`World`** — entity creation/destruction, **`Components<T>()`** stores per component type.
-- **`ComponentStore<T>`** — dense storage, **`GetOrAdd`**, **`AsSpan()`** for hot loops.
+- **`World`** — entity creation/destruction; owns an **archetype graph** (entities with the same component *signature* share fixed-size **chunks** with SoA columns for cache-friendly iteration).
+- **`Components<T>()`** / **`ComponentStore<T>`** — **`GetOrAdd`**, **`TryGet`**, **`Get`**, **`Remove`**, **`Contains`** for entity-scoped access.
+- **`QueryChunks<T>()`** / **`QueryChunks<T0, T1>()`** — foreach over **chunks**; each yields contiguous **`Span<T>`** columns (and matching **`EntityId`** rows) for SIMD-friendly inner loops. Helpers such as **`SimdFloat`** operate on those spans.
 - **`EntityId`** — opaque id from **`EntityRegistry`**.
 
 Components are **`struct`** types; define them in your mod assembly (see `Velocity` in **`Cyberland.Demo`**).
@@ -360,7 +361,7 @@ Use **`world.Components<MyComponent>().GetOrAdd(entity)`** (or **`TryGet`**) to 
 ### 3. Implement `ISystem` and/or `IParallelSystem`
 
 - **`ISystem`** — single-threaded; use for input, gameplay ordering, talking to **`GameHostServices`**, or anything that must not race the ECS stores without care.
-- **`IParallelSystem`** — use for CPU-heavy work over **`ComponentStore<T>.AsSpan()`**; follow the pattern in **`VelocityDampSystem`** in **`Cyberland.Demo`** (copy/rent/write back if you cannot share spans safely across **`Parallel.For`**).
+- **`IParallelSystem`** — use for CPU-heavy work over **`QueryChunks<T>()`** (per-chunk spans are safe to split across **`Parallel.For`** / **`Parallel.ForEach`**); see **`VelocityDampSystem`** in **`Cyberland.Demo`**.
 
 ### 4. Register in your mod’s `IMod.OnLoad` (e.g. `BaseGameMod`, `DemoMod`)
 
@@ -405,7 +406,7 @@ c = new MyComponent { Value = 1f };
 | Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
 | Demo mod entry | `mods/Cyberland.Demo/DemoMod.cs` | **`IMod`**, entity spawn, **`RegisterSequential`** / **`RegisterParallel`** with logical ids |
 | Sequential + input + renderer | `mods/Cyberland.Demo/SpriteMoveSystem.cs` | **`ISystem`**, **`GameHostServices`**, **`SetSpriteWorld`** |
-| Parallel ECS | `mods/Cyberland.Demo/VelocityDampSystem.cs` | **`IParallelSystem`**, **`Velocity`**, scratch buffer pattern |
+| Parallel ECS | `mods/Cyberland.Demo/VelocityDampSystem.cs` | **`IParallelSystem`**, **`QueryChunks<Velocity>`**, **`SimdFloat`** on packed floats |
 | Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, menu key |
 
 ---

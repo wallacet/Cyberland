@@ -1,37 +1,29 @@
-using System.Buffers;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 
 namespace Cyberland.Demo;
 
 /// <summary>
-/// Parallel iteration example: <see cref="Parallel.For"/> cannot close over <see cref="Span{T}"/>,
-/// so we rent a scratch buffer, fan out, then write back (production systems may use fixed chunks or SoA views).
+/// Parallel per-chunk damp: each chunk exposes a contiguous <see cref="Velocity"/> span (SIMD on the packed floats).
 /// </summary>
 public sealed class VelocityDampSystem : IParallelSystem
 {
     public void OnParallelUpdate(World world, ParallelOptions parallelOptions)
     {
-        var store = world.Components<Velocity>();
-        var n = store.Count;
-        if (n == 0)
+        var chunks = new List<ComponentChunkView<Velocity>>();
+        foreach (var chunk in world.QueryChunks<Velocity>())
+            chunks.Add(chunk);
+
+        if (chunks.Count == 0)
             return;
 
-        var span = store.AsSpan();
-        var rented = ArrayPool<Velocity>.Shared.Rent(n);
-        try
+        Parallel.ForEach(chunks, parallelOptions, static chunk =>
         {
-            span.CopyTo(rented);
-            Parallel.For(0, n, parallelOptions, i =>
-            {
-                rented[i].X *= 0.999f;
-                rented[i].Y *= 0.999f;
-            });
-            rented.AsSpan(0, n).CopyTo(span);
-        }
-        finally
-        {
-            ArrayPool<Velocity>.Shared.Return(rented);
-        }
+            var v = chunk.Components;
+            var f = MemoryMarshal.Cast<Velocity, float>(v);
+            SimdFloat.MultiplyInPlace(f, 0.999f);
+        });
     }
 }
