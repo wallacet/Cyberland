@@ -34,6 +34,8 @@ Or run via script:
 
 **Visual Studio Code / Cursor:** default build task builds the solution; **Run** / **Watch** tasks run the host; launch configuration **Cyberland.Host** debugs under **`artifacts/bin/Cyberland.Host/debug/`** so `Mods/` resolves next to the executable.
 
+**Finding Run / Publish:** Names like **Cyberland: Run** are **workspace tasks**, not standalone Command Palette commands—you will not see them when you only open the palette and search for “Cyberland” or “Publish”. Open the repo **folder** (the directory that contains `Cyberland.sln` and `.vscode/tasks.json`), then use **Command Palette** → **Tasks: Run Task** (or **Terminal → Run Task…**), and pick the task from the list. You can type `task` in the palette to jump to **Tasks: Run Task** quickly.
+
 Open the **Command Palette** (`Ctrl+Shift+P`) → **Tasks: Run Task** → pick a **Cyberland:** task (same commands as the Cursor skills):
 
 | Task | Action |

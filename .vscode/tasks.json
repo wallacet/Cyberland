@@ -22,7 +22,11 @@
         "reveal": "always",
         "panel": "shared"
       },
-      "detail": "Build and run Cyberland.Host (Debug). Same as run-cyberland skill."
+      "detail": "Build and run Cyberland.Host (Debug). Same as run-cyberland skill.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiGreen"
+      }
     },
     {
       "label": "Cyberland: Test Engine",
@@ -44,7 +48,11 @@
         "reveal": "always",
         "panel": "shared"
       },
-      "detail": "Engine unit tests with coverlet (100% line coverage gate). Same as test-cyberland-engine skill."
+      "detail": "Engine unit tests with coverlet (100% line coverage gate). Same as test-cyberland-engine skill.",
+      "icon": {
+        "id": "beaker",
+        "color": "terminal.ansiCyan"
+      }
     },
     {
       "label": "Cyberland: Publish Release",
@@ -68,7 +76,11 @@
         "reveal": "always",
         "panel": "shared"
       },
-      "detail": "dotnet publish Cyberland.Host (Release) and copy Mods into publish output. Same as publish-cyberland skill."
+      "detail": "dotnet publish Cyberland.Host (Release) and copy Mods into publish output. Same as publish-cyberland skill.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
     },
     {
       "label": "Cyberland: Clear Artifacts",
@@ -90,7 +102,11 @@
         "reveal": "always",
         "panel": "shared"
       },
-      "detail": "Delete repo-root artifacts/ output folder. Same as clear-cyberland-artifacts skill."
+      "detail": "Delete repo-root artifacts/ output folder. Same as clear-cyberland-artifacts skill.",
+      "icon": {
+        "id": "trash",
+        "color": "terminal.ansiRed"
+      }
     },
     {
       "label": "build",
