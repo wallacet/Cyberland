@@ -18,6 +18,14 @@ From the **repository root**:
 dotnet publish src/Cyberland.Host/Cyberland.Host.csproj -c Release
 ```
 
+Or use the helper script (same steps as below, including `Mods/` copy):
+
+```powershell
+.\scripts\Publish-Cyberland.ps1
+```
+
+**VS Code / Cursor:** Command Palette (`Ctrl+Shift+P`) → **Tasks: Run Task** → **`Cyberland: Publish Release`** runs that script.
+
 - **Publish output:** **`artifacts/publish/Cyberland.Host/release/`** (contains **`Cyberland.Host.exe`** and dependencies).
 - **Mods folder:** Staging targets in the host project run **`AfterTargets="Build"`** and copy **`Mods/Cyberland.Game`** and **`Mods/Cyberland.Demo`** next to the host under **`artifacts/bin/Cyberland.Host/release/`**, not automatically into **`publish/`**. After **`dotnet publish`**, copy mods into the publish tree so the runnable folder matches what **`dotnet run`** / **`dotnet build`** produces:
 

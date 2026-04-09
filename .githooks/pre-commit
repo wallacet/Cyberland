@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+
+set -eu
+
+MAX_MB="${CYBERLAND_MAX_FILE_MB:-4}"
+ALLOW_LARGE="${CYBERLAND_ALLOW_LARGE_FILES:-0}"
+
+if [ "$ALLOW_LARGE" = "1" ]; then
+  echo "CYBERLAND_ALLOW_LARGE_FILES=1 set; skipping large-file guard."
+  exit 0
+fi
+
+MAX_BYTES=$((MAX_MB * 1024 * 1024))
+
+staged_files=$(git diff --cached --name-only --diff-filter=AM)
+if [ -z "$staged_files" ]; then
+  exit 0
+fi
+
+violations=""
+
+for file in $staged_files; do
+  if [ ! -f "$file" ]; then
+    continue
+  fi
+
+  size=$(wc -c < "$file" | tr -d '[:space:]')
+  if [ "$size" -gt "$MAX_BYTES" ]; then
+    mib=$(awk "BEGIN { printf \"%.2f\", $size / 1048576 }")
+    violations="${violations}\n- ${file} (${mib} MiB)"
+  fi
+done
+
+if [ -n "$violations" ]; then
+  echo "ERROR: Commit blocked by large-file guard."
+  printf "Files above %s MiB:\n%b\n" "$MAX_MB" "$violations"
+  echo ""
+  echo "Use GitHub Releases asset bundles for large media under mods/*/Content."
+  echo "One-off bypass (use sparingly): git commit --no-verify"
+  echo "Maintainer local override: CYBERLAND_ALLOW_LARGE_FILES=1 git commit ..."
+  echo "Optional threshold override: CYBERLAND_MAX_FILE_MB=8 git commit ..."
+  exit 1
+fi
+
+exit 0

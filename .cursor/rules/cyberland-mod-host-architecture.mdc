@@ -23,6 +23,12 @@ Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` 
 2. Host build stages **`Cyberland.Game`** and **`Cyberland.Demo`** into `$(OutDir)Mods/` (see `Cyberland.Host.csproj` — `StageBaseMod`, `StageDemoMod`).
 3. `ModLoader.LoadAll` mounts each mod’s content in load order, applies optional **`contentBlocklist`** paths (`VirtualFileSystem.BlockPath`), then loads each `entryAssembly`, finds a concrete `IMod` per DLL, calls `OnLoad(ModLoadContext)`.
 
+### Asset ownership and distribution
+
+- A mod owns its own `Content/` tree. Keep media with the mod it belongs to (`Cyberland.Game` media under `mods/Cyberland.Game/Content`, demo media under `mods/Cyberland.Demo/Content`, etc.).
+- For open-source collaboration, large media is expected to come from release bundles (manifest + fetch script), but extraction still targets the same mod-owned `Content/` paths.
+- Do not centralize shared media in host-only folders just to simplify packaging; preserve mod boundaries so load order and overrides remain predictable.
+
 ## Registering code from a mod
 
 - Implement **`IMod`** with `OnLoad` / `OnUnload`.

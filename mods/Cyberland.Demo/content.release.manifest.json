@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "modId": "cyberland.demo",
+  "releaseTag": "v0.1.0-assets",
+  "targetContentPath": "mods/Cyberland.Demo/Content",
+  "assetArchiveUrl": "https://github.com/wallacet/Cyberland/releases/download/v0.1.0-assets/cyberland.demo.content.v0.1.0.zip",
+  "sha256": "REPLACE_WITH_REAL_SHA256"
+}

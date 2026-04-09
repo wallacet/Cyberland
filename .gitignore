@@ -90,3 +90,18 @@ vendor/
 project.lock.json
 **/appsettings.*.local.json
 *.pfx
+
+# Externalized mod media assets (pulled from GitHub Releases)
+mods/*/Content/**/*.png
+mods/*/Content/**/*.jpg
+mods/*/Content/**/*.jpeg
+mods/*/Content/**/*.webp
+mods/*/Content/**/*.gif
+mods/*/Content/**/*.bmp
+mods/*/Content/**/*.tga
+mods/*/Content/**/*.ktx2
+mods/*/Content/**/*.ogg
+mods/*/Content/**/*.wav
+mods/*/Content/**/*.flac
+mods/*/Content/**/*.mp3
+mods/*/Content/**/*.m4a

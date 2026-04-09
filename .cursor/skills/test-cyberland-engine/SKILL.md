@@ -23,6 +23,7 @@ dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug 
 
 ## VS Code / Cursor
 
+- **Command Palette** (`Ctrl+Shift+P`) → **Tasks: Run Task** → **`Cyberland: Test Engine`** — same as the `dotnet test` command above with coverage.
 - **Terminal → Run Task… → `test-engine`** — same as the `dotnet test` command above with coverage.
 
 ## Agent workflow

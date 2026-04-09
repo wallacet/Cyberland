@@ -7,11 +7,28 @@ alwaysApply: true
 
 This is a cyberpunk 2D single-player RPG optimized for **low footprint** and **broad hardware**.
 
+**Technical design pillars:** modularity through **mods** (gameplay, content, and shipped campaign live in mod assemblies and per-mod `Content/`), **predictable performance**, and **asset discipline** (large media outside git, owned per mod).
+
+## Mod modularity
+
+- **Mods are the unit of feature ownership.** New gameplay, data, and campaign content ship as `IMod` implementations under `mods/<Name>/`, not inside the host or ad hoc shared folders.
+- **Keep mod boundaries sharp.** Prefer self-contained mods: code, `manifest.json`, and optional `content.release.manifest.json` + `Content/` live together so a mod can be understood, versioned, and replaced without central registries.
+- **Avoid a second “god manifest.”** Do not route mod-specific release metadata through repo-wide files when per-mod manifests suffice; the engine host discovers mods by folder structure and each mod’s own files.
+- **Composition over monoliths.** Multiple mods compose at runtime via load order, VFS layering, and ECS system registration — design features so they extend or replace behavior through those mechanisms instead of hard-wiring cross-mod dependencies in the host.
+- The host (`Cyberland.Host` + `GameApplication`) stays thin: bootstrap, window, devices, and mod load — see **cyberland-mod-host-architecture** for boundaries.
+
 ## Performance and disk size
 
 - Prefer algorithms and data layouts that scale well; avoid accidental O(n²) hot paths and hidden allocations in update loops.
 - Treat asset size as a first-class constraint: compress sensibly, avoid duplicate data, and document trade-offs when choosing formats.
 - Load work should be **predictable**: streaming, batching, and fixed budgets beat spikes that stutter on older CPUs or disks.
+
+## Asset distribution policy
+
+- Large binary media (textures, music, voice, etc.) should be distributed via **public GitHub Releases asset bundles**, not committed to git history.
+- Keep ownership by mod: release archives must extract into the corresponding mod `Content/` path (for example `mods/Cyberland.Game/Content`).
+- Repository metadata (manifests, checksums, fetch scripts, docs) should stay in git so fresh clones can reproduce the same asset set.
+- If a large file is committed temporarily for urgent debugging, move it to the release bundle flow immediately after and remove it from normal tracked paths.
 
 ## Hardware range
 

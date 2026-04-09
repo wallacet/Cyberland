@@ -16,6 +16,44 @@ Design goals: **small footprint**, **predictable load**, and **scaling from inte
 
 ---
 
+## Asset setup (GitHub Releases)
+
+Large game media does not live in git. Asset bundles are published in GitHub Releases and mapped by per-mod manifests:
+
+- `mods/Cyberland.Game/content.release.manifest.json`
+- `mods/Cyberland.Demo/content.release.manifest.json`
+
+Each bundle is tied to one mod and extracts into that mod's `Content/` folder:
+
+- `mods/Cyberland.Game/Content/`
+- `mods/Cyberland.Demo/Content/`
+
+From repository root:
+
+```powershell
+.\scripts\Sync-CyberlandAssets.ps1
+```
+
+The script discovers each mod manifest, downloads release archives, verifies SHA256, and extracts to the mod-owned content folders above.
+
+### Git hook setup (recommended)
+
+This repo includes a pre-commit hook that blocks staged files larger than 4 MiB by default.
+
+```powershell
+.\scripts\Setup-GitHooks.ps1
+```
+
+Override options for exceptional cases:
+
+- One-off bypass: `git commit --no-verify`
+- Maintainer local override: `CYBERLAND_ALLOW_LARGE_FILES=1 git commit ...`
+- Temporary threshold override: `CYBERLAND_MAX_FILE_MB=8 git commit ...`
+
+If you bypass, follow up by moving large media into the GitHub Releases asset flow.
+
+---
+
 ## Quick start
 
 From the repository root:
@@ -32,7 +70,16 @@ Or use the helper script:
 .\scripts\Run-Cyberland.ps1 -Watch   # dotnet watch run
 ```
 
-**Visual Studio Code:** default build task builds the solution; **Run** / **Watch** tasks run the host; launch configuration **Cyberland.Host** debugs under **`artifacts/bin/Cyberland.Host/debug/`** so `Mods/` resolves next to the executable.
+**Visual Studio Code / Cursor:** default build task builds the solution; **Run** / **Watch** tasks run the host; launch configuration **Cyberland.Host** debugs under **`artifacts/bin/Cyberland.Host/debug/`** so `Mods/` resolves next to the executable.
+
+Open the **Command Palette** (`Ctrl+Shift+P`) → **Tasks: Run Task** → pick a **Cyberland:** task (same commands as the Cursor skills):
+
+| Task | Action |
+|------|--------|
+| **Cyberland: Run** | `dotnet run` the host (Debug) — *run-cyberland* skill |
+| **Cyberland: Test Engine** | Engine tests with coverlet — *test-cyberland-engine* skill |
+| **Cyberland: Publish Release** | `dotnet publish` + copy `Mods/` into publish output — *publish-cyberland* skill (see `scripts/Publish-Cyberland.ps1`) |
+| **Cyberland: Clear Artifacts** | Delete repo-root `artifacts/` — *clear-cyberland-artifacts* skill (see `scripts/Clear-CyberlandArtifacts.ps1`) |
 
 ### Build output (`artifacts/`)
 
@@ -48,8 +95,8 @@ After **Cyberland.Host** builds, mods are **staged** next to the host executable
 
 | Folder | Contents |
 |--------|----------|
-| **`Mods/Cyberland.Game/`** | Base campaign mod: `Cyberland.Game.dll`, `manifest.json`, `Content/` (e.g. locale strings). |
-| **`Mods/Cyberland.Demo/`** | Optional Vulkan sprite + ECS sample: `Cyberland.Demo.dll`, `manifest.json`, `Content/`. |
+| **`Mods/Cyberland.Game/`** | Base campaign mod: `Cyberland.Game.dll`, `manifest.json`, `Content/` (synced from release bundles). |
+| **`Mods/Cyberland.Demo/`** | Optional Vulkan sprite + ECS sample: `Cyberland.Demo.dll`, `manifest.json`, `Content/` (synced from release bundles). |
 
 `Cyberland.Host.csproj` copies these on build. Remove **`Mods/Cyberland.Demo`** from the output if you do not want the sprite sample.
 
@@ -71,13 +118,19 @@ Use this when you want a **fresh tree** or a **folder you can zip** and run else
 
    Output: **`artifacts/publish/Cyberland.Host/release/`** (executable + dependencies).
 
-3. **Stage mods into the publish folder.** Staging targets run **`AfterTargets="Build"`**, so **`Mods/`** lands under **`artifacts/bin/Cyberland.Host/release/`**, not automatically under **`publish/`**. Copy it beside the published exe:
+3. **Sync mod media assets** (if not already synced):
+
+   ```powershell
+   .\scripts\Sync-CyberlandAssets.ps1
+   ```
+
+4. **Stage mods into the publish folder.** Staging targets run **`AfterTargets="Build"`**, so **`Mods/`** lands under **`artifacts/bin/Cyberland.Host/release/`**, not automatically under **`publish/`**. Copy it beside the published exe:
 
    ```powershell
    Copy-Item -Recurse -Force "artifacts/bin/Cyberland.Host/release/Mods" "artifacts/publish/Cyberland.Host/release/"
    ```
 
-4. **Package** — archive **`artifacts/publish/Cyberland.Host/release/`** (e.g. zip that folder). **`keybindings.json`** is created at runtime next to the exe if missing.
+5. **Package** — archive **`artifacts/publish/Cyberland.Host/release/`** (e.g. zip that folder). **`keybindings.json`** is created at runtime next to the exe if missing.
 
 **Self-contained** (larger, no shared runtime on the target), example for Windows x64:
 
@@ -125,6 +178,8 @@ mods/
   Cyberland.Demo/              # Optional Vulkan sprite + parallel ECS sample mod
 scripts/
   Run-Cyberland.ps1
+  Publish-Cyberland.ps1
+  Clear-CyberlandArtifacts.ps1
 .vscode/
   tasks.json, launch.json
 .cursor/rules/                 # Optional agent / team conventions

@@ -26,6 +26,11 @@ If **`artifacts`** does not exist, the command errors; that is harmless to ignor
 if (Test-Path artifacts) { Remove-Item -Recurse -Force artifacts }
 ```
 
+## VS Code / Cursor
+
+- **Command Palette** (`Ctrl+Shift+P`) → **Tasks: Run Task** → **`Cyberland: Clear Artifacts`**.
+- This runs `scripts/Clear-CyberlandArtifacts.ps1`, which uses the guarded delete form above.
+
 ## Before deleting
 
 - **Close** a running **`Cyberland.Host.exe`** (or any process using files under **`artifacts/`**).

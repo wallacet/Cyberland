@@ -2,6 +2,97 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Cyberland: Run",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/src/Cyberland.Host/Cyberland.Host.csproj",
+        "-c",
+        "Debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {}
+      },
+      "group": "none",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Build and run Cyberland.Host (Debug). Same as run-cyberland skill."
+    },
+    {
+      "label": "Cyberland: Test Engine",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "${workspaceFolder}/tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj",
+        "-c",
+        "Debug",
+        "/p:CollectCoverage=true"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Engine unit tests with coverlet (100% line coverage gate). Same as test-cyberland-engine skill."
+    },
+    {
+      "label": "Cyberland: Publish Release",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "dotnet publish Cyberland.Host (Release) and copy Mods into publish output. Same as publish-cyberland skill."
+    },
+    {
+      "label": "Cyberland: Clear Artifacts",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Clear-CyberlandArtifacts.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Delete repo-root artifacts/ output folder. Same as clear-cyberland-artifacts skill."
+    },
+    {
       "label": "build",
       "command": "dotnet",
       "type": "process",

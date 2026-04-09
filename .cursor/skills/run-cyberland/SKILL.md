@@ -33,6 +33,7 @@ From repo root:
 
 ## VS Code / Cursor
 
+- **Command Palette** (`Ctrl+Shift+P`) → **Tasks: Run Task** → **`Cyberland: Run`** — same as below (`dotnet run` the host, Debug).
 - **Terminal → Run Task… → `build`** — compile the solution (default build task: **Ctrl+Shift+B**).
 - **Run Task… → `run`** — `dotnet run` the host (game window).
 - **Run Task… → `watch`** — `dotnet watch run` for iterative testing.
