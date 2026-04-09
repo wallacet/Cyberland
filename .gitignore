@@ -64,7 +64,13 @@ bld/
 TestResults/
 [Tt]est[Rr]esult*/
 *.trx
-coverage*
+# Coverage outputs
+coverage.json
+coverage.info
+coverage.lcov
+coverage.opencover.xml
+coverage.cobertura.xml
+coverage.xml
 *.coverage
 *.coveragexml
 **/coverage.cobertura.xml
