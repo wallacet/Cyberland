@@ -1,0 +1,39 @@
+name: Engine Tests
+
+on:
+  pull_request:
+    paths:
+      - "src/Cyberland.Engine/**"
+      - "tests/Cyberland.Engine.Tests/**"
+      - "tests/Cyberland.TestMod/**"
+      - "Directory.Build.props"
+      - ".github/workflows/engine-tests.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/Cyberland.Engine/**"
+      - "tests/Cyberland.Engine.Tests/**"
+      - "tests/Cyberland.TestMod/**"
+      - "Directory.Build.props"
+      - ".github/workflows/engine-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  test-engine:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj
+
+      - name: Test with coverage gate
+        run: dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug /p:CollectCoverage=true --no-restore

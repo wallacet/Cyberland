@@ -9,12 +9,13 @@ alwaysApply: false
 ## When you touch `Cyberland.Engine`
 
 1. **Add or update tests** in `tests/Cyberland.Engine.Tests/` for every behavior change (fixes, new APIs, edge cases).
-2. Run from repo root:
+2. Ensure the GitHub Actions workflow **`Engine Tests`** passes for your branch/PR. It runs:
    ```powershell
    dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug /p:CollectCoverage=true
    ```
-   The test project is configured for **100% line coverage** of **`Cyberland.Engine`** (coverlet `Include` filter). The build **fails** if coverage drops. Test binaries build to **`artifacts/bin/Cyberland.Engine.Tests/debug/`** (see root **`Directory.Build.props`**, `UseArtifactsOutput`).
-3. Do **not** lower the coverage threshold to “make CI green.” Increase tests or refactor to keep logic testable.
+   The test project enforces **100% line coverage** of **`Cyberland.Engine`** (coverlet `Include` filter), so CI fails if coverage drops. Test binaries build to **`artifacts/bin/Cyberland.Engine.Tests/debug/`** (see root **`Directory.Build.props`**, `UseArtifactsOutput`).
+3. Local test runs are optional for quick feedback, but not a mandatory agent step once CI is wired.
+4. Do **not** lower the coverage threshold to “make CI green.” Increase tests or refactor to keep logic testable.
 
 ## Excluded from coverage (by design)
 
