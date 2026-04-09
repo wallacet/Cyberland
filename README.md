@@ -32,6 +32,8 @@ Or run via script:
 .\scripts\Run-Cyberland.ps1 -Watch   # dotnet watch run
 ```
 
+If PowerShell reports that the script **is not digitally signed** (often in an **elevated** shell with a strict policy), use the matching **`.cmd`** wrapper instead—it runs the same script with `-ExecutionPolicy Bypass`: `.\scripts\Run-Cyberland.cmd`, `.\scripts\Publish-Cyberland.cmd`, `.\scripts\Sync-CyberlandAssets.cmd`, `.\scripts\Clear-CyberlandArtifacts.cmd`, `.\scripts\Setup-GitHooks.cmd`. Alternatively: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` (applies only to your user), or a one-off `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Run-Cyberland.ps1`.
+
 **Visual Studio Code / Cursor:** default build task builds the solution; **Run** / **Watch** tasks run the host; launch configuration **Cyberland.Host** debugs under **`artifacts/bin/Cyberland.Host/debug/`** so `Mods/` resolves next to the executable.
 
 **Finding Run / Publish:** Names like **Cyberland: Run** are **workspace tasks**, not standalone Command Palette commands—you will not see them when you only open the palette and search for “Cyberland” or “Publish”. Open the repo **folder** (the directory that contains `Cyberland.sln` and `.vscode/tasks.json`), then use **Command Palette** → **Tasks: Run Task** (or **Terminal → Run Task…**), and pick the task from the list. You can type `task` in the palette to jump to **Tasks: Run Task** quickly.

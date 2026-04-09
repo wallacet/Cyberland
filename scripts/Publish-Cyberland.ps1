@@ -1,5 +1,6 @@
 # Publishes Cyberland.Host to artifacts/publish and copies staged Mods/ beside the published exe.
 # Mirrors .cursor/skills/publish-cyberland/SKILL.md (framework-dependent Release by default).
+# If execution policy blocks unsigned scripts, use .\scripts\Publish-Cyberland.cmd (see README).
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release'

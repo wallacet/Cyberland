@@ -1,3 +1,5 @@
+# Syncs per-mod asset bundles from GitHub Releases (see README).
+# If execution policy blocks unsigned scripts, use .\scripts\Sync-CyberlandAssets.cmd (see README).
 param(
     [string]$ManifestName = "content.release.manifest.json",
     [string]$WorkspaceRoot = (Get-Location).Path

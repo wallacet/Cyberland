@@ -1,3 +1,6 @@
+# Points this repo at .githooks/ (run from repository root).
+# If execution policy blocks unsigned scripts, use .\scripts\Setup-GitHooks.cmd (see README).
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 

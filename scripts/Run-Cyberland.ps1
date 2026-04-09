@@ -1,6 +1,7 @@
 # Build and run the game host from the repository root (same as VS Code "run" task).
 # Usage:  .\scripts\Run-Cyberland.ps1
 #         .\scripts\Run-Cyberland.ps1 -Watch
+# If execution policy blocks unsigned scripts, use .\scripts\Run-Cyberland.cmd (see README).
 
 param(
     [switch] $Watch
