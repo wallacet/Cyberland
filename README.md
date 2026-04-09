@@ -139,17 +139,17 @@ scripts/
 
 ```mermaid
 flowchart TB
-    subgraph host [Host process]
+    subgraph Host["Host process"]
         GA[GameApplication]
-        GA --> Window[Silk.NET Window]
+        GA --> Window["Silk.NET Window"]
         GA --> VK[VulkanRenderer]
         GA --> Sched[SystemScheduler]
-        GA --> World[World ECS]
+        GA --> World["World ECS"]
         GA --> VFS[VirtualFileSystem]
         ML[ModLoader]
         GA --> ML
-        ML --> ModDll[IMod DLLs e.g. Game + Demo]
-        ModDll --> Systems[ISystem / IParallelSystem]
+        ML --> ModDll["IMod DLLs (Game, Demo)"]
+        ModDll --> Systems["ISystem / IParallelSystem"]
         Systems --> World
         Systems --> HostSvc[GameHostServices]
         HostSvc --> VK
