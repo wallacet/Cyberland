@@ -24,6 +24,15 @@ Apply this rule when any of these are true:
 3. Keep examples and commands runnable from repo root on PowerShell unless a section explicitly says otherwise.
 4. Preserve beginner readability: explain what changed, where it lives, and why it matters.
 
+## High-level architecture section (`## High-level architecture`)
+
+Whenever you add or edit **`README.md`**, if the change touches the **High-level architecture** heading, the **mermaid** fenced block, or the numbered list immediately below it, treat that as a **required review**:
+
+1. **Fenced diagram** — Exactly one ` ```mermaid ` opening fence and one closing ` ``` ` on their own lines; no smart quotes or stray characters inside the fence.
+2. **Mermaid syntax** — Prefer **quoted labels** (`id["Label with spaces"]`) for node text. Avoid raw `/` in labels when it causes parse failures; use **and**, commas, or `<br/>` if needed. Use **distinct node ids** (avoid ambiguous one-word ids like `World` if the renderer mis-parses). Keep **subgraph** / **end** balanced; avoid deep indentation inside the block if preview tools choke.
+3. **Meaning** — The diagram and the four numbered steps must stay aligned with **`GameApplication`**, **`ModLoader` / `IMod`**, **`ModLoadContext`**, **`SystemScheduler.RunFrame`**, **`World`**, and **`GameHostServices`** as described in `.cursor/rules/cyberland-mod-host-architecture.mdc`.
+4. **Sanity check** — Re-open the rendered `README.md` (GitHub preview or IDE Markdown preview) and confirm the diagram renders and the section is not merged into neighboring headings.
+
 ## Required final step: validate and fix
 
 Before handoff, validate the README edits and fix any issues found:
@@ -32,4 +41,5 @@ Before handoff, validate the README edits and fix any issues found:
 2. Verify paths, project names, and command lines are accurate and still valid.
 3. Check for contradictions with `.cursor/rules/cyberland-mod-host-architecture.mdc` and other architecture guidance.
 4. Fix stale statements, broken references, unclear wording, or formatting issues in the same change set.
-5. Only hand off once the README is internally consistent with the code and rules you changed.
+5. If **High-level architecture** was modified, complete the checklist in **High-level architecture section** above before handoff.
+6. Only hand off once the README is internally consistent with the code and rules you changed.

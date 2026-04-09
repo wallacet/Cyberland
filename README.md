@@ -202,23 +202,23 @@ scripts/
 
 ```mermaid
 flowchart TB
-    subgraph Host["Host process"]
-        GA[GameApplication]
-        GA --> Window["Silk.NET Window"]
-        GA --> VK[VulkanRenderer]
-        GA --> Sched[SystemScheduler]
-        GA --> World["World ECS"]
-        GA --> VFS[VirtualFileSystem]
-        ML[ModLoader]
-        GA --> ML
-        ML --> ModDll["IMod DLLs (Game, Demo)"]
-        ModDll --> Systems["ISystem / IParallelSystem"]
-        Systems --> World
-        Systems --> HostSvc[GameHostServices]
-        HostSvc --> VK
-        HostSvc --> Input[IInputContext]
-        HostSvc --> Keys[KeyBindingStore]
-    end
+  subgraph HP["Host process"]
+    GA["GameApplication"]
+    GA --> WIN["Silk.NET Window"]
+    GA --> VK["VulkanRenderer"]
+    GA --> SCHED["SystemScheduler"]
+    GA --> ECS["World ECS"]
+    GA --> VFS["VirtualFileSystem"]
+    ML["ModLoader"]
+    GA --> ML
+    ML --> MODS["IMod DLLs Game Demo"]
+    MODS --> SYS["ISystem and IParallelSystem"]
+    SYS --> ECS
+    SYS --> SVC["GameHostServices"]
+    SVC --> VK
+    SVC --> INP["IInputContext"]
+    SVC --> KEYS["KeyBindingStore"]
+  end
 ```
 
 1. **Host** creates the window, graphics, input, keybindings, ECS world, scheduler, and VFS, then calls **`ModLoader.LoadAll`** on `AppContext.BaseDirectory/Mods`.
