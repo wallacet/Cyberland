@@ -3,7 +3,7 @@ using Cyberland.Engine.Modding;
 namespace Cyberland.Game;
 
 /// <summary>
-/// The shipped campaign uses the same <see cref="IMod"/> pipeline as third-party content.
+/// Shipped base campaign mod: locale and future core content. Uses the same <see cref="IMod"/> pipeline as third-party mods.
 /// </summary>
 public sealed class BaseGameMod : IMod
 {
@@ -19,12 +19,7 @@ public sealed class BaseGameMod : IMod
 
     public void OnLoad(ModLoadContext context)
     {
-        var demoEntity = context.World.CreateEntity();
-        ref var v = ref context.World.Components<Velocity>().GetOrAdd(demoEntity);
-        v = new Velocity { X = 100f, Y = 0f };
-
-        context.Scheduler.Register(new DemoSpriteMoveSystem(context.Host));
-        context.Scheduler.Register(new DemoVelocityDampSystem());
+        /* Core gameplay systems register here as the campaign grows. */
     }
 
     public void OnUnload()

@@ -10,10 +10,12 @@
   <ItemGroup>
     <ProjectReference Include="..\Cyberland.Engine\Cyberland.Engine.csproj" />
     <ProjectReference Include="..\..\mods\Cyberland.Game\Cyberland.Game.csproj" />
+    <ProjectReference Include="..\..\mods\Cyberland.Demo\Cyberland.Demo.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <_BaseModContent Include="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Game\Content\**\*" />
+    <_DemoModContent Include="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo\Content\**\*" />
   </ItemGroup>
 
   <Target Name="StageBaseMod" AfterTargets="Build">
@@ -24,6 +26,16 @@
     <Copy SourceFiles="$(OutDir)Cyberland.Game.dll" DestinationFolder="$(_ModOut)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Game\manifest.json" DestinationFolder="$(_ModOut)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(_BaseModContent)" DestinationFolder="$(_ModOut)Content\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StageDemoMod" AfterTargets="Build">
+    <PropertyGroup>
+      <_DemoOut>$(OutDir)Mods\Cyberland.Demo\</_DemoOut>
+    </PropertyGroup>
+    <MakeDir Directories="$(_DemoOut)" />
+    <Copy SourceFiles="$(OutDir)Cyberland.Demo.dll" DestinationFolder="$(_DemoOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo\manifest.json" DestinationFolder="$(_DemoOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_DemoModContent)" DestinationFolder="$(_DemoOut)Content\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

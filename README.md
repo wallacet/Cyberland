@@ -32,13 +32,61 @@ Or use the helper script:
 .\scripts\Run-Cyberland.ps1 -Watch   # dotnet watch run
 ```
 
-**Visual Studio Code:** default build task builds the solution; **Run** / **Watch** tasks run the host; launch configuration **Cyberland.Host** debugs the staged output (working directory is the host’s `bin` folder so `Mods/` resolves next to the executable).
+**Visual Studio Code:** default build task builds the solution; **Run** / **Watch** tasks run the host; launch configuration **Cyberland.Host** debugs under **`artifacts/bin/Cyberland.Host/debug/`** so `Mods/` resolves next to the executable.
 
-After **Cyberland.Host** builds, the base mod is **staged** to:
+### Build output (`artifacts/`)
 
-`src/Cyberland.Host/bin/<Configuration>/net8.0/Mods/Cyberland.Game/`
+The solution uses **.NET 8 [artifacts output layout](https://learn.microsoft.com/en-us/dotnet/core/sdk/artifacts-output)** (`UseArtifactsOutput` + `ArtifactsPath` in **`Directory.Build.props`**). **All** compiled output, intermediates, and **`dotnet publish`** output go under **`artifacts/`** at the repo root—**not** into `bin/` / `obj/` next to each `.csproj`.
 
-That folder must contain `Cyberland.Game.dll`, `manifest.json`, and `Content/` when you run the host—`Cyberland.Host.csproj` copies them on build.
+| Path | Contents |
+|------|----------|
+| **`artifacts/bin/<ProjectName>/debug/`** or **`.../release/`** | Built assemblies and deps (e.g. **`artifacts/bin/Cyberland.Host/debug/Cyberland.Host.exe`**). Mod staging runs on **build** and places **`Mods/`** here next to the host. |
+| **`artifacts/obj/...`** | MSBuild intermediate files per project. |
+| **`artifacts/publish/<ProjectName>/debug/`** or **`.../release/`** | **`dotnet publish`** output for that project (e.g. **`Cyberland.Host.exe`** and dependencies). **`Mods/`** is not copied here automatically; see [Clean build and packaging](#clean-build-and-packaging) below. |
+
+After **Cyberland.Host** builds, mods are **staged** next to the host executable under `Mods/`:
+
+| Folder | Contents |
+|--------|----------|
+| **`Mods/Cyberland.Game/`** | Base campaign mod: `Cyberland.Game.dll`, `manifest.json`, `Content/` (e.g. locale strings). |
+| **`Mods/Cyberland.Demo/`** | Optional Vulkan sprite + ECS sample: `Cyberland.Demo.dll`, `manifest.json`, `Content/`. |
+
+`Cyberland.Host.csproj` copies these on build. Remove **`Mods/Cyberland.Demo`** from the output if you do not want the sprite sample.
+
+### Clean build and packaging
+
+Use this when you want a **fresh tree** or a **folder you can zip** and run elsewhere (framework-dependent builds still need the **.NET 8** runtime on the target machine unless you publish self-contained).
+
+1. **Optional — wipe build outputs** (close any running **`Cyberland.Host.exe`** first):
+
+   ```powershell
+   if (Test-Path artifacts) { Remove-Item -Recurse -Force artifacts }
+   ```
+
+2. **Publish Release** from the repository root:
+
+   ```powershell
+   dotnet publish src/Cyberland.Host/Cyberland.Host.csproj -c Release
+   ```
+
+   Output: **`artifacts/publish/Cyberland.Host/release/`** (executable + dependencies).
+
+3. **Stage mods into the publish folder.** Staging targets run **`AfterTargets="Build"`**, so **`Mods/`** lands under **`artifacts/bin/Cyberland.Host/release/`**, not automatically under **`publish/`**. Copy it beside the published exe:
+
+   ```powershell
+   Copy-Item -Recurse -Force "artifacts/bin/Cyberland.Host/release/Mods" "artifacts/publish/Cyberland.Host/release/"
+   ```
+
+4. **Package** — archive **`artifacts/publish/Cyberland.Host/release/`** (e.g. zip that folder). **`keybindings.json`** is created at runtime next to the exe if missing.
+
+**Self-contained** (larger, no shared runtime on the target), example for Windows x64:
+
+```powershell
+dotnet publish src/Cyberland.Host/Cyberland.Host.csproj -c Release -r win-x64 --self-contained true
+Copy-Item -Recurse -Force "artifacts/bin/Cyberland.Host/release/Mods" "artifacts/publish/Cyberland.Host/release/"
+```
+
+Project-specific notes for agents live in **`.cursor/skills/publish-cyberland/`** and **`.cursor/skills/clear-cyberland-artifacts/`**.
 
 ---
 
@@ -60,15 +108,17 @@ Types that require a real **window**, **Vulkan**, **OpenAL**, or **Win32 Message
 
 ```
 Cyberland.sln
-Directory.Build.props          # Shared SDK / language settings
+Directory.Build.props          # Shared SDK, language settings, artifacts output root
+artifacts/                     # Build outputs (gitignored): bin/, obj/, publish/
 tests/
   Cyberland.Engine.Tests/      # xUnit + coverlet (100% line coverage on Cyberland.Engine)
   Cyberland.TestMod/           # Minimal IMod assembly used by ModLoader tests
 src/
-  Cyberland.Host/              # Executable: references Engine + Cyberland.Game (build)
+  Cyberland.Host/              # Executable: references Engine + staged mods (build)
   Cyberland.Engine/            # Engine library (ECS, Vulkan, input, mods, assets, …)
 mods/
-  Cyberland.Game/              # Base game mod (IMod, systems, components, Content/)
+  Cyberland.Game/              # Base campaign mod (IMod, locale Content/)
+  Cyberland.Demo/              # Optional Vulkan sprite + parallel ECS sample mod
 scripts/
   Run-Cyberland.ps1
 .vscode/
@@ -78,9 +128,10 @@ scripts/
 
 | Project | Role |
 |---------|------|
-| **Cyberland.Host** | Entry point (`Program.cs` → `GameApplication`). Builds and stages `mods/Cyberland.Game` into `$(OutDir)Mods/Cyberland.Game/`. |
+| **Cyberland.Host** | Entry point (`Program.cs` → `GameApplication`). Builds and stages **`Cyberland.Game`** and **`Cyberland.Demo`** into `$(OutDir)Mods/`. |
 | **Cyberland.Engine** | All shared runtime: windowing, Vulkan renderer, ECS, task scheduler, virtual FS, assets, localization, OpenAL, mod loader, `GameHostServices`. |
-| **Cyberland.Game** | Class library compiled to `Cyberland.Game.dll`. Not run directly; loaded by the host from the staged mod folder. |
+| **Cyberland.Game** | Base campaign mod → `Cyberland.Game.dll` (locale and future core data). |
+| **Cyberland.Demo** | Optional sample mod → `Cyberland.Demo.dll` (sprite movement, velocity damp ECS). Ship without it by not staging or deleting that folder from output. |
 
 ---
 
@@ -97,7 +148,7 @@ flowchart TB
         GA --> VFS[VirtualFileSystem]
         ML[ModLoader]
         GA --> ML
-        ML --> ModDll[Cyberland.Game.dll IMod]
+        ML --> ModDll[IMod DLLs e.g. Game + Demo]
         ModDll --> Systems[ISystem / IParallelSystem]
         Systems --> World
         Systems --> HostSvc[GameHostServices]
@@ -124,7 +175,7 @@ flowchart TB
 - **`ComponentStore<T>`** — dense storage, **`GetOrAdd`**, **`AsSpan()`** for hot loops.
 - **`EntityId`** — opaque id from **`EntityRegistry`**.
 
-Components are **`struct`** types; define them in your mod assembly (see `Velocity` in `Cyberland.Game`).
+Components are **`struct`** types; define them in your mod assembly (see `Velocity` in **`Cyberland.Demo`**).
 
 ### Task scheduler (`Core/Tasks`)
 
@@ -177,10 +228,11 @@ Frame order:
 
 ```
 Mods/
-  Cyberland.Game/
+  Cyberland.Game/         # loadOrder 0 — locale, future core assets
+  Cyberland.Demo/         # loadOrder 10 — optional sprite / ECS sample
     manifest.json
-    Cyberland.Game.dll    # copied by host build
-    Content/              # optional; mounted to VFS
+    *.dll
+    Content/                # mounted to VFS (last mod wins for same path)
 ```
 
 ### `manifest.json`
@@ -203,7 +255,7 @@ Example (see `mods/Cyberland.Game/manifest.json`):
 |--------|-----|
 | **`KeyBindings`** | **`IsDown(keyboard, "move_up")`** etc. |
 | **`Input`** | Raw **`IKeyboard`** / mice if needed. |
-| **`Renderer`** | **`SwapchainPixelSize`**, **`SetSpriteWorld`** for the built-in sprite demo. |
+| **`Renderer`** | **`SwapchainPixelSize`**, **`SetSpriteWorld`** (e.g. **`Cyberland.Demo`** sprite sample). |
 
 The host sets **`Renderer`** and **`Input`** only after successful window/input setup; systems should null-check when relevant.
 
@@ -213,12 +265,12 @@ The host sets **`Renderer`** and **`Input`** only after successful window/input 
 
 ### 1. Prefer a system in the mod, not the host
 
-Add logic under **`mods/Cyberland.Game`** (or a **new** mod project + `manifest.json` + stage it like the base game).
+Add logic under **`mods/<YourMod>/`** with a **`manifest.json`** and stage it from **`Cyberland.Host.csproj`** like **`Cyberland.Game`** / **`Cyberland.Demo`**.
 
 ### 2. Define data as components
 
 ```csharp
-namespace Cyberland.Game;
+namespace MyMod;
 
 public struct MyComponent
 {
@@ -231,9 +283,9 @@ Use **`world.Components<MyComponent>().GetOrAdd(entity)`** (or **`TryGet`**) to 
 ### 3. Implement `ISystem` and/or `IParallelSystem`
 
 - **`ISystem`** — single-threaded; use for input, gameplay ordering, talking to **`GameHostServices`**, or anything that must not race the ECS stores without care.
-- **`IParallelSystem`** — use for CPU-heavy work over **`ComponentStore<T>.AsSpan()`**; follow the pattern in **`DemoVelocityDampSystem`** (copy/rent/write back if you cannot share spans safely across **`Parallel.For`**).
+- **`IParallelSystem`** — use for CPU-heavy work over **`ComponentStore<T>.AsSpan()`**; follow the pattern in **`VelocityDampSystem`** in **`Cyberland.Demo`** (copy/rent/write back if you cannot share spans safely across **`Parallel.For`**).
 
-### 4. Register in `BaseGameMod.OnLoad` (or your mod’s `OnLoad`)
+### 4. Register in your mod’s `IMod.OnLoad` (e.g. `BaseGameMod`, `DemoMod`)
 
 ```csharp
 context.Scheduler.Register(new MySystem(context.Host));
@@ -264,7 +316,7 @@ c = new MyComponent { Value = 1f };
 1. Add a project under **`mods/YourMod/`** referencing **`Cyberland.Engine`**.
 2. Implement **`IMod`**.
 3. Add **`manifest.json`**.
-4. Reference the mod from **`Cyberland.Host.csproj`** and extend the **`StageBaseMod`**-style **Copy** target (or duplicate it) so **`Mods/YourMod/`** is populated in the output directory.
+4. Reference the mod from **`Cyberland.Host.csproj`** and add a **`Stage*Mod`** **Copy** target (mirror **`StageBaseMod`** / **`StageDemoMod`**) so **`Mods/YourMod/`** is populated in the output directory.
 
 ---
 
@@ -272,9 +324,10 @@ c = new MyComponent { Value = 1f };
 
 | Example | Location | Shows |
 |---------|----------|--------|
-| Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | `IMod`, entity spawn, **`Register`** |
-| Sequential + input + renderer | `mods/Cyberland.Game/DemoSpriteMoveSystem.cs` | **`ISystem`**, **`GameHostServices`**, **`SetSpriteWorld`** |
-| Parallel ECS | `mods/Cyberland.Game/DemoVelocityDampSystem.cs` | **`IParallelSystem`**, **`Velocity`**, scratch buffer pattern |
+| Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
+| Demo mod entry | `mods/Cyberland.Demo/DemoMod.cs` | **`IMod`**, entity spawn, **`Register`** |
+| Sequential + input + renderer | `mods/Cyberland.Demo/SpriteMoveSystem.cs` | **`ISystem`**, **`GameHostServices`**, **`SetSpriteWorld`** |
+| Parallel ECS | `mods/Cyberland.Demo/VelocityDampSystem.cs` | **`IParallelSystem`**, **`Velocity`**, scratch buffer pattern |
 | Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, menu key |
 
 ---

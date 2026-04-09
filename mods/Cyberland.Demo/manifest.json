@@ -1,0 +1,8 @@
+{
+  "id": "cyberland.demo",
+  "name": "Cyberland (Vulkan sprite demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.dll",
+  "contentRoot": "Content",
+  "loadOrder": 10
+}

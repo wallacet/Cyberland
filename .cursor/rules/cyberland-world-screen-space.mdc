@@ -15,7 +15,7 @@ alwaysApply: false
 **Origin bottom-left, +X right, +Y up** (pixels). Use for sprite position, ECS, and physics.
 
 - “Move up” → **increase** world Y (`dy += 1` for normalized input).
-- Integrate in world space, then call **`SetSpriteWorld`** each frame; do not apply `WorldCenterToScreenPixel` in gameplay code — conversion lives in the renderer (e.g. `DemoSpriteMoveSystem` in the base mod).
+- Integrate in world space, then call **`SetSpriteWorld`** each frame; do not apply `WorldCenterToScreenPixel` in gameplay code — conversion lives in the renderer (e.g. **`SpriteMoveSystem`** in **`Cyberland.Demo`**).
 
 **Velocity** world → screen (one frame): `WorldScreenSpace.WorldVelocityToScreenVelocity(worldV)` (flips Y only) — for UI or other consumers; the sprite draw path uses world → screen inside the renderer.
 

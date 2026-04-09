@@ -4,13 +4,12 @@ using Cyberland.Engine.Hosting;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 
-namespace Cyberland.Game;
+namespace Cyberland.Demo;
 
 /// <summary>
-/// WASD / arrows move the Vulkan demo sprite in <see cref="WorldScreenSpace"/>; the host renderer converts to pixels.
-/// Registered by <see cref="BaseGameMod"/> like any other gameplay system.
+/// WASD / arrows move the Vulkan sprite in <see cref="WorldScreenSpace"/>; the host renderer converts to pixels.
 /// </summary>
-public sealed class DemoSpriteMoveSystem : ISystem
+public sealed class SpriteMoveSystem : ISystem
 {
     public const float SpriteHalfExtent = 48f;
     private const float MoveSpeed = 320f;
@@ -19,7 +18,7 @@ public sealed class DemoSpriteMoveSystem : ISystem
     private Vector2D<float> _spriteWorld;
     private bool _spriteInitialized;
 
-    public DemoSpriteMoveSystem(GameHostServices host) =>
+    public SpriteMoveSystem(GameHostServices host) =>
         _host = host;
 
     public void OnUpdate(World world, float deltaSeconds)

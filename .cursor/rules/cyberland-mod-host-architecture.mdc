@@ -11,34 +11,35 @@ alwaysApply: false
 | Layer | Project / location | Owns |
 |--------|-------------------|------|
 | **Host** | `Cyberland.Host`, `Cyberland.Engine.GameApplication` | Process entry, window, Vulkan init, swapchain present, global input context, keybinding store file, audio device, ECS `World` + `SystemScheduler`, mod discovery, `Mods/` staging |
-| **Shipped gameplay** | `mods/Cyberland.Game` (same contract as third-party mods) | `IMod` entry (`BaseGameMod`), ECS systems, base components, content under `Content/` |
+| **Base campaign** | `mods/Cyberland.Game` | `IMod` (`BaseGameMod`), locale and future core **`Content/`** |
+| **Optional sample** | `mods/Cyberland.Demo` | `IMod` (`DemoMod`): Vulkan sprite + parallel velocity damp ECS (can be omitted from staging) |
 | **Engine** | `Cyberland.Engine` | Reusable APIs: ECS, tasks, rendering, input helpers, `GameHostServices`, `ModLoadContext` |
 
-Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` unless it is truly host-only (e.g. **Escape** → close window). Visual demos and prototypes belong in a mod.
+Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` unless it is truly host-only (e.g. **Escape** → close window). Prototypes and samples belong in their own mod assemblies.
 
 ## Mod pipeline
 
 1. Each mod folder under `Mods/<Name>/` has `manifest.json` (`entryAssembly`, `loadOrder`, `contentRoot`).
-2. Host builds stage `Cyberland.Game.dll` and assets into `$(OutDir)Mods/Cyberland.Game/` (see `Cyberland.Host.csproj`).
-3. `ModLoader.LoadAll` mounts content, loads assemblies, finds a concrete `IMod`, calls `OnLoad(ModLoadContext)`.
+2. Host build stages **`Cyberland.Game`** and **`Cyberland.Demo`** into `$(OutDir)Mods/` (see `Cyberland.Host.csproj` — `StageBaseMod`, `StageDemoMod`).
+3. `ModLoader.LoadAll` mounts content (order + shadowing), loads each `entryAssembly`, finds a concrete `IMod` per DLL, calls `OnLoad(ModLoadContext)`.
 
 ## Registering code from a mod
 
 - Implement **`IMod`** with `OnLoad` / `OnUnload`.
 - In **`OnLoad`**, use **`context.Scheduler.Register(...)`** for gameplay:
-  - **`ISystem`** — ordered, main-thread (`DemoSpriteMoveSystem`).
-  - **`IParallelSystem`** — after all sequential systems each frame (`DemoVelocityDampSystem`).
+  - **`ISystem`** — ordered, main-thread (e.g. **`SpriteMoveSystem`** in **`Cyberland.Demo`**).
+  - **`IParallelSystem`** — after all sequential systems each frame (e.g. **`VelocityDampSystem`**).
 - Use **`context.World`** for entities and `Components<T>()`.
 - Use **`context.Host`** (`GameHostServices`) for **KeyBindings**, **Input** (`IInputContext`), and **Renderer** (`VulkanRenderer`) when the mod needs to drive the host window. Do not static-import host singletons.
 
 ## Adding a new gameplay feature (checklist)
 
-1. Prefer a **new `ISystem` or `IParallelSystem`** in `mods/Cyberland.Game` (or a new mod project referenced and staged like the base game).
-2. Register it from **`BaseGameMod.OnLoad`** (or the mod’s own `IMod`).
-3. Add **components** as `struct`s in the mod assembly (see `Velocity`).
+1. Prefer a **new `ISystem` or `IParallelSystem`** in the appropriate mod project (`Cyberland.Game` for campaign, or a new mod + staging target).
+2. Register it from that mod’s **`IMod.OnLoad`**.
+3. Add **components** as `struct`s in the mod assembly (see **`Velocity`** in **`Cyberland.Demo`**).
 4. If the feature needs drawing, call **`Host.Renderer`** (e.g. `SetSpriteWorld`) from a system — keep **world vs screen** rules in `WorldScreenSpace` / renderer.
 5. Keep **`GameApplication`** limited to bootstrap and host-only input (e.g. menu to exit).
 
 ## Third-party mods
 
-Same as base: implement `IMod`, ship `manifest.json` + DLL under `Mods/`, use `ModLoadContext` only (no private host APIs beyond `GameHostServices`).
+Same as shipped mods: implement `IMod`, ship `manifest.json` + DLL under `Mods/`, use `ModLoadContext` only (no private host APIs beyond `GameHostServices`).

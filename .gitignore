@@ -31,11 +31,13 @@ $RECYCLE.BIN/
 .idea/
 *.sln.iml
 
-# Build outputs (.NET — any folder depth)
+# Build outputs — all SDK output lives under repo-root artifacts/ (Directory.Build.props:
+# UseArtifactsOutput + ArtifactsPath). Includes bin/, obj/, and publish/ there—not per-project bin/obj.
+/artifacts/
+
+# Stray bin/obj if a project opts out of artifacts layout or uses other tools
 **/bin/
 **/obj/
-**/artifacts/
-**/publish/
 **/out/
 bld/
 [Bb]in/
@@ -43,7 +45,7 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
-# Compiled / native binaries (catch stragglers outside bin/)
+# Compiled / native binaries (catch stragglers outside ignored build dirs)
 *.o
 *.obj
 *.exe

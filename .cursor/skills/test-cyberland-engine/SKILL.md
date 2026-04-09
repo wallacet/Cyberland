@@ -10,6 +10,8 @@ description: >-
 
 The test project is **`tests/Cyberland.Engine.Tests`**. It references **`Cyberland.Engine`**, **`Cyberland.TestMod`** (minimal `IMod` for `ModLoader` tests), and enforces **100% line coverage** on the engine assembly via **coverlet.msbuild** (`/p:CollectCoverage=true`).
 
+Build outputs for tests and dependencies go to **`artifacts/bin/<ProjectName>/debug/`** (see **`Directory.Build.props`**, `UseArtifactsOutput`), not under **`tests/.../bin`**.
+
 ## Quick command (repository root)
 
 ```powershell
@@ -32,4 +34,4 @@ dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug 
 
 ## Output
 
-Coverlet writes **`coverage.cobertura.xml`** under the test project’s output folder; it is gitignored.
+Coverlet writes **`coverage.cobertura.xml`** next to the **`tests/Cyberland.Engine.Tests`** project folder by default; it is gitignored. Built test assemblies are under **`artifacts/bin/Cyberland.Engine.Tests/debug/`**.

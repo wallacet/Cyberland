@@ -13,7 +13,7 @@ alwaysApply: false
    ```powershell
    dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug /p:CollectCoverage=true
    ```
-   The test project is configured for **100% line coverage** of **`Cyberland.Engine`** (coverlet `Include` filter). The build **fails** if coverage drops.
+   The test project is configured for **100% line coverage** of **`Cyberland.Engine`** (coverlet `Include` filter). The build **fails** if coverage drops. Test binaries build to **`artifacts/bin/Cyberland.Engine.Tests/debug/`** (see root **`Directory.Build.props`**, `UseArtifactsOutput`).
 3. Do **not** lower the coverage threshold to “make CI green.” Increase tests or refactor to keep logic testable.
 
 ## Excluded from coverage (by design)

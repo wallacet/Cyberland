@@ -2,13 +2,13 @@ using System.Buffers;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 
-namespace Cyberland.Game;
+namespace Cyberland.Demo;
 
 /// <summary>
-/// Demonstrates parallel iteration: <see cref="Parallel.For"/> cannot close over <see cref="Span{T}"/>,
-/// so we rent a scratch buffer, fan out, then write back (real systems will use fixed chunks or SoA views).
+/// Parallel iteration example: <see cref="Parallel.For"/> cannot close over <see cref="Span{T}"/>,
+/// so we rent a scratch buffer, fan out, then write back (production systems may use fixed chunks or SoA views).
 /// </summary>
-public sealed class DemoVelocityDampSystem : IParallelSystem
+public sealed class VelocityDampSystem : IParallelSystem
 {
     public void OnParallelUpdate(World world, ParallelOptions parallelOptions)
     {

@@ -22,6 +22,6 @@ When adding a feature, note **who pays the cost** (CPU, GPU, memory, disk, load 
 
 ## Where code belongs
 
-Shipped gameplay and demos live in **mods** (e.g. `mods/Cyberland.Game`) via `IMod` and ECS systems — not in `GameApplication`. See **cyberland-mod-host-architecture** for host vs mod boundaries.
+Shipped gameplay lives in **mods** (e.g. `mods/Cyberland.Game` for the campaign shell, `mods/Cyberland.Demo` for the optional Vulkan sprite sample) via `IMod` and ECS systems — not in `GameApplication`. See **cyberland-mod-host-architecture** for host vs mod boundaries.
 
 Engine changes to **`Cyberland.Engine`** must keep **`Cyberland.Engine.Tests`** passing with **100% line coverage** on the engine assembly; see **cyberland-engine-tests**.

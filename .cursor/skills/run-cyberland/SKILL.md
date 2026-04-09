@@ -7,7 +7,14 @@ description: >-
 
 # Run Cyberland
 
-The executable entry point is **`src/Cyberland.Host`**. It references **Cyberland.Engine** and stages **mods/Cyberland.Game** into the output `Mods` folder on build.
+The executable entry point is **`src/Cyberland.Host`**. It references **Cyberland.Engine** and stages **`mods/Cyberland.Game`** (base locale) and **`mods/Cyberland.Demo`** (optional sprite sample) into the output **`Mods/`** folder on build.
+
+## Build output location
+
+The repo uses **.NET 8 artifacts output** (`UseArtifactsOutput` in **`Directory.Build.props`**). After **`dotnet build`** or **`dotnet run`**, binaries live under **`artifacts/bin/<ProjectName>/<debug|release>/`**, not under per-project **`src/.../bin`**.
+
+- **Run the game directly:** `artifacts/bin/Cyberland.Host/debug/Cyberland.Host.exe` (Debug) or **`.../release/...`** for Release.
+- **Mods** are next to the host: **`artifacts/bin/Cyberland.Host/debug/Mods/`**.
 
 ## Quick commands (repository root)
 
@@ -29,7 +36,7 @@ From repo root:
 - **Terminal → Run Task… → `build`** — compile the solution (default build task: **Ctrl+Shift+B**).
 - **Run Task… → `run`** — `dotnet run` the host (game window).
 - **Run Task… → `watch`** — `dotnet watch run` for iterative testing.
-- **Run and Debug → `Cyberland.Host`** — launch under the debugger (**F5**), after `build`.
+- **Run and Debug → `Cyberland.Host`** — launch under the debugger (**F5**), after `build`; program path points at **`artifacts/bin/Cyberland.Host/debug/`**.
 
 ## Agent workflow
 

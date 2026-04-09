@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/Cyberland.Host/bin/Debug/net8.0/Cyberland.Host.dll",
+      "program": "${workspaceFolder}/artifacts/bin/Cyberland.Host/debug/Cyberland.Host.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/Cyberland.Host/bin/Debug/net8.0",
+      "cwd": "${workspaceFolder}/artifacts/bin/Cyberland.Host/debug",
       "console": "integratedTerminal",
       "stopAtEntry": false
     }
