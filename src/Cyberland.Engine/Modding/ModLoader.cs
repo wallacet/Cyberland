@@ -9,7 +9,7 @@ using Cyberland.Engine.Localization;
 namespace Cyberland.Engine.Modding;
 
 /// <summary>
-/// Discovers mod folders, parses manifests, mounts content for every mod, then loads optional assemblies.
+/// Discovers mod folders, parses manifests, mounts content for enabled mods, then loads optional assemblies.
 /// </summary>
 public sealed class ModLoader
 {
@@ -41,7 +41,7 @@ public sealed class ModLoader
 
             var json = File.ReadAllText(manifestPath);
             var m = JsonSerializer.Deserialize<ModManifest>(json, JsonOptions);
-            if (m is null || string.IsNullOrWhiteSpace(m.Id))
+            if (m is null || string.IsNullOrWhiteSpace(m.Id) || m.Disabled)
                 continue;
 
             manifests.Add((dir, m));

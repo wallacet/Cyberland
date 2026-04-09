@@ -272,8 +272,8 @@ Frame order:
 ### Modding (`Modding/`)
 
 - **`IMod`** — **`OnLoad(ModLoadContext)`**, **`OnUnload()`**.
-- **`ModManifest`** — id, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, optional **`contentBlocklist`** (see `manifest.json`).
-- **`ModLoader`** — discovers `Mods/*/manifest.json`, mounts content (then applies each mod’s blocklist), loads **`entryAssembly`**, finds one concrete **`IMod`**, invokes **`OnLoad`**.
+- **`ModManifest`** — id, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, optional **`disabled`**, optional **`contentBlocklist`** (see `manifest.json`).
+- **`ModLoader`** — discovers `Mods/*/manifest.json`, skips mods with **`disabled`**: **`true`**, mounts remaining content (then applies each mod’s blocklist), loads **`entryAssembly`**, finds one concrete **`IMod`**, invokes **`OnLoad`**.
 
 ### Hosting (`Hosting/`)
 
@@ -302,6 +302,7 @@ Example (see `mods/Cyberland.Game/manifest.json`):
 - **`entryAssembly`** — DLL name containing an **`IMod`** implementation.
 - **`contentRoot`** — relative folder mounted for this mod (often `Content`).
 - **`loadOrder`** — lower runs earlier (manifests sorted by load order, then id).
+- **`disabled`** (optional) — when **`true`**, the loader ignores the mod: no content mount, no blocklist, no assembly load (default **`false`**).
 - **`contentBlocklist`** (optional) — array of virtual relative paths to hide after this mod’s content is mounted (blocks win over all mounts; use normal file overrides when you want to replace content instead).
 
 ### `IMod` implementation

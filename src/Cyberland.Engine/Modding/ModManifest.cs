@@ -13,6 +13,11 @@ public sealed class ModManifest
     public int LoadOrder { get; init; }
 
     /// <summary>
+    /// When true, the loader skips this mod entirely: no content mount, no blocklist, no assembly load.
+    /// </summary>
+    public bool Disabled { get; init; }
+
+    /// <summary>
     /// Relative paths (virtual FS) hidden after this mod's content is mounted; blocks win over all mounts.
     /// </summary>
     public string[]? ContentBlocklist { get; init; }

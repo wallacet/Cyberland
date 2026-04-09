@@ -270,4 +270,48 @@ public sealed class ModdingTests
             Directory.Delete(modsRoot, true);
         }
     }
+
+    [Fact]
+    public void ModLoader_skips_disabled_mod_no_vfs_mount_and_no_assembly_load()
+    {
+        TestModEntry.ResetCounters();
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb mod disabled " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        StageMod(modsRoot, "enabled", "en.mod", loadOrder: 0);
+
+        var disabledDir = Path.Combine(modsRoot, "disabled_folder");
+        Directory.CreateDirectory(Path.Combine(disabledDir, "Content"));
+        File.WriteAllText(Path.Combine(disabledDir, "Content", "note.txt"), "from-disabled");
+        var srcDll = typeof(TestModEntry).Assembly.Location;
+        File.Copy(srcDll, Path.Combine(disabledDir, "Cyberland.TestMod.dll"), overwrite: true);
+        File.WriteAllText(
+            Path.Combine(disabledDir, "manifest.json"),
+            """
+            {"id":"off.mod","entryAssembly":"Cyberland.TestMod.dll","contentRoot":"Content","loadOrder":10,"disabled":true}
+            """);
+
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            var loader = new ModLoader();
+            loader.LoadAll(
+                modsRoot,
+                vfs,
+                new LocalizationManager(),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                new GameHostServices(new KeyBindingStore()));
+
+            Assert.Equal(1, TestModEntry.OnLoadCount);
+            Assert.Single(loader.LoadedManifests);
+            Assert.Equal("en.mod", loader.LoadedManifests[0].Id);
+            Assert.True(vfs.TryOpenRead("note.txt", out var stream));
+            using var reader = new StreamReader(stream!);
+            Assert.Equal("en.mod", reader.ReadToEnd());
+        }
+        finally
+        {
+            Directory.Delete(modsRoot, true);
+        }
+    }
 }
