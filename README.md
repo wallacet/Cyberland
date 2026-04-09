@@ -94,9 +94,13 @@ Project-specific notes for agents live in **`.cursor/skills/publish-cyberland/`*
 
 The **`Cyberland.Engine.Tests`** project targets **`Cyberland.Engine`** only (not the host, mods, or GPU paths). It enforces **100% line coverage** on that assembly via **coverlet**.
 
+GitHub Actions runs this automatically in the **`Engine Tests`** workflow for pull requests and pushes to `main` when engine test-related files change (plus manual `workflow_dispatch`).
+
 ```powershell
 dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug /p:CollectCoverage=true
 ```
+
+Use the command above for local feedback before pushing. CI remains the merge gate for engine coverage.
 
 Coverage outputs **`coverage.cobertura.xml`** next to the test project output (ignored by git).
 

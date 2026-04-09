@@ -1,0 +1,35 @@
+---
+description: Keep README aligned with engine/host code and architecture changes
+globs: "**/src/Cyberland.Engine/**/*.cs,**/src/Cyberland.Host/**/*.cs,**/mods/**/*.cs,**/README.md,**/.github/workflows/**/*.yml,**/.github/workflows/**/*.yaml,**/.cursor/rules/cyberland-*.mdc"
+alwaysApply: false
+---
+
+# Cyberland — README sync requirement
+
+When engine code, host code, or project architecture changes, update `README.md` in the same change set.
+
+## Trigger conditions
+
+Apply this rule when any of these are true:
+
+- You changed files under `src/Cyberland.Engine/`.
+- You changed files under `src/Cyberland.Host/`.
+- You changed architecture boundaries, load flow, mod pipeline, staging/publish behavior, or CI/testing expectations.
+- You changed architecture-oriented rules under `.cursor/rules/` that affect contributor guidance.
+
+## README update expectations
+
+1. Update only sections affected by the change (architecture, testing, build/publish, layout, troubleshooting, or references).
+2. Keep descriptions concrete and consistent with current code and workflow names.
+3. Keep examples and commands runnable from repo root on PowerShell unless a section explicitly says otherwise.
+4. Preserve beginner readability: explain what changed, where it lives, and why it matters.
+
+## Required final step: validate and fix
+
+Before handoff, validate the README edits and fix any issues found:
+
+1. Re-read the changed `README.md` sections and confirm they match current engine/host behavior and architecture.
+2. Verify paths, project names, and command lines are accurate and still valid.
+3. Check for contradictions with `.cursor/rules/cyberland-mod-host-architecture.mdc` and other architecture guidance.
+4. Fix stale statements, broken references, unclear wording, or formatting issues in the same change set.
+5. Only hand off once the README is internally consistent with the code and rules you changed.
