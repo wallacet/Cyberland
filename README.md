@@ -198,12 +198,12 @@ Frame order:
 
 ### Assets (`Assets/`)
 
-- **`VirtualFileSystem`** — ordered mount points; **later mounts override earlier** (mod content over base).
+- **`VirtualFileSystem`** — ordered mount points; **later mounts override earlier** (mod content over base). **`BlockPath`** hides a relative path globally (even if an earlier mount had the file).
 - **`AssetManager`** — async **`LoadBytesAsync`**, **`LoadTextAsync`**, **`LoadJsonAsync`**, streaming **`OpenReadOrThrow`**.
 
 ### Localization (`Localization/`)
 
-- **`LocalizationManager`** — merged key → string tables (JSON), culture fallback.
+- **`LocalizationManager`** — merged key → string tables (JSON), culture fallback; **`TryRemoveKey`** / **`RemoveKey`** drop keys for later mods.
 - Mods merge strings through the load pipeline / your own loads as needed.
 
 ### Audio (`Audio/`)
@@ -213,8 +213,8 @@ Frame order:
 ### Modding (`Modding/`)
 
 - **`IMod`** — **`OnLoad(ModLoadContext)`**, **`OnUnload()`**.
-- **`ModManifest`** — id, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`** (see `manifest.json`).
-- **`ModLoader`** — discovers `Mods/*/manifest.json`, mounts content, loads **`entryAssembly`**, finds one concrete **`IMod`**, invokes **`OnLoad`**.
+- **`ModManifest`** — id, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, optional **`contentBlocklist`** (see `manifest.json`).
+- **`ModLoader`** — discovers `Mods/*/manifest.json`, mounts content (then applies each mod’s blocklist), loads **`entryAssembly`**, finds one concrete **`IMod`**, invokes **`OnLoad`**.
 
 ### Hosting (`Hosting/`)
 
@@ -243,11 +243,28 @@ Example (see `mods/Cyberland.Game/manifest.json`):
 - **`entryAssembly`** — DLL name containing an **`IMod`** implementation.
 - **`contentRoot`** — relative folder mounted for this mod (often `Content`).
 - **`loadOrder`** — lower runs earlier (manifests sorted by load order, then id).
+- **`contentBlocklist`** (optional) — array of virtual relative paths to hide after this mod’s content is mounted (blocks win over all mounts; use normal file overrides when you want to replace content instead).
 
 ### `IMod` implementation
 
 - Ship a **public non-abstract class** implementing **`IMod`** (the loader picks the first exported type assignable to **`IMod`**).
-- **`OnLoad`**: register systems, spawn entities, merge localization, call **`context.MountDefaultContent()`** if you rely on `Content/` under the mod folder.
+- **`OnLoad`**: register systems (with stable **logical ids**), spawn entities, merge localization, call **`context.MountDefaultContent()`** if you rely on `Content/` under the mod folder.
+
+### Systems: ids, extend, replace, remove
+
+Every ECS system is registered with a **non-empty logical id** (convention: `"<modId>/<purpose>"`, e.g. `cyberland.demo/sprite-move`). Mods load in **`loadOrder`** order; a later mod can:
+
+- **Extend** — register **new** ids.
+- **Replace** — call **`RegisterSequential`** / **`RegisterParallel`** again with an id already used; the implementation is swapped **in place** (frame order among other systems stays the same).
+- **Remove** — **`TryUnregister(logicalId)`** drops that system from the sequential or parallel pass.
+
+Use **`context.RegisterSequential`**, **`context.RegisterParallel`**, and **`context.TryUnregister`** (wrappers around **`SystemScheduler`**). Do not reuse the same id across sequential vs parallel registration.
+
+### Content and localization overrides
+
+- **Override a file** — ship a file at the same virtual path from a **later** mod (VFS last mount wins).
+- **Hide a path** — **`context.HideContentPath("relative/path")`** or declare **`contentBlocklist`** in **`manifest.json`** so the path does not resolve.
+- **Remove a localization key** — **`context.TryRemoveLocalizationKey("key")`** after earlier mods merged strings.
 
 ### `GameHostServices` (via `context.Host`)
 
@@ -288,10 +305,11 @@ Use **`world.Components<MyComponent>().GetOrAdd(entity)`** (or **`TryGet`**) to 
 ### 4. Register in your mod’s `IMod.OnLoad` (e.g. `BaseGameMod`, `DemoMod`)
 
 ```csharp
-context.Scheduler.Register(new MySystem(context.Host));
+context.RegisterSequential("my.mod/main", new MySystem(context.Host));
+context.RegisterParallel("my.mod/batch", new MyParallelSystem());
 ```
 
-Registration order is the run order within each category (sequential vs parallel).
+First-time registration order is the run order within each category (sequential vs parallel). Replacing an existing **logical id** keeps that system’s position in the list.
 
 ### 5. Use the ECS world from context
 
@@ -325,7 +343,7 @@ c = new MyComponent { Value = 1f };
 | Example | Location | Shows |
 |---------|----------|--------|
 | Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
-| Demo mod entry | `mods/Cyberland.Demo/DemoMod.cs` | **`IMod`**, entity spawn, **`Register`** |
+| Demo mod entry | `mods/Cyberland.Demo/DemoMod.cs` | **`IMod`**, entity spawn, **`RegisterSequential`** / **`RegisterParallel`** with logical ids |
 | Sequential + input + renderer | `mods/Cyberland.Demo/SpriteMoveSystem.cs` | **`ISystem`**, **`GameHostServices`**, **`SetSpriteWorld`** |
 | Parallel ECS | `mods/Cyberland.Demo/VelocityDampSystem.cs` | **`IParallelSystem`**, **`Velocity`**, scratch buffer pattern |
 | Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, menu key |

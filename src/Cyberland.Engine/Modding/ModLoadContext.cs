@@ -45,4 +45,24 @@ public sealed class ModLoadContext
 
     public void MountContentSubfolder(string relativeToModFolder) =>
         VirtualFileSystem.Mount(Path.Combine(ModDirectory, relativeToModFolder));
+
+    /// <summary>
+    /// Blocks a relative path so it does not resolve even if an earlier mod provided it (see <see cref="VirtualFileSystem.BlockPath"/>).
+    /// </summary>
+    public void HideContentPath(string relativePath) =>
+        VirtualFileSystem.BlockPath(relativePath);
+
+    /// <summary>Registers or replaces a sequential ECS system under <paramref name="logicalId"/>.</summary>
+    public void RegisterSequential(string logicalId, ISystem system) =>
+        Scheduler.RegisterSequential(logicalId, system);
+
+    /// <summary>Registers or replaces a parallel ECS system under <paramref name="logicalId"/>.</summary>
+    public void RegisterParallel(string logicalId, IParallelSystem system) =>
+        Scheduler.RegisterParallel(logicalId, system);
+
+    /// <summary>Removes a system registered under <paramref name="logicalId"/> from either pass.</summary>
+    public bool TryUnregister(string logicalId) => Scheduler.TryUnregister(logicalId);
+
+    /// <summary>Removes a localization key merged from an earlier mod (see <see cref="LocalizationManager.TryRemoveKey"/>).</summary>
+    public bool TryRemoveLocalizationKey(string key) => Localization.TryRemoveKey(key);
 }

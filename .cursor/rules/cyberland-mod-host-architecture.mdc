@@ -21,14 +21,17 @@ Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` 
 
 1. Each mod folder under `Mods/<Name>/` has `manifest.json` (`entryAssembly`, `loadOrder`, `contentRoot`).
 2. Host build stages **`Cyberland.Game`** and **`Cyberland.Demo`** into `$(OutDir)Mods/` (see `Cyberland.Host.csproj` — `StageBaseMod`, `StageDemoMod`).
-3. `ModLoader.LoadAll` mounts content (order + shadowing), loads each `entryAssembly`, finds a concrete `IMod` per DLL, calls `OnLoad(ModLoadContext)`.
+3. `ModLoader.LoadAll` mounts each mod’s content in load order, applies optional **`contentBlocklist`** paths (`VirtualFileSystem.BlockPath`), then loads each `entryAssembly`, finds a concrete `IMod` per DLL, calls `OnLoad(ModLoadContext)`.
 
 ## Registering code from a mod
 
 - Implement **`IMod`** with `OnLoad` / `OnUnload`.
-- In **`OnLoad`**, use **`context.Scheduler.Register(...)`** for gameplay:
-  - **`ISystem`** — ordered, main-thread (e.g. **`SpriteMoveSystem`** in **`Cyberland.Demo`**).
-  - **`IParallelSystem`** — after all sequential systems each frame (e.g. **`VelocityDampSystem`**).
+- In **`OnLoad`**, register systems with **stable logical ids** (no anonymous registration):
+  - **`context.RegisterSequential("mod.id/name", …)`** for **`ISystem`** (main thread, deterministic order).
+  - **`context.RegisterParallel("mod.id/name", …)`** for **`IParallelSystem`** (after all sequential systems each frame).
+  - **`context.TryUnregister("other.mod/id")`** to remove a system registered earlier (same id cannot exist as both sequential and parallel).
+  - Re-registering an existing id **replaces** the implementation in place (order relative to other systems unchanged).
+- Use **`context.HideContentPath`** or manifest **`contentBlocklist`** to suppress a virtual file; use **`context.TryRemoveLocalizationKey`** to drop a merged string key.
 - Use **`context.World`** for entities and `Components<T>()`.
 - Use **`context.Host`** (`GameHostServices`) for **KeyBindings**, **Input** (`IInputContext`), and **Renderer** (`VulkanRenderer`) when the mod needs to drive the host window. Do not static-import host singletons.
 

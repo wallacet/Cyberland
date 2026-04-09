@@ -33,6 +33,12 @@ public sealed class VirtualFileSystemAndAssetTests
                 Assert.Equal("B", reader.ReadToEnd());
 
             Assert.True(vfs.Exists("/data.txt"));
+            vfs.BlockPath("data.txt");
+            Assert.False(vfs.Exists("data.txt"));
+            Assert.False(vfs.TryOpenRead("data.txt", out _));
+            Assert.True(vfs.UnblockPath("data.txt"));
+            Assert.False(vfs.UnblockPath("data.txt"));
+            Assert.True(vfs.Exists("data.txt"));
             vfs.Clear();
             Assert.False(vfs.Exists("data.txt"));
         }
@@ -56,6 +62,14 @@ public sealed class VirtualFileSystemAndAssetTests
                 /* ignore */
             }
         }
+    }
+
+    [Fact]
+    public void VirtualFileSystem_BlockPath_ignores_whitespace_only()
+    {
+        var vfs = new VirtualFileSystem();
+        vfs.BlockPath("   ");
+        Assert.Empty(vfs.Roots);
     }
 
     [Fact]

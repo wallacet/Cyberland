@@ -52,6 +52,11 @@ public sealed class ModLoader
             _manifests.Add(entry.M);
             var contentPath = Path.Combine(entry.Dir, entry.M.ContentRoot);
             vfs.Mount(contentPath);
+            if (entry.M.ContentBlocklist is { Length: > 0 })
+            {
+                foreach (var rel in entry.M.ContentBlocklist)
+                    vfs.BlockPath(rel);
+            }
         }
 
         foreach (var entry in manifests.OrderBy(t => t.M.LoadOrder).ThenBy(t => t.M.Id, StringComparer.Ordinal))

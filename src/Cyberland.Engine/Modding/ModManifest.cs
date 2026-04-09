@@ -1,7 +1,7 @@
 namespace Cyberland.Engine.Modding;
 
 /// <summary>
-/// Describes a mod on disk. The host loads manifests first, then assemblies, then mounts content.
+/// Describes a mod on disk. The loader mounts each mod's content in order, applies optional blocklists, then loads assemblies.
 /// </summary>
 public sealed class ModManifest
 {
@@ -11,4 +11,9 @@ public sealed class ModManifest
     public string? EntryAssembly { get; init; }
     public string ContentRoot { get; init; } = "Content";
     public int LoadOrder { get; init; }
+
+    /// <summary>
+    /// Relative paths (virtual FS) hidden after this mod's content is mounted; blocks win over all mounts.
+    /// </summary>
+    public string[]? ContentBlocklist { get; init; }
 }

@@ -24,8 +24,8 @@ public sealed class DemoMod : IMod
         ref var v = ref context.World.Components<Velocity>().GetOrAdd(entity);
         v = new Velocity { X = 100f, Y = 0f };
 
-        context.Scheduler.Register(new SpriteMoveSystem(context.Host));
-        context.Scheduler.Register(new VelocityDampSystem());
+        context.RegisterSequential("cyberland.demo/sprite-move", new SpriteMoveSystem(context.Host));
+        context.RegisterParallel("cyberland.demo/velocity-damp", new VelocityDampSystem());
     }
 
     public void OnUnload()

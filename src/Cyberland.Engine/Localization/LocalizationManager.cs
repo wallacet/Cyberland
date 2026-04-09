@@ -38,5 +38,11 @@ public sealed class LocalizationManager
 
     public bool TryGet(string key, out string value) => _merged.TryGetValue(key, out value!);
 
+    /// <summary>Removes a key if present. Returns whether it existed.</summary>
+    public bool TryRemoveKey(string key) => _merged.Remove(key);
+
+    /// <summary>Removes a key if present.</summary>
+    public void RemoveKey(string key) => _merged.Remove(key);
+
     public void Clear() => _merged.Clear();
 }

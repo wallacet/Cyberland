@@ -57,6 +57,7 @@ public sealed class ModdingTests
             var vfs = new VirtualFileSystem();
             var m = new ModManifest { Id = "m", ContentRoot = "Content" };
             var loc = new LocalizationManager();
+            loc.MergeJson("""{"rm":"v"}"""u8.ToArray());
             var world = new World();
             var sched = new SystemScheduler(new ParallelismSettings());
             var ctx = new ModLoadContext(
@@ -71,15 +72,40 @@ public sealed class ModdingTests
             Assert.Same(loc, ctx.Localization);
             Assert.Same(world, ctx.World);
             Assert.Same(sched, ctx.Scheduler);
+            Assert.True(ctx.TryRemoveLocalizationKey("rm"));
+            Assert.Equal("rm", loc.Get("rm"));
 
             ctx.MountDefaultContent();
             ctx.MountContentSubfolder("Extra");
 
             Assert.True(vfs.Exists("x.bin"));
+            ctx.HideContentPath("x.bin");
+            Assert.False(vfs.Exists("x.bin"));
+
+            var seq = new ModCtxSeq();
+            ctx.RegisterSequential("mod/seq", seq);
+            ctx.RegisterParallel("mod/par", new ModCtxPar());
+            ctx.Scheduler.RunFrame(world, 0.016f);
+            Assert.Equal(1, seq.Calls);
+            Assert.True(ctx.TryUnregister("mod/seq"));
+            Assert.False(ctx.TryUnregister("mod/seq"));
         }
         finally
         {
             Directory.Delete(modRoot, true);
+        }
+    }
+
+    private sealed class ModCtxSeq : ISystem
+    {
+        public int Calls;
+        public void OnUpdate(World world, float deltaSeconds) => Calls++;
+    }
+
+    private sealed class ModCtxPar : IParallelSystem
+    {
+        public void OnParallelUpdate(World world, ParallelOptions parallelOptions)
+        {
         }
     }
 
@@ -145,6 +171,43 @@ public sealed class ModdingTests
             loader.UnloadAll();
             Assert.Equal(2, TestModEntry.OnUnloadCount);
             Assert.Empty(loader.LoadedManifests);
+        }
+        finally
+        {
+            Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoader_applies_manifest_content_blocklist_after_mount()
+    {
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb block " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        var early = Path.Combine(modsRoot, "early");
+        Directory.CreateDirectory(Path.Combine(early, "Content"));
+        File.WriteAllText(Path.Combine(early, "Content", "gone.txt"), "x");
+        File.WriteAllText(
+            Path.Combine(early, "manifest.json"),
+            """{"id":"e","contentRoot":"Content","loadOrder":0}""");
+        var late = Path.Combine(modsRoot, "late");
+        Directory.CreateDirectory(Path.Combine(late, "Content"));
+        File.WriteAllText(
+            Path.Combine(late, "manifest.json"),
+            """{"id":"l","contentRoot":"Content","loadOrder":1,"contentBlocklist":["gone.txt"]}""");
+
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            new ModLoader().LoadAll(
+                modsRoot,
+                vfs,
+                new LocalizationManager(),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                new GameHostServices(new KeyBindingStore()));
+
+            Assert.False(vfs.Exists("gone.txt"));
+            Assert.False(vfs.TryOpenRead("gone.txt", out _));
         }
         finally
         {

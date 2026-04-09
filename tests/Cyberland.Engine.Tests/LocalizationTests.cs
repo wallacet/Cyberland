@@ -25,6 +25,18 @@ public sealed class LocalizationTests
     }
 
     [Fact]
+    public void LocalizationManager_TryRemoveKey_and_RemoveKey()
+    {
+        var loc = new LocalizationManager();
+        loc.MergeJson("""{"a":"1","b":"2"}"""u8.ToArray());
+        Assert.True(loc.TryRemoveKey("a"));
+        Assert.Equal("a", loc.Get("a"));
+        Assert.False(loc.TryRemoveKey("a"));
+        loc.RemoveKey("b");
+        Assert.Equal("b", loc.Get("b"));
+    }
+
+    [Fact]
     public void LocalizationManager_MergeJson_skips_non_objects()
     {
         var loc = new LocalizationManager();
