@@ -16,6 +16,35 @@ Design goals: **small footprint**, **predictable load**, and **scaling from inte
 
 ---
 
+## Quick start
+
+From the repository root:
+
+```powershell
+dotnet build Cyberland.sln -c Debug
+dotnet run --project src/Cyberland.Host/Cyberland.Host.csproj -c Debug
+```
+
+Or run via script:
+
+```powershell
+.\scripts\Run-Cyberland.ps1
+.\scripts\Run-Cyberland.ps1 -Watch   # dotnet watch run
+```
+
+**Visual Studio Code / Cursor:** default build task builds the solution; **Run** / **Watch** tasks run the host; launch configuration **Cyberland.Host** debugs under **`artifacts/bin/Cyberland.Host/debug/`** so `Mods/` resolves next to the executable.
+
+Open the **Command Palette** (`Ctrl+Shift+P`) → **Tasks: Run Task** → pick a **Cyberland:** task (same commands as the Cursor skills):
+
+| Task | Action |
+|------|--------|
+| **Cyberland: Run** | `dotnet run` the host (Debug) — *run-cyberland* skill |
+| **Cyberland: Test Engine** | Engine tests with coverlet — *test-cyberland-engine* skill |
+| **Cyberland: Publish Release** | `dotnet publish` + copy `Mods/` into publish output — *publish-cyberland* skill (see `scripts/Publish-Cyberland.ps1`) |
+| **Cyberland: Clear Artifacts** | Delete repo-root `artifacts/` — *clear-cyberland-artifacts* skill (see `scripts/Clear-CyberlandArtifacts.ps1`) |
+
+---
+
 ## Asset setup (GitHub Releases)
 
 Large game media does not live in git. Asset bundles are published in GitHub Releases and mapped by per-mod manifests:
@@ -51,35 +80,6 @@ Override options for exceptional cases:
 - Temporary threshold override: `CYBERLAND_MAX_FILE_MB=8 git commit ...`
 
 If you bypass, follow up by moving large media into the GitHub Releases asset flow.
-
----
-
-## Quick start
-
-From the repository root:
-
-```powershell
-dotnet build Cyberland.sln -c Debug
-dotnet run --project src/Cyberland.Host/Cyberland.Host.csproj -c Debug
-```
-
-Or use the helper script:
-
-```powershell
-.\scripts\Run-Cyberland.ps1
-.\scripts\Run-Cyberland.ps1 -Watch   # dotnet watch run
-```
-
-**Visual Studio Code / Cursor:** default build task builds the solution; **Run** / **Watch** tasks run the host; launch configuration **Cyberland.Host** debugs under **`artifacts/bin/Cyberland.Host/debug/`** so `Mods/` resolves next to the executable.
-
-Open the **Command Palette** (`Ctrl+Shift+P`) → **Tasks: Run Task** → pick a **Cyberland:** task (same commands as the Cursor skills):
-
-| Task | Action |
-|------|--------|
-| **Cyberland: Run** | `dotnet run` the host (Debug) — *run-cyberland* skill |
-| **Cyberland: Test Engine** | Engine tests with coverlet — *test-cyberland-engine* skill |
-| **Cyberland: Publish Release** | `dotnet publish` + copy `Mods/` into publish output — *publish-cyberland* skill (see `scripts/Publish-Cyberland.ps1`) |
-| **Cyberland: Clear Artifacts** | Delete repo-root `artifacts/` — *clear-cyberland-artifacts* skill (see `scripts/Clear-CyberlandArtifacts.ps1`) |
 
 ### Build output (`artifacts/`)
 
