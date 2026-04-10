@@ -9,7 +9,7 @@ on:
       - ".github/workflows/engine-tests.yml"
   push:
     branches:
-      - main
+      - master
     paths:
       - "src/Cyberland.Engine/**"
       - "tests/**"
