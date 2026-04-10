@@ -2,13 +2,13 @@ using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
-using Cyberland.Engine.Scene2D;
+using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
 namespace Cyberland.Demo;
 
 /// <summary>
-/// Optional shipped mod: 2D HDR sprite sample + parallel velocity damp ECS.
+/// Optional shipped mod: HDR sprite sample + parallel velocity damp ECS.
 /// Enable in <c>manifest.json</c> when testing; see repo README.
 /// </summary>
 /// <remarks>
@@ -18,7 +18,7 @@ namespace Cyberland.Demo;
 /// <see cref="PostProcessVolumeMerge"/> and the renderer records exactly one HDR pass, one bloom chain, and one
 /// composite pass per frame — bloom is not applied twice by the mod.
 /// Stationary world lights (ambient + directional + point + spot) are submitted each frame by
-/// <see cref="DemoStationaryLightsSystem"/>; the 2D lit shader uses one of each type per frame.
+/// <see cref="DemoStationaryLightsSystem"/>; the lit shader uses one of each type per frame.
 /// </remarks>
 public sealed class DemoMod : IMod
 {

@@ -13,6 +13,8 @@ public static class UserMessageDialog
     private static extern nint MessageBoxW(nint hWnd, string? text, string? caption, uint type);
 
     /// <summary>Native message box path (not unit-tested). Falls back to <see cref="WriteErrorToStderr"/> on failure.</summary>
+    /// <param name="title">Short caption for the dialog or stderr header.</param>
+    /// <param name="message">Body text (may be multi-line).</param>
     [ExcludeFromCodeCoverage(Justification = "Calls user32 MessageBoxW; stderr branch is covered via WriteErrorToStderr.")]
     public static void ShowError(string title, string message)
     {

@@ -1,5 +1,6 @@
 namespace Cyberland.Engine.Core.Ecs;
 
+/// <summary>Utilities for maintaining sorted component-id signatures when adding/removing types on an entity.</summary>
 internal static class SignatureHelpers
 {
     public static int BinarySearchUint(ReadOnlySpan<uint> span, uint value)

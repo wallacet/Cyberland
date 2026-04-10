@@ -9,6 +9,8 @@ public sealed class GraphicsInitializationException : Exception
     /// <summary>Full text for a dialog or console, including troubleshooting steps.</summary>
     public string UserMessage { get; }
 
+    /// <param name="technicalDetail">Developer-oriented message (also embedded into <see cref="UserMessage"/>).</param>
+    /// <param name="innerException">Optional chained exception from Vulkan/Silk.</param>
     public GraphicsInitializationException(string technicalDetail, Exception? innerException = null)
         : base(technicalDetail, innerException)
     {

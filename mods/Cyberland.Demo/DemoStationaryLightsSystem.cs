@@ -6,7 +6,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo;
 
 /// <summary>
-/// Submits fixed world lights each frame. The 2D renderer packs one ambient, directional, point, and spot into the
+/// Submits fixed world lights each frame. The renderer packs one ambient, directional, point, and spot into the
 /// lighting UBO (see <c>sprite_lit.frag.glsl</c>); this demo uses all four for a simple multi-pool look.
 /// </summary>
 internal sealed class DemoStationaryLightsSystem : ISystem

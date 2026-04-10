@@ -8,6 +8,7 @@ public sealed class EntityRegistry
     private readonly List<uint> _generations = new();
     private readonly Stack<uint> _free = new();
 
+    /// <summary>Allocates a new index (or reuses a recycled one) with a bumped generation.</summary>
     public EntityId Create()
     {
         if (_free.Count > 0)
@@ -22,6 +23,12 @@ public sealed class EntityRegistry
         return EntityId.FromParts(i, 1);
     }
 
+    /// <summary>
+    /// Recycles <paramref name="id"/>'s index and bumps its generation so the slot can be reused.
+    /// </summary>
+    /// <remarks>
+    /// This only invalidates the entity id. Prefer <see cref="World.DestroyEntity"/> so attached components are removed from ECS storage.
+    /// </remarks>
     public void Destroy(EntityId id)
     {
         var index = (int)id.Index;
@@ -32,6 +39,7 @@ public sealed class EntityRegistry
         _free.Push(id.Index);
     }
 
+    /// <summary>True if <paramref name="id"/>’s generation still matches the slot (not destroyed / recycled).</summary>
     public bool IsAlive(EntityId id)
     {
         var index = (int)id.Index;

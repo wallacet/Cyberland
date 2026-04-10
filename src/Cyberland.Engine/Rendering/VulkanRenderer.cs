@@ -17,8 +17,12 @@ using VkBuffer = Silk.NET.Vulkan.Buffer;
 namespace Cyberland.Engine.Rendering;
 
 /// <summary>
-/// Vulkan swapchain + 2D HDR pipeline (sprites, lighting, emissive bleed, bloom, tonemap).
+/// Production <see cref="IRenderer"/> implementation: Vulkan swapchain, HDR offscreen targets, deferred lighting, emissive prepass,
+/// weighted-blended transparency, bloom, and tonemapped composite to sRGB.
 /// </summary>
+/// <remarks>
+/// Split across multiple <c>partial</c> files for maintainability (pipelines, descriptors, frame recording). Mod code should depend on <see cref="IRenderer"/> only.
+/// </remarks>
 [ExcludeFromCodeCoverage(Justification = "Requires a Vulkan-capable GPU and window surface.")]
 public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 {
@@ -86,6 +90,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     /// <summary>True when swapchain uses an sRGB image format so the composite shader outputs linear and avoids double gamma.</summary>
     private bool _swapchainUsesSrgbFramebuffer;
 
+    /// <summary>Optional hook assigned by the host; mods may invoke to request a clean window close.</summary>
     public Action? RequestClose { get; set; }
 
     private Semaphore[]? _imageAvailableSemaphores;
@@ -94,6 +99,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private Fence[]? _imagesInFlight;
     private int _currentFrame;
 
+    /// <summary>Creates an uninitialized renderer; call <see cref="Initialize"/> after construction.</summary>
+    /// <param name="window">Silk.NET window that provides a Vulkan surface.</param>
     public VulkanRenderer(IWindow window) => _window = window;
 
     /// <summary>Current swapchain size in pixels — use for world-space clamps (matches shader <c>screenSize</c>).</summary>
@@ -148,6 +155,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             _globalPost = settings;
     }
 
+    /// <summary>
+    /// Creates instance, device, swapchain, render passes, pipelines, and default textures. Throws <see cref="GraphicsInitializationException"/> if the surface is unavailable.
+    /// </summary>
     public void Initialize()
     {
         if (!_window.IsInitialized)
@@ -169,7 +179,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         CreateCommandBuffers();
         CreateSyncObjects();
 
-        Create2DGraphicsPipelineAndSurfaces();
+        CreateGraphicsPipelineAndSurfaces();
         CreateDefaultTextures();
 
         _window.FramebufferResize += OnFramebufferResize;
@@ -177,7 +187,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     private void OnFramebufferResize(Vector2D<int> _) => _resizePending = true;
 
-    /// <summary>One frame: acquire swapchain image, submit clear pass, present.</summary>
+    /// <summary>Records and submits GPU work for the current pending sprite/light queues, then presents to the screen.</summary>
     public void DrawFrame()
     {
         if (_vk is null)
@@ -259,6 +269,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         _currentFrame = (_currentFrame + 1) % MaxFramesInFlight;
     }
 
+    /// <summary>Waits for idle GPU then tears down swapchain and all Vulkan objects.</summary>
     public void Dispose()
     {
         _window.FramebufferResize -= OnFramebufferResize;
@@ -271,7 +282,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         CleanupSwapchain();
 
-        Destroy2DGraphicsResources();
+        DestroyGraphicsResources();
         DestroySpriteQuadMesh();
 
         if (_imageAvailableSemaphores is not null && _renderFinishedSemaphores is not null && _inFlightFences is not null)
@@ -637,7 +648,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     }
 
     private void RecordCommandBuffer(CommandBuffer commandBuffer, Framebuffer framebuffer) =>
-        RecordFullFrame2D(commandBuffer, framebuffer);
+        RecordFullFrame(commandBuffer, framebuffer);
 
     private void CreateSpriteQuadMesh()
     {
@@ -809,7 +820,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         CreateSwapchain();
         CreateImageViews();
-        RecreateSwapchainDependent2D();
+        RecreateSwapchainDependent();
         CreateCommandBuffers();
 
         _imagesInFlight = new Fence[_swapchainImages!.Length];

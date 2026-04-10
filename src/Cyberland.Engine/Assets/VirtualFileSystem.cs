@@ -9,6 +9,7 @@ public sealed class VirtualFileSystem
     private readonly List<string> _roots = new();
     private readonly HashSet<string> _blocked = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Mounted directories in add order; last entry wins when resolving duplicates.</summary>
     public IReadOnlyList<string> Roots => _roots;
 
     /// <summary>Add a directory root; last added wins when resolving duplicates.</summary>
@@ -21,6 +22,7 @@ public sealed class VirtualFileSystem
         _roots.Add(full);
     }
 
+    /// <summary>Removes all mounts and block entries (tests / tooling).</summary>
     public void Clear()
     {
         _roots.Clear();
@@ -46,6 +48,9 @@ public sealed class VirtualFileSystem
         return rel.Length > 0 && _blocked.Remove(rel);
     }
 
+    /// <summary>Opens the first matching file from the newest mount, unless the path is blocked.</summary>
+    /// <param name="relativePath">Virtual path using forward slashes, case-insensitive.</param>
+    /// <param name="stream">Opened read stream when this method returns <see langword="true"/>.</param>
     public bool TryOpenRead(string relativePath, [NotNullWhen(true)] out Stream? stream)
     {
         stream = null;
@@ -67,6 +72,7 @@ public sealed class VirtualFileSystem
         return false;
     }
 
+    /// <summary>True if any mount exposes a file at the normalized path and it is not blocked.</summary>
     public bool Exists(string relativePath)
     {
         var rel = Normalize(relativePath);

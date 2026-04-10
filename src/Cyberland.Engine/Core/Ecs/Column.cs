@@ -15,6 +15,7 @@ internal abstract class ColumnBase
     public abstract void WriteDefault(int row);
 }
 
+/// <summary>Typed SoA storage for component <typeparamref name="T"/> inside a chunk row.</summary>
 internal sealed class Column<T> : ColumnBase where T : struct
 {
     private T[] _data;

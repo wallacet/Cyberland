@@ -1,19 +1,21 @@
 namespace Cyberland.Engine.Core.Ecs;
 
 /// <summary>
-/// Foreach-able source of per-chunk contiguous spans for one component type.
+/// Result of <see cref="World.QueryChunks{T}"/>: use <c>foreach</c> to visit every archetype chunk that contains <typeparamref name="T"/>.
 /// </summary>
+/// <remarks>Prefer this for hot loops; <see cref="ComponentChunkView{T}"/> exposes contiguous <see cref="Span{T}"/> columns.</remarks>
 public readonly struct ChunkQuery<T> where T : struct
 {
     private readonly ArchetypeWorld _world;
 
     internal ChunkQuery(ArchetypeWorld world) => _world = world;
 
+    /// <summary>Returns an enumerator over non-empty chunks (see <see cref="ChunkQueryEnumerator{T}"/>).</summary>
     public ChunkQueryEnumerator<T> GetEnumerator() => new(_world);
 }
 
 /// <summary>
-/// One chunk's entities and SoA column for <typeparamref name="T"/> (contiguous for SIMD-friendly loops).
+/// A single archetype chunk slice: parallel <see cref="Entities"/> ids and column <see cref="Components"/> for one component type.
 /// </summary>
 public readonly struct ComponentChunkView<T> where T : struct
 {
@@ -26,15 +28,18 @@ public readonly struct ComponentChunkView<T> where T : struct
         ColumnIndex = columnIndex;
     }
 
+    /// <summary>Active rows in this chunk.</summary>
     public int Count => Chunk.Count;
 
+    /// <summary>Entity id for each row (same length as <see cref="Count"/>).</summary>
     public ReadOnlySpan<EntityId> Entities => Chunk.Entities.AsSpan(0, Chunk.Count);
 
+    /// <summary>SoA values for <typeparamref name="T"/> aligned with <see cref="Entities"/>.</summary>
     public Span<T> Components => ((Column<T>)Chunk.Columns[ColumnIndex]).AsSpan(Chunk.Count);
 }
 
 /// <summary>
-/// Iterates all chunks (across archetypes) that include component <typeparamref name="T"/>.
+/// Struct enumerator backing <c>foreach</c> on <see cref="ChunkQuery{T}"/>; yields <see cref="ComponentChunkView{T}"/> items.
 /// </summary>
 public struct ChunkQueryEnumerator<T> where T : struct
 {
@@ -59,8 +64,10 @@ public struct ChunkQueryEnumerator<T> where T : struct
         _current = default;
     }
 
+    /// <summary>Current chunk view after a successful <see cref="MoveNext"/>.</summary>
     public ComponentChunkView<T> Current => _current;
 
+    /// <summary>Advances to the next non-empty chunk; returns false when exhausted.</summary>
     public bool MoveNext()
     {
         if (_archetypeIndices is null || _archetypeIndices.Count == 0)
@@ -105,9 +112,13 @@ public readonly struct ChunkQuery2<T0, T1>
 
     internal ChunkQuery2(ArchetypeWorld world) => _world = world;
 
+    /// <summary>Returns an enumerator over archetypes that contain both component types.</summary>
     public ChunkQueryEnumerator2<T0, T1> GetEnumerator() => new(_world);
 }
 
+/// <summary>
+/// Enumerator for <see cref="ChunkQuery2{T0,T1}"/>; skips archetypes that only have one of the two components.
+/// </summary>
 public struct ChunkQueryEnumerator2<T0, T1>
     where T0 : struct
     where T1 : struct
@@ -137,8 +148,10 @@ public struct ChunkQueryEnumerator2<T0, T1>
         _current = default;
     }
 
+    /// <summary>Current paired chunk columns (see <see cref="ComponentChunkView2{T0,T1}"/>).</summary>
     public ComponentChunkView2<T0, T1> Current => _current;
 
+    /// <summary>Advances to the next chunk that has both <typeparamref name="T0"/> and <typeparamref name="T1"/>.</summary>
     public bool MoveNext()
     {
         if (_candidates is null || _candidates.Count == 0)
@@ -198,11 +211,15 @@ public readonly struct ComponentChunkView2<T0, T1>
         ColumnIndex1 = columnIndex1;
     }
 
+    /// <inheritdoc cref="ComponentChunkView{T}.Count" />
     public int Count => Chunk.Count;
 
+    /// <inheritdoc cref="ComponentChunkView{T}.Entities" />
     public ReadOnlySpan<EntityId> Entities => Chunk.Entities.AsSpan(0, Chunk.Count);
 
+    /// <summary>Column for <typeparamref name="T0"/>.</summary>
     public Span<T0> Components0 => ((Column<T0>)Chunk.Columns[ColumnIndex0]).AsSpan(Chunk.Count);
 
+    /// <summary>Column for <typeparamref name="T1"/> (same row index as <see cref="Components0"/>).</summary>
     public Span<T1> Components1 => ((Column<T1>)Chunk.Columns[ColumnIndex1]).AsSpan(Chunk.Count);
 }

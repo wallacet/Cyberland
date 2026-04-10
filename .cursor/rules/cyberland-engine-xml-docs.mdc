@@ -1,0 +1,30 @@
+---
+description: XML documentation standard for Cyberland.Engine public API (modders & IntelliSense)
+globs: src/Cyberland.Engine/**/*.cs
+alwaysApply: false
+---
+
+# Cyberland.Engine — XML documentation (`///`)
+
+When editing files under `src/Cyberland.Engine/`, treat **public** API as documentation-first: IntelliSense, DocFX, and mod authors depend on it.
+
+## Relationship to other rules
+
+- **`cyberland-code-style`**: Use **`//` comments** inside methods for *why* and tricky logic. Use **`///` XML** for the **exported contract** (types, public members). Both can appear in the same file.
+- **`cyberland-design-goals`**: Document **thread-safety** on types/members used from `IParallelSystem` or shared services (`IRenderer` submit APIs, etc.).
+- **`cyberland-mod-host-architecture`**: In remarks on host/bootstrap types, keep **gameplay in mods**, not the host.
+
+## Requirements for public API
+
+1. **`/// <summary>`** on every new or touched **public** type and **public** member (including enum values and public struct fields).
+2. Use **`<remarks>`** for audience context: who calls this (mod `IMod`, ECS system, render thread), and conventions (world space vs screen, radians vs degrees).
+3. Use **`<see cref="..."/>`** to related types (`World`, `ComponentStore{T}`, `IRenderer`, `ModLoadContext`).
+4. Use **`<param>`** / **`<returns>`** when names alone are not enough; state **units** (pixels, world Y-up vs screen Y-down — see `WorldScreenSpace`).
+5. Prefer a short **`<example>`** with `<code lang="csharp">` on “hub” types (`GameApplication`, `World`, `IMod`, `ISystem`, `GameHostServices`, `IRenderer`) when it helps newcomers.
+6. If **`GenerateDocumentationFile`** is enabled and **CS1591** is not suppressed, missing docs are **build warnings** — fix in the same change as API edits.
+
+## Bulk audits
+
+For full passes, use the checklist: `docs/engine-public-api-documentation-checklist.md`.
+
+Do **not** paste huge specification blocks into this rule; keep obligations short and point to summaries in code.

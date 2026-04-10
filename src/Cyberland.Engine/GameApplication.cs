@@ -8,8 +8,8 @@ using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
-using Cyberland.Engine.Scene2D;
-using Cyberland.Engine.Scene2D.Systems;
+using Cyberland.Engine.Scene;
+using Cyberland.Engine.Scene.Systems;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -17,9 +17,24 @@ using Silk.NET.Windowing;
 namespace Cyberland.Engine;
 
 /// <summary>
-/// Host-facing bootstrap: window, Vulkan, audio, ECS tick, mod load, and input. Keeps Program.cs thin.
-/// Gameplay lives in mods (see <see cref="Hosting.GameHostServices"/>).
+/// Boots the game: creates the window, initializes Vulkan, audio, the ECS <see cref="Core.Ecs.World"/>,
+/// loads mods, and runs the per-frame <see cref="Core.Tasks.SystemScheduler"/>. Shipped gameplay lives in mod assemblies, not here.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Typical flow: construct <c>new GameApplication(args)</c>, call <see cref="Run"/> (blocking until the window closes), then <see cref="Dispose"/>.
+/// The host wires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Input"/> after graphics init so mods receive a working <see cref="Modding.ModLoadContext"/>.
+/// </para>
+/// <para>
+/// Core engine systems (transforms, sprite animation, particles, tilemaps, sprites) register on the scheduler before and after <see cref="Modding.ModLoader.LoadAll"/>; mods add their own <see cref="Core.Ecs.ISystem"/> passes via <see cref="Modding.ModLoadContext.RegisterSequential"/> / <see cref="Modding.ModLoadContext.RegisterParallel"/>.
+/// </para>
+/// </remarks>
+/// <example>
+/// <code lang="csharp">
+/// using var app = new GameApplication(args);
+/// app.Run(); // blocks
+/// </code>
+/// </example>
 [ExcludeFromCodeCoverage(Justification = "Requires a real window, input, and mod staging; covered by manual / integration runs.")]
 public sealed class GameApplication : IDisposable
 {
@@ -37,6 +52,10 @@ public sealed class GameApplication : IDisposable
     private IWindow? _window;
     private IInputContext? _input;
 
+    /// <summary>
+    /// Prepares host services and the frame scheduler. Does not open the window until <see cref="Run"/> is called.
+    /// </summary>
+    /// <param name="commandLineArgs">Optional argv (e.g. for <c>--exclude-mods</c> parsed by <see cref="Modding.ExcludeModsParser"/>).</param>
     public GameApplication(string[]? commandLineArgs = null)
     {
         _commandLineArgs = commandLineArgs ?? Array.Empty<string>();
@@ -44,6 +63,9 @@ public sealed class GameApplication : IDisposable
         _host = new GameHostServices(_bindings);
     }
 
+    /// <summary>
+    /// Creates the main window and runs the Silk.NET message loop until exit. Blocking on the calling thread.
+    /// </summary>
     public void Run()
     {
         var options = WindowOptions.DefaultVulkan;
@@ -146,6 +168,9 @@ public sealed class GameApplication : IDisposable
         _mods.UnloadAll();
     }
 
+    /// <summary>
+    /// Releases GPU, audio, and window resources. Safe to call once after <see cref="Run"/> returns.
+    /// </summary>
     public void Dispose()
     {
         _renderer?.Dispose();

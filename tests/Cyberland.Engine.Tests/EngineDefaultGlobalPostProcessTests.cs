@@ -18,7 +18,7 @@ public sealed class EngineDefaultGlobalPostProcessTests
     [Fact]
     public void Apply_sets_renderer_global()
     {
-        var r = new RecordingRenderer2D();
+        var r = new RecordingRenderer();
         EngineDefaultGlobalPostProcess.Apply(r);
         Assert.NotNull(r.LastGlobal);
         Assert.True(r.LastGlobal!.Value.BloomEnabled);

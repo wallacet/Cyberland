@@ -1,7 +1,7 @@
 namespace Cyberland.Engine.Core.Ecs;
 
 /// <summary>
-/// Single-threaded system: runs on the main thread in deterministic order.
+/// Single-threaded game/update pass: invoked from the host scheduler on the main thread in a stable order with other <see cref="ISystem"/> instances.
 /// </summary>
 public interface ISystem
 {
@@ -14,18 +14,26 @@ public interface ISystem
     /// </summary>
     void OnStart(World world) { }
 
+    /// <summary>Per-frame work after <see cref="OnStart"/> (if any). Runs once per frame while the system is enabled.</summary>
+    /// <param name="world">Shared ECS world.</param>
+    /// <param name="deltaSeconds">Frame time in seconds (not fixed timestep unless you implement it).</param>
     void OnUpdate(World world, float deltaSeconds);
 }
 
 /// <summary>
-/// Parallel-friendly system: implementors receive <see cref="ParallelOptions"/> from the engine.
-/// Execution order is the same as registration order in <see cref="Tasks.SystemScheduler"/>; use
-/// <see cref="Parallel.ForEach"/> (or similar) inside <see cref="OnParallelUpdate"/> for multi-core work.
+/// Optional parallel stage: runs in registration order like <see cref="ISystem"/>, but receives <see cref="ParallelOptions"/> so you can fan out work with <c>Parallel.ForEach</c> (e.g. over <see cref="World.QueryChunks{T}"/> chunks).
 /// </summary>
+/// <remarks>
+/// Still respect thread-safety of services you touch (see remarks on <see cref="Rendering.IRenderer"/> for concurrent submits).
+/// </remarks>
 public interface IParallelSystem
 {
     /// <inheritdoc cref="ISystem.OnStart"/>
     void OnStart(World world) { }
 
+    /// <summary>Per-frame parallel work; use <paramref name="parallelOptions"/> for <c>Parallel.ForEach</c> and similar.</summary>
+    /// <param name="world">Shared ECS world.</param>
+    /// <param name="deltaSeconds">Elapsed time in seconds.</param>
+    /// <param name="parallelOptions">Max degree of parallelism and cancellation from the host.</param>
     void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions);
 }

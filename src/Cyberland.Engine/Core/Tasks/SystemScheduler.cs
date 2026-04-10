@@ -30,6 +30,8 @@ public sealed class SystemScheduler
     private readonly List<Entry> _entries = new();
     private readonly Dictionary<string, int> _logicalIds = new(StringComparer.Ordinal);
 
+    /// <summary>Creates a scheduler that supplies <paramref name="parallelism"/> to parallel ECS systems.</summary>
+    /// <param name="parallelism">Concurrency limits for <see cref="IParallelSystem.OnParallelUpdate"/>.</param>
     public SystemScheduler(ParallelismSettings parallelism) => _parallelism = parallelism;
 
     /// <summary>Raised after <see cref="ISystem.OnStart"/> / <see cref="IParallelSystem.OnStart"/> returns for an entry.</summary>
@@ -45,6 +47,8 @@ public sealed class SystemScheduler
     public event Action<string>? SystemUnregistered;
 
     /// <summary>Registers or replaces a sequential system. Execution order follows registration order.</summary>
+    /// <param name="logicalId">Stable id used for enable/disable and diagnostics.</param>
+    /// <param name="system">Sequential ECS system instance.</param>
     /// <param name="enabled">Initial enabled flag. Replacing an id resets lifecycle state so the new instance receives <see cref="ISystem.OnStart"/> once.</param>
     public void RegisterSequential(string logicalId, ISystem system, bool enabled = true)
     {
@@ -54,6 +58,8 @@ public sealed class SystemScheduler
     }
 
     /// <summary>Registers or replaces a parallel system. Execution order follows registration order.</summary>
+    /// <param name="logicalId">Stable id used for enable/disable and diagnostics.</param>
+    /// <param name="system">Parallel ECS system instance.</param>
     /// <param name="enabled">Initial enabled flag. Replacing an id resets lifecycle state so the new instance receives <see cref="IParallelSystem.OnStart"/> once.</param>
     public void RegisterParallel(string logicalId, IParallelSystem system, bool enabled = true)
     {
@@ -117,6 +123,11 @@ public sealed class SystemScheduler
         return true;
     }
 
+    /// <summary>
+    /// Executes one frame: every <strong>enabled</strong> system in registration order, calling <see cref="ISystem.OnUpdate"/> or <see cref="IParallelSystem.OnParallelUpdate"/>.
+    /// </summary>
+    /// <param name="world">ECS world passed to each system.</param>
+    /// <param name="deltaSeconds">Elapsed time since last frame.</param>
     public void RunFrame(World world, float deltaSeconds)
     {
         var opts = _parallelism.CreateParallelOptions();

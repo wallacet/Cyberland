@@ -6,7 +6,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
-/// Submits arena lighting each frame for the deferred 2D path: ambient + directional + spot in the base pass,
+/// Submits arena lighting each frame for the deferred path: ambient + directional + spot in the base pass,
 /// multiple <see cref="PointLight"/>s via SSBO + instanced draws (all queued lights are evaluated).
 /// </summary>
 public sealed class BrickLightsSystem : ISystem

@@ -2,7 +2,7 @@ using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
-using Cyberland.Engine.Scene2D;
+using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.Snake;
 

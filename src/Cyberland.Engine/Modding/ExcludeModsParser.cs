@@ -1,11 +1,18 @@
 namespace Cyberland.Engine.Modding;
 
-/// <summary>Parses <c>--exclude-mods id1,id2</c> from host command-line args.</summary>
+/// <summary>
+/// Parses <c>--exclude-mods modA,modB</c> from the host process command line so specific <see cref="ModManifest.Id"/> values are skipped during <see cref="ModLoader.LoadAll"/>.
+/// </summary>
 public static class ExcludeModsParser
 {
+    /// <summary>Long-form flag name (case-insensitive match).</summary>
     public const string Flag = "--exclude-mods";
 
-    /// <summary>Returns null if the flag is absent; empty array if present with no ids.</summary>
+    /// <summary>
+    /// Reads argv-style arguments; returns excluded mod ids, or <c>null</c> if the flag was not used.
+    /// </summary>
+    /// <param name="args">Typically <c>Environment.GetCommandLineArgs()</c> without the program path, or equivalent.</param>
+    /// <returns><c>null</c> if the flag is absent; an empty array if <c>--exclude-mods</c> is present with no list.</returns>
     public static string[]? TryParse(ReadOnlySpan<string> args)
     {
         for (var i = 0; i < args.Length; i++)

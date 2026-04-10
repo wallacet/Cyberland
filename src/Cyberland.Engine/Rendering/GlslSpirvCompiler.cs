@@ -22,6 +22,13 @@ public static class GlslSpirvCompiler
             throw new InvalidOperationException($"GLSL link failed ({stage}):\n{program.GetInfoLog()}\n{program.GetDebugLog()}");
     }
 
+    /// <summary>
+    /// Compiles a single GLSL source string to SPIR-V words for Vulkan pipeline creation.
+    /// </summary>
+    /// <param name="glsl">Full shader source (version directive expected).</param>
+    /// <param name="stage">Vulkan shader stage (vertex, fragment, etc.).</param>
+    /// <param name="entryPoint">GLSL entry symbol (usually <c>main</c>).</param>
+    /// <returns>SPIR-V dword array suitable for <c>vkCreateShaderModule</c>.</returns>
     public static uint[] CompileGlslToSpirv(string glsl, ShaderStage stage, string entryPoint = "main")
     {
         CompilationInput input = new()

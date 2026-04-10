@@ -25,9 +25,9 @@ Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` 
 
 ### Default engine systems (2D scene)
 
-After **`VulkanRenderer`** initializes, **`GameApplication`** applies baseline HDR globals **once** via **`EngineDefaultGlobalPostProcess.Apply(renderer)`** (not a scheduler system and not every frame). Mods replace or tune globals with **`IRenderer2D.SetGlobalPostProcess`** from **`IMod.OnLoad`** (later loads win) or from a system when values must change every frame (e.g. post volumes tied to **`SwapchainPixelSize`**).
+After **`VulkanRenderer`** initializes, **`GameApplication`** applies baseline HDR globals **once** via **`EngineDefaultGlobalPostProcess.Apply(renderer)`** (not a scheduler system and not every frame). Mods replace or tune globals with **`IRenderer.SetGlobalPostProcess`** from **`IMod.OnLoad`** (later loads win) or from a system when values must change every frame (e.g. post volumes tied to **`SwapchainPixelSize`**).
 
-`GameApplication` then registers **`RegisterParallel`** / **`RegisterSequential`** in a fixed order: parallel **transform hierarchy**, **sprite animation**, **CPU particle simulation**; then **`ModLoader.LoadAll`** (mods append with `RegisterSequential` / `RegisterParallel` in manifest order); then parallel **tilemap**, **sprite**, and **particle** submit systems. **`RunFrame`** walks that list in order—**`ISystem`** and **`IParallelSystem`** entries can be **interleaved**; there is no separate “all sequential, then all parallel” phase. Mod authors should attach **`Sprite2D`** / **`Tilemap2D`** / **`ParticleEmitter2D`** and related components rather than reimplementing the same submit loop, unless they need a special-case draw. **`IRenderer2D`** submit APIs are **thread-safe** for parallel systems; GPU command recording and present stay on the render thread.
+`GameApplication` then registers **`RegisterParallel`** / **`RegisterSequential`** in a fixed order: parallel **transform hierarchy**, **sprite animation**, **CPU particle simulation**; then **`ModLoader.LoadAll`** (mods append with `RegisterSequential` / `RegisterParallel` in manifest order); then parallel **tilemap**, **sprite**, and **particle** submit systems. **`RunFrame`** walks that list in order—**`ISystem`** and **`IParallelSystem`** entries can be **interleaved**; there is no separate “all sequential, then all parallel” phase. Mod authors should attach **`Sprite`** / **`Tilemap`** / **`ParticleEmitter`** and related components rather than reimplementing the same submit loop, unless they need a special-case draw. **`IRenderer`** submit APIs are **thread-safe** for parallel systems; GPU command recording and present stay on the render thread.
 
 ### Asset ownership and distribution
 
@@ -47,14 +47,14 @@ After **`VulkanRenderer`** initializes, **`GameApplication`** applies baseline H
   - Re-registering an existing id **replaces** the implementation in place (order relative to other systems unchanged) and resets **`OnStart`** for the new instance.
 - Use **`context.HideContentPath`** or manifest **`contentBlocklist`** to suppress a virtual file; use **`context.TryRemoveLocalizationKey`** to drop a merged string key.
 - Use **`context.World`** for entities and `Components<T>()`.
-- Use **`context.Host`** (`GameHostServices`) for **KeyBindings**, **Input** (`IInputContext`), and **Renderer** (`IRenderer2D` / `VulkanRenderer`) when the mod needs to draw or call **`RequestClose`**. Do not static-import host singletons.
+- Use **`context.Host`** (`GameHostServices`) for **KeyBindings**, **Input** (`IInputContext`), and **Renderer** (`IRenderer` / `VulkanRenderer`) when the mod needs to draw or call **`RequestClose`**. Do not static-import host singletons.
 
 ## Adding a new gameplay feature (checklist)
 
 1. Prefer a **new `ISystem` or `IParallelSystem`** in the appropriate mod project (`Cyberland.Game` for campaign, or a new mod + staging target).
 2. Register it from that mod’s **`IMod.OnLoad`**.
 3. Add **components** as `struct`s in the mod assembly (see **`Velocity`** in **`Cyberland.Demo`**).
-4. If the feature needs drawing, prefer engine **`Scene2D`** components and the host-registered sprite/tilemap/particle render systems; call **`Host.Renderer`** (`SubmitSprite`, post volumes, etc.) only when a custom immediate-mode path is justified — keep **world vs screen** rules in `WorldScreenSpace` / renderer.
+4. If the feature needs drawing, prefer engine **`Scene`** components and the host-registered sprite/tilemap/particle render systems; call **`Host.Renderer`** (`SubmitSprite`, post volumes, etc.) only when a custom immediate-mode path is justified — keep **world vs screen** rules in `WorldScreenSpace` / renderer.
 5. Keep **`GameApplication`** limited to bootstrap; exit is via window close / **`RequestClose`**, not a hard-coded Escape handler in the host.
 
 ## Third-party mods

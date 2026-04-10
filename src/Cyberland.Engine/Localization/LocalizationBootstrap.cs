@@ -7,6 +7,9 @@ namespace Cyberland.Engine.Localization;
 /// </summary>
 public static class LocalizationBootstrap
 {
+    /// <summary>
+    /// Loads UTF-8 JSON (object of key → string) from <paramref name="relativePath"/> if it exists in the VFS and merges into <paramref name="localization"/>.
+    /// </summary>
     public static async Task LoadAsync(LocalizationManager localization, AssetManager assets, string relativePath, CancellationToken cancellationToken = default)
     {
         if (!assets.FileSystem.Exists(relativePath))

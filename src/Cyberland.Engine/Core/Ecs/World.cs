@@ -1,17 +1,23 @@
 namespace Cyberland.Engine.Core.Ecs;
 
 /// <summary>
-/// Owns entity lifetime, the archetype graph, and chunk queries. Systems access components via
-/// <see cref="Components{T}"/> or <see cref="QueryChunks{T}"/>.
+/// The ECS database for one running game: creates entities, stores <c>struct</c> components in archetype chunks, and supports fast queries.
 /// </summary>
+/// <remarks>
+/// Mods receive the shared <see cref="World"/> from <see cref="Modding.ModLoadContext.World"/>. Use <see cref="Components{T}"/> for per-entity access and
+/// <see cref="QueryChunks{T}"/> (or <see cref="QueryChunks{T0,T1}"/>) to iterate contiguous memory for hot loops / parallel jobs.
+/// </remarks>
 public sealed class World
 {
     private readonly EntityRegistry _entities = new();
     private readonly ArchetypeWorld _ecs = new();
     private readonly Dictionary<Type, object> _componentFacades = new();
 
+    /// <summary>Low-level id allocator; most code uses <see cref="CreateEntity"/> instead.</summary>
     public EntityRegistry Entities => _entities;
 
+    /// <summary>Creates a new entity with no components yet.</summary>
+    /// <returns>A fresh <see cref="EntityId"/> valid until <see cref="DestroyEntity"/>.</returns>
     public EntityId CreateEntity()
     {
         var id = _entities.Create();
@@ -19,6 +25,7 @@ public sealed class World
         return id;
     }
 
+    /// <summary>Removes all components and recycles the entity id.</summary>
     public void DestroyEntity(EntityId id)
     {
         if (!_entities.IsAlive(id))
@@ -30,8 +37,12 @@ public sealed class World
         _ecs.OnEntityDestroyed(id);
     }
 
+    /// <summary>Returns false if the id was never issued or was destroyed (generation mismatch).</summary>
     public bool IsAlive(EntityId id) => _entities.IsAlive(id);
 
+    /// <summary>
+    /// Facade for adding, reading, and removing component type <typeparamref name="T"/> on entities.
+    /// </summary>
     public ComponentStore<T> Components<T>() where T : struct
     {
         if (!_componentFacades.TryGetValue(typeof(T), out var fac))

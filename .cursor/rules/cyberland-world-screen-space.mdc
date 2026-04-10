@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## Screen space (framebuffer / Vulkan)
 
-**Top-left origin, +Y down** — same as Silk `FramebufferSize`. The GPU path uses pixel centers internally; **`VulkanRenderer`** applies `WorldScreenSpace.WorldCenterToScreenPixel` when recording **`IRenderer2D.SubmitSprite`** draws — gameplay code should not pass raw screen pixels unless debugging.
+**Top-left origin, +Y down** — same as Silk `FramebufferSize`. The GPU path uses pixel centers internally; **`VulkanRenderer`** applies `WorldScreenSpace.WorldCenterToScreenPixel` when recording **`IRenderer.SubmitSprite`** draws — gameplay code should not pass raw screen pixels unless debugging.
 
 ## World space (+Y up, gameplay math)
 

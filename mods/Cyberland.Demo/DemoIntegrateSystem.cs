@@ -2,7 +2,7 @@ using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
-using Cyberland.Engine.Scene2D;
+using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
 namespace Cyberland.Demo;

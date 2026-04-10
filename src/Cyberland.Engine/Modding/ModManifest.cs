@@ -5,11 +5,17 @@ namespace Cyberland.Engine.Modding;
 /// </summary>
 public sealed class ModManifest
 {
+    /// <summary>Stable id used for exclusions (<c>--exclude-mods</c>) and ordering; should be unique.</summary>
     public string Id { get; init; } = "";
+    /// <summary>Human-readable title (UI / logs).</summary>
     public string Name { get; init; } = "";
+    /// <summary>Semantic or marketing version string.</summary>
     public string Version { get; init; } = "0.0.0";
+    /// <summary>Filename of the mod DLL inside the mod folder (e.g. <c>MyMod.dll</c>); omit for content-only packs.</summary>
     public string? EntryAssembly { get; init; }
+    /// <summary>Subfolder under the mod directory to mount into the VFS first (default <c>Content</c>).</summary>
     public string ContentRoot { get; init; } = "Content";
+    /// <summary>Lower runs first when sorting; ties broken by <see cref="Id"/>.</summary>
     public int LoadOrder { get; init; }
 
     /// <summary>

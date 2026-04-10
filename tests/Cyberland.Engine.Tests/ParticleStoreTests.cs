@@ -1,5 +1,5 @@
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Scene2D;
+using Cyberland.Engine.Scene;
 using Xunit;
 
 namespace Cyberland.Engine.Tests;

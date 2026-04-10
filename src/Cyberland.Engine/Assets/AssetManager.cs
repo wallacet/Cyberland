@@ -9,8 +9,10 @@ public sealed class AssetManager
 {
     private readonly VirtualFileSystem _vfs;
 
+    /// <summary>Creates a loader that reads through <paramref name="vfs"/> (layered mod content).</summary>
     public AssetManager(VirtualFileSystem vfs) => _vfs = vfs;
 
+    /// <summary>Underlying layered filesystem (mods + base).</summary>
     public VirtualFileSystem FileSystem => _vfs;
 
     /// <summary>Load entire file into memory (small assets, JSON, shaders).</summary>
@@ -27,12 +29,14 @@ public sealed class AssetManager
         }
     }
 
+    /// <summary>Loads UTF-8 text (JSON, shaders, locale files).</summary>
     public async Task<string> LoadTextAsync(string path, CancellationToken cancellationToken = default)
     {
         var bytes = await LoadBytesAsync(path, cancellationToken).ConfigureAwait(false);
         return System.Text.Encoding.UTF8.GetString(bytes);
     }
 
+    /// <summary>Deserializes JSON from the VFS into <typeparamref name="T"/>.</summary>
     public async Task<T> LoadJsonAsync<T>(string path, JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)
     {
         await using var stream = OpenReadOrThrow(path);

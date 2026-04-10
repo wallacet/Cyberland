@@ -16,17 +16,28 @@ namespace Cyberland.Engine.Modding;
 /// <see cref="ModManifest.LoadOrder"/> then id. For each manifest, record it and mount <see cref="ModManifest.ContentRoot"/>,
 /// then apply <see cref="ModManifest.ContentBlocklist"/> via <see cref="VirtualFileSystem.BlockPath"/>. (2) For each entry
 /// with an <see cref="ModManifest.EntryAssembly"/>, load the DLL from disk, find a concrete <see cref="IMod"/>, construct it,
-/// and call <see cref="IMod.OnLoad"/> with a <see cref="ModLoadContext"/>. Loading uses <see cref="Assembly.LoadFrom"/> —
+/// and call <see cref="IMod.OnLoad"/> with a <see cref="ModLoadContext"/>. Loading uses <c>Assembly.LoadFrom</c> —
 /// mod DLLs execute with host trust; third-party mods imply arbitrary native code (document for contributors, not end users).
 /// </remarks>
 public sealed class ModLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
+    /// <summary>Manifests successfully staged in the last <see cref="LoadAll"/> (content pass + assembly load pass).</summary>
     public IReadOnlyList<ModManifest> LoadedManifests => _manifests;
     private readonly List<ModManifest> _manifests = new();
     private readonly List<IMod> _instances = new();
 
+    /// <summary>
+    /// Mounts mod content in load order, applies blocklists, then loads each mod’s <see cref="ModManifest.EntryAssembly"/> and invokes <see cref="IMod.OnLoad"/>.
+    /// </summary>
+    /// <param name="modsRootDirectory">Typically <c>Mods</c> next to the executable.</param>
+    /// <param name="vfs">Shared layered file system.</param>
+    /// <param name="localization">Merged string tables.</param>
+    /// <param name="world">Shared ECS world.</param>
+    /// <param name="scheduler">Where mods register systems.</param>
+    /// <param name="host">Renderer, input, optional stores.</param>
+    /// <param name="excludedModIds">Mod ids to skip entirely (from <see cref="ExcludeModsParser"/>).</param>
     public void LoadAll(
         string modsRootDirectory,
         VirtualFileSystem vfs,
@@ -94,6 +105,7 @@ public sealed class ModLoader
         }
     }
 
+    /// <summary>Calls <see cref="IMod.OnUnload"/> on loaded mods in reverse order and clears the manifest list.</summary>
     public void UnloadAll()
     {
         for (var i = _instances.Count - 1; i >= 0; i--)

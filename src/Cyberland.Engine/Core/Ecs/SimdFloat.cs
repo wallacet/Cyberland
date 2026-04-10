@@ -8,7 +8,9 @@ namespace Cyberland.Engine.Core.Ecs;
 /// </summary>
 public static class SimdFloat
 {
-    /// <summary>values[i] *= scale</summary>
+    /// <summary>Multiplies every element of <paramref name="values"/> by <paramref name="scale"/> in place.</summary>
+    /// <param name="values">Contiguous buffer (e.g. a column view cast from component memory).</param>
+    /// <param name="scale">Uniform multiplier.</param>
     public static void MultiplyInPlace(Span<float> values, float scale)
     {
         if (values.IsEmpty)
@@ -29,7 +31,7 @@ public static class SimdFloat
             values[i] *= scale;
     }
 
-    /// <summary>dst[i] = a[i] * b[i] (length = min of spans)</summary>
+    /// <summary>Writes the element-wise product of <paramref name="a"/> and <paramref name="b"/> into <paramref name="dst"/> (length = min of the three).</summary>
     public static void MultiplyElementWise(ReadOnlySpan<float> a, ReadOnlySpan<float> b, Span<float> dst)
     {
         var n = Math.Min(a.Length, b.Length);

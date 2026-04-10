@@ -6,7 +6,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.Snake;
 
 /// <summary>
-/// Submits arena lighting each frame for the deferred 2D path: ambient + directional + spot in the base pass,
+/// Submits arena lighting each frame for the deferred path: ambient + directional + spot in the base pass,
 /// multiple <see cref="PointLight"/>s via SSBO + instanced draws (all queued lights are evaluated).
 /// Positions match <see cref="SnakeRenderSystem"/> (grid to world via <see cref="SnakeSession"/> layout).
 /// </summary>

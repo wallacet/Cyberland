@@ -7,6 +7,13 @@ namespace Cyberland.Engine.Rendering;
 /// </summary>
 public static class PostProcessVolumeMerge
 {
+    /// <summary>
+    /// Picks the highest-priority <see cref="PostProcessVolume"/> overlapping the view rectangle and merges its <see cref="PostProcessVolume.Overrides"/> into <paramref name="global"/>.
+    /// </summary>
+    /// <param name="global">Baseline settings from <see cref="IRenderer.SetGlobalPostProcess"/>.</param>
+    /// <param name="volumes">Volumes submitted this frame.</param>
+    /// <param name="viewMinWorld">AABB min corner of the evaluated region (e.g. full screen in world units).</param>
+    /// <param name="viewMaxWorld">AABB max corner.</param>
     public static GlobalPostProcessSettings Resolve(
         in GlobalPostProcessSettings global,
         ReadOnlySpan<PostProcessVolume> volumes,
@@ -37,6 +44,7 @@ public static class PostProcessVolumeMerge
         return result;
     }
 
+    /// <summary>Axis-aligned box overlap test in world space (+Y up).</summary>
     public static bool Overlaps(
         Vector2D<float> aMin,
         Vector2D<float> aMax,
