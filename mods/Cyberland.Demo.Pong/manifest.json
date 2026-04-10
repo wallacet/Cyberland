@@ -5,5 +5,5 @@
   "entryAssembly": "Cyberland.Demo.Pong.dll",
   "contentRoot": "Content",
   "loadOrder": 20,
-  "disabled": false
+  "disabled": true
 }
