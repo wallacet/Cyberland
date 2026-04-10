@@ -55,7 +55,10 @@ public sealed class World
         where T0 : struct
         where T1 : struct => new(_ecs);
 
-    internal ref T RefGetOrAdd<T>(EntityId entity, T initial = default) where T : struct =>
+    internal ref T RefGetOrAdd<T>(EntityId entity) where T : struct =>
+        ref _ecs.GetOrAddComponent(entity, new T());
+
+    internal ref T RefGetOrAdd<T>(EntityId entity, T initial) where T : struct =>
         ref _ecs.GetOrAddComponent(entity, initial);
 
     internal bool TryGetComponent<T>(EntityId entity, out T value) where T : struct =>

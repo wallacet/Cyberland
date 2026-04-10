@@ -1,0 +1,32 @@
+using Cyberland.Engine.Rendering;
+using Xunit;
+
+namespace Cyberland.Engine.Tests;
+
+public sealed class EngineDefaultGlobalPostProcessTests
+{
+    [Fact]
+    public void DefaultSettings_matches_engine_baseline()
+    {
+        var s = EngineDefaultGlobalPostProcess.DefaultSettings;
+        Assert.True(s.BloomEnabled);
+        Assert.Equal(1.1f, s.BloomRadius);
+        Assert.Equal(0.28f, s.BloomGain);
+        Assert.Equal(1.04f, s.Saturation);
+    }
+
+    [Fact]
+    public void Apply_sets_renderer_global()
+    {
+        var r = new RecordingRenderer2D();
+        EngineDefaultGlobalPostProcess.Apply(r);
+        Assert.NotNull(r.LastGlobal);
+        Assert.True(r.LastGlobal!.Value.BloomEnabled);
+    }
+
+    [Fact]
+    public void Apply_null_is_noop()
+    {
+        EngineDefaultGlobalPostProcess.Apply(null);
+    }
+}

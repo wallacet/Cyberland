@@ -53,14 +53,19 @@ public sealed class ModLoadContext
         VirtualFileSystem.BlockPath(relativePath);
 
     /// <summary>Registers or replaces a sequential ECS system under <paramref name="logicalId"/>.</summary>
-    public void RegisterSequential(string logicalId, ISystem system) =>
-        Scheduler.RegisterSequential(logicalId, system);
+    /// <param name="enabled">Initial enabled flag; use <see cref="SetSystemEnabled"/> to toggle later.</param>
+    public void RegisterSequential(string logicalId, ISystem system, bool enabled = true) =>
+        Scheduler.RegisterSequential(logicalId, system, enabled);
 
     /// <summary>Registers or replaces a parallel ECS system under <paramref name="logicalId"/>.</summary>
-    public void RegisterParallel(string logicalId, IParallelSystem system) =>
-        Scheduler.RegisterParallel(logicalId, system);
+    /// <param name="enabled">Initial enabled flag; use <see cref="SetSystemEnabled"/> to toggle later.</param>
+    public void RegisterParallel(string logicalId, IParallelSystem system, bool enabled = true) =>
+        Scheduler.RegisterParallel(logicalId, system, enabled);
 
-    /// <summary>Removes a system registered under <paramref name="logicalId"/> from either pass.</summary>
+    /// <summary>Enables or disables a registered system without removing it (see <see cref="SystemScheduler.SetEnabled"/>).</summary>
+    public bool SetSystemEnabled(string logicalId, bool enabled) => Scheduler.SetEnabled(logicalId, enabled);
+
+    /// <summary>Removes a system registered under <paramref name="logicalId"/>.</summary>
     public bool TryUnregister(string logicalId) => Scheduler.TryUnregister(logicalId);
 
     /// <summary>Removes a localization key merged from an earlier mod (see <see cref="LocalizationManager.TryRemoveKey"/>).</summary>

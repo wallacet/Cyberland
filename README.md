@@ -11,7 +11,7 @@ Design goals: **small footprint**, **predictable load**, and **scaling from inte
 | Requirement | Notes |
 |-------------|--------|
 | **.NET 8 SDK** | Required to build and run. |
-| **Vulkan 1.x + a working driver** | The host clears and draws a simple sprite; init failures show a user-facing message instead of crashing silently. |
+| **Vulkan 1.x + a working driver** | The host runs a **2D HDR** pipeline (deferred lighting, bloom, composite to the swapchain). Init failures surface via **`UserMessageDialog`** / **`GraphicsInitializationException`** instead of crashing silently. |
 | **Windows** | Primary target; input and error UI are written with that in mind (other platforms may work where Silk.NET + Vulkan do). |
 
 ---
@@ -99,10 +99,11 @@ After **Cyberland.Host** builds, mods are **staged** next to the host executable
 
 | Folder | Contents |
 |--------|----------|
-| **`Mods/Cyberland.Game/`** | Base campaign mod: `Cyberland.Game.dll`, `manifest.json`, `Content/` (synced from release bundles). |
-| **`Mods/Cyberland.Demo/`** | Optional Vulkan sprite + ECS sample: `Cyberland.Demo.dll`, `manifest.json`, `Content/` (synced from release bundles). |
+| **`Mods/Cyberland.Game/`** | Base campaign mod: `Cyberland.Game.dll`, `manifest.json`, `Content/` (synced from release bundles). **Enabled** by default (`manifest.json` has no **`disabled`** flag). |
+| **`Mods/Cyberland.Demo/`** | 2D HDR deferred sprite + ECS sample. **`disabled`: `true`** in `manifest.json` by default — see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). |
+| **`Mods/Cyberland.Demo.Pong/`**, **`...Snake/`**, **`...BrickBreaker/`** | Arcade samples; **`disabled`: `true`** by default. |
 
-`Cyberland.Host.csproj` copies these on build. Remove **`Mods/Cyberland.Demo`** from the output if you do not want the sprite sample.
+`Cyberland.Host.csproj` copies these on build. Demo mods stay in the tree for development but do not load until you opt in (edit the staged **`manifest.json`** or the copy under **`mods/`** and rebuild).
 
 ### Clean build and packaging
 
@@ -179,7 +180,8 @@ src/
   Cyberland.Engine/            # Engine library (ECS, Vulkan, input, mods, assets, …)
 mods/
   Cyberland.Game/              # Base campaign mod (IMod, locale Content/)
-  Cyberland.Demo/              # Optional Vulkan sprite + parallel ECS sample mod
+  Cyberland.Demo/              # Sample mod (manifest disabled by default; see README)
+  Cyberland.Demo.Pong/ …       # Arcade demos (same)
 scripts/
   Run-Cyberland.ps1
   Publish-Cyberland.ps1
@@ -191,10 +193,10 @@ scripts/
 
 | Project | Role |
 |---------|------|
-| **Cyberland.Host** | Entry point (`Program.cs` → `GameApplication`). Builds and stages **`Cyberland.Game`** and **`Cyberland.Demo`** into `$(OutDir)Mods/`. |
+| **Cyberland.Host** | Entry point (`Program.cs` → `GameApplication`). Builds and stages **`Cyberland.Game`**, **`Cyberland.Demo`**, and arcade demo mods into `$(OutDir)Mods/`. |
 | **Cyberland.Engine** | All shared runtime: windowing, Vulkan renderer, ECS, task scheduler, virtual FS, assets, localization, OpenAL, mod loader, `GameHostServices`. |
-| **Cyberland.Game** | Base campaign mod → `Cyberland.Game.dll` (locale and future core data). |
-| **Cyberland.Demo** | Optional sample mod → `Cyberland.Demo.dll` (sprite movement, velocity damp ECS). Ship without it by not staging or deleting that folder from output. |
+| **Cyberland.Game** | Base campaign mod → `Cyberland.Game.dll` (locale and future core data). Loaded by default. |
+| **Cyberland.Demo** (and **Pong** / **Snake** / **BrickBreaker**) | Sample mods → respective DLLs. **`disabled`: `true`** in each **`manifest.json`** by default so normal runs load only the base game. |
 
 ---
 
@@ -224,9 +226,11 @@ flowchart TB
 1. **Host** creates the window, graphics, input, keybindings, ECS world, scheduler, and VFS, then calls **`ModLoader.LoadAll`** on `AppContext.BaseDirectory/Mods`.
 2. Each mod’s **`IMod.OnLoad`** receives a **`ModLoadContext`**: world, scheduler, localization, VFS, and **`Host`** (`GameHostServices`).
 3. Mods **register systems** on the scheduler and optionally spawn entities, mount extra paths, etc.
-4. Every frame, **`GameApplication`** runs **`SystemScheduler.RunFrame(world, dt)`** (sequential systems, then parallel systems), handles **host-only** input (e.g. Escape → exit), and **presents** the swapchain.
+4. Every frame, **`GameApplication`** runs **`SystemScheduler.RunFrame(world, dt)`**, which **walks a single ordered list** of registrations (each entry is either **`ISystem`** or **`IParallelSystem`**, in the order they were registered), then handles **host-only** input (e.g. Escape → exit), and **presents** the swapchain.
 
 **Rule of thumb:** *If it is gameplay, it belongs in a mod (or a new mod assembly), not in `GameApplication`.*
+
+**Default engine systems (2D):** The host registers systems in a fixed **explicit order**: parallel **transform hierarchy**, **sprite animation**, and **CPU particle simulation**; then **`ModLoader.LoadAll`** (mods append **`RegisterSequential`** / **`RegisterParallel`** in manifest order); then parallel **tilemap**, **sprite**, and **particle** submit systems. After **`VulkanRenderer`** initialization, **`GameApplication`** applies baseline HDR globals once via **`EngineDefaultGlobalPostProcess.Apply`** (not every frame). Mods replace or extend those settings by calling **`SetGlobalPostProcess`** from **`IMod.OnLoad`** (later loads win over earlier ones) or from a system when values must track the frame (e.g. volumes tied to **`SwapchainPixelSize`**).
 
 ---
 
@@ -243,18 +247,17 @@ Components are **`struct`** types; define them in your mod assembly (see `Veloci
 
 ### Task scheduler (`Core/Tasks`)
 
-- **`SystemScheduler`** — registers **`ISystem`** (main thread, deterministic order) and **`IParallelSystem`** (runs after all sequential systems, with **`ParallelOptions`** from **`ParallelismSettings`**).
+- **`SystemScheduler`** — one ordered list of **`RegisterSequential`** / **`RegisterParallel`** calls. **`RunFrame`** walks entries in registration order. Each enabled entry runs **`ISystem.OnStart`** / **`IParallelSystem.OnStart`** at most **once** per registration (first frame the entry is enabled), then **`ISystem.OnUpdate`** or **`IParallelSystem.OnParallelUpdate`** (with **`ParallelOptions`** from **`ParallelismSettings`**). Disabled entries are skipped entirely until **`SetEnabled(logicalId, true)`**; re-enabling does **not** run **`OnStart`** again. Replacing a logical id resets lifecycle so the new instance gets **`OnStart`** once. **`SetEnabled`**, **`SystemStarted`**, **`SystemEnabled`**, **`SystemDisabled`**, and **`SystemUnregistered`** (from **`TryUnregister`**) are the hooks for introspection and debugging.
 - **`ParallelismSettings.MaxConcurrency`** — `0` means use all logical processors.
 
-Frame order:
-
-1. Every **`ISystem.OnUpdate(world, deltaSeconds)`** in registration order.
-2. Every **`IParallelSystem.OnParallelUpdate(world, parallelOptions)`** in registration order.
+Frame order is **registration order** (not separate global “sequential phase” vs “parallel phase”). The host registers engine systems first, mods append during **`LoadAll`**, then the host appends render submit systems—so a mod’s systems run **between** simulation and drawing **when** they register during **`OnLoad`**.
 
 ### Rendering (`Rendering/`)
 
-- **`VulkanRenderer`** — swapchain, render pass, pipeline, indexed quad, push constants for sprite position/size in **pixel space** after conversion from **world space** via **`SetSpriteWorld`**.
-- **`WorldScreenSpace`** — **world** (origin bottom-left, +Y up) vs **screen / framebuffer** (top-left, +Y down). **`SetSpriteWorld`** applies **`WorldCenterToScreenPixel`** inside the renderer—gameplay should stay in world space and call **`SetSpriteWorld`**, not hand-convert in multiple places.
+- **`IRenderer`** (implemented by **`VulkanRenderer`**) — mod-facing API: **`SubmitSprite`**, **`SubmitPointLight`**, **`SubmitSpotLight`**, **`SubmitDirectionalLight`**, **`SubmitAmbientLight`**, **`SubmitPostProcessVolume`**, **`SetGlobalPostProcess`**, **`RegisterTextureRgba`**, **`RequestClose`**, plus **`SwapchainPixelSize`**. **CPU-side** submit queues are **thread-safe** for **`IParallelSystem`** workers; GPU command recording and **`DrawFrame`** stay on the render thread.
+- **2D HDR frame pipeline (scene-linear offscreen targets, tonemap in composite):** emissive prepass (optional per-texel **`EmissiveTextureId`**) → **G-buffer** (opaque sprites only) → **HDR**: fullscreen base lighting (ambient / directional / spot) + **all** submitted **point lights** (instanced draw, SSBO) + emissive bleed → **weighted blended OIT** for **transparent** sprites → resolve to HDR → **bloom** → **composite** to the swapchain. Sort order for sprites is **layer → sort key → depth hint**; **straight alpha** where applicable. See **`.cursor/rules/cyberland-design-goals.mdc`** for linear-color and modularity goals.
+- **Opaque vs transparent:** set **`SpriteDrawRequest.Transparent`** / **`Sprite2D.Transparent`** for glass-style draws (WBOIT over opaque HDR); otherwise the sprite goes through the deferred G-buffer path.
+- **`WorldScreenSpace`** — **world** (origin bottom-left, +Y up) vs **framebuffer** (top-left, +Y down). The renderer applies **`WorldCenterToScreenPixel`** to sprite centers—keep gameplay in world space rather than duplicating conversions.
 
 ### Input (`Input/`)
 
@@ -278,11 +281,19 @@ Frame order:
 
 - **`IMod`** — **`OnLoad(ModLoadContext)`**, **`OnUnload()`**.
 - **`ModManifest`** — id, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, optional **`disabled`**, optional **`contentBlocklist`** (see `manifest.json`).
-- **`ModLoader`** — discovers `Mods/*/manifest.json`, skips mods with **`disabled`**: **`true`**, mounts remaining content (then applies each mod’s blocklist), loads **`entryAssembly`**, finds one concrete **`IMod`**, invokes **`OnLoad`**.
+- **`ModLoader`** — discovers `Mods/*/manifest.json`, skips mods with **`disabled`**: **`true`** or ids listed in the optional **CLI exclude set**, mounts remaining content (then applies each mod’s blocklist), loads **`entryAssembly`**, finds one concrete **`IMod`**, invokes **`OnLoad`**.
 
 ### Hosting (`Hosting/`)
 
-- **`GameHostServices`** — **`KeyBindings`**, **`Renderer`** (**`VulkanRenderer?`**), **`Input`** (**`IInputContext?`**). Populated by **`GameApplication`** after the window and device exist, then passed into **`ModLoadContext`** so mods do not use static globals.
+- **`GameHostServices`** — **`KeyBindings`**, **`Renderer`** (**`IRenderer?`**; concrete type **`VulkanRenderer`**), **`Input`** (**`IInputContext?`**), optional **`Tilemaps`** (**`ITilemapDataStore?`**) and **`Particles`** (**`ParticleStore?`**) for tile indices and CPU particle buffers used by engine render/sim systems. Populated by **`GameApplication`** after the window and device exist, then passed into **`ModLoadContext`** so mods do not use static globals.
+
+### Scene 2D (`Scene2D/`)
+
+- **Components** — **`Position`**, **`Rotation2D`**, **`Scale2D`**, **`Transform2D`** (local TRS + optional parent), **`Sprite2D`** (includes **`Transparent`** for WBOIT vs deferred opaque path; optional **`EmissiveTextureId`**), **`Tilemap2D`**, **`SpriteAnimation2D`**, **`ParticleEmitter2D`**.
+- **Stores** — **`TilemapDataStore`** / **`ITilemapDataStore`**, **`ParticleStore`** (indexed by entity; not stored inside ECS chunks).
+- **Systems** (registered by the host; see frame order above) — **`TransformHierarchySystem`**, **`SpriteAnimationSystem`**, **`ParticleSimulationSystem`**, **`TilemapRenderSystem`**, **`SpriteRenderSystem`**, **`ParticleRenderSystem`**. Baseline global post lives in **`EngineDefaultGlobalPostProcess`** (applied at init, not as a system).
+
+Mods typically attach **`Sprite2D`** + **`Position`** (and optional rotation/scale) and let **`SpriteRenderSystem`** build **`SpriteDrawRequest`** (copying **`Transparent`**, texture ids, etc.) and call **`SubmitSprite`**, instead of issuing draws manually.
 
 ---
 
@@ -293,11 +304,29 @@ Frame order:
 ```
 Mods/
   Cyberland.Game/         # loadOrder 0 — locale, future core assets
-  Cyberland.Demo/         # loadOrder 10 — optional sprite / ECS sample
+  Cyberland.Demo/         # loadOrder 10 — 2D sample (disabled by default in manifest)
+  Cyberland.Demo.Pong/    # arcade demos (disabled by default)
+  Cyberland.Demo.Snake/
+  Cyberland.Demo.BrickBreaker/
     manifest.json
     *.dll
     Content/                # mounted to VFS (last mod wins for same path)
 ```
+
+### Enabling a demo mod for testing
+
+Shipped **demo** mods (**`Cyberland.Demo`**, **Pong**, **Snake**, **BrickBreaker**) have **`"disabled": true`** in their **`mods/<...>/manifest.json`** so a normal **`dotnet run`** loads only **`cyberland.base`**.
+
+1. **Turn on one demo** — In the repo, open that mod’s **`manifest.json`** and set **`"disabled": false`** (or remove the **`disabled`** property). Rebuild so the updated manifest is copied into **`artifacts/bin/Cyberland.Host/.../Mods/`** (staging runs after build). Alternatively, edit **`manifest.json`** next to the host exe under **`Mods/<ModName>/`** if you are iterating without rebuilding.
+2. **Skip the base game** — The base mod’s id is **`cyberland.base`**. Pass **`--exclude-mods`** so only your demo runs:
+
+   ```powershell
+   dotnet run --project src/Cyberland.Host/Cyberland.Host.csproj -c Debug -- --exclude-mods cyberland.base
+   ```
+
+   Add other ids to the comma-separated list if you temporarily enable multiple mods and want to exclude some of them.
+
+3. **Sync assets** — Demo **`Content/`** may still need **`.\scripts\Sync-CyberlandAssets.ps1`** (see [Asset setup](#asset-setup-github-releases)).
 
 ### `manifest.json`
 
@@ -313,6 +342,7 @@ Example (see `mods/Cyberland.Game/manifest.json`):
 ### `IMod` implementation
 
 - Ship a **public non-abstract class** implementing **`IMod`** (the loader picks the first exported type assignable to **`IMod`**).
+- **`manifest.json`** is the source of truth for id, name, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, etc.; **`ModLoadContext.Manifest`** in **`OnLoad`** is that deserialized data (do not duplicate it in the **`IMod`** type).
 - **`OnLoad`**: register systems (with stable **logical ids**), spawn entities, merge localization, call **`context.MountDefaultContent()`** if you rely on `Content/` under the mod folder.
 
 ### Systems: ids, extend, replace, remove
@@ -321,9 +351,10 @@ Every ECS system is registered with a **non-empty logical id** (convention: `"<m
 
 - **Extend** — register **new** ids.
 - **Replace** — call **`RegisterSequential`** / **`RegisterParallel`** again with an id already used; the implementation is swapped **in place** (frame order among other systems stays the same).
-- **Remove** — **`TryUnregister(logicalId)`** drops that system from the sequential or parallel pass.
+- **Remove** — **`TryUnregister(logicalId)`** drops that system from the scheduler list.
+- **Toggle without removing** — **`context.SetSystemEnabled(logicalId, …)`** (or **`context.Scheduler.SetEnabled`**) skips per-frame work while keeping registration order and **`OnStart`** semantics (no second **`OnStart`** after re-enable).
 
-Use **`context.RegisterSequential`**, **`context.RegisterParallel`**, and **`context.TryUnregister`** (wrappers around **`SystemScheduler`**). Do not reuse the same id across sequential vs parallel registration.
+Use **`context.RegisterSequential`**, **`context.RegisterParallel`**, **`context.SetSystemEnabled`**, and **`context.TryUnregister`** (wrappers around **`SystemScheduler`**). Do not reuse the same id across sequential vs parallel registration.
 
 ### Content and localization overrides
 
@@ -337,7 +368,9 @@ Use **`context.RegisterSequential`**, **`context.RegisterParallel`**, and **`con
 |--------|-----|
 | **`KeyBindings`** | **`IsDown(keyboard, "move_up")`** etc. |
 | **`Input`** | Raw **`IKeyboard`** / mice if needed. |
-| **`Renderer`** | **`SwapchainPixelSize`**, **`SetSpriteWorld`** (e.g. **`Cyberland.Demo`** sprite sample). |
+| **`Renderer`** | **`IRenderer`**: **`SwapchainPixelSize`**, **`SubmitSprite`**, **`SubmitPointLight`** / **`SubmitSpotLight`** / **`SubmitDirectionalLight`** / **`SubmitAmbientLight`**, **`SubmitPostProcessVolume`**, **`SetGlobalPostProcess`**, **`RegisterTextureRgba`**, **`RequestClose`** (e.g. **`Cyberland.Demo`**). |
+| **`Tilemaps`** | Optional; holds per-entity tile index buffers for **`TilemapRenderSystem`**. |
+| **`Particles`** | Optional; CPU particle buckets for **`ParticleSimulationSystem`** / **`ParticleRenderSystem`**. |
 
 The host sets **`Renderer`** and **`Input`** only after successful window/input setup; systems should null-check when relevant.
 
@@ -387,7 +420,8 @@ c = new MyComponent { Value = 1f };
 ### 6. Input and rendering
 
 - Read actions through **`context.Host.KeyBindings`** and **`context.Host.Input`**.
-- For the current sprite API, update position in **world space** and call **`context.Host.Renderer?.SetSpriteWorld(x, y, halfExtent)`** once per frame from your system when appropriate.
+- **Lighting** — queue **`SubmitPointLight`**, **`SubmitSpotLight`**, **`SubmitDirectionalLight`**, and **`SubmitAmbientLight`** on **`context.Host.Renderer`** each frame you need them (same **`IRenderer`** as sprites); the deferred path evaluates **all** queued point lights.
+- For 2D drawing, prefer **`Sprite2D`** + **`Position`** (and optional **`Rotation2D`** / **`Scale2D`**) on entities; the engine’s **`SpriteRenderSystem`** submits **`SpriteDrawRequest`** in **world space** after your mod systems run. For one-off or procedural draws, build **`SpriteDrawRequest`** yourself and call **`context.Host.Renderer?.SubmitSprite(...)`** (and post volumes as needed).
 
 ### 7. Assets and localization
 
@@ -409,9 +443,17 @@ c = new MyComponent { Value = 1f };
 |---------|----------|--------|
 | Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
 | Demo mod entry | `mods/Cyberland.Demo/DemoMod.cs` | **`IMod`**, entity spawn, **`RegisterSequential`** / **`RegisterParallel`** with logical ids |
-| Sequential + input + renderer | `mods/Cyberland.Demo/SpriteMoveSystem.cs` | **`ISystem`**, **`GameHostServices`**, **`SetSpriteWorld`** |
+| Sequential + input | `mods/Cyberland.Demo/DemoInputSystem.cs`, `DemoIntegrateSystem.cs`; background/neon decor applied once in **`DemoMod.OnLoad`**; global HDR in **`OnLoad`**; half-screen bloom volume via **`DelegateSequentialSystem`** (**`post-volumes`**) | **`ISystem`**, **`GameHostServices`**, engine **`Position`** / **`Sprite2D`**, **`Velocity`** |
 | Parallel ECS | `mods/Cyberland.Demo/VelocityDampSystem.cs` | **`IParallelSystem`**, **`QueryChunks<Velocity>`**, **`SimdFloat`** on packed floats |
-| Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, menu key |
+| Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, optional **`--exclude-mods`** |
+
+Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). To run **only** the base game with no samples, you do not need **`--exclude-mods`** (demos are already disabled). To load several mods and drop specific ones, use e.g. `--exclude-mods cyberland.demo,cyberland.demo.pong`.
+
+### After 2D scene migration: what still lives in mods
+
+Shipped samples keep **game rules and session state** in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Demo**, **Pong**, and **BrickBreaker** drive **`Position`** / **`Sprite2D`** from simulation or layout systems; arcade HDR tuning calls **`SetGlobalPostProcess`** once from **`IMod.OnLoad`**. The main **Cyberland.Demo** mod also submits a half-screen bloom **volume** each frame so bounds follow **`SwapchainPixelSize`** on resize (**`cyberland.demo/post-volumes`**).
+
+**Direct `SubmitSprite`:** only **`Cyberland.Demo.Snake`** still issues immediate-mode draws (snake segments, food, UI overlays) for a thin, grid-aligned presentation; the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Further work could move segments to **`Sprite2D`** entities or keep this hybrid if the extra entities are not worth it.
 
 ---
 
@@ -433,6 +475,7 @@ c = new MyComponent { Value = 1f };
 
 ## Further reading (in-repo)
 
+- **`src/Cyberland.Engine/Rendering/`** (and embedded **`Rendering/Shaders/*.glsl`**) — Vulkan 2D pipeline implementation and shaders; start from **`VulkanRenderer.2D.cs`** / **`VulkanRenderer.DeferredImpl.cs`** for frame order.
 - **`.cursor/rules/cyberland-mod-host-architecture.mdc`** — host vs mod boundaries and checklists.
 - **`.cursor/rules/cyberland-world-screen-space.mdc`** — world vs screen Y conventions.
 - **`.cursor/rules/cyberland-code-style.mdc`** — comments and readability expectations.

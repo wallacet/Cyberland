@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.snake",
+  "name": "Cyberland Snake (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.Snake.dll",
+  "contentRoot": "Content",
+  "loadOrder": 21,
+  "disabled": true
+}

@@ -9,16 +9,6 @@ public sealed class TestModEntry : IMod
     public static int OnUnloadCount;
     public static ModLoadContext? LastContext;
 
-    public ModManifest Manifest { get; } = new()
-    {
-        Id = "test.mod",
-        Name = "Test mod",
-        Version = "1.0.0",
-        EntryAssembly = "Cyberland.TestMod.dll",
-        ContentRoot = "Content",
-        LoadOrder = 5
-    };
-
     public void OnLoad(ModLoadContext context)
     {
         OnLoadCount++;

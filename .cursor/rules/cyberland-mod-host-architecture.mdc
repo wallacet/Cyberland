@@ -12,7 +12,7 @@ alwaysApply: false
 |--------|-------------------|------|
 | **Host** | `Cyberland.Host`, `Cyberland.Engine.GameApplication` | Process entry, window, Vulkan init, swapchain present, global input context, keybinding store file, audio device, ECS `World` + `SystemScheduler`, mod discovery, `Mods/` staging |
 | **Base campaign** | `mods/Cyberland.Game` | `IMod` (`BaseGameMod`), locale and future core **`Content/`** |
-| **Optional sample** | `mods/Cyberland.Demo` | `IMod` (`DemoMod`): Vulkan sprite + parallel velocity damp ECS (can be omitted from staging) |
+| **Optional samples** | `mods/Cyberland.Demo`, `Cyberland.Demo.Pong`, `.Snake`, `.BrickBreaker` | `IMod` demos: 2D HDR sprites + ECS; arcade minigames (optional staging) |
 | **Engine** | `Cyberland.Engine` | Reusable APIs: ECS, tasks, rendering, input helpers, `GameHostServices`, `ModLoadContext` |
 
 Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` unless it is truly host-only (e.g. **Escape** → close window). Prototypes and samples belong in their own mod assemblies.
@@ -20,8 +20,14 @@ Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` 
 ## Mod pipeline
 
 1. Each mod folder under `Mods/<Name>/` has `manifest.json` (`entryAssembly`, `loadOrder`, `contentRoot`).
-2. Host build stages **`Cyberland.Game`** and **`Cyberland.Demo`** into `$(OutDir)Mods/` (see `Cyberland.Host.csproj` — `StageBaseMod`, `StageDemoMod`).
-3. `ModLoader.LoadAll` mounts each mod’s content in load order, applies optional **`contentBlocklist`** paths (`VirtualFileSystem.BlockPath`), then loads each `entryAssembly`, finds a concrete `IMod` per DLL, calls `OnLoad(ModLoadContext)`.
+2. Host build stages **`Cyberland.Game`**, **`Cyberland.Demo`**, and optional arcade demos into `$(OutDir)Mods/` (see `Cyberland.Host.csproj` — `Stage*Mod` targets).
+3. `ModLoader.LoadAll` mounts each mod’s content in load order (skipping ids passed via **`--exclude-mods`**), applies optional **`contentBlocklist`** paths (`VirtualFileSystem.BlockPath`), then loads each `entryAssembly`, finds a concrete `IMod` per DLL, calls `OnLoad(ModLoadContext)`.
+
+### Default engine systems (2D scene)
+
+After **`VulkanRenderer`** initializes, **`GameApplication`** applies baseline HDR globals **once** via **`EngineDefaultGlobalPostProcess.Apply(renderer)`** (not a scheduler system and not every frame). Mods replace or tune globals with **`IRenderer2D.SetGlobalPostProcess`** from **`IMod.OnLoad`** (later loads win) or from a system when values must change every frame (e.g. post volumes tied to **`SwapchainPixelSize`**).
+
+`GameApplication` then registers **`RegisterParallel`** / **`RegisterSequential`** in a fixed order: parallel **transform hierarchy**, **sprite animation**, **CPU particle simulation**; then **`ModLoader.LoadAll`** (mods append with `RegisterSequential` / `RegisterParallel` in manifest order); then parallel **tilemap**, **sprite**, and **particle** submit systems. **`RunFrame`** walks that list in order—**`ISystem`** and **`IParallelSystem`** entries can be **interleaved**; there is no separate “all sequential, then all parallel” phase. Mod authors should attach **`Sprite2D`** / **`Tilemap2D`** / **`ParticleEmitter2D`** and related components rather than reimplementing the same submit loop, unless they need a special-case draw. **`IRenderer2D`** submit APIs are **thread-safe** for parallel systems; GPU command recording and present stay on the render thread.
 
 ### Asset ownership and distribution
 
@@ -31,23 +37,25 @@ Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` 
 
 ## Registering code from a mod
 
-- Implement **`IMod`** with `OnLoad` / `OnUnload`.
+- Implement **`IMod`** with `OnLoad` / `OnUnload` (mod metadata lives in **`manifest.json`** only; use **`ModLoadContext.Manifest`** in `OnLoad`, do not duplicate fields on the `IMod` type).
 - In **`OnLoad`**, register systems with **stable logical ids** (no anonymous registration):
   - **`context.RegisterSequential("mod.id/name", …)`** for **`ISystem`** (main thread, deterministic order).
-  - **`context.RegisterParallel("mod.id/name", …)`** for **`IParallelSystem`** (after all sequential systems each frame).
+  - Prefer **several sequential systems** per mod when it keeps responsibilities clear (typical order: **input → simulation/tick → optional post → render** so drawing sees updated state).
+  - **`context.RegisterParallel("mod.id/name", …)`** for **`IParallelSystem`** — runs **in list order** relative to other registrations (parallel and sequential can alternate; register **before** host render systems if you need simulation to run before submit).
   - **`context.TryUnregister("other.mod/id")`** to remove a system registered earlier (same id cannot exist as both sequential and parallel).
-  - Re-registering an existing id **replaces** the implementation in place (order relative to other systems unchanged).
+  - **`context.SetSystemEnabled("mod.id/name", false)`** keeps the system in the list but skips **`OnUpdate`** / **`OnParallelUpdate`** (and **`OnStart`** until the first enabled frame). **`ISystem.OnStart`** / **`IParallelSystem.OnStart`** run **once per registration** when the entry first becomes enabled; disable/re-enable does **not** repeat **`OnStart`**. Use **`context.Scheduler`** for **`SystemStarted`** / **`SystemEnabled`** / **`SystemDisabled`** / **`SystemUnregistered`** events if you need logging or tooling.
+  - Re-registering an existing id **replaces** the implementation in place (order relative to other systems unchanged) and resets **`OnStart`** for the new instance.
 - Use **`context.HideContentPath`** or manifest **`contentBlocklist`** to suppress a virtual file; use **`context.TryRemoveLocalizationKey`** to drop a merged string key.
 - Use **`context.World`** for entities and `Components<T>()`.
-- Use **`context.Host`** (`GameHostServices`) for **KeyBindings**, **Input** (`IInputContext`), and **Renderer** (`VulkanRenderer`) when the mod needs to drive the host window. Do not static-import host singletons.
+- Use **`context.Host`** (`GameHostServices`) for **KeyBindings**, **Input** (`IInputContext`), and **Renderer** (`IRenderer2D` / `VulkanRenderer`) when the mod needs to draw or call **`RequestClose`**. Do not static-import host singletons.
 
 ## Adding a new gameplay feature (checklist)
 
 1. Prefer a **new `ISystem` or `IParallelSystem`** in the appropriate mod project (`Cyberland.Game` for campaign, or a new mod + staging target).
 2. Register it from that mod’s **`IMod.OnLoad`**.
 3. Add **components** as `struct`s in the mod assembly (see **`Velocity`** in **`Cyberland.Demo`**).
-4. If the feature needs drawing, call **`Host.Renderer`** (e.g. `SetSpriteWorld`) from a system — keep **world vs screen** rules in `WorldScreenSpace` / renderer.
-5. Keep **`GameApplication`** limited to bootstrap and host-only input (e.g. menu to exit).
+4. If the feature needs drawing, prefer engine **`Scene2D`** components and the host-registered sprite/tilemap/particle render systems; call **`Host.Renderer`** (`SubmitSprite`, post volumes, etc.) only when a custom immediate-mode path is justified — keep **world vs screen** rules in `WorldScreenSpace` / renderer.
+5. Keep **`GameApplication`** limited to bootstrap; exit is via window close / **`RequestClose`**, not a hard-coded Escape handler in the host.
 
 ## Third-party mods
 

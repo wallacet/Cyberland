@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -16,11 +17,10 @@ using VkBuffer = Silk.NET.Vulkan.Buffer;
 namespace Cyberland.Engine.Rendering;
 
 /// <summary>
-/// Full swapchain path: instance, KHR surface (via GLFW/<see cref="IVkSurface"/>), device, swapchain,
-/// render pass (clear-only), framebuffers, command buffers, acquire → submit → present.
+/// Vulkan swapchain + 2D HDR pipeline (sprites, lighting, emissive bleed, bloom, tonemap).
 /// </summary>
 [ExcludeFromCodeCoverage(Justification = "Requires a Vulkan-capable GPU and window surface.")]
-public sealed unsafe class VulkanRenderer : IDisposable
+public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 {
     private const int MaxFramesInFlight = 2;
 
@@ -46,11 +46,6 @@ public sealed unsafe class VulkanRenderer : IDisposable
     private ImageView[]? _swapchainImageViews;
     private Framebuffer[]? _swapchainFramebuffers;
 
-    private RenderPass _renderPass;
-    private PipelineLayout _pipelineLayout;
-    private Pipeline _graphicsPipeline;
-    private ShaderModule _vertShaderModule;
-    private ShaderModule _fragShaderModule;
     private VkBuffer _vertexBuffer;
     private DeviceMemory _vertexBufferMemory;
     private VkBuffer _indexBuffer;
@@ -59,9 +54,39 @@ public sealed unsafe class VulkanRenderer : IDisposable
     private CommandPool _commandPool;
     private CommandBuffer[]? _commandBuffers;
 
-    private float _spriteCenterX;
-    private float _spriteCenterY;
-    private float _spriteHalfExtent;
+    /// <summary>Protects sprite/light/volume queues and global post settings for concurrent <see cref="IRenderer"/> submits from parallel systems vs the render thread draining for GPU work.</summary>
+    private readonly object _recordLock = new();
+
+    private readonly List<SpriteDrawRequest> _spriteQueue = new();
+    private readonly List<PointLight> _pointLightQueue = new();
+    private readonly List<SpotLight> _spotLightQueue = new();
+    private readonly List<DirectionalLight> _directionalLightQueue = new();
+    private readonly List<AmbientLight> _ambientLightQueue = new();
+    private readonly List<PostProcessVolume> _volumeQueue = new();
+    private GlobalPostProcessSettings _globalPost = new()
+    {
+        BloomEnabled = true,
+        BloomRadius = 1.1f,
+        BloomGain = 0.35f,
+        EmissiveToHdrGain = 0.45f,
+        EmissiveToBloomGain = 0.45f,
+        Exposure = 1f,
+        Saturation = 1f,
+        TonemapEnabled = true,
+        ColorGradingShadows = new Silk.NET.Maths.Vector3D<float>(1f, 1f, 1f),
+        ColorGradingMidtones = new Silk.NET.Maths.Vector3D<float>(1f, 1f, 1f),
+        ColorGradingHighlights = new Silk.NET.Maths.Vector3D<float>(1f, 1f, 1f)
+    };
+
+    private readonly List<GpuTexture> _textureSlots = new();
+    private int _whiteTextureId = -1;
+    private int _blackTextureId = -1;
+    private int _defaultNormalTextureId = -1;
+
+    /// <summary>True when swapchain uses an sRGB image format so the composite shader outputs linear and avoids double gamma.</summary>
+    private bool _swapchainUsesSrgbFramebuffer;
+
+    public Action? RequestClose { get; set; }
 
     private Semaphore[]? _imageAvailableSemaphores;
     private Semaphore[]? _renderFinishedSemaphores;
@@ -74,19 +99,53 @@ public sealed unsafe class VulkanRenderer : IDisposable
     /// <summary>Current swapchain size in pixels — use for world-space clamps (matches shader <c>screenSize</c>).</summary>
     public Vector2D<int> SwapchainPixelSize => new((int)_swapchainExtent.Width, (int)_swapchainExtent.Height);
 
-    /// <summary>
-    /// Sprite in <see cref="WorldScreenSpace"/> world units (bottom-left origin, +Y up, same pixel scale as the framebuffer).
-    /// Converts to screen pixels internally for the draw path.
-    /// </summary>
-    public void SetSpriteWorld(float centerXWorld, float centerYWorld, float halfExtentWorld)
+    int IRenderer.RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height) =>
+        RegisterTextureRgbaInternal(rgba, width, height);
+
+    int IRenderer.DefaultNormalTextureId => _defaultNormalTextureId;
+
+    int IRenderer.WhiteTextureId => _whiteTextureId;
+
+    void IRenderer.SubmitSprite(in SpriteDrawRequest draw)
     {
-        var size = SwapchainPixelSize;
-        var screen = WorldScreenSpace.WorldCenterToScreenPixel(
-            new Vector2D<float>(centerXWorld, centerYWorld),
-            size);
-        _spriteCenterX = screen.X;
-        _spriteCenterY = screen.Y;
-        _spriteHalfExtent = halfExtentWorld;
+        lock (_recordLock)
+            _spriteQueue.Add(draw);
+    }
+
+    void IRenderer.SubmitPointLight(in PointLight light)
+    {
+        lock (_recordLock)
+            _pointLightQueue.Add(light);
+    }
+
+    void IRenderer.SubmitSpotLight(in SpotLight light)
+    {
+        lock (_recordLock)
+            _spotLightQueue.Add(light);
+    }
+
+    void IRenderer.SubmitDirectionalLight(in DirectionalLight light)
+    {
+        lock (_recordLock)
+            _directionalLightQueue.Add(light);
+    }
+
+    void IRenderer.SubmitAmbientLight(in AmbientLight light)
+    {
+        lock (_recordLock)
+            _ambientLightQueue.Add(light);
+    }
+
+    void IRenderer.SubmitPostProcessVolume(in PostProcessVolume volume)
+    {
+        lock (_recordLock)
+            _volumeQueue.Add(volume);
+    }
+
+    void IRenderer.SetGlobalPostProcess(in GlobalPostProcessSettings settings)
+    {
+        lock (_recordLock)
+            _globalPost = settings;
     }
 
     public void Initialize()
@@ -105,12 +164,13 @@ public sealed unsafe class VulkanRenderer : IDisposable
         CreateLogicalDevice();
         CreateSwapchain();
         CreateImageViews();
-        CreateRenderPass();
-        CreateGraphicsPipelineAndMesh();
-        CreateFramebuffers();
+        CreateSpriteQuadMesh();
         CreateCommandPool();
         CreateCommandBuffers();
         CreateSyncObjects();
+
+        Create2DGraphicsPipelineAndSurfaces();
+        CreateDefaultTextures();
 
         _window.FramebufferResize += OnFramebufferResize;
     }
@@ -211,10 +271,8 @@ public sealed unsafe class VulkanRenderer : IDisposable
 
         CleanupSwapchain();
 
-        DestroyGraphicsPipelineAndMesh();
-
-        if (_renderPass.Handle != default && _device.Handle != default)
-            _vk.DestroyRenderPass(_device, _renderPass, null);
+        Destroy2DGraphicsResources();
+        DestroySpriteQuadMesh();
 
         if (_imageAvailableSemaphores is not null && _renderFinishedSemaphores is not null && _inFlightFences is not null)
         {
@@ -507,6 +565,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
 
         _swapchainImageFormat = surfaceFormat.Format;
         _swapchainExtent = extent;
+        _swapchainUsesSrgbFramebuffer = surfaceFormat.Format is Format.B8G8R8A8Srgb or Format.R8G8B8A8Srgb;
     }
 
     private void CreateImageViews()
@@ -540,82 +599,6 @@ public sealed unsafe class VulkanRenderer : IDisposable
 
             if (_vk!.CreateImageView(_device, in createInfo, null, out _swapchainImageViews[i]) != Result.Success)
                 throw new GraphicsInitializationException("vkCreateImageView failed.");
-        }
-    }
-
-    private void CreateRenderPass()
-    {
-        AttachmentDescription colorAttachment = new()
-        {
-            Format = _swapchainImageFormat,
-            Samples = SampleCountFlags.Count1Bit,
-            LoadOp = AttachmentLoadOp.Clear,
-            StoreOp = AttachmentStoreOp.Store,
-            StencilLoadOp = AttachmentLoadOp.DontCare,
-            StencilStoreOp = AttachmentStoreOp.DontCare,
-            InitialLayout = ImageLayout.Undefined,
-            FinalLayout = ImageLayout.PresentSrcKhr
-        };
-
-        AttachmentReference colorAttachmentRef = new()
-        {
-            Attachment = 0,
-            Layout = ImageLayout.ColorAttachmentOptimal
-        };
-
-        SubpassDescription subpass = new()
-        {
-            PipelineBindPoint = PipelineBindPoint.Graphics,
-            ColorAttachmentCount = 1,
-            PColorAttachments = &colorAttachmentRef
-        };
-
-        SubpassDependency dependency = new()
-        {
-            SrcSubpass = Vk.SubpassExternal,
-            DstSubpass = 0,
-            SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
-            SrcAccessMask = 0,
-            DstStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
-            DstAccessMask = AccessFlags.ColorAttachmentWriteBit
-        };
-
-        RenderPassCreateInfo renderPassInfo = new()
-        {
-            SType = StructureType.RenderPassCreateInfo,
-            AttachmentCount = 1,
-            PAttachments = &colorAttachment,
-            SubpassCount = 1,
-            PSubpasses = &subpass,
-            DependencyCount = 1,
-            PDependencies = &dependency
-        };
-
-        if (_vk!.CreateRenderPass(_device, in renderPassInfo, null, out _renderPass) != Result.Success)
-            throw new GraphicsInitializationException("vkCreateRenderPass failed.");
-    }
-
-    private void CreateFramebuffers()
-    {
-        _swapchainFramebuffers = new Framebuffer[_swapchainImageViews!.Length];
-
-        for (var i = 0; i < _swapchainImageViews.Length; i++)
-        {
-            var attachment = _swapchainImageViews[i];
-
-            FramebufferCreateInfo framebufferInfo = new()
-            {
-                SType = StructureType.FramebufferCreateInfo,
-                RenderPass = _renderPass,
-                AttachmentCount = 1,
-                PAttachments = &attachment,
-                Width = _swapchainExtent.Width,
-                Height = _swapchainExtent.Height,
-                Layers = 1
-            };
-
-            if (_vk!.CreateFramebuffer(_device, in framebufferInfo, null, out _swapchainFramebuffers[i]) != Result.Success)
-                throw new GraphicsInitializationException("vkCreateFramebuffer failed.");
         }
     }
 
@@ -653,282 +636,11 @@ public sealed unsafe class VulkanRenderer : IDisposable
         }
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SpritePushConstants
+    private void RecordCommandBuffer(CommandBuffer commandBuffer, Framebuffer framebuffer) =>
+        RecordFullFrame2D(commandBuffer, framebuffer);
+
+    private void CreateSpriteQuadMesh()
     {
-        public float CenterX;
-        public float CenterY;
-        public float HalfW;
-        public float HalfH;
-        public float ScreenW;
-        public float ScreenH;
-    }
-
-    private void RecordCommandBuffer(CommandBuffer commandBuffer, Framebuffer framebuffer)
-    {
-        if (_vk!.ResetCommandBuffer(commandBuffer, 0) != Result.Success)
-            throw new InvalidOperationException("vkResetCommandBuffer failed.");
-
-        CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
-
-        if (_vk.BeginCommandBuffer(commandBuffer, in beginInfo) != Result.Success)
-            throw new InvalidOperationException("vkBeginCommandBuffer failed.");
-
-        ClearValue clearColor = new()
-        {
-            Color = new ClearColorValue
-            {
-                Float32_0 = 0.04f,
-                Float32_1 = 0.02f,
-                Float32_2 = 0.08f,
-                Float32_3 = 1f
-            }
-        };
-
-        RenderPassBeginInfo renderPassInfo = new()
-        {
-            SType = StructureType.RenderPassBeginInfo,
-            RenderPass = _renderPass,
-            Framebuffer = framebuffer,
-            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
-            ClearValueCount = 1,
-            PClearValues = &clearColor
-        };
-
-        _vk.CmdBeginRenderPass(commandBuffer, &renderPassInfo, SubpassContents.Inline);
-
-        Viewport viewport = new()
-        {
-            X = 0f,
-            Y = 0f,
-            Width = _swapchainExtent.Width,
-            Height = _swapchainExtent.Height,
-            MinDepth = 0f,
-            MaxDepth = 1f
-        };
-
-        Rect2D scissor = new() { Offset = default, Extent = _swapchainExtent };
-
-        _vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
-        _vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-        _vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, _graphicsPipeline);
-
-        var vertexBuffers = stackalloc[] { _vertexBuffer };
-        var offsets = stackalloc ulong[] { 0 };
-        _vk.CmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        _vk.CmdBindIndexBuffer(commandBuffer, _indexBuffer, 0, IndexType.Uint16);
-
-        SpritePushConstants push = new()
-        {
-            CenterX = _spriteCenterX,
-            CenterY = _spriteCenterY,
-            HalfW = _spriteHalfExtent,
-            HalfH = _spriteHalfExtent,
-            ScreenW = _swapchainExtent.Width,
-            ScreenH = _swapchainExtent.Height
-        };
-
-        _vk.CmdPushConstants(commandBuffer, _pipelineLayout, ShaderStageFlags.VertexBit, 0, (uint)sizeof(SpritePushConstants), &push);
-
-        _vk.CmdDrawIndexed(commandBuffer, 6, 1, 0, 0, 0);
-
-        _vk.CmdEndRenderPass(commandBuffer);
-
-        if (_vk.EndCommandBuffer(commandBuffer) != Result.Success)
-            throw new InvalidOperationException("vkEndCommandBuffer failed.");
-    }
-
-    private void CreateGraphicsPipelineAndMesh()
-    {
-        uint[] vertSpv;
-        uint[] fragSpv;
-        try
-        {
-            vertSpv = GlslSpirvCompiler.CompileGlslToSpirv(
-                """
-                #version 450
-                layout(push_constant) uniform Push {
-                    vec2 center;
-                    vec2 halfSize;
-                    vec2 screenSize;
-                } push;
-                layout(location = 0) in vec2 inPos;
-                void main() {
-                    vec2 pixel = push.center + inPos * push.halfSize;
-                    float nx = pixel.x / push.screenSize.x * 2.0 - 1.0;
-                    // Top-left pixels (y=0 top) → NDC for default viewport (positive height): small pixel y → ndc -1 (top of framebuffer).
-                    float ny = pixel.y / push.screenSize.y * 2.0 - 1.0;
-                    gl_Position = vec4(nx, ny, 0.0, 1.0);
-                }
-                """,
-                ShaderStage.Vertex);
-
-            fragSpv = GlslSpirvCompiler.CompileGlslToSpirv(
-                """
-                #version 450
-                layout(location = 0) out vec4 outColor;
-                void main() {
-                    outColor = vec4(0.35, 0.85, 0.45, 1.0);
-                }
-                """,
-                ShaderStage.Fragment);
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw new GraphicsInitializationException("Shader compilation to SPIR-V failed.", ex);
-        }
-
-        _vertShaderModule = CreateShaderModule(vertSpv);
-        _fragShaderModule = CreateShaderModule(fragSpv);
-
-        PushConstantRange pushConstantRange = new()
-        {
-            StageFlags = ShaderStageFlags.VertexBit,
-            Offset = 0,
-            Size = (uint)sizeof(SpritePushConstants)
-        };
-
-        PipelineLayoutCreateInfo pipelineLayoutInfo = new()
-        {
-            SType = StructureType.PipelineLayoutCreateInfo,
-            PushConstantRangeCount = 1,
-            PPushConstantRanges = &pushConstantRange
-        };
-
-        if (_vk!.CreatePipelineLayout(_device, in pipelineLayoutInfo, null, out _pipelineLayout) != Result.Success)
-            throw new GraphicsInitializationException("vkCreatePipelineLayout failed.");
-
-        var mainName = Marshal.StringToHGlobalAnsi("main");
-
-        PipelineShaderStageCreateInfo vertShaderStageInfo = new()
-        {
-            SType = StructureType.PipelineShaderStageCreateInfo,
-            Stage = ShaderStageFlags.VertexBit,
-            Module = _vertShaderModule,
-            PName = (byte*)mainName
-        };
-
-        PipelineShaderStageCreateInfo fragShaderStageInfo = new()
-        {
-            SType = StructureType.PipelineShaderStageCreateInfo,
-            Stage = ShaderStageFlags.FragmentBit,
-            Module = _fragShaderModule,
-            PName = (byte*)mainName
-        };
-
-        var shaderStages = stackalloc PipelineShaderStageCreateInfo[2];
-        shaderStages[0] = vertShaderStageInfo;
-        shaderStages[1] = fragShaderStageInfo;
-
-        VertexInputBindingDescription bindingDescription = new()
-        {
-            Binding = 0,
-            Stride = 2 * sizeof(float),
-            InputRate = VertexInputRate.Vertex
-        };
-
-        VertexInputAttributeDescription attributeDescription = new()
-        {
-            Binding = 0,
-            Location = 0,
-            Format = Format.R32G32Sfloat,
-            Offset = 0
-        };
-
-        PipelineVertexInputStateCreateInfo vertexInputInfo = new()
-        {
-            SType = StructureType.PipelineVertexInputStateCreateInfo,
-            VertexBindingDescriptionCount = 1,
-            PVertexBindingDescriptions = &bindingDescription,
-            VertexAttributeDescriptionCount = 1,
-            PVertexAttributeDescriptions = &attributeDescription
-        };
-
-        PipelineInputAssemblyStateCreateInfo inputAssembly = new()
-        {
-            SType = StructureType.PipelineInputAssemblyStateCreateInfo,
-            Topology = PrimitiveTopology.TriangleList,
-            PrimitiveRestartEnable = false
-        };
-
-        PipelineViewportStateCreateInfo viewportState = new()
-        {
-            SType = StructureType.PipelineViewportStateCreateInfo,
-            ViewportCount = 1,
-            ScissorCount = 1
-        };
-
-        PipelineRasterizationStateCreateInfo rasterizer = new()
-        {
-            SType = StructureType.PipelineRasterizationStateCreateInfo,
-            DepthClampEnable = false,
-            RasterizerDiscardEnable = false,
-            PolygonMode = PolygonMode.Fill,
-            LineWidth = 1f,
-            CullMode = CullModeFlags.None,
-            FrontFace = FrontFace.CounterClockwise,
-            DepthBiasEnable = false
-        };
-
-        PipelineMultisampleStateCreateInfo multisampling = new()
-        {
-            SType = StructureType.PipelineMultisampleStateCreateInfo,
-            SampleShadingEnable = false,
-            RasterizationSamples = SampleCountFlags.Count1Bit
-        };
-
-        PipelineColorBlendAttachmentState colorBlendAttachment = new()
-        {
-            ColorWriteMask = ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit,
-            BlendEnable = false
-        };
-
-        PipelineColorBlendStateCreateInfo colorBlending = new()
-        {
-            SType = StructureType.PipelineColorBlendStateCreateInfo,
-            LogicOpEnable = false,
-            AttachmentCount = 1,
-            PAttachments = &colorBlendAttachment
-        };
-
-        DynamicState[] dynamicStates = [DynamicState.Viewport, DynamicState.Scissor];
-        fixed (DynamicState* pDynamicStates = dynamicStates)
-        {
-            PipelineDynamicStateCreateInfo dynamicState = new()
-            {
-                SType = StructureType.PipelineDynamicStateCreateInfo,
-                DynamicStateCount = (uint)dynamicStates.Length,
-                PDynamicStates = pDynamicStates
-            };
-
-            GraphicsPipelineCreateInfo pipelineInfo = new()
-            {
-                SType = StructureType.GraphicsPipelineCreateInfo,
-                StageCount = 2,
-                PStages = shaderStages,
-                PVertexInputState = &vertexInputInfo,
-                PInputAssemblyState = &inputAssembly,
-                PTessellationState = null,
-                PViewportState = &viewportState,
-                PRasterizationState = &rasterizer,
-                PMultisampleState = &multisampling,
-                PDepthStencilState = null,
-                PColorBlendState = &colorBlending,
-                PDynamicState = &dynamicState,
-                Layout = _pipelineLayout,
-                RenderPass = _renderPass,
-                Subpass = 0,
-                BasePipelineHandle = default,
-                BasePipelineIndex = -1
-            };
-
-            if (_vk!.CreateGraphicsPipelines(_device, default, 1, in pipelineInfo, null, out _graphicsPipeline) != Result.Success)
-                throw new GraphicsInitializationException("vkCreateGraphicsPipelines failed.");
-        }
-
-        Marshal.FreeHGlobal(mainName);
-
         Span<float> vertices = stackalloc float[8]
         {
             -1f, -1f,
@@ -951,8 +663,8 @@ public sealed unsafe class VulkanRenderer : IDisposable
             out _indexBuffer,
             out _indexBufferMemory);
 
-        void* data;
-        if (_vk.MapMemory(_device, _vertexBufferMemory, 0, (ulong)(vertices.Length * sizeof(float)), 0, &data) != Result.Success)
+        void* data = null;
+        if (_vk!.MapMemory(_device, _vertexBufferMemory, 0, (ulong)(vertices.Length * sizeof(float)), 0, &data) != Result.Success)
             throw new GraphicsInitializationException("vkMapMemory (vertex) failed.");
 
         vertices.CopyTo(new Span<float>((float*)data, vertices.Length));
@@ -1027,7 +739,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
         throw new GraphicsInitializationException("Failed to find a host-visible memory type for GPU buffers.");
     }
 
-    private void DestroyGraphicsPipelineAndMesh()
+    private void DestroySpriteQuadMesh()
     {
         if (_vk is null)
             return;
@@ -1054,30 +766,6 @@ public sealed unsafe class VulkanRenderer : IDisposable
         {
             _vk.FreeMemory(_device, _vertexBufferMemory, null);
             _vertexBufferMemory = default;
-        }
-
-        if (_graphicsPipeline.Handle != default)
-        {
-            _vk.DestroyPipeline(_device, _graphicsPipeline, null);
-            _graphicsPipeline = default;
-        }
-
-        if (_pipelineLayout.Handle != default)
-        {
-            _vk.DestroyPipelineLayout(_device, _pipelineLayout, null);
-            _pipelineLayout = default;
-        }
-
-        if (_vertShaderModule.Handle != default)
-        {
-            _vk.DestroyShaderModule(_device, _vertShaderModule, null);
-            _vertShaderModule = default;
-        }
-
-        if (_fragShaderModule.Handle != default)
-        {
-            _vk.DestroyShaderModule(_device, _fragShaderModule, null);
-            _fragShaderModule = default;
         }
     }
 
@@ -1121,7 +809,7 @@ public sealed unsafe class VulkanRenderer : IDisposable
 
         CreateSwapchain();
         CreateImageViews();
-        CreateFramebuffers();
+        RecreateSwapchainDependent2D();
         CreateCommandBuffers();
 
         _imagesInFlight = new Fence[_swapchainImages!.Length];

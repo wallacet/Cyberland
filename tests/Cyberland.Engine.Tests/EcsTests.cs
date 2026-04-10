@@ -84,6 +84,24 @@ public sealed class EcsTests
     {
     }
 
+    private struct CmpWithFieldInitializer
+    {
+        public int V = 42;
+
+        public CmpWithFieldInitializer()
+        {
+        }
+    }
+
+    [Fact]
+    public void GetOrAdd_without_initial_uses_new_T_for_struct_field_initializers()
+    {
+        var world = new World();
+        var e = world.CreateEntity();
+        ref var c = ref world.Components<CmpWithFieldInitializer>().GetOrAdd(e);
+        Assert.Equal(42, c.V);
+    }
+
     [Fact]
     public void Components_GetOrAdd_TryGet_Get_Remove_and_sparse_record_grow()
     {

@@ -1,0 +1,35 @@
+---
+description: Prefer one-shot setup over per-frame ECS systems when state does not evolve every tick
+globs: "**/mods/**/*.cs,**/Cyberland.Engine/**/Systems/**/*.cs"
+alwaysApply: false
+---
+
+# Cyberland — ECS systems vs one-shot work
+
+## Principle
+
+Do **not** add an `ISystem` / `IParallelSystem` whose `OnUpdate` / `OnParallelUpdate` only performs work that could run **once** (e.g. `IMod.OnLoad`, host init, or a single explicit call after entities exist).
+
+Per-frame registration has a real cost (scheduler walk, virtual dispatch) and obscures intent when nothing about the problem is continuous.
+
+## What belongs in systems
+
+- **Continuous simulation** (movement, timers, AI ticks).
+- **Per-frame input sampling** or gameplay that must run in deterministic order with other systems.
+- **Work that truly depends on every frame** (e.g. animation advance, particle integration).
+
+**One-time init that still belongs in the scheduler** (not every frame) should use **`ISystem.OnStart`** / **`IParallelSystem.OnStart`**: it runs once when the system entry is first **enabled**, before the first **`OnUpdate`** / **`OnParallelUpdate`**. Prefer **`IMod.OnLoad`** when no ECS frame ordering is required; use **`OnStart`** when init must run relative to other registered systems. **`SetSystemEnabled(false)`** avoids per-frame cost without unregistering; **`OnStart`** does not run again after re-enable.
+
+## What does not
+
+- **One-time scene setup**: spawn entities, set components from static or load-time data — do it in **`IMod.OnLoad`** or a dedicated init helper called from there.
+- **Idempotent layout that never changes after load** — apply once; do not wrap in a system that repeats the same writes.
+
+## When something is “almost” one-shot
+
+If you only need to react to **occasional** events (window resize, settings change), prefer:
+
+- Subscribing to an **event** or callback if the engine/host exposes one, or
+- A **minimal** system that runs only when a cheap guard detects change (e.g. cached size vs current), **not** a full rewrite of static decor every frame with no delta.
+
+Document **why** a system runs every frame when it is not obvious from the code.

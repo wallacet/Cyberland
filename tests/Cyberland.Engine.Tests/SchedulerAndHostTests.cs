@@ -32,11 +32,11 @@ public sealed class SchedulerAndHostTests
     private sealed class TrackPar : IParallelSystem
     {
         public int Step;
-        public void OnParallelUpdate(World world, ParallelOptions parallelOptions) => Step = 2;
+        public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions) => Step = 2;
     }
 
     [Fact]
-    public void SystemScheduler_runs_sequential_before_parallel()
+    public void SystemScheduler_runs_in_registration_order_sequential_then_parallel()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var s = new TrackSeq();
@@ -49,6 +49,19 @@ public sealed class SchedulerAndHostTests
     }
 
     [Fact]
+    public void SystemScheduler_interleaved_entries_run_in_registration_order()
+    {
+        var sched = new SystemScheduler(new ParallelismSettings());
+        var order = new List<int>();
+        sched.RegisterSequential("s1", new OrderSeq { Order = order, Mark = 1 });
+        sched.RegisterParallel("p1", new OrderPar { Order = order, Mark = 2 });
+        sched.RegisterSequential("s2", new OrderSeq { Order = order, Mark = 3 });
+        sched.RegisterParallel("p2", new OrderPar { Order = order, Mark = 4 });
+        sched.RunFrame(new World(), 0.016f);
+        Assert.Equal(new[] { 1, 2, 3, 4 }, order);
+    }
+
+    [Fact]
     public void SystemScheduler_RegisterSequential_throws_when_id_empty()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
@@ -56,19 +69,30 @@ public sealed class SchedulerAndHostTests
     }
 
     [Fact]
-    public void SystemScheduler_RegisterParallel_rejects_same_id_as_sequential()
+    public void SystemScheduler_same_id_RegisterParallel_replaces_RegisterSequential()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("shared", new TrackSeq());
-        Assert.Throws<InvalidOperationException>(() => sched.RegisterParallel("shared", new TrackPar()));
+        var seq = new TrackSeq();
+        var par = new TrackPar();
+        sched.RegisterSequential("shared", seq);
+        sched.RegisterParallel("shared", par);
+        sched.RunFrame(new World(), 0.016f);
+        Assert.Equal(0, seq.Step);
+        Assert.Equal(2, par.Step);
     }
 
     [Fact]
-    public void SystemScheduler_RegisterSequential_rejects_same_id_as_parallel()
+    public void SystemScheduler_TryUnregister_removes_entries()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterParallel("shared", new TrackPar());
-        Assert.Throws<InvalidOperationException>(() => sched.RegisterSequential("shared", new TrackSeq()));
+        sched.RegisterSequential("a", new TrackSeq());
+        sched.RegisterParallel("b", new TrackPar());
+        sched.RegisterSequential("c", new TrackSeq());
+
+        Assert.True(sched.TryUnregister("a"));
+        Assert.True(sched.TryUnregister("b"));
+        Assert.True(sched.TryUnregister("c"));
+        Assert.False(sched.TryUnregister("a"));
     }
 
     private sealed class OrderSeq : ISystem
@@ -134,7 +158,7 @@ public sealed class SchedulerAndHostTests
     {
         public required List<int> Order { get; init; }
         public required int Mark { get; init; }
-        public void OnParallelUpdate(World world, ParallelOptions parallelOptions) => Order.Add(Mark);
+        public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions) => Order.Add(Mark);
     }
 
     [Fact]

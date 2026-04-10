@@ -10,8 +10,9 @@ namespace Cyberland.Demo;
 /// </summary>
 public sealed class VelocityDampSystem : IParallelSystem
 {
-    public void OnParallelUpdate(World world, ParallelOptions parallelOptions)
+    public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
     {
+        _ = deltaSeconds;
         var chunks = new List<ComponentChunkView<Velocity>>();
         foreach (var chunk in world.QueryChunks<Velocity>())
             chunks.Add(chunk);

@@ -12,6 +12,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Rendering\Shaders\*.glsl" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Glslang.NET" Version="1.2.0" />
     <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
     <PackageReference Include="Silk.NET.OpenAL" Version="2.23.0" />

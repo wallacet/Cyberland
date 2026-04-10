@@ -4,7 +4,8 @@ namespace Cyberland.Engine;
 
 /// <summary>
 /// <b>World space</b> (gameplay math): origin bottom-left, +X right, +Y up (pixels).
-/// <b>Screen space</b> (framebuffer / Vulkan): top-left, +Y down — produced inside <see cref="Rendering.VulkanRenderer.SetSpriteWorld"/> for drawing.
+/// <b>Screen space</b> (framebuffer / Vulkan): top-left, +Y down — the 2D renderer converts via
+/// <see cref="WorldCenterToScreenPixel"/> when drawing submitted sprites.
 /// </summary>
 public static class WorldScreenSpace
 {
@@ -16,7 +17,7 @@ public static class WorldScreenSpace
     public static Vector2D<float> WorldVelocityToScreenVelocity(Vector2D<float> worldVelocity) =>
         new(worldVelocity.X, -worldVelocity.Y);
 
-    /// <summary>Screen-space sprite center (top-left, +Y down) from a world center; see <see cref="Rendering.VulkanRenderer.SetSpriteWorld"/>.</summary>
+    /// <summary>Screen-space sprite center (top-left, +Y down) from a world center for <see cref="Rendering.IRenderer"/> submits.</summary>
     public static Vector2D<float> ScreenPixelToWorldCenter(Vector2D<float> screenCenter, Vector2D<int> framebufferSize) =>
         new(screenCenter.X, framebufferSize.Y - screenCenter.Y);
 }

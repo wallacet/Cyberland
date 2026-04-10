@@ -9,7 +9,13 @@ public sealed class ComponentStore<T> : IComponentStore where T : struct
 
     internal ComponentStore(World world) => _world = world;
 
-    public ref T GetOrAdd(EntityId entity, T initial = default) => ref _world.RefGetOrAdd(entity, initial);
+    /// <summary>
+    /// Adds <typeparamref name="T"/> using <c>new T()</c> so struct field initializers and the parameterless constructor run.
+    /// </summary>
+    public ref T GetOrAdd(EntityId entity) => ref _world.RefGetOrAdd<T>(entity);
+
+    /// <summary>Adds or returns existing; uses <paramref name="initial"/> as the value for a new component (no <c>new T()</c>).</summary>
+    public ref T GetOrAdd(EntityId entity, T initial) => ref _world.RefGetOrAdd(entity, initial);
 
     public bool TryGet(EntityId entity, out T value) => _world.TryGetComponent(entity, out value);
 

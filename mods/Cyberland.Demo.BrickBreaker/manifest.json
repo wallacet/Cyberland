@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.brick",
+  "name": "Cyberland Brick Breaker (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.BrickBreaker.dll",
+  "contentRoot": "Content",
+  "loadOrder": 22,
+  "disabled": true
+}

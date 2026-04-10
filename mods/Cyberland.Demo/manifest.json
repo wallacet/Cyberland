@@ -1,8 +1,9 @@
 {
   "id": "cyberland.demo",
-  "name": "Cyberland (Vulkan sprite demo)",
+  "name": "Cyberland (2D HDR demo)",
   "version": "0.1.0",
   "entryAssembly": "Cyberland.Demo.dll",
   "contentRoot": "Content",
-  "loadOrder": 10
+  "loadOrder": 10,
+  "disabled": true
 }

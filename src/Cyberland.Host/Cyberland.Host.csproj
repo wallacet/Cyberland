@@ -11,11 +11,17 @@
     <ProjectReference Include="..\Cyberland.Engine\Cyberland.Engine.csproj" />
     <ProjectReference Include="..\..\mods\Cyberland.Game\Cyberland.Game.csproj" />
     <ProjectReference Include="..\..\mods\Cyberland.Demo\Cyberland.Demo.csproj" />
+    <ProjectReference Include="..\..\mods\Cyberland.Demo.Pong\Cyberland.Demo.Pong.csproj" />
+    <ProjectReference Include="..\..\mods\Cyberland.Demo.Snake\Cyberland.Demo.Snake.csproj" />
+    <ProjectReference Include="..\..\mods\Cyberland.Demo.BrickBreaker\Cyberland.Demo.BrickBreaker.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <_BaseModContent Include="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Game\Content\**\*" />
     <_DemoModContent Include="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo\Content\**\*" />
+    <_PongModContent Include="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo.Pong\Content\**\*" />
+    <_SnakeModContent Include="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo.Snake\Content\**\*" />
+    <_BrickModContent Include="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo.BrickBreaker\Content\**\*" />
   </ItemGroup>
 
   <Target Name="StageBaseMod" AfterTargets="Build">
@@ -36,6 +42,36 @@
     <Copy SourceFiles="$(OutDir)Cyberland.Demo.dll" DestinationFolder="$(_DemoOut)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo\manifest.json" DestinationFolder="$(_DemoOut)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(_DemoModContent)" DestinationFolder="$(_DemoOut)Content\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StagePongMod" AfterTargets="Build">
+    <PropertyGroup>
+      <_PongOut>$(OutDir)Mods\Cyberland.Demo.Pong\</_PongOut>
+    </PropertyGroup>
+    <MakeDir Directories="$(_PongOut)" />
+    <Copy SourceFiles="$(OutDir)Cyberland.Demo.Pong.dll" DestinationFolder="$(_PongOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo.Pong\manifest.json" DestinationFolder="$(_PongOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_PongModContent)" DestinationFolder="$(_PongOut)Content\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StageSnakeMod" AfterTargets="Build">
+    <PropertyGroup>
+      <_SnakeOut>$(OutDir)Mods\Cyberland.Demo.Snake\</_SnakeOut>
+    </PropertyGroup>
+    <MakeDir Directories="$(_SnakeOut)" />
+    <Copy SourceFiles="$(OutDir)Cyberland.Demo.Snake.dll" DestinationFolder="$(_SnakeOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo.Snake\manifest.json" DestinationFolder="$(_SnakeOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_SnakeModContent)" DestinationFolder="$(_SnakeOut)Content\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StageBrickMod" AfterTargets="Build">
+    <PropertyGroup>
+      <_BrickOut>$(OutDir)Mods\Cyberland.Demo.BrickBreaker\</_BrickOut>
+    </PropertyGroup>
+    <MakeDir Directories="$(_BrickOut)" />
+    <Copy SourceFiles="$(OutDir)Cyberland.Demo.BrickBreaker.dll" DestinationFolder="$(_BrickOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\mods\Cyberland.Demo.BrickBreaker\manifest.json" DestinationFolder="$(_BrickOut)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_BrickModContent)" DestinationFolder="$(_BrickOut)Content\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

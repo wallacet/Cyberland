@@ -9,8 +9,16 @@ using Cyberland.Engine.Localization;
 namespace Cyberland.Engine.Modding;
 
 /// <summary>
-/// Discovers mod folders, parses manifests, mounts content for enabled mods, then loads optional assemblies.
+/// Discovers mod folders under a root, applies each enabled mod’s content to the VFS, then loads mod assemblies.
 /// </summary>
+/// <remarks>
+/// <b>Load flow (two passes):</b> (1) Enumerate <c>Mods/*/manifest.json</c>, skip disabled/excluded ids, sort by
+/// <see cref="ModManifest.LoadOrder"/> then id. For each manifest, record it and mount <see cref="ModManifest.ContentRoot"/>,
+/// then apply <see cref="ModManifest.ContentBlocklist"/> via <see cref="VirtualFileSystem.BlockPath"/>. (2) For each entry
+/// with an <see cref="ModManifest.EntryAssembly"/>, load the DLL from disk, find a concrete <see cref="IMod"/>, construct it,
+/// and call <see cref="IMod.OnLoad"/> with a <see cref="ModLoadContext"/>. Loading uses <see cref="Assembly.LoadFrom"/> —
+/// mod DLLs execute with host trust; third-party mods imply arbitrary native code (document for contributors, not end users).
+/// </remarks>
 public sealed class ModLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -25,7 +33,8 @@ public sealed class ModLoader
         LocalizationManager localization,
         World world,
         SystemScheduler scheduler,
-        GameHostServices host)
+        GameHostServices host,
+        IReadOnlySet<string>? excludedModIds = null)
     {
         if (!Directory.Exists(modsRootDirectory))
             return;
@@ -42,6 +51,9 @@ public sealed class ModLoader
             var json = File.ReadAllText(manifestPath);
             var m = JsonSerializer.Deserialize<ModManifest>(json, JsonOptions);
             if (m is null || string.IsNullOrWhiteSpace(m.Id) || m.Disabled)
+                continue;
+
+            if (excludedModIds is not null && excludedModIds.Contains(m.Id))
                 continue;
 
             manifests.Add((dir, m));

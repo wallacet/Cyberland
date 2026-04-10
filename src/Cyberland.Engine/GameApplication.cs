@@ -8,6 +8,8 @@ using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Scene2D;
+using Cyberland.Engine.Scene2D.Systems;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -29,13 +31,15 @@ public sealed class GameApplication : IDisposable
     private readonly LocalizationManager _localization = new();
     private readonly KeyBindingStore _bindings = new();
     private readonly GameHostServices _host;
+    private readonly string[] _commandLineArgs;
     private OpenALAudioDevice? _audio;
     private VulkanRenderer? _renderer;
     private IWindow? _window;
     private IInputContext? _input;
 
-    public GameApplication()
+    public GameApplication(string[]? commandLineArgs = null)
     {
+        _commandLineArgs = commandLineArgs ?? Array.Empty<string>();
         _scheduler = new SystemScheduler(_parallelism);
         _host = new GameHostServices(_bindings);
     }
@@ -60,6 +64,10 @@ public sealed class GameApplication : IDisposable
         if (_window is null)
             return;
 
+        // Bootstrap order: Vulkan + audio + input → assign Host.Renderer/Input → baseline HDR once (EngineDefaultGlobalPostProcess)
+        // → sync keybindings (window thread; GetAwaiter().GetResult avoids re-entrancy on the same thread)
+        // → register core parallel sim systems → ModLoader.LoadAll (mods register systems) → parallel render submit systems
+        // → locale bootstrap. First RunFrame runs after this returns.
         _renderer = new VulkanRenderer(_window);
         try
         {
@@ -87,18 +95,37 @@ public sealed class GameApplication : IDisposable
         _input = _window.CreateInput();
         _host.Renderer = _renderer;
         _host.Input = _input;
+        _host.Tilemaps ??= new TilemapDataStore();
+        _host.Particles ??= new ParticleStore();
+        _renderer.RequestClose = () => _window?.Close();
+
+        EngineDefaultGlobalPostProcess.Apply(_renderer);
 
         var bindingsFile = Path.Combine(AppContext.BaseDirectory, "keybindings.json");
         _bindings.LoadOrCreateUserFileAsync(bindingsFile).GetAwaiter().GetResult();
 
+        _scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
+        _scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
+        _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem(_host));
+
         var assets = new AssetManager(_vfs);
+        var excluded = ExcludeModsParser.TryParse(_commandLineArgs);
+        IReadOnlySet<string>? excludedSet = null;
+        if (excluded is not null)
+            excludedSet = new HashSet<string>(excluded, StringComparer.OrdinalIgnoreCase);
+
         _mods.LoadAll(
             Path.Combine(AppContext.BaseDirectory, "Mods"),
             _vfs,
             _localization,
             _world,
             _scheduler,
-            _host);
+            _host,
+            excludedSet);
+
+        _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
+        _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
+        _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
 
         LocalizationBootstrap.LoadAsync(_localization, assets, "Locale/en/strings.json").GetAwaiter().GetResult();
     }
@@ -107,13 +134,6 @@ public sealed class GameApplication : IDisposable
     {
         var dt = (float)delta;
         _scheduler.RunFrame(_world, dt);
-
-        if (_input?.Keyboards.Count > 0)
-        {
-            var kb = _input.Keyboards[0];
-            if (_bindings.IsDown(kb, "menu") && _window != null)
-                _window.Close();
-        }
     }
 
     private void OnRender(double _)

@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.pong",
+  "name": "Cyberland Pong (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.Pong.dll",
+  "contentRoot": "Content",
+  "loadOrder": 20,
+  "disabled": false
+}

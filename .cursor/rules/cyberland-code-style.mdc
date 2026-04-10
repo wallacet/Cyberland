@@ -12,12 +12,14 @@ Code should be easy to follow for someone new to the file: **clear names first**
 - At the top of non-trivial modules, a short note on **purpose** and **main data flow** (a few lines).
 - Before non-obvious logic: explain **intent**, **invariants**, and **edge cases**—not a restatement of the syntax.
 - For performance-sensitive or size-sensitive code, tie comments to project goals (e.g. why this avoids extra copies or allocations).
+- For **parallel** or **lock-protected** code, briefly note **what must not race** (which threads, which data) so future edits keep **cyberland-design-goals** parallelism/thread-safety expectations.
 
 ## Readability
 
 - Prefer small functions with one obvious job; extract when nesting or duplication hurts scanning.
 - Use consistent naming for game concepts (systems, resources, entities) once chosen.
 - Avoid clever one-liners when a straightforward form is clearer; optimize only when measured or clearly on a hot path.
+- Do not register **`ISystem` / `IParallelSystem`** implementations that only repeat one-shot setup every frame — see **cyberland-ecs-one-shot**.
 
 ## Examples
 

@@ -1,5 +1,6 @@
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Scene2D;
 using Silk.NET.Input;
 
 namespace Cyberland.Engine.Hosting;
@@ -15,7 +16,14 @@ public sealed class GameHostServices
 
     public KeyBindingStore KeyBindings { get; }
 
-    public VulkanRenderer? Renderer { get; set; }
+    /// <summary>2D submit API; concrete type is <see cref="VulkanRenderer"/> in the shipping host.</summary>
+    public IRenderer? Renderer { get; set; }
 
     public IInputContext? Input { get; set; }
+
+    /// <summary>Optional tile index storage for <see cref="Scene2D.Systems.TilemapRenderSystem"/>.</summary>
+    public ITilemapDataStore? Tilemaps { get; set; }
+
+    /// <summary>Optional CPU particle buffers for <see cref="Scene2D.Systems.ParticleSimulationSystem"/>.</summary>
+    public ParticleStore? Particles { get; set; }
 }

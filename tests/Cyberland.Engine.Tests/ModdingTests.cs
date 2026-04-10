@@ -87,6 +87,12 @@ public sealed class ModdingTests
             ctx.RegisterParallel("mod/par", new ModCtxPar());
             ctx.Scheduler.RunFrame(world, 0.016f);
             Assert.Equal(1, seq.Calls);
+            Assert.True(ctx.SetSystemEnabled("mod/seq", false));
+            ctx.Scheduler.RunFrame(world, 0.016f);
+            Assert.Equal(1, seq.Calls);
+            Assert.True(ctx.SetSystemEnabled("mod/seq", true));
+            ctx.Scheduler.RunFrame(world, 0.016f);
+            Assert.Equal(2, seq.Calls);
             Assert.True(ctx.TryUnregister("mod/seq"));
             Assert.False(ctx.TryUnregister("mod/seq"));
         }
@@ -104,8 +110,9 @@ public sealed class ModdingTests
 
     private sealed class ModCtxPar : IParallelSystem
     {
-        public void OnParallelUpdate(World world, ParallelOptions parallelOptions)
+        public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
         {
+            _ = deltaSeconds;
         }
     }
 
@@ -264,6 +271,41 @@ public sealed class ModdingTests
                 new SystemScheduler(new ParallelismSettings()),
                 host);
             Assert.Same(host, TestModEntry.LastContext!.Host);
+        }
+        finally
+        {
+            Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoader_excludes_mod_ids_skips_vfs_and_assembly()
+    {
+        TestModEntry.ResetCounters();
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb mod excl " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        StageMod(modsRoot, "a", "keep.mod", loadOrder: 0);
+        StageMod(modsRoot, "b", "drop.mod", loadOrder: 1);
+
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "drop.mod" };
+            var loader = new ModLoader();
+            loader.LoadAll(
+                modsRoot,
+                vfs,
+                new LocalizationManager(),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                new GameHostServices(new KeyBindingStore()),
+                excluded);
+
+            Assert.Equal(1, TestModEntry.OnLoadCount);
+            Assert.Single(loader.LoadedManifests);
+            Assert.Equal("keep.mod", loader.LoadedManifests[0].Id);
+            using var reader = new StreamReader(File.OpenRead(Path.Combine(vfs.Roots[^1], "note.txt")));
+            Assert.Equal("keep.mod", reader.ReadToEnd());
         }
         finally
         {
