@@ -2,6 +2,40 @@
 
 set -eu
 
+# Shipped demo mods (mods/Cyberland.Demo*) must keep "disabled": true in manifest.json on commit.
+check_demo_mod_manifests_disabled() {
+  if [ "${CYBERLAND_ALLOW_DEMO_MODS_ENABLED:-0}" = "1" ]; then
+    echo "CYBERLAND_ALLOW_DEMO_MODS_ENABLED=1 set; skipping demo-manifest guard."
+    return 0
+  fi
+
+  for path in \
+    mods/Cyberland.Demo/manifest.json \
+    mods/Cyberland.Demo.Pong/manifest.json \
+    mods/Cyberland.Demo.Snake/manifest.json \
+    mods/Cyberland.Demo.BrickBreaker/manifest.json
+  do
+    if [ -z "$(git ls-files --cached -- "$path" 2>/dev/null)" ]; then
+      continue
+    fi
+    if ! content=$(git show ":$path" 2>/dev/null); then
+      continue
+    fi
+    if printf '%s\n' "$content" | grep -qE '"disabled"[[:space:]]*:[[:space:]]*true'; then
+      continue
+    fi
+    echo "ERROR: Commit blocked — demo mod manifest must keep demos disabled in the index."
+    echo "  File: $path"
+    echo "  Staged manifest must contain: \"disabled\": true"
+    echo "  (Turn demos on locally for testing; do not commit enabled manifests.)"
+    echo "  Bypass (use sparingly): CYBERLAND_ALLOW_DEMO_MODS_ENABLED=1 git commit ..."
+    echo "  Or: git commit --no-verify"
+    exit 1
+  done
+}
+
+check_demo_mod_manifests_disabled
+
 MAX_MB="${CYBERLAND_MAX_FILE_MB:-4}"
 ALLOW_LARGE="${CYBERLAND_ALLOW_LARGE_FILES:-0}"
 

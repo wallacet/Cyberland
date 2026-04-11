@@ -71,7 +71,7 @@ The script discovers each mod manifest, downloads release archives, verifies SHA
 
 ### Git hook setup (recommended)
 
-This repo includes a pre-commit hook that blocks staged files larger than 4 MiB by default.
+This repo includes a pre-commit hook that blocks staged files larger than 4 MiB by default, and rejects commits when any **shipped demo mod** manifest (`mods/Cyberland.Demo*/manifest.json`) is not **`"disabled": true`** in the staging area (so local testing can enable demos without that state landing in git).
 
 ```powershell
 .\scripts\Setup-GitHooks.ps1
@@ -82,6 +82,7 @@ Override options for exceptional cases:
 - One-off bypass: `git commit --no-verify`
 - Maintainer local override: `CYBERLAND_ALLOW_LARGE_FILES=1 git commit ...`
 - Temporary threshold override: `CYBERLAND_MAX_FILE_MB=8 git commit ...`
+- Demo manifest override (use sparingly): `CYBERLAND_ALLOW_DEMO_MODS_ENABLED=1 git commit ...`
 
 If you bypass, follow up by moving large media into the GitHub Releases asset flow.
 
