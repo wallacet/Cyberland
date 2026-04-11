@@ -21,10 +21,11 @@ public sealed class ParticleSimulationSystem : IParallelSystem
     public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
     {
         var store = _host.Particles;
+        var ids = _host.ParticleEmitterIdsForFrame;
+        ids.Clear();
         if (store is null)
             return;
 
-        var ids = new List<EntityId>();
         foreach (var view in world.QueryChunks<ParticleEmitter>())
         {
             var ents = view.Entities;

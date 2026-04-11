@@ -13,6 +13,7 @@ namespace Cyberland.Engine.Scene.Systems;
 /// </summary>
 public sealed class SpriteRenderSystem : IParallelSystem
 {
+    private readonly List<ComponentChunkView<Sprite>> _chunks = new();
     private readonly GameHostServices _host;
 
     /// <param name="host">Must expose a non-null <see cref="Hosting.GameHostServices.Renderer"/> after startup.</param>
@@ -27,14 +28,14 @@ public sealed class SpriteRenderSystem : IParallelSystem
         if (r is null)
             return;
 
-        var chunks = new List<ComponentChunkView<Sprite>>();
+        _chunks.Clear();
         foreach (var chunk in world.QueryChunks<Sprite>())
-            chunks.Add(chunk);
+            _chunks.Add(chunk);
 
-        if (chunks.Count == 0)
+        if (_chunks.Count == 0)
             return;
 
-        Parallel.ForEach(chunks, parallelOptions, chunk =>
+        Parallel.ForEach(_chunks, parallelOptions, chunk =>
         {
             var ents = chunk.Entities;
             var sprites = chunk.Components;

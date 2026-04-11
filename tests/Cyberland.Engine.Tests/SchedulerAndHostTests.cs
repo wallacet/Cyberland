@@ -23,6 +23,18 @@ public sealed class SchedulerAndHostTests
         Assert.Equal(2, p.CreateParallelOptions().MaxDegreeOfParallelism);
     }
 
+    [Fact]
+    public void ParallelismSettings_CreateParallelOptions_reuses_single_instance()
+    {
+        var p = new ParallelismSettings { MaxConcurrency = 1 };
+        var a = p.CreateParallelOptions();
+        var b = p.CreateParallelOptions();
+        Assert.Same(a, b);
+        p.MaxConcurrency = 3;
+        Assert.Equal(3, p.CreateParallelOptions().MaxDegreeOfParallelism);
+        Assert.Same(a, p.CreateParallelOptions());
+    }
+
     private sealed class TrackSeq : ISystem
     {
         public int Step;
@@ -217,5 +229,7 @@ public sealed class SchedulerAndHostTests
         Assert.Null(host.Input);
         host.Renderer = null;
         host.Input = null;
+        Assert.NotNull(host.ParticleEmitterIdsForFrame);
+        Assert.Empty(host.ParticleEmitterIdsForFrame);
     }
 }

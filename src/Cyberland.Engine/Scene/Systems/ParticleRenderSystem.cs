@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
@@ -11,6 +10,10 @@ namespace Cyberland.Engine.Scene.Systems;
 /// <summary>
 /// Parallel pass: submits billboard sprites for live particles stored in <see cref="ParticleStore"/> (pairs with <see cref="ParticleSimulationSystem"/>).
 /// </summary>
+/// <remarks>
+/// Uses <see cref="GameHostServices.ParticleEmitterIdsForFrame"/> filled by <see cref="ParticleSimulationSystem"/> in the same frame.
+/// Keep simulation registered and ordered <strong>before</strong> render (stock <see cref="GameApplication"/> order); disabling simulation while leaving render enabled can leave stale emitter ids.
+/// </remarks>
 public sealed class ParticleRenderSystem : IParallelSystem
 {
     private readonly GameHostServices _host;
@@ -28,14 +31,7 @@ public sealed class ParticleRenderSystem : IParallelSystem
         if (r is null || store is null)
             return;
 
-        var ids = new List<EntityId>();
-        foreach (var view in world.QueryChunks<ParticleEmitter>())
-        {
-            var ents = view.Entities;
-            for (var i = 0; i < view.Count; i++)
-                ids.Add(ents[i]);
-        }
-
+        var ids = _host.ParticleEmitterIdsForFrame;
         if (ids.Count == 0)
             return;
 

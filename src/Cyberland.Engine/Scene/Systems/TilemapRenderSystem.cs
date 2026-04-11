@@ -13,6 +13,7 @@ namespace Cyberland.Engine.Scene.Systems;
 /// </summary>
 public sealed class TilemapRenderSystem : IParallelSystem
 {
+    private readonly List<ComponentChunkView<Tilemap>> _chunks = new();
     private readonly GameHostServices _host;
 
     /// <param name="host">Requires both <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Tilemaps"/>.</param>
@@ -28,14 +29,14 @@ public sealed class TilemapRenderSystem : IParallelSystem
         if (r is null || store is null)
             return;
 
-        var chunks = new List<ComponentChunkView<Tilemap>>();
+        _chunks.Clear();
         foreach (var chunk in world.QueryChunks<Tilemap>())
-            chunks.Add(chunk);
+            _chunks.Add(chunk);
 
-        if (chunks.Count == 0)
+        if (_chunks.Count == 0)
             return;
 
-        Parallel.ForEach(chunks, parallelOptions, chunk =>
+        Parallel.ForEach(_chunks, parallelOptions, chunk =>
         {
             var ents = chunk.Entities;
             var maps = chunk.Components;

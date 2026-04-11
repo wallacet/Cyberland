@@ -3,7 +3,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Rendering;
 
 /// <summary>
-/// Stable sort for sprite draws: lower <see cref="SpriteDrawRequest.Layer"/> first, then lower
+/// Sorts sprite draw order: lower <see cref="SpriteDrawRequest.Layer"/> first, then lower
 /// <see cref="SpriteDrawRequest.SortKey"/>, then lower <see cref="SpriteDrawRequest.DepthHint"/>.
 /// </summary>
 public static class SpriteDrawSorter
@@ -18,19 +18,11 @@ public static class SpriteDrawSorter
         for (var i = 0; i < indices.Length; i++)
             indices[i] = i;
 
-        // Selection sort avoids capturing ReadOnlySpan in a comparer delegate (ref-like restriction).
-        for (var i = 0; i < indices.Length - 1; i++)
-        {
-            var min = i;
-            for (var j = i + 1; j < indices.Length; j++)
-            {
-                if (Compare(draws[indices[j]], draws[indices[min]]) < 0)
-                    min = j;
-            }
+        if (indices.Length < 2)
+            return;
 
-            if (min != i)
-                (indices[i], indices[min]) = (indices[min], indices[i]);
-        }
+        // O(n log n); ties may reorder relative to input (unlike a stable selection sort).
+        Array.Sort(indices, (ia, ib) => Compare(in draws[ia], in draws[ib]));
     }
 
     /// <summary>Comparer used by <see cref="SortByLayerOrder"/>; negative if <paramref name="a"/> should draw before <paramref name="b"/>.</summary>

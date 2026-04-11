@@ -70,7 +70,15 @@ public sealed class ModLoader
             manifests.Add((dir, m));
         }
 
-        foreach (var entry in manifests.OrderBy(t => t.M.LoadOrder).ThenBy(t => t.M.Id, StringComparer.Ordinal))
+        manifests.Sort(static (a, b) =>
+        {
+            var c = a.M.LoadOrder.CompareTo(b.M.LoadOrder);
+            if (c != 0)
+                return c;
+            return string.CompareOrdinal(a.M.Id, b.M.Id);
+        });
+
+        foreach (var entry in manifests)
         {
             _manifests.Add(entry.M);
             var contentPath = Path.Combine(entry.Dir, entry.M.ContentRoot);
@@ -82,7 +90,7 @@ public sealed class ModLoader
             }
         }
 
-        foreach (var entry in manifests.OrderBy(t => t.M.LoadOrder).ThenBy(t => t.M.Id, StringComparer.Ordinal))
+        foreach (var entry in manifests)
         {
             if (string.IsNullOrWhiteSpace(entry.M.EntryAssembly))
                 continue;
@@ -92,8 +100,15 @@ public sealed class ModLoader
                 continue;
 
             var asm = Assembly.LoadFrom(dll);
-            var modType = asm.GetExportedTypes()
-                .FirstOrDefault(t => typeof(IMod).IsAssignableFrom(t) && t is { IsClass: true, IsAbstract: false });
+            Type? modType = null;
+            foreach (var t in asm.GetExportedTypes())
+            {
+                if (typeof(IMod).IsAssignableFrom(t) && t is { IsClass: true, IsAbstract: false })
+                {
+                    modType = t;
+                    break;
+                }
+            }
 
             if (modType is null)
                 continue;

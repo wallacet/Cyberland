@@ -10,17 +10,19 @@ namespace Cyberland.Engine.Scene.Systems;
 /// </summary>
 public sealed class SpriteAnimationSystem : IParallelSystem
 {
+    private readonly List<ComponentChunkView<SpriteAnimation>> _chunks = new();
+
     /// <inheritdoc />
     public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
     {
-        var chunks = new List<ComponentChunkView<SpriteAnimation>>();
+        _chunks.Clear();
         foreach (var chunk in world.QueryChunks<SpriteAnimation>())
-            chunks.Add(chunk);
+            _chunks.Add(chunk);
 
-        if (chunks.Count == 0)
+        if (_chunks.Count == 0)
             return;
 
-        Parallel.ForEach(chunks, parallelOptions, chunk =>
+        Parallel.ForEach(_chunks, parallelOptions, chunk =>
         {
             var ents = chunk.Entities;
             var anims = chunk.Components;

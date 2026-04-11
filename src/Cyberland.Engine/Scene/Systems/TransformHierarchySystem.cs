@@ -21,6 +21,14 @@ public sealed class TransformHierarchySystem : IParallelSystem
     private readonly HashSet<EntityId> _visited = new();
     private readonly Dictionary<EntityId, Matrix3x2> _world = new();
     private readonly List<EntityId> _roots = new();
+    private readonly Dictionary<EntityId, int> _inDegree = new();
+    private readonly ConcurrentDictionary<EntityId, byte> _processed = new();
+
+    // Parallel.ForEach root tasks reuse per-thread scratch to avoid per-root List/Dictionary allocations.
+    private readonly ThreadLocal<List<EntityId>> _bfsOrderTls = new(() => new List<EntityId>(64));
+    private readonly ThreadLocal<Queue<EntityId>> _bfsQueueTls = new(() => new Queue<EntityId>(64));
+    private readonly ThreadLocal<Dictionary<EntityId, Matrix3x2>> _localWorldTls =
+        new(() => new Dictionary<EntityId, Matrix3x2>());
 
     /// <inheritdoc />
     public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
@@ -33,6 +41,8 @@ public sealed class TransformHierarchySystem : IParallelSystem
         _visited.Clear();
         _world.Clear();
         _roots.Clear();
+        _inDegree.Clear();
+        _processed.Clear();
 
         var tfStore = world.Components<Transform>();
         foreach (var view in world.QueryChunks<Transform>())
@@ -42,9 +52,8 @@ public sealed class TransformHierarchySystem : IParallelSystem
                 _tfSet.Add(ents[i]);
         }
 
-        var inDegree = new Dictionary<EntityId, int>();
         foreach (var id in _tfSet)
-            inDegree[id] = 0;
+            _inDegree[id] = 0;
 
         foreach (var id in _tfSet)
         {
@@ -60,12 +69,12 @@ public sealed class TransformHierarchySystem : IParallelSystem
             }
 
             list.Add(id);
-            inDegree[id]++;
+            _inDegree[id]++;
         }
 
         foreach (var id in _tfSet)
         {
-            if (inDegree[id] == 0)
+            if (_inDegree[id] == 0)
             {
                 _queue.Enqueue(id);
                 _roots.Add(id);
@@ -81,8 +90,8 @@ public sealed class TransformHierarchySystem : IParallelSystem
                 continue;
             foreach (var c in ch)
             {
-                inDegree[c]--;
-                if (inDegree[c] == 0)
+                _inDegree[c]--;
+                if (_inDegree[c] == 0)
                     _queue.Enqueue(c);
             }
         }
@@ -93,32 +102,34 @@ public sealed class TransformHierarchySystem : IParallelSystem
                 _order.Add(id);
         }
 
-        var processed = new ConcurrentDictionary<EntityId, byte>();
         if (_roots.Count > 0)
         {
             Parallel.ForEach(_roots, parallelOptions, root =>
             {
-                var localW = new Dictionary<EntityId, Matrix3x2>();
+                var localW = _localWorldTls.Value!;
+                localW.Clear();
                 var subOrder = BuildSubtreeBfsOrder(root);
                 foreach (var eid in subOrder)
-                    SolveOne(world, tfStore, eid, localW, processed);
+                    SolveOne(world, tfStore, eid, localW, _processed);
             });
         }
 
         foreach (var id in _order)
         {
-            if (processed.ContainsKey(id))
+            if (_processed.ContainsKey(id))
                 continue;
 
             // Same parent resolution as parallel SolveOne, using the shared world matrix map built for this frame.
-            SolveOne(world, tfStore, id, _world, processed);
+            SolveOne(world, tfStore, id, _world, _processed);
         }
     }
 
     private List<EntityId> BuildSubtreeBfsOrder(EntityId root)
     {
-        var order = new List<EntityId>();
-        var q = new Queue<EntityId>();
+        var order = _bfsOrderTls.Value!;
+        var q = _bfsQueueTls.Value!;
+        order.Clear();
+        q.Clear();
         q.Enqueue(root);
         while (q.Count > 0)
         {

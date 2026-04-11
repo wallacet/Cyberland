@@ -192,6 +192,19 @@ public sealed class RenderingHelpersTests
     }
 
     [Fact]
+    public void SpriteDrawSorter_handles_empty_and_singleton_batches_without_sort_path()
+    {
+        var z = Array.Empty<SpriteDrawRequest>();
+        var iz = Array.Empty<int>();
+        SpriteDrawSorter.SortByLayerOrder(iz, z);
+
+        var one = new[] { new SpriteDrawRequest { Layer = 2, SortKey = 0f, DepthHint = 0f } };
+        var i1 = new int[1];
+        SpriteDrawSorter.SortByLayerOrder(i1, one);
+        Assert.Equal(0, i1[0]);
+    }
+
+    [Fact]
     public void PostProcessVolumeMerge_higher_priority_overrides_and_AABB_gate()
     {
         var g = new GlobalPostProcessSettings

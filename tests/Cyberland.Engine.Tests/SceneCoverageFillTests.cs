@@ -167,12 +167,26 @@ public sealed class SceneCoverageFillTests
         var w = new World();
 
         var noPos = w.CreateEntity();
-        w.Components<ParticleEmitter>().GetOrAdd(noPos) = new ParticleEmitter { Active = true, MaxParticles = 2 };
+        w.Components<ParticleEmitter>().GetOrAdd(noPos) = new ParticleEmitter { Active = false, MaxParticles = 2 };
 
         var emptyBucket = w.CreateEntity();
         w.Components<Position>().GetOrAdd(emptyBucket) = new Position();
-        w.Components<ParticleEmitter>().GetOrAdd(emptyBucket) = new ParticleEmitter { Active = true, MaxParticles = 2 };
+        w.Components<ParticleEmitter>().GetOrAdd(emptyBucket) = new ParticleEmitter
+        {
+            Active = true,
+            MaxParticles = 2,
+            SpawnIntervalSeconds = 1e6f,
+            ParticleLifeSeconds = 1f,
+            EmissionVelocity = default,
+            GravityY = 0f,
+            AlbedoTextureId = 1,
+            Layer = 0,
+            SortKey = 0f,
+            HalfExtent = 1f
+        };
 
+        var sim = new ParticleSimulationSystem(h);
+        sim.OnParallelUpdate(w, 0.01f, ParOpts());
         new ParticleRenderSystem(h).OnParallelUpdate(w, 0f, ParOpts());
         Assert.Empty(r.Sprites);
     }

@@ -1,3 +1,4 @@
+using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
@@ -38,4 +39,10 @@ public sealed class GameHostServices
 
     /// <summary>Optional shared particle arenas for <see cref="Cyberland.Engine.Scene.Systems.ParticleSimulationSystem"/> / <see cref="Cyberland.Engine.Scene.Systems.ParticleRenderSystem"/>.</summary>
     public ParticleStore? Particles { get; set; }
+
+    /// <summary>
+    /// Cleared and refilled by <see cref="Cyberland.Engine.Scene.Systems.ParticleSimulationSystem"/> each frame (before parallel sim);
+    /// consumed by <see cref="Cyberland.Engine.Scene.Systems.ParticleRenderSystem"/> in the same frame. Host registers sim before render.
+    /// </summary>
+    public List<EntityId> ParticleEmitterIdsForFrame { get; } = new();
 }
