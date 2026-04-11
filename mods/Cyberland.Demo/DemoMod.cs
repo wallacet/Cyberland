@@ -1,4 +1,5 @@
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
@@ -73,7 +74,11 @@ public sealed class DemoMod : IMod
     {
         var ren = host.Renderer;
         if (ren is null)
+        {
+            EngineDiagnostics.Report(EngineErrorSeverity.Minor, "Cyberland.Demo — Viewport decor skipped",
+                "Host.Renderer was null; background and neon strip were not positioned for the swapchain.");
             return;
+        }
 
         var fb = ren.SwapchainPixelSize;
         var white = ren.WhiteTextureId;
@@ -114,7 +119,11 @@ public sealed class DemoMod : IMod
     {
         var r = host.Renderer;
         if (r is null)
+        {
+            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo — Post-process unavailable",
+                "Host.Renderer was null; global HDR/bloom settings for the demo were not applied.");
             return;
+        }
 
         r.SetGlobalPostProcess(new GlobalPostProcessSettings
         {
@@ -143,7 +152,11 @@ public sealed class DemoMod : IMod
     {
         var r = host.Renderer;
         if (r is null)
+        {
+            EngineDiagnostics.Report(EngineErrorSeverity.Minor, "Cyberland.Demo — Bloom volume skipped",
+                "Host.Renderer was null; animated post-process volume was not submitted.");
             return;
+        }
 
         var fb = r.SwapchainPixelSize;
         ref readonly var pos = ref world.Components<Position>().Get(player);

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Audio;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
@@ -103,6 +104,8 @@ public sealed class GameApplication : IDisposable
             _window.Close();
             return;
         }
+
+        EngineDiagnostics.UseNativeUserNotifications();
 
         try
         {

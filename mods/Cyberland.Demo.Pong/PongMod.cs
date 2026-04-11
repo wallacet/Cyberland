@@ -1,4 +1,5 @@
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
@@ -55,7 +56,11 @@ public sealed class PongMod : IMod
     {
         var r = host.Renderer;
         if (r is null)
+        {
+            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong — Post-process unavailable",
+                "Host.Renderer was null; global HDR/bloom settings for the demo were not applied.");
             return;
+        }
 
         r.SetGlobalPostProcess(new GlobalPostProcessSettings
         {

@@ -11,7 +11,7 @@ Design goals: **small footprint**, **predictable load**, and **scaling from inte
 | Requirement | Notes |
 |-------------|--------|
 | **.NET 8 SDK** | Required to build and run. |
-| **Vulkan 1.x + a working driver** | The host runs a **2D HDR** pipeline (deferred lighting, bloom, composite to the swapchain). Init failures surface via **`UserMessageDialog`** / **`GraphicsInitializationException`** instead of crashing silently. |
+| **Vulkan 1.x + a working driver** | The host runs a **2D HDR** pipeline (deferred lighting, bloom, composite to the swapchain). Init failures surface via **`UserMessageDialog`** / **`GraphicsInitializationException`** instead of crashing silently. Runtime issues use **`EngineDiagnostics`** (see [Engine subsystems](#engine-subsystems-cyberlandengine)). |
 | **Windows** | Primary target; input and error UI are written with that in mind (other platforms may work where Silk.NET + Vulkan do). |
 
 ---
@@ -288,6 +288,12 @@ Frame order is **registration order**: one list where each entry is either **`IS
 
 - **`GameHostServices`** — **`KeyBindings`**, **`Renderer`** (**`IRenderer?`**; concrete type **`VulkanRenderer`**), **`Input`** (**`IInputContext?`**), optional **`Tilemaps`** (**`ITilemapDataStore?`**) and **`Particles`** (**`ParticleStore?`**) for tile indices and CPU particle buffers used by engine render/sim systems. Populated by **`GameApplication`** after the window and device exist, then passed into **`ModLoadContext`** so mods do not use static globals.
 
+### Diagnostics (`Diagnostics/`)
+
+- **`EngineDiagnostics`** — structured reporting with **`EngineErrorSeverity`**: **Fatal** (use **`ReportFatal`**, dialog then process exit), **Major** / **Minor** / **Warning** (use **`Report`**). Until **`GameApplication`** enables native notifications after successful Vulkan init, delivery defaults to **stderr**; afterward **Major** uses an error-style dialog, **Minor** uses a warning-style dialog with **session deduplication** per identical title+message, **Warning** stays on stderr (plus debug output in the native configuration). Calls are **serialized** so parallel ECS workers do not interleave Win32 dialogs.
+- **`EngineUnhandledExceptionBootstrap.Install()`** — invoked from **`Program.cs`** before **`GameApplication`** runs: **unhandled** exceptions show a dialog and exit; **unobserved** task exceptions are logged as **Warning** and marked observed.
+- **`UnhandledExceptionFormatter`** — builds readable text for crash dialogs from arbitrary exception payloads.
+
 ### Scene (`Scene/`)
 
 - **Components** — **`Position`**, **`Rotation`**, **`Scale`**, **`Transform`** (local TRS + optional parent), **`Sprite`** (includes **`Transparent`** for WBOIT vs deferred opaque path; optional **`EmissiveTextureId`**), **`Tilemap`**, **`SpriteAnimation`**, **`ParticleEmitter`**.
@@ -469,6 +475,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 | Issue | Suggestion |
 |-------|------------|
 | **Vulkan / GPU errors on startup** | Update GPU drivers; ensure Vulkan is supported. The engine surfaces a message via **`UserMessageDialog`** / **`GraphicsInitializationException`**. |
+| **Unexpected crash or “Unhandled exception” dialog** | The host registers **`EngineUnhandledExceptionBootstrap`** at startup; read the technical detail in the dialog and check recent mod or engine changes. |
 | **Mod not loading** | Check **`Mods/<Id>/manifest.json`**, **`entryAssembly`** name, and that the DLL is staged next to **`manifest.json`**. |
 | **Empty or missing content** | Confirm **`contentRoot`** exists and **`ModLoader`** mount order; later mods override earlier paths for the same relative path. |
 

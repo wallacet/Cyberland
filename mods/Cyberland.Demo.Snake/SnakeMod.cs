@@ -1,4 +1,5 @@
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
@@ -26,7 +27,16 @@ public sealed class SnakeMod : IMod
             grid[i] = 1;
 
         var host = context.Host;
-        host.Tilemaps?.Register(arena, grid, SnakeConstants.GridW, SnakeConstants.GridH);
+        if (host.Tilemaps is null)
+        {
+            EngineDiagnostics.Report(EngineErrorSeverity.Minor, "Cyberland.Demo.Snake — Tilemap store missing",
+                "GameHostServices.Tilemaps was null; the arena grid was not registered with the tilemap data store.");
+        }
+        else
+        {
+            host.Tilemaps.Register(arena, grid, SnakeConstants.GridW, SnakeConstants.GridH);
+        }
+
         w.Components<Tilemap>().GetOrAdd(arena);
 
         context.RegisterSequential("cyberland.demo.snake/input", new SnakeInputSystem(host, session, controlEntity));
@@ -46,7 +56,11 @@ public sealed class SnakeMod : IMod
     {
         var r = host.Renderer;
         if (r is null)
+        {
+            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake — Post-process unavailable",
+                "Host.Renderer was null; global HDR/bloom settings for the demo were not applied.");
             return;
+        }
 
         r.SetGlobalPostProcess(new GlobalPostProcessSettings
         {
