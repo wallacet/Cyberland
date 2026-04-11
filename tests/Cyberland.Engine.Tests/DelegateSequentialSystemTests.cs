@@ -1,6 +1,5 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

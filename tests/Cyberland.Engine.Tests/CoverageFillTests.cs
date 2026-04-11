@@ -9,7 +9,6 @@ using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Moq;
 using Silk.NET.Input;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

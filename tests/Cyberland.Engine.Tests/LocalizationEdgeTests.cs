@@ -1,5 +1,4 @@
 using Cyberland.Engine.Localization;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

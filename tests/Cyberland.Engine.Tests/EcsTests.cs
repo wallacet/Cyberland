@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Cyberland.Engine.Core.Ecs;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

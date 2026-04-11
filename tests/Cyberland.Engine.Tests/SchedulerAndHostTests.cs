@@ -2,7 +2,6 @@ using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

@@ -1,6 +1,5 @@
 using Cyberland.Engine.Rendering;
 using Glslang.NET;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

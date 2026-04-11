@@ -1,7 +1,6 @@
 using Cyberland.Engine.Rendering;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

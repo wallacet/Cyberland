@@ -6,7 +6,6 @@ using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
 using Silk.NET.Maths;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

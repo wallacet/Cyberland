@@ -7,7 +7,6 @@ using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.TestMod;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

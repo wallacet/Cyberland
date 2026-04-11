@@ -1,6 +1,5 @@
 using Cyberland.Engine;
 using Silk.NET.Maths;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

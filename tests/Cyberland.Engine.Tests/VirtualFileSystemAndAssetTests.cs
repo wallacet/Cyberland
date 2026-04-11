@@ -1,5 +1,4 @@
 using Cyberland.Engine.Assets;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

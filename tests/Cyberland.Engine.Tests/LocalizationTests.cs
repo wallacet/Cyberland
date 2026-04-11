@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text.Json;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Localization;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

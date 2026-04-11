@@ -1,7 +1,6 @@
 using Cyberland.Engine.Input;
 using Moq;
 using Silk.NET.Input;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 

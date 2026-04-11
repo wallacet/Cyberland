@@ -1,7 +1,6 @@
 using System.Numerics;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 
