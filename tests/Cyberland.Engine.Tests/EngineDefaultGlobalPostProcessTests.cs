@@ -12,6 +12,8 @@ public sealed class EngineDefaultGlobalPostProcessTests
         Assert.True(s.BloomEnabled);
         Assert.Equal(1.1f, s.BloomRadius);
         Assert.Equal(0.28f, s.BloomGain);
+        Assert.Equal(0.32f, s.BloomExtractThreshold);
+        Assert.Equal(0.5f, s.BloomExtractKnee);
         Assert.Equal(1.04f, s.Saturation);
     }
 

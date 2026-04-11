@@ -192,4 +192,28 @@ public sealed unsafe partial class VulkanRenderer
             _r._defaultNormalTextureId = RegisterTextureRgbaInternal(n, 1, 1);
         }
     }
+
+    private int RegisterTextureRgbaInternal(ReadOnlySpan<byte> rgba, int width, int height)
+    {
+        _textureUpload ??= new TextureUpload(this);
+        return _textureUpload.RegisterTextureRgbaInternal(rgba, width, height);
+    }
+
+    private void UploadBuffer(ReadOnlySpan<byte> data, ulong size, out VkBuffer buf, out DeviceMemory bmem)
+    {
+        _textureUpload ??= new TextureUpload(this);
+        _textureUpload.UploadBuffer(data, size, out buf, out bmem);
+    }
+
+    private void OneTimeCommands(Action<CommandBuffer> record)
+    {
+        _textureUpload ??= new TextureUpload(this);
+        _textureUpload.OneTimeCommands(record);
+    }
+
+    private void CreateDefaultTextures()
+    {
+        _textureUpload ??= new TextureUpload(this);
+        _textureUpload.CreateDefaultTextures();
+    }
 }

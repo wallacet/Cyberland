@@ -475,7 +475,7 @@ Shipped samples keep **game rules and session state** in mod code (e.g. paddle/b
 
 ## Further reading (in-repo)
 
-- **`src/Cyberland.Engine/Rendering/`** (and embedded **`Rendering/Shaders/*.glsl`**) — Vulkan 2D pipeline implementation and shaders; start from **`VulkanRenderer.2D.cs`** / **`VulkanRenderer.DeferredImpl.cs`** for frame order.
+- **`src/Cyberland.Engine/Rendering/`** (and embedded **`Rendering/Shaders/*.glsl`**) — Vulkan 2D pipeline implementation and shaders; see **`VulkanRenderer.cs`** (swapchain/present), **`VulkanRenderer.Deferred.Recording.cs`** (per-frame pass order), and **`DeferredRenderingConstants.cs`** for HDR/bloom topology.
 - **`.cursor/rules/cyberland-mod-host-architecture.mdc`** — host vs mod boundaries and checklists.
 - **`.cursor/rules/cyberland-world-screen-space.mdc`** — world vs screen Y conventions.
 - **`.cursor/rules/cyberland-code-style.mdc`** — comments and readability expectations.

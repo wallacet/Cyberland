@@ -23,7 +23,23 @@ namespace Cyberland.Engine.Rendering;
 /// weighted-blended transparency, bloom, and tonemapped composite to sRGB.
 /// </summary>
 /// <remarks>
-/// Split across multiple <c>partial</c> files for maintainability (pipelines, descriptors, frame recording). Mod code should depend on <see cref="IRenderer"/> only.
+/// <para>
+/// <b>Partial layout:</b> <c>VulkanRenderer.cs</c> (swapchain, present, queues, <see cref="DrawFrame"/>);
+/// <c>DeferredRenderingConstants</c> (HDR/bloom topology constants);
+/// <c>VulkanRenderer.Deferred.State.cs</c> (GPU handles, push layouts, <c>_offsWritten*</c>);
+/// <c>VulkanRenderer.Deferred.RenderPasses.cs</c> (render pass objects; Undefined vs ShaderRead variants);
+/// <c>VulkanRenderer.Deferred.Pipelines.*.cs</c> (split: Init, Descriptors, GraphicsPipelines, Lighting, Teardown) and <c>VulkanGraphicsPipelineHelpers.cs</c>;
+/// <c>VulkanRenderer.Deferred.Recording.cs</c> (per-frame command recording);
+/// <c>VulkanRenderer.FrameExecution.cs</c> (<see cref="FramePlan"/> build, bloom/composite graph);
+/// <c>VulkanRenderer.BloomPipeline.cs</c> (bloom pyramid); <c>VulkanRenderer.OffscreenTargets.cs</c>, <c>DescriptorManager</c>, <c>PipelineFactory</c>, <c>TextureUpload</c>.
+/// </para>
+/// <para>
+/// <b>Frame order (recording):</b> emissive sprites → G-buffer (opaque) → deferred lighting → WBOIT (transparent) → resolve → bloom → composite to swapchain.
+/// </para>
+/// <para>
+/// <b>Threading:</b> <see cref="IRenderer"/> submit APIs are synchronized for parallel ECS; Vulkan recording and <see cref="DrawFrame"/> run on the window thread.
+/// </para>
+/// <para>Mod code should depend on <see cref="IRenderer"/> only.</para>
 /// </remarks>
 [ExcludeFromCodeCoverage(Justification = "Requires a Vulkan-capable GPU and window surface.")]
 public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
@@ -74,6 +90,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         BloomEnabled = true,
         BloomRadius = 1.1f,
         BloomGain = 0.35f,
+        BloomExtractThreshold = 0.32f,
+        BloomExtractKnee = 0.5f,
         EmissiveToHdrGain = 0.45f,
         EmissiveToBloomGain = 0.45f,
         Exposure = 1f,

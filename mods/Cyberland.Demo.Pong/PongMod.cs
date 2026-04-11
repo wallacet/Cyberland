@@ -62,6 +62,8 @@ public sealed class PongMod : IMod
             BloomEnabled = true,
             BloomRadius = 1.1f,
             BloomGain = 0.3f,
+            BloomExtractThreshold = 0.32f,
+            BloomExtractKnee = 0.5f,
             EmissiveToHdrGain = 0.48f,
             EmissiveToBloomGain = 0.45f,
             Exposure = 1f,

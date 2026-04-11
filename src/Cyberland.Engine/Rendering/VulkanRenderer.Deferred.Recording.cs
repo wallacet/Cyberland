@@ -1,0 +1,343 @@
+using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
+using System.Text;
+using Glslang.NET;
+using Silk.NET.Maths;
+using Silk.NET.Vulkan;
+using Semaphore = Silk.NET.Vulkan.Semaphore;
+using VkBuffer = Silk.NET.Vulkan.Buffer;
+
+namespace Cyberland.Engine.Rendering;
+// Purpose: Per-frame command buffer recording: emissive, G-buffer, deferred lighting, transparency, bloom, composite.
+// Runs on the window/render thread only; consumes FramePlan built on the main thread.
+
+/// <summary>Full-frame GPU recording for one swapchain image.</summary>
+public sealed unsafe partial class VulkanRenderer
+{
+    private void RecordFullFrame(CommandBuffer cmd, Framebuffer swapFb)
+    {
+        _renderFrameRecorder ??= new RenderFrameRecorder(this);
+        _renderFrameRecorder.Record(cmd, swapFb);
+    }
+
+    private void RecordFullFrameCore(CommandBuffer cmd, Framebuffer swapFb)
+    {
+        _framePlanBuilder ??= new FramePlanBuilder(this);
+        _renderBackendExecutor ??= new RenderBackendExecutor(this);
+        var framePlan = _framePlanBuilder.Build();
+        _renderBackendExecutor.Record(cmd, swapFb, in framePlan);
+    }
+
+    private void ExecuteFramePlanCore(CommandBuffer cmd, Framebuffer swapFb, in FramePlan framePlan)
+    {
+        if (_vk!.ResetCommandBuffer(cmd, 0) != Result.Success)
+            throw new InvalidOperationException("vkResetCommandBuffer failed.");
+
+        CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
+
+        if (_vk.BeginCommandBuffer(cmd, in beginInfo) != Result.Success)
+            throw new InvalidOperationException("vkBeginCommandBuffer failed.");
+
+        var screen = framePlan.Screen;
+        var sortIdx = framePlan.SortIndices;
+        var sprites = framePlan.Sprites;
+        var post = framePlan.ResolvedPost;
+        UpdateLightingFrameData(in framePlan);
+        UploadPointLightSsboData(in framePlan);
+
+        Viewport vp = new()
+        {
+            X = 0f,
+            Y = 0f,
+            Width = _swapchainExtent.Width,
+            Height = _swapchainExtent.Height,
+            MinDepth = 0f,
+            MaxDepth = 1f
+        };
+
+        Rect2D sci = new() { Offset = default, Extent = _swapchainExtent };
+
+        ClearValue cEm = new()
+        {
+            Color = new ClearColorValue { Float32_0 = 0f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f }
+        };
+
+        RenderPassBeginInfo rpEm = new()
+        {
+            SType = StructureType.RenderPassBeginInfo,
+            RenderPass = OffscreenRpFor(_offsWrittenEmissive),
+            Framebuffer = _fbEmissive,
+            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
+            ClearValueCount = 1,
+            PClearValues = &cEm
+        };
+
+        _vk.CmdBeginRenderPass(cmd, &rpEm, SubpassContents.Inline);
+        _vk.CmdSetViewport(cmd, 0, 1, &vp);
+        _vk.CmdSetScissor(cmd, 0, 1, &sci);
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeEmissive);
+
+        var vb = stackalloc[] { _vertexBuffer };
+        var off = stackalloc ulong[] { 0 };
+        _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
+        _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
+
+        foreach (var idx in sortIdx)
+        {
+            ref readonly var s = ref sprites[idx];
+            DrawSprite(cmd, in s, screen, 0);
+        }
+
+        _vk.CmdEndRenderPass(cmd);
+        _offsWrittenEmissive = true;
+
+        ClearValue cGb0 = cEm;
+        ClearValue cGb1 = cEm;
+        var cGbuf = stackalloc ClearValue[2];
+        cGbuf[0] = cGb0;
+        cGbuf[1] = cGb1;
+
+        RenderPassBeginInfo rpGb = new()
+        {
+            SType = StructureType.RenderPassBeginInfo,
+            RenderPass = GbufferRpFor(_offsWrittenGbuffer),
+            Framebuffer = _fbGbuffer,
+            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
+            ClearValueCount = 2,
+            PClearValues = cGbuf
+        };
+
+        _vk.CmdBeginRenderPass(cmd, &rpGb, SubpassContents.Inline);
+        _vk.CmdSetViewport(cmd, 0, 1, &vp);
+        _vk.CmdSetScissor(cmd, 0, 1, &sci);
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeSpriteGbuffer);
+        _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
+        _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
+
+        foreach (var idx in sortIdx)
+        {
+            ref readonly var s = ref sprites[idx];
+            if (!s.Transparent)
+                DrawSprite(cmd, in s, screen, 1);
+        }
+
+        _vk.CmdEndRenderPass(cmd);
+        _offsWrittenGbuffer = true;
+
+        ClearValue cHdr = new()
+        {
+            Color = new ClearColorValue { Float32_0 = 0.02f, Float32_1 = 0.02f, Float32_2 = 0.06f, Float32_3 = 1f }
+        };
+
+        RenderPassBeginInfo rpH = new()
+        {
+            SType = StructureType.RenderPassBeginInfo,
+            RenderPass = OffscreenRpFor(_offsWrittenHdr),
+            Framebuffer = _fbHdr,
+            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
+            ClearValueCount = 1,
+            PClearValues = &cHdr
+        };
+
+        _vk.CmdBeginRenderPass(cmd, &rpH, SubpassContents.Inline);
+        _vk.CmdSetViewport(cmd, 0, 1, &vp);
+        _vk.CmdSetScissor(cmd, 0, 1, &sci);
+
+        var scrPush = stackalloc float[4];
+        scrPush[0] = screen.X;
+        scrPush[1] = screen.Y;
+        scrPush[2] = 0f;
+        scrPush[3] = 0f;
+
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBase);
+        var setsBase = stackalloc DescriptorSet[2];
+        setsBase[0] = _dsGbufferRead;
+        setsBase[1] = _dsLighting;
+        _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBase, 0, 2, setsBase, 0, null);
+        _vk.CmdPushConstants(cmd, _plDeferredBase, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), scrPush);
+        _vk.CmdDraw(cmd, 3, 1, 0, 0);
+
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredPoint);
+        var setsPt = stackalloc DescriptorSet[2];
+        setsPt[0] = _dsGbufferRead;
+        setsPt[1] = _dsPointSsbo;
+        _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredPoint, 0, 2, setsPt, 0, null);
+        _vk.CmdPushConstants(cmd, _plDeferredPoint, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
+            (uint)(sizeof(float) * 4), scrPush);
+        var nPt = Math.Min(framePlan.PointLights.Length, DeferredRenderingConstants.MaxPointLights);
+        if (nPt > 0)
+        {
+            _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
+            _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
+            _vk.CmdDrawIndexed(cmd, 6, (uint)nPt, 0, 0, 0);
+        }
+
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBleed);
+        var setsBl = stackalloc DescriptorSet[2];
+        setsBl[0] = _dsGbufferRead;
+        setsBl[1] = _dsEmissiveScene;
+        _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBleed, 0, 2, setsBl, 0, null);
+        _vk.CmdPushConstants(cmd, _plDeferredBleed, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), scrPush);
+        _vk.CmdDraw(cmd, 3, 1, 0, 0);
+
+        _vk.CmdEndRenderPass(cmd);
+        _offsWrittenHdr = true;
+
+        ClearValue cWAccum = cEm;
+        ClearValue cWReveal = new()
+        {
+            Color = new ClearColorValue { Float32_0 = 1f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f }
+        };
+        var cWboit = stackalloc ClearValue[2];
+        cWboit[0] = cWAccum;
+        cWboit[1] = cWReveal;
+
+        RenderPassBeginInfo rpW = new()
+        {
+            SType = StructureType.RenderPassBeginInfo,
+            RenderPass = WboitRpFor(_offsWrittenWboit),
+            Framebuffer = _fbWboit,
+            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
+            ClearValueCount = 2,
+            PClearValues = cWboit
+        };
+
+        _vk.CmdBeginRenderPass(cmd, &rpW, SubpassContents.Inline);
+        _vk.CmdSetViewport(cmd, 0, 1, &vp);
+        _vk.CmdSetScissor(cmd, 0, 1, &sci);
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTransparentWboit);
+        _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
+        _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
+
+        foreach (var idx in sortIdx)
+        {
+            ref readonly var s = ref sprites[idx];
+            if (!s.Transparent)
+                continue;
+            DrawSprite(cmd, in s, screen, 2);
+        }
+
+        _vk.CmdEndRenderPass(cmd);
+        _offsWrittenWboit = true;
+
+        ClearValue cRes = cEm;
+        RenderPassBeginInfo rpRes = new()
+        {
+            SType = StructureType.RenderPassBeginInfo,
+            RenderPass = OffscreenRpFor(_offsWrittenHdrComposite),
+            Framebuffer = _fbHdrComposite,
+            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
+            ClearValueCount = 1,
+            PClearValues = &cRes
+        };
+
+        _vk.CmdBeginRenderPass(cmd, &rpRes, SubpassContents.Inline);
+        _vk.CmdSetViewport(cmd, 0, 1, &vp);
+        _vk.CmdSetScissor(cmd, 0, 1, &sci);
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTransparentResolve);
+        fixed (DescriptorSet* dsTr = &_dsTransparentResolve)
+        {
+            _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plTransparentResolve, 0, 1, dsTr, 0, null);
+        }
+        _vk.CmdPushConstants(cmd, _plTransparentResolve, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), scrPush);
+        _vk.CmdDraw(cmd, 3, 1, 0, 0);
+        _vk.CmdEndRenderPass(cmd);
+        _offsWrittenHdrComposite = true;
+
+        var bloomGain = post.BloomEnabled ? post.BloomGain : 0f;
+        var bloomOn = bloomGain > 0f;
+        var bloomRadius = post.BloomRadius;
+
+        Viewport vpHalf = new()
+        {
+            X = 0f,
+            Y = 0f,
+            Width = _bloomHalfW,
+            Height = _bloomHalfH,
+            MinDepth = 0f,
+            MaxDepth = 1f
+        };
+
+        Rect2D sciHalf = new()
+        {
+            Offset = default,
+            Extent = new Extent2D { Width = _bloomHalfW, Height = _bloomHalfH }
+        };
+
+        _postProcessGraph ??= new PostProcessGraph(this);
+        var ppContext = new PostEffectContext(cmd, swapFb, framePlan, vp, sci, vpHalf, sciHalf);
+        _postProcessGraph.Record(in ppContext, bloomOn, bloomGain, bloomRadius, post);
+
+        if (_vk.EndCommandBuffer(cmd) != Result.Success)
+            throw new InvalidOperationException("vkEndCommandBuffer failed.");
+    }
+
+    private void DrawSprite(CommandBuffer cmd, in SpriteDrawRequest s, Vector2D<float> screen, int mode)
+    {
+        var al = s.AlbedoTextureId >= 0 && s.AlbedoTextureId < _textureSlots.Count
+            ? _textureSlots[s.AlbedoTextureId]
+            : null;
+        if (al is null)
+            return;
+
+        var px = WorldScreenSpace.WorldCenterToScreenPixel(s.CenterWorld, new Vector2D<int>((int)screen.X, (int)screen.Y));
+        var uv = s.UvRect;
+        if (uv.X == 0f && uv.Y == 0f && uv.Z == 0f && uv.W == 0f)
+            uv = new Vector4D<float>(0f, 0f, 1f, 1f);
+
+        var push = new SpritePushData
+        {
+            CenterHalfPx = new Vector4D<float>(px.X, px.Y, s.HalfExtentsWorld.X, s.HalfExtentsWorld.Y),
+            UvRect = uv,
+            ColorAlpha = new Vector4D<float>(s.ColorMultiply.X * s.Alpha, s.ColorMultiply.Y * s.Alpha, s.ColorMultiply.Z * s.Alpha, s.ColorMultiply.W * s.Alpha),
+            EmissiveRgbIntensity = new Vector4D<float>(s.EmissiveTint.X, s.EmissiveTint.Y, s.EmissiveTint.Z, s.EmissiveIntensity),
+            ScreenRot = new Vector4D<float>(screen.X, screen.Y, s.RotationRadians, 0f),
+            Mode = mode,
+            UseEmissiveMap = 0
+        };
+
+        if (mode == 0)
+        {
+            var useEm = s.EmissiveTextureId >= 0 && s.EmissiveTextureId < _textureSlots.Count ? 1 : 0;
+            var emTexId = useEm != 0 ? s.EmissiveTextureId : _blackTextureId;
+            var emSlot = emTexId >= 0 && emTexId < _textureSlots.Count ? _textureSlots[emTexId] : null;
+            if (emSlot is null)
+                return;
+            push.UseEmissiveMap = useEm;
+
+            var setsE = stackalloc DescriptorSet[2];
+            setsE[0] = al.DescriptorSet;
+            setsE[1] = emSlot.DescriptorSet;
+            _vk!.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plSpriteEmissive, 0, 2, setsE, 0, null);
+            _vk.CmdPushConstants(cmd, _plSpriteEmissive, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
+                (uint)sizeof(SpritePushData), &push);
+        }
+        else if (mode == 1)
+        {
+            var nid = s.NormalTextureId >= 0 && s.NormalTextureId < _textureSlots.Count
+                ? s.NormalTextureId
+                : _defaultNormalTextureId;
+            var nt = _textureSlots[nid];
+
+            var setsG = stackalloc DescriptorSet[2];
+            setsG[0] = al.DescriptorSet;
+            setsG[1] = nt.DescriptorSet;
+            _vk!.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plSpriteEmissive, 0, 2, setsG, 0, null);
+            push.UseEmissiveMap = 0;
+            _vk.CmdPushConstants(cmd, _plSpriteEmissive, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
+                (uint)sizeof(SpritePushData), &push);
+        }
+        else
+        {
+            var setsW = stackalloc DescriptorSet[2];
+            setsW[0] = al.DescriptorSet;
+            setsW[1] = _dsHdrOpaqueForTransparent;
+            push.UseEmissiveMap = 0;
+            _vk!.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plSpriteEmissive, 0, 2, setsW, 0, null);
+            _vk.CmdPushConstants(cmd, _plSpriteEmissive, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
+                (uint)sizeof(SpritePushData), &push);
+        }
+
+        _vk!.CmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+    }
+}

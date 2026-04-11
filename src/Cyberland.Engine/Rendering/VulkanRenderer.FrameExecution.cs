@@ -3,8 +3,24 @@ using Silk.NET.Vulkan;
 
 namespace Cyberland.Engine.Rendering;
 
+// Purpose: Frame plan construction (sprite/light queues → merged post), post-process graph (bloom + composite), and thin effect adapters.
+// Threading: FramePlanBuilder reads queues under _recordLock; GPU Record methods run on the render thread.
+
+/// <summary>ECS-to-GPU bridge: builds <see cref="FramePlan"/> and records bloom/composite passes.</summary>
 public sealed unsafe partial class VulkanRenderer
 {
+    /// <summary>
+    /// Delegates full-frame recording to <see cref="RecordFullFrameCore"/> (keeps the entrypoint in one place).
+    /// </summary>
+    private sealed class RenderFrameRecorder
+    {
+        private readonly VulkanRenderer _r;
+
+        public RenderFrameRecorder(VulkanRenderer renderer) => _r = renderer;
+
+        public void Record(CommandBuffer cmd, Framebuffer swapFb) => _r.RecordFullFrameCore(cmd, swapFb);
+    }
+
     private sealed class FramePlanBuilder : IFramePlanBuilder
     {
         private readonly VulkanRenderer _r;
@@ -96,11 +112,14 @@ public sealed unsafe partial class VulkanRenderer
 
         public ImageView RecordBloom(in PostEffectContext context, float bloomIntensity)
         {
+            var rp = context.FramePlan.ResolvedPost;
             _r._bloomPipeline!.Record(
                 context.Cmd,
                 bloomIntensity > 0f,
                 bloomIntensity,
-                context.FramePlan.ResolvedPost.EmissiveToBloomGain,
+                rp.EmissiveToBloomGain,
+                rp.BloomExtractThreshold,
+                rp.BloomExtractKnee,
                 context.HalfViewport,
                 context.HalfScissor,
                 out var bloomFinalView);
@@ -109,11 +128,14 @@ public sealed unsafe partial class VulkanRenderer
 
         public ImageView ClearBloom(in PostEffectContext context)
         {
+            var rp = context.FramePlan.ResolvedPost;
             _r._bloomPipeline!.Record(
                 context.Cmd,
                 false,
                 0f,
-                context.FramePlan.ResolvedPost.EmissiveToBloomGain,
+                rp.EmissiveToBloomGain,
+                rp.BloomExtractThreshold,
+                rp.BloomExtractKnee,
                 context.HalfViewport,
                 context.HalfScissor,
                 out var bloomFinalView);

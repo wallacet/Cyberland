@@ -1,3 +1,5 @@
+using Silk.NET.Vulkan;
+
 namespace Cyberland.Engine.Rendering;
 
 public sealed unsafe partial class VulkanRenderer
@@ -23,89 +25,21 @@ public sealed unsafe partial class VulkanRenderer
         {
             _r.DestroyDeferredPipelinesAndLayouts();
 
-            if (_r._pipeComposite.Handle != default)
-            {
-                _r._vk!.DestroyPipeline(_r._device, _r._pipeComposite, null);
-                _r._pipeComposite = default;
-            }
+            VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeComposite);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeEmissive);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeBloomGaussian);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeBloomCopy);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeBloomUpsample);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeBloomDownsample);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeBloomExtract);
 
-            if (_r._pipeEmissive.Handle != default)
-            {
-                _r._vk!.DestroyPipeline(_r._device, _r._pipeEmissive, null);
-                _r._pipeEmissive = default;
-            }
-
-            if (_r._pipeBloomGaussian.Handle != default)
-            {
-                _r._vk!.DestroyPipeline(_r._device, _r._pipeBloomGaussian, null);
-                _r._pipeBloomGaussian = default;
-            }
-
-            if (_r._pipeBloomCopy.Handle != default)
-            {
-                _r._vk!.DestroyPipeline(_r._device, _r._pipeBloomCopy, null);
-                _r._pipeBloomCopy = default;
-            }
-
-            if (_r._pipeBloomUpsample.Handle != default)
-            {
-                _r._vk!.DestroyPipeline(_r._device, _r._pipeBloomUpsample, null);
-                _r._pipeBloomUpsample = default;
-            }
-
-            if (_r._pipeBloomDownsample.Handle != default)
-            {
-                _r._vk!.DestroyPipeline(_r._device, _r._pipeBloomDownsample, null);
-                _r._pipeBloomDownsample = default;
-            }
-
-            if (_r._pipeBloomExtract.Handle != default)
-            {
-                _r._vk!.DestroyPipeline(_r._device, _r._pipeBloomExtract, null);
-                _r._pipeBloomExtract = default;
-            }
-
-            if (_r._plComposite.Handle != default)
-            {
-                _r._vk!.DestroyPipelineLayout(_r._device, _r._plComposite, null);
-                _r._plComposite = default;
-            }
-
-            if (_r._plSpriteEmissive.Handle != default)
-            {
-                _r._vk!.DestroyPipelineLayout(_r._device, _r._plSpriteEmissive, null);
-                _r._plSpriteEmissive = default;
-            }
-
-            if (_r._plBloomGaussian.Handle != default)
-            {
-                _r._vk!.DestroyPipelineLayout(_r._device, _r._plBloomGaussian, null);
-                _r._plBloomGaussian = default;
-            }
-
-            if (_r._plBloomCopy.Handle != default)
-            {
-                _r._vk!.DestroyPipelineLayout(_r._device, _r._plBloomCopy, null);
-                _r._plBloomCopy = default;
-            }
-
-            if (_r._plBloomUpsample.Handle != default)
-            {
-                _r._vk!.DestroyPipelineLayout(_r._device, _r._plBloomUpsample, null);
-                _r._plBloomUpsample = default;
-            }
-
-            if (_r._plBloomDownsample.Handle != default)
-            {
-                _r._vk!.DestroyPipelineLayout(_r._device, _r._plBloomDownsample, null);
-                _r._plBloomDownsample = default;
-            }
-
-            if (_r._plBloomExtract.Handle != default)
-            {
-                _r._vk!.DestroyPipelineLayout(_r._device, _r._plBloomExtract, null);
-                _r._plBloomExtract = default;
-            }
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plComposite);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plSpriteEmissive);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomGaussian);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomCopy);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomUpsample);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomDownsample);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomExtract);
 
             _r.DestroyDeferredShaderModules();
 

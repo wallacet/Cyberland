@@ -5,5 +5,5 @@
   "entryAssembly": "Cyberland.Demo.BrickBreaker.dll",
   "contentRoot": "Content",
   "loadOrder": 22,
-  "disabled": true
+  "disabled": false
 }

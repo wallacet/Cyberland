@@ -2,11 +2,18 @@ using Silk.NET.Vulkan;
 
 namespace Cyberland.Engine.Rendering;
 
+// Purpose: Half-res bloom pyramid (extract → downsample chain → separable blur at smallest mip → upsample/recombine).
+// Tuning: per-frame threshold/knee/emissive gain from <see cref="GlobalPostProcessSettings"/>; Gaussian step scale from <see cref="GetBloomGaussianRadiusScale"/>.
+
 public sealed unsafe partial class VulkanRenderer
 {
     /// <summary>
-    /// Bloom pass orchestration helper to keep frame recording readable.
+    /// Bloom pass orchestration: prefilter, mip pyramid, blur, upsample to <see cref="_viewBloom0"/>.
     /// </summary>
+    /// <remarks>
+    /// Pyramid layout: <c>_dsBloomDownSrc[0]</c> is half-res bloom0; <c>[i+1]</c> is bloom down level <c>i</c>.
+    /// Full <see cref="Rect2D"/> clears on bloom1 are required so Gaussian passes do not leave stale texels at the edges.
+    /// </remarks>
     private sealed class BloomPipeline
     {
         private readonly VulkanRenderer _r;
@@ -16,7 +23,16 @@ public sealed unsafe partial class VulkanRenderer
 
         public BloomPipeline(VulkanRenderer renderer) => _r = renderer;
 
-        public void Record(CommandBuffer cmd, bool bloomOn, float bloomRadius, float emissiveToBloomGain, Viewport vpHalf, Rect2D sciHalf, out ImageView bloomFinalView)
+        /// <param name="cmd">Primary command buffer for this frame.</param>
+        /// <param name="bloomOn">When false, clears bloom targets without building the pyramid.</param>
+        /// <param name="bloomRadius">Drives blur width via <see cref="GetBloomGaussianRadiusScale"/>.</param>
+        /// <param name="emissiveToBloomGain">Scales emissive into the extract pass.</param>
+        /// <param name="extractThreshold">See <see cref="GlobalPostProcessSettings.BloomExtractThreshold"/>.</param>
+        /// <param name="extractKnee">See <see cref="GlobalPostProcessSettings.BloomExtractKnee"/>.</param>
+        /// <param name="vpHalf">Half-res viewport (bloom0 / bloom1 size).</param>
+        /// <param name="sciHalf">Half-res scissor; must cover full attachments for correct clears.</param>
+        /// <param name="bloomFinalView">Resolved bloom source for composite (typically <see cref="_viewBloom0"/>).</param>
+        public void Record(CommandBuffer cmd, bool bloomOn, float bloomRadius, float emissiveToBloomGain, float extractThreshold, float extractKnee, Viewport vpHalf, Rect2D sciHalf, out ImageView bloomFinalView)
         {
             bloomFinalView = _r._viewBloom0;
             if (!bloomOn)
@@ -44,14 +60,14 @@ public sealed unsafe partial class VulkanRenderer
 
             var radiusScale = GetBloomGaussianRadiusScale(bloomRadius);
 
-            RecordPrefilter(cmd, vpHalf, sciHalf, emissiveToBloomGain);
+            RecordPrefilter(cmd, vpHalf, sciHalf, emissiveToBloomGain, extractThreshold, extractKnee);
             RecordDownsampleChain(cmd);
             RecordSmallestBlur(cmd, radiusScale);
             RecordUpsampleAndRecombineBlur(cmd, radiusScale, vpHalf, sciHalf);
             bloomFinalView = _r._viewBloom0;
         }
 
-        private void RecordPrefilter(CommandBuffer cmd, Viewport vpHalf, Rect2D sciHalf, float emissiveToBloomGain)
+        private void RecordPrefilter(CommandBuffer cmd, Viewport vpHalf, Rect2D sciHalf, float emissiveToBloomGain, float extractThreshold, float extractKnee)
         {
             ClearValue cEx = new()
             {
@@ -79,8 +95,8 @@ public sealed unsafe partial class VulkanRenderer
 
             var bePush = new BloomExtractPush
             {
-                Threshold = 0.32f,
-                Knee = 0.5f,
+                Threshold = extractThreshold,
+                Knee = extractKnee,
                 EmissiveBloomGain = emissiveToBloomGain,
                 Pad0 = 0f
             };
@@ -94,7 +110,7 @@ public sealed unsafe partial class VulkanRenderer
 
         private void RecordDownsampleChain(CommandBuffer cmd)
         {
-            for (var i = 0; i < BloomDownsampleLevels; i++)
+            for (var i = 0; i < DeferredRenderingConstants.BloomDownsampleLevels; i++)
             {
                 Viewport vpDown = new()
                 {
@@ -161,7 +177,7 @@ public sealed unsafe partial class VulkanRenderer
                 Extent = new Extent2D { Width = _r._bloomHalfW, Height = _r._bloomHalfH }
             };
 
-            var smallest = BloomDownsampleLevels - 1;
+            var smallest = DeferredRenderingConstants.BloomDownsampleLevels - 1;
             Viewport vpSmall = new()
             {
                 X = 0f,
@@ -177,7 +193,7 @@ public sealed unsafe partial class VulkanRenderer
                 Extent = new Extent2D { Width = _r._bloomDownW[smallest], Height = _r._bloomDownH[smallest] }
             };
 
-            for (var p = 0; p < BloomBlurPingPongs; p++)
+            for (var p = 0; p < DeferredRenderingConstants.BloomBlurPingPongs; p++)
             {
                 ClearValue cGh = new() { Color = new ClearColorValue { Float32_0 = 0f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f } };
                 RenderPassBeginInfo rpGh = new()
@@ -242,7 +258,7 @@ public sealed unsafe partial class VulkanRenderer
                 Extent = new Extent2D { Width = _r._bloomHalfW, Height = _r._bloomHalfH }
             };
 
-            for (var i = BloomDownsampleLevels - 2; i >= 0; i--)
+            for (var i = DeferredRenderingConstants.BloomDownsampleLevels - 2; i >= 0; i--)
             {
                 Viewport vpUp = new()
                 {
@@ -427,5 +443,12 @@ public sealed unsafe partial class VulkanRenderer
                 0,
                 null);
         }
+    }
+
+    /// <summary>Scales separable Gaussian texel step from post-process bloom intensity (wider halos when brighter).</summary>
+    private static float GetBloomGaussianRadiusScale(float bloomIntensity)
+    {
+        var t = Math.Clamp(bloomIntensity, 0.02f, 24f);
+        return 0.85f + Math.Clamp(t * 0.55f, 0f, 4f);
     }
 }

@@ -121,6 +121,8 @@ public sealed class DemoMod : IMod
             BloomEnabled = true,
             BloomRadius = 1.5f,
             BloomGain = 1.1f,
+            BloomExtractThreshold = 0.32f,
+            BloomExtractKnee = 0.5f,
             EmissiveToHdrGain = 0.45f,
             EmissiveToBloomGain = 0.6f,
             Exposure = 1f,

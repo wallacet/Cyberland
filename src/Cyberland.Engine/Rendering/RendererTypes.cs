@@ -188,6 +188,14 @@ public struct GlobalPostProcessSettings
     public float BloomRadius;
     /// <summary>Strength of bloom add into the composite.</summary>
     public float BloomGain;
+    /// <summary>
+    /// HDR luminance threshold for bloom extraction (scene-linear). Below this, contribution is suppressed; knee softens the transition.
+    /// </summary>
+    public float BloomExtractThreshold;
+    /// <summary>
+    /// Soft knee width for the bloom threshold (same units as <see cref="BloomExtractThreshold"/>); higher values reduce harsh cutoffs.
+    /// </summary>
+    public float BloomExtractKnee;
     /// <summary>How much emissive feeds the HDR scene color.</summary>
     public float EmissiveToHdrGain;
     /// <summary>How much emissive feeds bloom extraction.</summary>

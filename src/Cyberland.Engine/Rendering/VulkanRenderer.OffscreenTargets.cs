@@ -2,11 +2,15 @@ using Silk.NET.Vulkan;
 
 namespace Cyberland.Engine.Rendering;
 
+// Purpose: Allocates and resizes emissive/HDR/G-buffer/WBOIT/bloom images to match swapchain extent; see DeferredRenderingConstants for formats.
+
+/// <summary>Partial file: offscreen target helpers for <see cref="VulkanRenderer"/>.</summary>
 public sealed unsafe partial class VulkanRenderer
 {
     /// <summary>
     /// Manages offscreen color target images/views/framebuffers for emissive/hdr/bloom chains.
     /// </summary>
+    /// <remarks>Lifetime: created during graphics init and on swapchain resize; destroyed with <see cref="VulkanRenderer.Dispose"/>.</remarks>
     private sealed class OffscreenTargets
     {
         private readonly VulkanRenderer _r;
@@ -72,11 +76,11 @@ public sealed unsafe partial class VulkanRenderer
             var w = _r._swapchainExtent.Width;
             var h = _r._swapchainExtent.Height;
 
-            CreateDeviceLocalImage(w, h, HdrFormat,
+            CreateDeviceLocalImage(w, h, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgEmissive, out _r._memEmissive, out _r._viewEmissive);
 
-            CreateDeviceLocalImage(w, h, HdrFormat,
+            CreateDeviceLocalImage(w, h, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgHdr, out _r._memHdr, out _r._viewHdr);
 
@@ -110,10 +114,10 @@ public sealed unsafe partial class VulkanRenderer
             if (_r._vk.CreateFramebuffer(_r._device, in fb2, null, out _r._fbHdr) != Result.Success)
                 throw new GraphicsInitializationException("vkCreateFramebuffer hdr failed.");
 
-            CreateDeviceLocalImage(w, h, HdrFormat,
+            CreateDeviceLocalImage(w, h, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgGbuf0, out _r._memGbuf0, out _r._viewGbuf0);
-            CreateDeviceLocalImage(w, h, HdrFormat,
+            CreateDeviceLocalImage(w, h, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgGbuf1, out _r._memGbuf1, out _r._viewGbuf1);
 
@@ -133,10 +137,10 @@ public sealed unsafe partial class VulkanRenderer
             if (_r._vk.CreateFramebuffer(_r._device, in fbG, null, out _r._fbGbuffer) != Result.Success)
                 throw new GraphicsInitializationException("vkCreateFramebuffer gbuffer failed.");
 
-            CreateDeviceLocalImage(w, h, HdrFormat,
+            CreateDeviceLocalImage(w, h, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgWAccum, out _r._memWAccum, out _r._viewWAccum);
-            CreateDeviceLocalImage(w, h, WboitRevealFormat,
+            CreateDeviceLocalImage(w, h, DeferredRenderingConstants.WboitRevealFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgWReveal, out _r._memWReveal, out _r._viewWReveal);
 
@@ -156,7 +160,7 @@ public sealed unsafe partial class VulkanRenderer
             if (_r._vk.CreateFramebuffer(_r._device, in fbW, null, out _r._fbWboit) != Result.Success)
                 throw new GraphicsInitializationException("vkCreateFramebuffer wboit failed.");
 
-            CreateDeviceLocalImage(w, h, HdrFormat,
+            CreateDeviceLocalImage(w, h, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgHdrComposite, out _r._memHdrComposite, out _r._viewHdrComposite);
 
@@ -183,11 +187,11 @@ public sealed unsafe partial class VulkanRenderer
             _r._bloomHalfW = Math.Max(_r._swapchainExtent.Width / 2, 1u);
             _r._bloomHalfH = Math.Max(_r._swapchainExtent.Height / 2, 1u);
 
-            CreateDeviceLocalImage(_r._bloomHalfW, _r._bloomHalfH, HdrFormat,
+            CreateDeviceLocalImage(_r._bloomHalfW, _r._bloomHalfH, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgBloom0, out _r._memBloom0, out _r._viewBloom0);
 
-            CreateDeviceLocalImage(_r._bloomHalfW, _r._bloomHalfH, HdrFormat,
+            CreateDeviceLocalImage(_r._bloomHalfW, _r._bloomHalfH, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                 out _r._imgBloom1, out _r._memBloom1, out _r._viewBloom1);
 
@@ -215,14 +219,14 @@ public sealed unsafe partial class VulkanRenderer
 
             var srcW = _r._bloomHalfW;
             var srcH = _r._bloomHalfH;
-            for (var i = 0; i < BloomDownsampleLevels; i++)
+            for (var i = 0; i < DeferredRenderingConstants.BloomDownsampleLevels; i++)
             {
                 _r._bloomDownW[i] = Math.Max(srcW / 2, 1u);
                 _r._bloomDownH[i] = Math.Max(srcH / 2, 1u);
                 srcW = _r._bloomDownW[i];
                 srcH = _r._bloomDownH[i];
 
-                CreateDeviceLocalImage(_r._bloomDownW[i], _r._bloomDownH[i], HdrFormat,
+                CreateDeviceLocalImage(_r._bloomDownW[i], _r._bloomDownH[i], DeferredRenderingConstants.HdrFormat,
                     ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,
                     out _r._imgBloomDown[i], out _r._memBloomDown[i], out _r._viewBloomDown[i]);
 
@@ -245,7 +249,7 @@ public sealed unsafe partial class VulkanRenderer
 
         public void RecreateOffscreenTargets()
         {
-            for (var i = 0; i < BloomDownsampleLevels; i++)
+            for (var i = 0; i < DeferredRenderingConstants.BloomDownsampleLevels; i++)
                 DestroyOffscreenFramebuffer(ref _r._fbBloomDown[i], ref _r._viewBloomDown[i], ref _r._imgBloomDown[i], ref _r._memBloomDown[i]);
             DestroyOffscreenFramebuffer(ref _r._fbBloom0, ref _r._viewBloom0, ref _r._imgBloom0, ref _r._memBloom0);
             DestroyOffscreenFramebuffer(ref _r._fbBloom1, ref _r._viewBloom1, ref _r._imgBloom1, ref _r._memBloom1);
