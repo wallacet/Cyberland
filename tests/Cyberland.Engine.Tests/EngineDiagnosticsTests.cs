@@ -112,22 +112,25 @@ public sealed class EngineDiagnosticsTests
     [Fact]
     public void Stderr_sink_writes_Major_Minor_Warning()
     {
-        var prev = Console.Error;
-        try
+        lock (ConsoleTestSync.ErrorRedirectLock)
         {
-            using var sw = new StringWriter();
-            Console.SetError(sw);
-            StderrEngineDiagnosticSink.Instance.Deliver(EngineErrorSeverity.Major, "T", "M1");
-            StderrEngineDiagnosticSink.Instance.Deliver(EngineErrorSeverity.Minor, "T", "M2");
-            StderrEngineDiagnosticSink.Instance.Deliver(EngineErrorSeverity.Warning, "T", "M3");
-            var s = sw.ToString();
-            Assert.Contains("[MAJOR]", s, StringComparison.Ordinal);
-            Assert.Contains("[MINOR]", s, StringComparison.Ordinal);
-            Assert.Contains("[WARNING]", s, StringComparison.Ordinal);
-        }
-        finally
-        {
-            Console.SetError(prev);
+            var prev = Console.Error;
+            try
+            {
+                using var sw = new StringWriter();
+                Console.SetError(sw);
+                StderrEngineDiagnosticSink.Instance.Deliver(EngineErrorSeverity.Major, "T", "M1");
+                StderrEngineDiagnosticSink.Instance.Deliver(EngineErrorSeverity.Minor, "T", "M2");
+                StderrEngineDiagnosticSink.Instance.Deliver(EngineErrorSeverity.Warning, "T", "M3");
+                var s = sw.ToString();
+                Assert.Contains("[MAJOR]", s, StringComparison.Ordinal);
+                Assert.Contains("[MINOR]", s, StringComparison.Ordinal);
+                Assert.Contains("[WARNING]", s, StringComparison.Ordinal);
+            }
+            finally
+            {
+                Console.SetError(prev);
+            }
         }
     }
 

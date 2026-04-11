@@ -73,57 +73,66 @@ public sealed class RenderingCompilerTests
     [Fact]
     public void UserMessageDialog_WriteErrorToStderr_writes_formatted_block()
     {
-        var prev = Console.Error;
-        try
+        lock (ConsoleTestSync.ErrorRedirectLock)
         {
-            using var sw = new StringWriter();
-            Console.SetError(sw);
-            UserMessageDialog.WriteErrorToStderr("Title", "Body");
-            var s = sw.ToString();
-            Assert.Contains("Title", s);
-            Assert.Contains("Body", s);
-        }
-        finally
-        {
-            Console.SetError(prev);
+            var prev = Console.Error;
+            try
+            {
+                using var sw = new StringWriter();
+                Console.SetError(sw);
+                UserMessageDialog.WriteErrorToStderr("Title", "Body");
+                var s = sw.ToString();
+                Assert.Contains("Title", s);
+                Assert.Contains("Body", s);
+            }
+            finally
+            {
+                Console.SetError(prev);
+            }
         }
     }
 
     [Fact]
     public void UserMessageDialog_WriteDiagnosticToStderr_writes_severity_block()
     {
-        var prev = Console.Error;
-        try
+        lock (ConsoleTestSync.ErrorRedirectLock)
         {
-            using var sw = new StringWriter();
-            Console.SetError(sw);
-            UserMessageDialog.WriteDiagnosticToStderr("LEVEL", "Cap", "Body");
-            var s = sw.ToString();
-            Assert.Contains("[LEVEL]", s, StringComparison.Ordinal);
-            Assert.Contains("Cap", s);
-            Assert.Contains("Body", s);
-        }
-        finally
-        {
-            Console.SetError(prev);
+            var prev = Console.Error;
+            try
+            {
+                using var sw = new StringWriter();
+                Console.SetError(sw);
+                UserMessageDialog.WriteDiagnosticToStderr("LEVEL", "Cap", "Body");
+                var s = sw.ToString();
+                Assert.Contains("[LEVEL]", s, StringComparison.Ordinal);
+                Assert.Contains("Cap", s);
+                Assert.Contains("Body", s);
+            }
+            finally
+            {
+                Console.SetError(prev);
+            }
         }
     }
 
     [Fact]
     public void UserMessageDialog_WriteWarningToStderr_delegates_to_diagnostic()
     {
-        var prev = Console.Error;
-        try
+        lock (ConsoleTestSync.ErrorRedirectLock)
         {
-            using var sw = new StringWriter();
-            Console.SetError(sw);
-            UserMessageDialog.WriteWarningToStderr("T", "B");
-            var s = sw.ToString();
-            Assert.Contains("[WARNING]", s, StringComparison.Ordinal);
-        }
-        finally
-        {
-            Console.SetError(prev);
+            var prev = Console.Error;
+            try
+            {
+                using var sw = new StringWriter();
+                Console.SetError(sw);
+                UserMessageDialog.WriteWarningToStderr("T", "B");
+                var s = sw.ToString();
+                Assert.Contains("[WARNING]", s, StringComparison.Ordinal);
+            }
+            finally
+            {
+                Console.SetError(prev);
+            }
         }
     }
 }
