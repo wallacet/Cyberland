@@ -23,6 +23,15 @@ public interface IRenderer
     /// <summary>Current backbuffer size in pixels (width × height).</summary>
     Vector2D<int> SwapchainPixelSize { get; }
 
+    /// <summary>
+    /// Host-driven frame pacing: VSync (FIFO), uncapped, or CPU-limited FPS.
+    /// </summary>
+    /// <remarks>
+    /// Prefer the main thread or options UI when changing this; avoid toggling from
+    /// <see cref="Cyberland.Engine.Core.Ecs.IParallelSystem"/> workers without coordination.
+    /// </remarks>
+    FramePacing FramePacing { get; set; }
+
     /// <summary>Host assigns; mods call to exit cleanly (window close).</summary>
     Action? RequestClose { get; set; }
 

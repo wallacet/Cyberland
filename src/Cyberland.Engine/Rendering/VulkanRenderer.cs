@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -92,6 +94,32 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     /// <summary>Optional hook assigned by the host; mods may invoke to request a clean window close.</summary>
     public Action? RequestClose { get; set; }
+
+    private FramePacing _framePacing = FramePacing.VSync;
+    private readonly Stopwatch _limitedFrameTimer = new();
+
+    /// <inheritdoc />
+    public FramePacing FramePacing
+    {
+        get => _framePacing;
+        set
+        {
+            if (_framePacing == value)
+                return;
+            if (_vk is null)
+            {
+                _framePacing = value;
+                return;
+            }
+
+            var support = QuerySwapChainSupport(_physicalDevice);
+            var previousPresent = FramePacingPresentMode.SelectPresentMode(support.PresentModes, _framePacing);
+            var nextPresent = FramePacingPresentMode.SelectPresentMode(support.PresentModes, value);
+            _framePacing = value;
+            if (previousPresent != nextPresent)
+                RecreateSwapchain();
+        }
+    }
 
     private Semaphore[]? _imageAvailableSemaphores;
     private Semaphore[]? _renderFinishedSemaphores;
@@ -199,6 +227,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             RecreateSwapchain();
         }
 
+        if (_framePacing.Mode == FramePacingMode.Limited)
+            _limitedFrameTimer.Restart();
+
         _vk.WaitForFences(_device, 1, in _inFlightFences![_currentFrame], true, ulong.MaxValue);
 
         uint imageIndex = 0;
@@ -266,7 +297,31 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         else if (present != Result.Success)
             throw new InvalidOperationException($"QueuePresent failed: {present}");
 
+        ApplyLimitedCpuPacingIfNeeded();
+
         _currentFrame = (_currentFrame + 1) % MaxFramesInFlight;
+    }
+
+    private void ApplyLimitedCpuPacingIfNeeded()
+    {
+        if (_framePacing.Mode != FramePacingMode.Limited)
+            return;
+
+        var delay = FramePacingCpu.GetRemainingDelaySeconds(
+            _limitedFrameTimer.Elapsed.TotalSeconds,
+            _framePacing.TargetFps);
+        if (delay <= 0)
+            return;
+
+        var waited = Stopwatch.StartNew();
+        while (waited.Elapsed.TotalSeconds < delay)
+        {
+            var left = delay - waited.Elapsed.TotalSeconds;
+            if (left > 0.003)
+                Thread.Sleep(1);
+            else
+                Thread.SpinWait(64);
+        }
     }
 
     /// <summary>Waits for idle GPU then tears down swapchain and all Vulkan objects.</summary>
@@ -528,12 +583,13 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         var swapChainSupport = QuerySwapChainSupport(_physicalDevice);
 
         var surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.Formats);
-        var presentMode = ChoosePresentMode(swapChainSupport.PresentModes);
+        var presentMode = FramePacingPresentMode.SelectPresentMode(swapChainSupport.PresentModes, _framePacing);
         var extent = ChooseSwapExtent(swapChainSupport.Capabilities);
 
-        var imageCount = swapChainSupport.Capabilities.MinImageCount + 1;
-        if (swapChainSupport.Capabilities.MaxImageCount > 0 && imageCount > swapChainSupport.Capabilities.MaxImageCount)
-            imageCount = swapChainSupport.Capabilities.MaxImageCount;
+        var imageCount = FramePacingPresentMode.AdjustMinImageCount(
+            swapChainSupport.Capabilities.MinImageCount,
+            swapChainSupport.Capabilities.MaxImageCount,
+            presentMode);
 
         var indices = FindQueueFamilies(_physicalDevice);
         var queueFamilyIndices = stackalloc[] { indices.GraphicsFamily!.Value, indices.PresentFamily!.Value };
@@ -874,17 +930,6 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         }
 
         return availableFormats[0];
-    }
-
-    private static PresentModeKHR ChoosePresentMode(IReadOnlyList<PresentModeKHR> availablePresentModes)
-    {
-        foreach (var availablePresentMode in availablePresentModes)
-        {
-            if (availablePresentMode == PresentModeKHR.MailboxKhr)
-                return availablePresentMode;
-        }
-
-        return PresentModeKHR.FifoKhr;
     }
 
     private Extent2D ChooseSwapExtent(SurfaceCapabilitiesKHR capabilities)

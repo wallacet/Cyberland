@@ -9,6 +9,7 @@ internal sealed class RecordingRenderer : IRenderer
 
     public Vector2D<int> SwapchainPixelSize { get; set; } = new(800, 600);
     public Action? RequestClose { get; set; }
+    public FramePacing FramePacing { get; set; } = FramePacing.VSync;
     public int DefaultNormalTextureId => 1;
     public int WhiteTextureId => 2;
 

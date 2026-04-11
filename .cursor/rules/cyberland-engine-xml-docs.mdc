@@ -22,9 +22,3 @@ When editing files under `src/Cyberland.Engine/`, treat **public** API as docume
 4. Use **`<param>`** / **`<returns>`** when names alone are not enough; state **units** (pixels, world Y-up vs screen Y-down — see `WorldScreenSpace`).
 5. Prefer a short **`<example>`** with `<code lang="csharp">` on “hub” types (`GameApplication`, `World`, `IMod`, `ISystem`, `GameHostServices`, `IRenderer`) when it helps newcomers.
 6. If **`GenerateDocumentationFile`** is enabled and **CS1591** is not suppressed, missing docs are **build warnings** — fix in the same change as API edits.
-
-## Bulk audits
-
-For full passes, use the checklist: `docs/engine-public-api-documentation-checklist.md`.
-
-Do **not** paste huge specification blocks into this rule; keep obligations short and point to summaries in code.
