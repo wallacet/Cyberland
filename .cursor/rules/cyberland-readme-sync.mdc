@@ -1,12 +1,19 @@
 ---
-description: Keep README aligned with engine/host code and architecture changes
+description: Keep README accurate, current-state only, and aligned with engine/host code
 globs: "**/src/Cyberland.Engine/**/*.cs,**/src/Cyberland.Host/**/*.cs,**/mods/**/*.cs,**/README.md,**/.github/workflows/**/*.yml,**/.github/workflows/**/*.yaml,**/.cursor/rules/cyberland-*.mdc"
 alwaysApply: false
 ---
 
 # Cyberland — README sync requirement
 
-When engine code, host code, or project architecture changes, update `README.md` in the same change set.
+`README.md` is the **canonical contributor-facing map** of how the repo works today. Keep it aligned with code in the same change set whenever you touch architecture, workflows, or onboarding paths.
+
+## Present-state documentation (required)
+
+- Describe **only** the **current** layout, APIs, and workflows. Do **not** document obsolete, deprecated, or superseded designs, folder layouts, or scheduler/render flows unless the repo still ships them as supported paths.
+- Do **not** frame explanations as reactions to past work (avoid “after X migration”, “no longer separate phases”, “previously”, “used to”, “old vs new” unless you are documenting a **dated** breaking release note—which this README is not).
+- Prefer **what exists now** and **where it lives** (`GameApplication`, `ModLoader`, `SystemScheduler`, `VulkanRenderer`, workflows under `.github/workflows/`, etc.).
+- When removing or replacing a feature, **delete or rewrite** README sections that referred to it; do not leave “historical” paragraphs.
 
 ## Trigger conditions
 
@@ -16,13 +23,21 @@ Apply this rule when any of these are true:
 - You changed files under `src/Cyberland.Host/`.
 - You changed architecture boundaries, load flow, mod pipeline, staging/publish behavior, or CI/testing expectations.
 - You changed architecture-oriented rules under `.cursor/rules/` that affect contributor guidance.
+- You edited `README.md` (re-read affected claims against source).
 
 ## README update expectations
 
 1. Update only sections affected by the change (architecture, testing, build/publish, layout, troubleshooting, or references).
-2. Keep descriptions concrete and consistent with current code and workflow names.
+2. Keep descriptions concrete and consistent with **current** code and workflow files (verify branch names in `.github/workflows/`, target names in `Cyberland.Host.csproj`, callback order in `GameApplication`).
 3. Keep examples and commands runnable from repo root on PowerShell unless a section explicitly says otherwise.
-4. Preserve beginner readability: explain what changed, where it lives, and why it matters.
+4. Preserve beginner readability: explain what the system does, where it lives, and how it fits the mod model.
+
+## Verification checklist (before handoff on README edits)
+
+1. **Frame loop** — Match `GameApplication`: `OnUpdate` → `SystemScheduler.RunFrame`; `OnRender` → `VulkanRenderer.DrawFrame`. Do not attribute mod-only behavior (e.g. exit key handling) to the host unless `GameApplication` actually implements it.
+2. **CI** — Default branch and path filters match `.github/workflows/*.yml` (e.g. `master` vs `main`, glob paths).
+3. **Mods** — Staging target names (`StageBaseMod`, `StageDemoMod`, …) and `Mods/` layout match `Cyberland.Host.csproj`.
+4. **Further reading** — File paths for partials/helpers exist (or update the list).
 
 ## High-level architecture section (`## High-level architecture`)
 
@@ -30,7 +45,7 @@ Whenever you add or edit **`README.md`**, if the change touches the **High-level
 
 1. **Fenced diagram** — Exactly one ` ```mermaid ` opening fence and one closing ` ``` ` on their own lines; no smart quotes or stray characters inside the fence.
 2. **Mermaid syntax** — Prefer **quoted labels** (`id["Label with spaces"]`) for node text. Avoid raw `/` in labels when it causes parse failures; use **and**, commas, or `<br/>` if needed. Use **distinct node ids** (avoid ambiguous one-word ids like `World` if the renderer mis-parses). Keep **subgraph** / **end** balanced; avoid deep indentation inside the block if preview tools choke.
-3. **Meaning** — The diagram and the four numbered steps must stay aligned with **`GameApplication`**, **`ModLoader` / `IMod`**, **`ModLoadContext`**, **`SystemScheduler.RunFrame`**, **`World`**, and **`GameHostServices`** as described in `.cursor/rules/cyberland-mod-host-architecture.mdc`.
+3. **Meaning** — The diagram and the numbered steps must stay aligned with **`GameApplication`**, **`ModLoader` / `IMod`**, **`ModLoadContext`**, **`SystemScheduler.RunFrame`**, **`World`**, and **`GameHostServices`** as described in `.cursor/rules/cyberland-mod-host-architecture.mdc`.
 4. **Sanity check** — Re-open the rendered `README.md` (GitHub preview or IDE Markdown preview) and confirm the diagram renders and the section is not merged into neighboring headings.
 
 ## Required final step: validate and fix

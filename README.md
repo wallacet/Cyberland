@@ -153,7 +153,7 @@ Project-specific notes for agents live in **`.cursor/skills/publish-cyberland/`*
 
 The **`Cyberland.Engine.Tests`** project targets **`Cyberland.Engine`** only (not the host, mods, or GPU paths). It enforces **100% line coverage** on that assembly via **coverlet**.
 
-GitHub Actions runs this automatically in the **`Engine Tests`** workflow for pull requests and pushes to `main` when engine test-related files change (plus manual `workflow_dispatch`).
+GitHub Actions runs this automatically in the **`Engine Tests`** workflow for pull requests and pushes to **`master`** when paths under `src/Cyberland.Engine/`, `tests/`, or related config change (plus manual `workflow_dispatch`).
 
 ```powershell
 dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug /p:CollectCoverage=true
@@ -227,7 +227,7 @@ flowchart TB
 1. **Host** creates the window, graphics, input, keybindings, ECS world, scheduler, and VFS, then calls **`ModLoader.LoadAll`** on `AppContext.BaseDirectory/Mods`.
 2. Each mod’s **`IMod.OnLoad`** receives a **`ModLoadContext`**: world, scheduler, localization, VFS, and **`Host`** (`GameHostServices`).
 3. Mods **register systems** on the scheduler and optionally spawn entities, mount extra paths, etc.
-4. Every frame, **`GameApplication`** runs **`SystemScheduler.RunFrame(world, dt)`**, which **walks a single ordered list** of registrations (each entry is either **`ISystem`** or **`IParallelSystem`**, in the order they were registered), then handles **host-only** input (e.g. Escape → exit), and **presents** the swapchain.
+4. Every frame, the window **Update** callback runs **`SystemScheduler.RunFrame(world, dt)`**, which **walks a single ordered list** of registrations (each entry is either **`ISystem`** or **`IParallelSystem`**, in the order they were registered). The **Render** callback runs **`VulkanRenderer.DrawFrame`**, which records GPU commands and **presents** the swapchain. Input and exit behavior are handled inside **mod** systems (the host wires **`Renderer.RequestClose`** to close the window; shipped demos invoke it from input when exiting).
 
 **Rule of thumb:** *If it is gameplay, it belongs in a mod (or a new mod assembly), not in `GameApplication`.*
 
@@ -251,7 +251,7 @@ Components are **`struct`** types; define them in your mod assembly (see `Veloci
 - **`SystemScheduler`** — one ordered list of **`RegisterSequential`** / **`RegisterParallel`** calls. **`RunFrame`** walks entries in registration order. Each enabled entry runs **`ISystem.OnStart`** / **`IParallelSystem.OnStart`** at most **once** per registration (first frame the entry is enabled), then **`ISystem.OnUpdate`** or **`IParallelSystem.OnParallelUpdate`** (with **`ParallelOptions`** from **`ParallelismSettings`**). Disabled entries are skipped entirely until **`SetEnabled(logicalId, true)`**; re-enabling does **not** run **`OnStart`** again. Replacing a logical id resets lifecycle so the new instance gets **`OnStart`** once. **`SetEnabled`**, **`SystemStarted`**, **`SystemEnabled`**, **`SystemDisabled`**, and **`SystemUnregistered`** (from **`TryUnregister`**) are the hooks for introspection and debugging.
 - **`ParallelismSettings.MaxConcurrency`** — `0` means use all logical processors.
 
-Frame order is **registration order** (not separate global “sequential phase” vs “parallel phase”). The host registers engine systems first, mods append during **`LoadAll`**, then the host appends render submit systems—so a mod’s systems run **between** simulation and drawing **when** they register during **`OnLoad`**.
+Frame order is **registration order**: one list where each entry is either **`ISystem`** (sequential) or **`IParallelSystem`** (parallel), in the order they were registered. The host registers engine systems first, mods append during **`LoadAll`**, then the host appends render submit systems—so a mod’s systems run **between** simulation and drawing according to **`OnLoad`** registration order.
 
 ### Rendering (`Rendering/`)
 
@@ -408,7 +408,7 @@ context.RegisterSequential("my.mod/main", new MySystem(context.Host));
 context.RegisterParallel("my.mod/batch", new MyParallelSystem());
 ```
 
-First-time registration order is the run order within each category (sequential vs parallel). Replacing an existing **logical id** keeps that system’s position in the list.
+First-time registration order is the run order for the scheduler’s single list. Replacing an existing **logical id** keeps that system’s position in the list.
 
 ### 5. Use the ECS world from context
 
@@ -450,11 +450,11 @@ c = new MyComponent { Value = 1f };
 
 Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). To run **only** the base game with no samples, you do not need **`--exclude-mods`** (demos are already disabled). To load several mods and drop specific ones, use e.g. `--exclude-mods cyberland.demo,cyberland.demo.pong`.
 
-### After scene stack migration: what still lives in mods
+### How shipped samples use the engine
 
-Shipped samples keep **game rules and session state** in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Demo**, **Pong**, and **BrickBreaker** drive **`Position`** / **`Sprite`** from simulation or layout systems; arcade HDR tuning calls **`SetGlobalPostProcess`** once from **`IMod.OnLoad`**. The main **Cyberland.Demo** mod also submits a half-screen bloom **volume** each frame so bounds follow **`SwapchainPixelSize`** on resize (**`cyberland.demo/post-volumes`**).
+**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, and **BrickBreaker** drive **`Position`** / **`Sprite`** from simulation or layout systems; arcade HDR tuning calls **`SetGlobalPostProcess`** once from **`IMod.OnLoad`**. **Cyberland.Demo** also submits a half-screen bloom **volume** each frame so bounds follow **`SwapchainPixelSize`** on resize (**`cyberland.demo/post-volumes`**).
 
-**Direct `SubmitSprite`:** only **`Cyberland.Demo.Snake`** still issues immediate-mode draws (snake segments, food, UI overlays) for a thin, grid-aligned presentation; the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Further work could move segments to **`Sprite`** entities or keep this hybrid if the extra entities are not worth it.
+**Cyberland.Demo.Snake** uses **`SubmitSprite`** for immediate draws (snake segments, food, UI overlays) for a thin, grid-aligned presentation; the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Other samples can follow the same pattern or route everything through **`Sprite`** entities and **`SpriteRenderSystem`**.
 
 ---
 
