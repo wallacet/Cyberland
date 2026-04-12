@@ -26,7 +26,8 @@ public sealed class ModdingTests
         string id,
         int loadOrder,
         bool includeDll = true,
-        bool includeEntryAsmInManifest = true)
+        bool includeEntryAsmInManifest = true,
+        string? entryType = null)
     {
         var modDir = Path.Combine(modsRoot, folderName);
         Directory.CreateDirectory(Path.Combine(modDir, "Content"));
@@ -50,6 +51,8 @@ public sealed class ModdingTests
         };
         if (includeEntryAsmInManifest)
             manifest["entryAssembly"] = "Cyberland.TestMod.dll";
+        if (entryType is not null)
+            manifest["entryType"] = entryType;
 
         File.WriteAllText(
             Path.Combine(modDir, "manifest.json"),
@@ -116,17 +119,18 @@ public sealed class ModdingTests
         }
     }
 
-    private sealed class ModCtxSeq : ISystem
+    private sealed class ModCtxSeq : ISystem, ILateUpdate
     {
         public int Calls;
-        public void OnUpdate(World world, float deltaSeconds) => Calls++;
+        public void OnLateUpdate(World world, float deltaSeconds) => Calls++;
     }
 
-    private sealed class ModCtxPar : IParallelSystem
+    private sealed class ModCtxPar : IParallelSystem, IParallelLateUpdate
     {
-        public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+        public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
         {
             _ = deltaSeconds;
+            _ = parallelOptions;
         }
     }
 
@@ -484,6 +488,107 @@ public sealed class ModdingTests
             Assert.True(vfs.TryOpenRead("note.txt", out var stream));
             using var reader = new StreamReader(stream!);
             Assert.Equal("en.mod", reader.ReadToEnd());
+        }
+        finally
+        {
+            UnloadModsAndGc(loader);
+            Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoader_uses_manifest_entry_type_when_present()
+    {
+        TestModEntry.ResetCounters();
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb mod entrytype " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        StageMod(modsRoot, "m", "t.mod", loadOrder: 0, entryType: "Cyberland.TestMod.TestModEntry");
+
+        ModLoader? loader = null;
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            loader = new ModLoader();
+            loader.LoadAll(
+                modsRoot,
+                vfs,
+                new LocalizationManager(),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                new GameHostServices(new KeyBindingStore()));
+
+            Assert.Equal(1, TestModEntry.OnLoadCount);
+            Assert.Single(loader.LoadedManifests);
+            Assert.Equal("t.mod", loader.LoadedManifests[0].Id);
+        }
+        finally
+        {
+            UnloadModsAndGc(loader);
+            Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoader_entry_type_miss_falls_back_to_exported_types_scan()
+    {
+        TestModEntry.ResetCounters();
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb mod entrytype fb " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        StageMod(modsRoot, "m", "t.mod", loadOrder: 0, entryType: "Definitely.Not.A.Real.Type");
+
+        ModLoader? loader = null;
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            loader = new ModLoader();
+            loader.LoadAll(
+                modsRoot,
+                vfs,
+                new LocalizationManager(),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                new GameHostServices(new KeyBindingStore()));
+
+            Assert.Equal(1, TestModEntry.OnLoadCount);
+            Assert.Single(loader.LoadedManifests);
+        }
+        finally
+        {
+            UnloadModsAndGc(loader);
+            Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoader_LoadAll_twice_replaces_previous_mod_instances()
+    {
+        TestModEntry.ResetCounters();
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb mod reload " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        StageMod(modsRoot, "m", "t.mod", loadOrder: 0);
+
+        ModLoader? loader = null;
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            loader = new ModLoader();
+            var host = new GameHostServices(new KeyBindingStore());
+            var world = new World();
+            var sched = new SystemScheduler(new ParallelismSettings());
+            var loc = new LocalizationManager();
+
+            loader.LoadAll(modsRoot, vfs, loc, world, sched, host);
+            Assert.Equal(1, TestModEntry.OnLoadCount);
+            Assert.Equal(0, TestModEntry.OnUnloadCount);
+            Assert.Single(loader.LoadedManifests);
+
+            loader.LoadAll(modsRoot, vfs, loc, world, sched, host);
+            Assert.Equal(2, TestModEntry.OnLoadCount);
+            Assert.Equal(1, TestModEntry.OnUnloadCount);
+            Assert.Single(loader.LoadedManifests);
+
+            loader.UnloadAll();
+            Assert.Equal(2, TestModEntry.OnUnloadCount);
         }
         finally
         {

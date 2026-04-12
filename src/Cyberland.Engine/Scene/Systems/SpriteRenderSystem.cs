@@ -11,7 +11,7 @@ namespace Cyberland.Engine.Scene.Systems;
 /// <summary>
 /// Parallel pass: walks all <see cref="Sprite"/> chunks, pairs with <see cref="Position"/> / <see cref="Rotation"/> / <see cref="Scale"/>, and submits <see cref="SpriteDrawRequest"/>s to <see cref="Hosting.GameHostServices.Renderer"/>.
 /// </summary>
-public sealed class SpriteRenderSystem : IParallelSystem
+public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
 {
     private readonly List<ComponentChunkView<Sprite>> _chunks = new();
     private readonly GameHostServices _host;
@@ -21,7 +21,7 @@ public sealed class SpriteRenderSystem : IParallelSystem
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
@@ -35,8 +35,13 @@ public sealed class SpriteRenderSystem : IParallelSystem
         if (_chunks.Count == 0)
             return;
 
-        Parallel.ForEach(_chunks, parallelOptions, chunk =>
+        var positions = world.Components<Position>();
+        var rotations = world.Components<Rotation>();
+        var scales = world.Components<Scale>();
+
+        Parallel.For(0, _chunks.Count, parallelOptions, idx =>
         {
+            var chunk = _chunks[idx];
             var ents = chunk.Entities;
             var sprites = chunk.Components;
             for (var i = 0; i < chunk.Count; i++)
@@ -46,11 +51,11 @@ public sealed class SpriteRenderSystem : IParallelSystem
                     continue;
 
                 var id = ents[i];
-                if (!world.Components<Position>().TryGet(id, out var pos))
+                if (!positions.TryGet(id, out var pos))
                     continue;
 
-                var rot = world.Components<Rotation>().TryGet(id, out var r2) ? r2.Radians : 0f;
-                var sc = world.Components<Scale>().TryGet(id, out var sc2) ? sc2 : Scale.One;
+                var rot = rotations.TryGet(id, out var r2) ? r2.Radians : 0f;
+                var sc = scales.TryGet(id, out var sc2) ? sc2 : Scale.One;
                 var hx = spr.HalfExtents.X * sc.X;
                 var hy = spr.HalfExtents.Y * sc.Y;
 

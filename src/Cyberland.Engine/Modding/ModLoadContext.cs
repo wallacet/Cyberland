@@ -50,13 +50,16 @@ public sealed class ModLoadContext
     public LocalizationManager Localization { get; }
     /// <summary>Shared ECS world for entities and components.</summary>
     public World World { get; }
-    /// <summary>Register <see cref="Core.Ecs.ISystem"/> / <see cref="Core.Ecs.IParallelSystem"/> implementations here.</summary>
+    /// <summary>Register <see cref="Core.Ecs.ISystem"/> / <see cref="Core.Ecs.IParallelSystem"/> implementations (optionally implementing early/fixed/late update interfaces).</summary>
     public SystemScheduler Scheduler { get; }
 
     /// <summary>Renderer, input, optional tilemap/particle stores — assigned by the host before <see cref="IMod.OnLoad"/>.</summary>
     public GameHostServices Host { get; }
 
     /// <summary>Mounts <see cref="ModManifest.ContentRoot"/> under this mod's folder.</summary>
+    /// <remarks>
+    /// <see cref="ModLoader"/> already mounts that path during discovery; calling this is optional and becomes a no-op when it matches the last VFS root (see <see cref="Assets.VirtualFileSystem.Mount"/>).
+    /// </remarks>
     public void MountDefaultContent() =>
         VirtualFileSystem.Mount(Path.Combine(ModDirectory, Manifest.ContentRoot));
 

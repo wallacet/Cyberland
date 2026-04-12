@@ -34,7 +34,7 @@ public sealed class SceneSystemTests
         tc.LocalPosition = new Vector2D<float>(2f, 1f);
         tc.Parent = root;
 
-        new TransformHierarchySystem().OnParallelUpdate(w, 0f, ParOpts());
+        new TransformHierarchySystem().OnParallelEarlyUpdate(w, 0f, ParOpts());
         var wp = w.Components<Position>().Get(child);
         Assert.Equal(2f, wp.X, 3);
         Assert.Equal(1f, wp.Y, 3);
@@ -55,11 +55,27 @@ public sealed class SceneSystemTests
         tc.LocalPosition = new Vector2D<float>(3f, 4f);
         tc.Parent = parent;
 
-        new TransformHierarchySystem().OnParallelUpdate(w, 0.016f, ParOpts());
+        new TransformHierarchySystem().OnParallelEarlyUpdate(w, 0.016f, ParOpts());
 
         var wp = w.Components<Position>().Get(child);
         Assert.Equal(13f, wp.X, 3);
         Assert.Equal(9f, wp.Y, 3);
+    }
+
+    [Fact]
+    public void TransformHierarchySystem_recycles_child_adjacency_lists_across_ticks()
+    {
+        var w = new World();
+        var parent = w.CreateEntity();
+        var child = w.CreateEntity();
+        w.Components<Transform>().GetOrAdd(parent) = Transform.Identity;
+        w.Components<Transform>().GetOrAdd(child) = Transform.Identity;
+        ref var tc = ref w.Components<Transform>().Get(child);
+        tc.Parent = parent;
+
+        var sys = new TransformHierarchySystem();
+        sys.OnParallelEarlyUpdate(w, 0f, ParOpts());
+        sys.OnParallelEarlyUpdate(w, 0f, ParOpts());
     }
 
     [Fact]
@@ -72,7 +88,7 @@ public sealed class SceneSystemTests
         w.Components<Position>().GetOrAdd(e) = new Position { X = 1f, Y = 2f };
         w.Components<Sprite>().GetOrAdd(e) = Sprite.DefaultWhiteUnlit(0, 0, new Vector2D<float>(1f, 1f));
 
-        new SpriteRenderSystem(h).OnParallelUpdate(w, 0f, ParOpts());
+        new SpriteRenderSystem(h).OnParallelLateUpdate(w, 0f, ParOpts());
         // No throw; early exit when host has no renderer (e.g. headless or pre-init).
     }
 
@@ -87,7 +103,7 @@ public sealed class SceneSystemTests
         spr = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(4f, 4f));
         spr.Visible = true;
 
-        new SpriteRenderSystem(Host(r)).OnParallelUpdate(w, 0.016f, ParOpts());
+        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, 0.016f, ParOpts());
         Assert.Single(r.Sprites);
         Assert.Equal(1f, r.Sprites[0].CenterWorld.X);
     }
@@ -100,7 +116,7 @@ public sealed class SceneSystemTests
         var e = w.CreateEntity();
         w.Components<Sprite>().GetOrAdd(e) = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(1f, 1f));
 
-        new SpriteRenderSystem(Host(r)).OnParallelUpdate(w, 0.016f, ParOpts());
+        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, 0.016f, ParOpts());
         Assert.Empty(r.Sprites);
     }
 
@@ -109,7 +125,7 @@ public sealed class SceneSystemTests
     {
         var w = new World();
         var opts = new ParallelismSettings().CreateParallelOptions();
-        new SpriteAnimationSystem().OnParallelUpdate(w, 0.1f, opts);
+        new SpriteAnimationSystem().OnParallelLateUpdate(w, 0.1f, opts);
     }
 
     [Fact]
@@ -129,7 +145,7 @@ public sealed class SceneSystemTests
         };
 
         var opts = new ParallelismSettings().CreateParallelOptions();
-        new SpriteAnimationSystem().OnParallelUpdate(w, 0.6f, opts);
+        new SpriteAnimationSystem().OnParallelLateUpdate(w, 0.6f, opts);
         var outSpr = w.Components<Sprite>().Get(e);
         Assert.True(outSpr.UvRect.Z > outSpr.UvRect.X);
     }
@@ -154,7 +170,7 @@ public sealed class SceneSystemTests
             NonEmptyTileMinIndex = 1
         };
 
-        new TilemapRenderSystem(Host(r, tm)).OnParallelUpdate(w, 0f, ParOpts());
+        new TilemapRenderSystem(Host(r, tm)).OnParallelLateUpdate(w, 0f, ParOpts());
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -182,8 +198,8 @@ public sealed class SceneSystemTests
         };
 
         var sim = new ParticleSimulationSystem(h);
-        sim.OnParallelUpdate(w, 0.5f, ParOpts());
-        new ParticleRenderSystem(h).OnParallelUpdate(w, 0f, ParOpts());
+        sim.OnParallelFixedUpdate(w, 0.5f, ParOpts());
+        new ParticleRenderSystem(h).OnParallelLateUpdate(w, 0f, ParOpts());
         Assert.NotEmpty(r.Sprites);
     }
 

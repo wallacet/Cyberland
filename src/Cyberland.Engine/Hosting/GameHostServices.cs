@@ -13,6 +13,10 @@ namespace Cyberland.Engine.Hosting;
 /// <remarks>
 /// Do not stash gameplay singletons here—keep campaign state in your mod’s ECS components or session objects.
 /// Threading: treat <see cref="Rendering.IRenderer"/> submit methods as documented on <see cref="Rendering.IRenderer"/> (safe from parallel ECS workers; recording/present stays on the window thread).
+/// <para>
+/// Each render tick, the stock host sets <see cref="FixedAccumulatorSeconds"/> from the scheduler&apos;s fixed-step remainder
+/// <strong>before</strong> <see cref="Core.Ecs.ILateUpdate"/> runs, and sets <see cref="FixedDeltaSeconds"/> after the scheduler finishes a frame.
+/// </para>
 /// </remarks>
 public sealed class GameHostServices
 {
@@ -41,8 +45,27 @@ public sealed class GameHostServices
     public ParticleStore? Particles { get; set; }
 
     /// <summary>
+    /// Wall-clock seconds between successive rendered frames (set by the host after each draw). Matches the
+    /// <c>deltaSeconds</c> passed to <see cref="Core.Tasks.SystemScheduler.RunFrame(Cyberland.Engine.Core.Ecs.World, float)"/> in the stock
+    /// <see cref="GameApplication"/> (ECS runs once per <c>Render</c> tick).
+    /// </summary>
+    public float LastPresentDeltaSeconds { get; internal set; }
+
+    /// <summary>
+    /// Fixed-step accumulator remainder in seconds (same as <see cref="Core.Tasks.SystemScheduler.FixedAccumulator"/> after
+    /// fixed substeps). The stock host updates this <strong>before</strong> <see cref="ILateUpdate"/> each frame. Use for optional
+    /// display extrapolation: e.g. <c>position + velocity * FixedAccumulatorSeconds</c>.
+    /// </summary>
+    public float FixedAccumulatorSeconds { get; internal set; }
+
+    /// <summary>
+    /// Fixed timestep step size in seconds (mirrors <see cref="Core.Tasks.SystemScheduler.FixedDeltaSeconds"/> after each frame).
+    /// </summary>
+    public float FixedDeltaSeconds { get; internal set; } = 1f / 60f;
+
+    /// <summary>
     /// Cleared and refilled by <see cref="Cyberland.Engine.Scene.Systems.ParticleSimulationSystem"/> each frame (before parallel sim);
     /// consumed by <see cref="Cyberland.Engine.Scene.Systems.ParticleRenderSystem"/> in the same frame. Host registers sim before render.
     /// </summary>
-    public List<EntityId> ParticleEmitterIdsForFrame { get; } = new();
+    public List<EntityId> ParticleEmitterIdsForFrame { get; } = new List<EntityId>(64);
 }

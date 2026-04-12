@@ -7,7 +7,7 @@ using Cyberland.Engine.Scene;
 namespace Cyberland.Demo.Snake;
 
 /// <summary>Updates <see cref="Tilemap"/> from <see cref="SnakeSession"/> layout so the engine tilemap pass draws the playfield grid.</summary>
-public sealed class SnakeTilemapLayoutSystem : ISystem
+public sealed class SnakeTilemapLayoutSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
     private readonly SnakeSession _session;
@@ -20,7 +20,7 @@ public sealed class SnakeTilemapLayoutSystem : ISystem
         _arena = arena;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnLateUpdate(World world, float deltaSeconds)
     {
         _ = deltaSeconds;
         var r = _host.Renderer;

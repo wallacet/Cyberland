@@ -18,6 +18,11 @@ public sealed class ModManifest
     public string Version { get; init; } = "0.0.0";
     /// <summary>Filename of the mod DLL inside the mod folder (e.g. <c>MyMod.dll</c>); omit for content-only packs.</summary>
     public string? EntryAssembly { get; init; }
+    /// <summary>
+    /// Optional CLR type name of the <see cref="IMod"/> implementation in <see cref="EntryAssembly"/> (e.g. <c>MyMod.Mod</c>).
+    /// When set, the loader resolves it with <see cref="System.Reflection.Assembly.GetType(string, bool, bool)"/> before scanning <see cref="System.Reflection.Assembly.GetExportedTypes"/>.
+    /// </summary>
+    public string? EntryType { get; init; }
     /// <summary>Subfolder under the mod directory to mount into the VFS first (default <c>Content</c>).</summary>
     public string ContentRoot { get; init; } = "Content";
     /// <summary>Lower runs first when sorting; ties broken by <see cref="Id"/>.</summary>

@@ -8,11 +8,12 @@ namespace Cyberland.Demo;
 /// <summary>
 /// Parallel per-chunk damp: each chunk exposes a contiguous <see cref="Velocity"/> span (SIMD on the packed floats).
 /// </summary>
-public sealed class VelocityDampSystem : IParallelSystem
+public sealed class VelocityDampSystem : IParallelSystem, IParallelFixedUpdate
 {
-    public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelFixedUpdate(World world, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
-        _ = deltaSeconds;
+        // Match legacy per-60Hz-frame 0.999 damp when FixedDeltaSeconds is 1/60; scales with substep length.
+        var factor = MathF.Pow(0.999f, fixedDeltaSeconds * 60f);
         var chunks = new List<ComponentChunkView<Velocity>>();
         foreach (var chunk in world.QueryChunks<Velocity>())
             chunks.Add(chunk);
@@ -20,11 +21,11 @@ public sealed class VelocityDampSystem : IParallelSystem
         if (chunks.Count == 0)
             return;
 
-        Parallel.ForEach(chunks, parallelOptions, static chunk =>
+        Parallel.ForEach(chunks, parallelOptions, chunk =>
         {
             var v = chunk.Components;
             var f = MemoryMarshal.Cast<Velocity, float>(v);
-            SimdFloat.MultiplyInPlace(f, 0.999f);
+            SimdFloat.MultiplyInPlace(f, factor);
         });
     }
 }

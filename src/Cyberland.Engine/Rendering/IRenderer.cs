@@ -24,7 +24,7 @@ public interface IRenderer
     Vector2D<int> SwapchainPixelSize { get; }
 
     /// <summary>
-    /// Host-driven frame pacing: VSync (FIFO), uncapped, or CPU-limited FPS.
+    /// Host-driven frame pacing: VSync (mailbox when available, else FIFO), uncapped, or CPU-limited FPS.
     /// </summary>
     /// <remarks>
     /// Prefer the main thread or options UI when changing this; avoid toggling from
@@ -41,6 +41,19 @@ public interface IRenderer
     /// <param name="height">Texture height in pixels.</param>
     int RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height);
 
+    /// <summary>
+    /// Copies premultiplied RGBA into a sub-rectangle of an existing texture (same dimensions as when registered).
+    /// Used by the glyph atlas to update packed regions without allocating a new GPU image per glyph.
+    /// </summary>
+    /// <param name="textureId">Slot from <see cref="RegisterTextureRgba"/>.</param>
+    /// <param name="dstX">Destination X in pixels (top-left).</param>
+    /// <param name="dstY">Destination Y in pixels (top-left).</param>
+    /// <param name="width">Region width.</param>
+    /// <param name="height">Region height.</param>
+    /// <param name="rgba">Tightly packed RGBA8, length at least <c>width * height * 4</c>.</param>
+    /// <returns>False if the id is invalid, the region is out of bounds, or <paramref name="rgba"/> is too small.</returns>
+    bool TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height, ReadOnlySpan<byte> rgba);
+
     /// <summary>Default flat normal (128,128,255) 1×1 if not registered.</summary>
     int DefaultNormalTextureId { get; }
 
@@ -49,6 +62,12 @@ public interface IRenderer
 
     /// <summary>Queues one sprite for the next frame (thread-safe; see interface remarks).</summary>
     void SubmitSprite(in SpriteDrawRequest draw);
+
+    /// <summary>
+    /// Queues multiple sprites with a single lock acquisition (preferred for text runs that would otherwise call
+    /// <see cref="SubmitSprite"/> once per glyph).
+    /// </summary>
+    void SubmitSprites(ReadOnlySpan<SpriteDrawRequest> draws);
 
     /// <summary>Queues a radial point light (cleared/rebuilt each frame by the caller’s systems).</summary>
     void SubmitPointLight(in PointLight light);

@@ -44,6 +44,10 @@ namespace Cyberland.Engine.Rendering;
 [ExcludeFromCodeCoverage(Justification = "Requires a Vulkan-capable GPU and window surface.")]
 public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 {
+    /// <summary>
+    /// Concurrent recording/submit slots (fences, semaphores, command buffers per slot). Values &gt; 2 improve GPU overlap
+    /// but add end-to-end latency (input → present); keep at 2 for responsive feel on desktop.
+    /// </summary>
     private const int MaxFramesInFlight = 2;
 
     private static readonly string[] DeviceExtensions = ["VK_KHR_swapchain"];
@@ -85,6 +89,16 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private readonly List<DirectionalLight> _directionalLightQueue = new();
     private readonly List<AmbientLight> _ambientLightQueue = new();
     private readonly List<PostProcessVolume> _volumeQueue = new();
+
+    // Grow-only snapshots for FramePlanBuilder.Build — reused each frame to avoid List.ToArray / per-frame int[] allocs.
+    private SpriteDrawRequest[]? _frameScratchSprites;
+    private PointLight[]? _frameScratchPointLights;
+    private SpotLight[]? _frameScratchSpotLights;
+    private DirectionalLight[]? _frameScratchDirectionalLights;
+    private AmbientLight[]? _frameScratchAmbientLights;
+    private PostProcessVolume[]? _frameScratchVolumes;
+    private int[]? _frameScratchSortIndices;
+
     private GlobalPostProcessSettings _globalPost = new()
     {
         BloomEnabled = true,
@@ -155,6 +169,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     int IRenderer.RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height) =>
         RegisterTextureRgbaInternal(rgba, width, height);
 
+    bool IRenderer.TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height,
+        ReadOnlySpan<byte> rgba) =>
+        TryUploadTextureRgbaSubregionInternal(textureId, dstX, dstY, width, height, rgba);
+
     int IRenderer.DefaultNormalTextureId => _defaultNormalTextureId;
 
     int IRenderer.WhiteTextureId => _whiteTextureId;
@@ -163,6 +181,17 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     {
         lock (_recordLock)
             _spriteQueue.Add(draw);
+    }
+
+    void IRenderer.SubmitSprites(ReadOnlySpan<SpriteDrawRequest> draws)
+    {
+        if (draws.Length == 0)
+            return;
+        lock (_recordLock)
+        {
+            foreach (ref readonly var d in draws)
+                _spriteQueue.Add(d);
+        }
     }
 
     void IRenderer.SubmitPointLight(in PointLight light)

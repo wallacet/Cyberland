@@ -10,7 +10,7 @@ namespace Cyberland.Demo.Snake;
 /// multiple <see cref="PointLight"/>s via SSBO + instanced draws (all queued lights are evaluated).
 /// Positions match <see cref="SnakeRenderSystem"/> (grid to world via <see cref="SnakeSession"/> layout).
 /// </summary>
-public sealed class SnakeLightsSystem : ISystem
+public sealed class SnakeLightsSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
     private readonly SnakeSession _session;
@@ -21,7 +21,7 @@ public sealed class SnakeLightsSystem : ISystem
         _session = session;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnLateUpdate(World world, float deltaSeconds)
     {
         _ = world;
         _ = deltaSeconds;

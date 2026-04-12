@@ -10,7 +10,7 @@ namespace Cyberland.Demo.Pong;
 /// multiple <see cref="PointLight"/>s via SSBO + instanced draws (all queued lights are evaluated).
 /// Reads <see cref="PongState"/> from the session entity (same world space as <see cref="PongVisualSyncSystem"/>).
 /// </summary>
-public sealed class PongLightsSystem : ISystem
+public sealed class PongLightsSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
     private readonly EntityId _session;
@@ -21,7 +21,7 @@ public sealed class PongLightsSystem : ISystem
         _session = session;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnLateUpdate(World world, float deltaSeconds)
     {
         _ = deltaSeconds;
         var r = _host.Renderer;

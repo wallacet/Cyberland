@@ -49,6 +49,10 @@ public static class FramePacingPresentMode
 
     private static PresentModeKHR SelectVSync(IReadOnlyList<PresentModeKHR> available)
     {
+        // Prefer mailbox over FIFO for "vsync": both are tear-free at refresh, but FIFO back-pressures the CPU/GPU when
+        // a frame is late; mailbox drops superseded frames and often yields smoother motion when frame time varies.
+        if (Contains(available, PresentModeKHR.MailboxKhr))
+            return PresentModeKHR.MailboxKhr;
         if (Contains(available, PresentModeKHR.FifoKhr))
             return PresentModeKHR.FifoKhr;
         if (Contains(available, PresentModeKHR.FifoRelaxedKhr))

@@ -4,7 +4,7 @@ using Silk.NET.Input;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-public sealed class BrickInputSystem : ISystem
+public sealed class BrickInputSystem : ISystem, IEarlyUpdate
 {
     private readonly GameHostServices _host;
     private readonly BrickSession _session;
@@ -17,7 +17,7 @@ public sealed class BrickInputSystem : ISystem
         _controlEntity = controlEntity;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnEarlyUpdate(World world, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref var c = ref world.Components<BrickControl>().Get(_controlEntity);

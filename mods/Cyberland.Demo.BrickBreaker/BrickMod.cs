@@ -1,8 +1,11 @@
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
@@ -16,6 +19,13 @@ public sealed class BrickMod : IMod
 {
     public void OnLoad(ModLoadContext context)
     {
+        context.MountDefaultContent();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var textCache = new TextGlyphCache();
+        LocalizationBootstrap.LoadAsync(context.Localization, new AssetManager(context.VirtualFileSystem),
+            "Locale/en/brick.json").GetAwaiter().GetResult();
+
         var session = new BrickSession();
         var w = context.World;
         var controlEntity = w.CreateEntity();
@@ -49,7 +59,8 @@ public sealed class BrickMod : IMod
         context.RegisterSequential("cyberland.demo.brick/simulation", new BrickSimulationSystem(host, session, controlEntity));
         context.RegisterSequential("cyberland.demo.brick/lights", new BrickLightsSystem(host, session));
         context.RegisterSequential("cyberland.demo.brick/visual-sync",
-            new BrickVisualSyncSystem(host, session, background, paddle, ball, titleUi, gameOverPanel, gameOverBar, lives, cells));
+            new BrickVisualSyncSystem(host, session, background, paddle, ball, titleUi, gameOverPanel, gameOverBar, lives,
+                cells, context.Localization, fonts, textCache));
 
         ApplyBrickGlobalPost(host);
     }

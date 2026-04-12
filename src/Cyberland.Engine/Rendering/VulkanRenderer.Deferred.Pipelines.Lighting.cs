@@ -14,10 +14,19 @@ public sealed unsafe partial class VulkanRenderer
         if (_lightingBuffer.Handle != default)
             return;
         CreateHostVisibleBuffer((ulong)sizeof(LightingUbo), BufferUsageFlags.UniformBufferBit, out _lightingBuffer, out _lightingBufferMemory);
+        void* p;
+        if (_vk!.MapMemory(_device, _lightingBufferMemory, 0, (ulong)sizeof(LightingUbo), 0, &p) != Result.Success)
+            throw new GraphicsInitializationException("map lighting ubo (persistent)");
+        _lightingBufferMapped = p;
     }
 
     private void DestroyLightingBuffer()
     {
+        if (_lightingBufferMemory.Handle != default && _lightingBufferMapped != null)
+        {
+            _vk!.UnmapMemory(_device, _lightingBufferMemory);
+            _lightingBufferMapped = null;
+        }
         if (_lightingBuffer.Handle != default)
         {
             _vk!.DestroyBuffer(_device, _lightingBuffer, null);
@@ -32,12 +41,12 @@ public sealed unsafe partial class VulkanRenderer
 
     private void UpdateLightingFrameData(in FramePlan framePlan)
     {
-        if (_vk is null || _lightingBufferMemory.Handle == default)
+        if (_vk is null || _lightingBufferMapped == null)
             return;
 
-        var ambient = framePlan.AmbientLights.Length > 0 ? framePlan.AmbientLights[^1] : default;
-        var directional = framePlan.DirectionalLights.Length > 0 ? framePlan.DirectionalLights[^1] : default;
-        var spot = framePlan.SpotLights.Length > 0 ? framePlan.SpotLights[^1] : default;
+        var ambient = framePlan.AmbientLightCount > 0 ? framePlan.AmbientLights[framePlan.AmbientLightCount - 1] : default;
+        var directional = framePlan.DirectionalLightCount > 0 ? framePlan.DirectionalLights[framePlan.DirectionalLightCount - 1] : default;
+        var spot = framePlan.SpotLightCount > 0 ? framePlan.SpotLights[framePlan.SpotLightCount - 1] : default;
         var dir = directional.DirectionWorld;
         var dirLen = MathF.Sqrt(dir.X * dir.X + dir.Y * dir.Y);
         if (dirLen < 1e-6f)
@@ -64,26 +73,17 @@ public sealed unsafe partial class VulkanRenderer
             SpotColorIntensity = new Vector4D<float>(spot.Color.X, spot.Color.Y, spot.Color.Z, spot.Intensity)
         };
 
-        void* p;
-        if (_vk.MapMemory(_device, _lightingBufferMemory, 0, (ulong)sizeof(LightingUbo), 0, &p) != Result.Success)
-            throw new GraphicsInitializationException("map lighting ubo");
-        Unsafe.Write(p, ubo);
-        _vk.UnmapMemory(_device, _lightingBufferMemory);
+        Unsafe.Write(_lightingBufferMapped, ubo);
     }
 
     private void UploadPointLightSsboData(in FramePlan framePlan)
     {
-        if (_vk is null || _pointLightSsboMemory.Handle == default)
+        if (_pointLightSsboMapped == null)
             return;
 
         var pts = framePlan.PointLights;
-        var n = Math.Min(pts.Length, DeferredRenderingConstants.MaxPointLights);
-        void* p;
-        if (_vk.MapMemory(_device, _pointLightSsboMemory, 0, (ulong)(DeferredRenderingConstants.MaxPointLights * 2 * sizeof(Vector4D<float>)), 0, &p) != Result.Success)
-            throw new GraphicsInitializationException("map point ssbo");
-
-        var span = new Span<Vector4D<float>>((Vector4D<float>*)p, DeferredRenderingConstants.MaxPointLights * 2);
-        span.Clear();
+        var n = Math.Min(framePlan.PointLightCount, DeferredRenderingConstants.MaxPointLights);
+        var span = new Span<Vector4D<float>>((Vector4D<float>*)_pointLightSsboMapped, DeferredRenderingConstants.MaxPointLights * 2);
         for (var i = 0; i < n; i++)
         {
             ref readonly var pl = ref pts[i];
@@ -91,7 +91,5 @@ public sealed unsafe partial class VulkanRenderer
             span[i * 2] = new Vector4D<float>(pl.PositionWorld.X, pl.PositionWorld.Y, pl.Radius, fall);
             span[i * 2 + 1] = new Vector4D<float>(pl.Color.X, pl.Color.Y, pl.Color.Z, pl.Intensity);
         }
-
-        _vk.UnmapMemory(_device, _pointLightSsboMemory);
     }
 }

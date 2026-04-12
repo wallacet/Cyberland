@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Silk.NET.Maths;
@@ -7,37 +8,35 @@ namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
 /// Parallel pass: for entities with both <see cref="SpriteAnimation"/> and <see cref="Sprite"/>, advances time and recomputes atlas <see cref="Sprite.UvRect"/> from a uniform grid.
+/// Uses <see cref="World.QueryChunks{T0,T1}"/> so each row has paired columns (no per-entity random <see cref="ComponentStore{T}"/> lookups).
 /// </summary>
-public sealed class SpriteAnimationSystem : IParallelSystem
+public sealed class SpriteAnimationSystem : IParallelSystem, IParallelLateUpdate
 {
-    private readonly List<ComponentChunkView<SpriteAnimation>> _chunks = new();
+    private readonly List<ComponentChunkView2<SpriteAnimation, Sprite>> _chunks = new();
 
     /// <inheritdoc />
-    public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _chunks.Clear();
-        foreach (var chunk in world.QueryChunks<SpriteAnimation>())
+        foreach (var chunk in world.QueryChunks<SpriteAnimation, Sprite>())
             _chunks.Add(chunk);
 
         if (_chunks.Count == 0)
             return;
 
-        Parallel.ForEach(_chunks, parallelOptions, chunk =>
+        Parallel.For(0, _chunks.Count, parallelOptions, idx =>
         {
-            var ents = chunk.Entities;
-            var anims = chunk.Components;
+            var chunk = _chunks[idx];
+            var anims = chunk.Components0;
+            var sprites = chunk.Components1;
             for (var i = 0; i < chunk.Count; i++)
             {
-                var id = ents[i];
-                if (!world.Components<Sprite>().Contains(id))
-                    continue;
-
                 ref var a = ref anims[i];
                 if (a.FrameCount <= 0 || a.SecondsPerFrame <= 0f || a.AtlasColumns <= 0)
                     continue;
 
                 a.ElapsedSeconds += deltaSeconds;
-                ref var spr = ref world.Components<Sprite>().Get(id);
+                ref var spr = ref sprites[i];
                 SpriteAnimationMath.Apply(ref a, ref spr);
             }
         });

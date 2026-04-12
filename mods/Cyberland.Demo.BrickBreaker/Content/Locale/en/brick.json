@@ -1,0 +1,7 @@
+{
+  "demo.brick.title": "BRICK BREAKER",
+  "demo.brick.hint_title": "Enter / R — start     Q — quit",
+  "demo.brick.hint_gameover": "Enter / R — restart     Q — quit",
+  "demo.brick.playing_score": "Score",
+  "demo.brick.game_over": "GAME OVER"
+}

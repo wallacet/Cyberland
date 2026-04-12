@@ -1,8 +1,11 @@
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
@@ -16,6 +19,13 @@ public sealed class SnakeMod : IMod
 {
     public void OnLoad(ModLoadContext context)
     {
+        context.MountDefaultContent();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var textCache = new TextGlyphCache();
+        LocalizationBootstrap.LoadAsync(context.Localization, new AssetManager(context.VirtualFileSystem),
+            "Locale/en/snake.json").GetAwaiter().GetResult();
+
         var session = new SnakeSession();
         var w = context.World;
         var controlEntity = w.CreateEntity();
@@ -43,7 +53,8 @@ public sealed class SnakeMod : IMod
         context.RegisterSequential("cyberland.demo.snake/tick", new SnakeTickSystem(host, session, controlEntity));
         context.RegisterSequential("cyberland.demo.snake/tilemap-layout", new SnakeTilemapLayoutSystem(host, session, arena));
         context.RegisterSequential("cyberland.demo.snake/lights", new SnakeLightsSystem(host, session));
-        context.RegisterSequential("cyberland.demo.snake/render", new SnakeRenderSystem(host, session));
+        context.RegisterSequential("cyberland.demo.snake/render",
+            new SnakeRenderSystem(host, session, context.Localization, fonts, textCache));
 
         ApplySnakeGlobalPost(host);
     }

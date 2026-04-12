@@ -4,7 +4,7 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-public sealed class BrickSimulationSystem : ISystem
+public sealed class BrickSimulationSystem : ISystem, IFixedUpdate
 {
     private readonly GameHostServices _host;
     private readonly BrickSession _session;
@@ -17,7 +17,7 @@ public sealed class BrickSimulationSystem : ISystem
         _controlEntity = controlEntity;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnFixedUpdate(World world, float fixedDeltaSeconds)
     {
         var r = _host.Renderer;
         if (r is null)
@@ -48,7 +48,7 @@ public sealed class BrickSimulationSystem : ISystem
 
         if (s.Phase == BrickPhase.Playing)
         {
-            var move = 420f * deltaSeconds;
+            var move = 420f * fixedDeltaSeconds;
             if (moveLeft)
                 s.PaddleCenterX -= move;
             if (moveRight)
@@ -68,7 +68,7 @@ public sealed class BrickSimulationSystem : ISystem
             }
 
             if (!s.BallDocked)
-                StepBall(s, deltaSeconds);
+                StepBall(s, fixedDeltaSeconds);
         }
     }
 

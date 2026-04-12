@@ -27,7 +27,10 @@ namespace Cyberland.Engine;
 /// The host wires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Input"/> after graphics init so mods receive a working <see cref="Modding.ModLoadContext"/>.
 /// </para>
 /// <para>
-/// Core engine systems (transforms, sprite animation, particles, tilemaps, sprites) register on the scheduler before and after <see cref="Modding.ModLoader.LoadAll"/>; mods add their own <see cref="Core.Ecs.ISystem"/> passes via <see cref="Modding.ModLoadContext.RegisterSequential"/> / <see cref="Modding.ModLoadContext.RegisterParallel"/>.
+/// Core engine systems (transforms, sprite animation, particles, tilemaps, sprites) register on the scheduler before and after <see cref="Modding.ModLoader.LoadAll"/>; mods add their own sequential or parallel systems via <see cref="Modding.ModLoadContext.RegisterSequential"/> / <see cref="Modding.ModLoadContext.RegisterParallel"/>, implementing <see cref="Core.Ecs.IEarlyUpdate"/> / <see cref="Core.Ecs.IFixedUpdate"/> / <see cref="Core.Ecs.ILateUpdate"/> (or parallel equivalents) as needed.
+/// </para>
+/// <para>
+/// <see cref="Core.Tasks.SystemScheduler.RunFrame(Cyberland.Engine.Core.Ecs.World, float)"/> runs once per window <strong>Render</strong> tick (not per <strong>Update</strong>), with <c>deltaSeconds</c> equal to Silk’s <c>Render</c> callback argument (the render stopwatch interval from <c>DoRender</c>). Avoid a <c>minimum</c> frame duration clamp: at high refresh + mailbox, real intervals can fall below 2 ms; a floor would add fake time every tick and make fixed-step sim run faster than wall clock. Only cap large hitches (max) to keep the accumulator bounded. Silk may call <strong>Update</strong> more often than <strong>Render</strong>; running the full ECS from <strong>Update</strong> advanced gameplay multiple times per presented frame and made HUD frame timing misleading.
 /// </para>
 /// </remarks>
 /// <example>
@@ -157,13 +160,31 @@ public sealed class GameApplication : IDisposable
 
     private void OnUpdate(double delta)
     {
-        var dt = (float)delta;
-        _scheduler.RunFrame(_world, dt);
+        // Intentionally empty: Silk may invoke Update more often than Render. Running RunFrame here caused multiple ECS
+        // passes per draw (choppy motion) and tiny per-tick deltas (inflated FPS if used for HUD).
+        _ = delta;
     }
 
-    private void OnRender(double _)
+    private void OnRender(double silkRenderDelta)
     {
+        if (_window is null)
+            return;
+
+        // Same value Silk computed in DoRender from the render stopwatch (interval since the previous successful Render).
+        float dt = (float)silkRenderDelta;
+        if (float.IsNaN(dt) || float.IsInfinity(dt) || dt < 0f)
+            dt = 0f;
+
+        // No positive minimum: real dt can be under 2 ms at high refresh + low-latency present; clamping up to 1/500 s
+        // made each tick contribute at least 2 ms to the fixed accumulator → simulation faster than wall time (~2× near ~1 kHz ticks).
+        if (dt > 0f)
+            dt = Math.Min(dt, 0.25f);
+
+        // Publish fixed-step remainder before ILateUpdate so visual extrapolation (e.g. pos + vel * acc) uses this frame's alpha.
+        _scheduler.RunFrame(_world, dt, acc => _host.FixedAccumulatorSeconds = acc);
+        _host.FixedDeltaSeconds = _scheduler.FixedDeltaSeconds;
         _renderer?.DrawFrame();
+        _host.LastPresentDeltaSeconds = dt;
     }
 
     private void OnClosing()

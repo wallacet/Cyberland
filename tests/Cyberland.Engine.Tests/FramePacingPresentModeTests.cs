@@ -13,7 +13,7 @@ public sealed class FramePacingPresentModeTests
     }
 
     [Fact]
-    public void SelectPresentMode_VSync_prefers_Fifo_then_Relaxed()
+    public void SelectPresentMode_VSync_prefers_Mailbox_then_Fifo_then_Relaxed()
     {
         var onlyFifo = new[] { PresentModeKHR.FifoKhr };
         Assert.Equal(PresentModeKHR.FifoKhr, FramePacingPresentMode.SelectPresentMode(onlyFifo, FramePacing.VSync));
@@ -25,20 +25,20 @@ public sealed class FramePacingPresentModeTests
 
         var fifoFirst = new[] { PresentModeKHR.FifoKhr, PresentModeKHR.FifoRelaxedKhr };
         Assert.Equal(PresentModeKHR.FifoKhr, FramePacingPresentMode.SelectPresentMode(fifoFirst, FramePacing.VSync));
+
+        var fifoAndMailbox = new[] { PresentModeKHR.FifoKhr, PresentModeKHR.MailboxKhr };
+        Assert.Equal(
+            PresentModeKHR.MailboxKhr,
+            FramePacingPresentMode.SelectPresentMode(fifoAndMailbox, FramePacing.VSync));
     }
 
     [Fact]
-    public void SelectPresentMode_VSync_falls_back_to_low_latency_when_no_fifo()
+    public void SelectPresentMode_VSync_falls_back_to_Immediate_when_no_mailbox_fifo_or_relaxed()
     {
         var immediateOnly = new[] { PresentModeKHR.ImmediateKhr };
         Assert.Equal(
             PresentModeKHR.ImmediateKhr,
             FramePacingPresentMode.SelectPresentMode(immediateOnly, FramePacing.VSync));
-
-        var mailboxOnly = new[] { PresentModeKHR.MailboxKhr };
-        Assert.Equal(
-            PresentModeKHR.MailboxKhr,
-            FramePacingPresentMode.SelectPresentMode(mailboxOnly, FramePacing.VSync));
     }
 
     [Fact]

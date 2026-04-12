@@ -14,8 +14,11 @@ namespace Cyberland.Engine.Scene.Systems;
 /// Uses <see cref="GameHostServices.ParticleEmitterIdsForFrame"/> filled by <see cref="ParticleSimulationSystem"/> in the same frame.
 /// Keep simulation registered and ordered <strong>before</strong> render (stock <see cref="GameApplication"/> order); disabling simulation while leaving render enabled can leave stale emitter ids.
 /// </remarks>
-public sealed class ParticleRenderSystem : IParallelSystem
+public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
 {
+    private static readonly Vector4D<float> WhiteColor = new(1f, 1f, 1f, 1f);
+    private static readonly Vector3D<float> WhiteEmissive = new(1f, 1f, 1f);
+
     private readonly GameHostServices _host;
 
     /// <param name="host">Requires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Particles"/>.</param>
@@ -23,7 +26,7 @@ public sealed class ParticleRenderSystem : IParallelSystem
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
@@ -35,10 +38,15 @@ public sealed class ParticleRenderSystem : IParallelSystem
         if (ids.Count == 0)
             return;
 
-        Parallel.ForEach(ids, parallelOptions, id =>
+        var emitters = world.Components<ParticleEmitter>();
+        var positions = world.Components<Position>();
+        var defaultNormal = r.DefaultNormalTextureId;
+
+        Parallel.For(0, ids.Count, parallelOptions, i =>
         {
-            ref readonly var em = ref world.Components<ParticleEmitter>().Get(id);
-            if (!world.Components<Position>().TryGet(id, out var pos))
+            var id = ids[i];
+            ref readonly var em = ref emitters.Get(id);
+            if (!positions.TryGet(id, out var pos))
                 return;
             if (!store.TryGetBucket(id, out var b) || b is null || b.Count == 0)
                 return;
@@ -54,11 +62,11 @@ public sealed class ParticleRenderSystem : IParallelSystem
                     Layer = em.Layer,
                     SortKey = em.SortKey + p * 0.001f,
                     AlbedoTextureId = em.AlbedoTextureId,
-                    NormalTextureId = r.DefaultNormalTextureId,
+                    NormalTextureId = defaultNormal,
                     EmissiveTextureId = -1,
-                    ColorMultiply = new Vector4D<float>(1f, 1f, 1f, 1f),
+                    ColorMultiply = WhiteColor,
                     Alpha = 1f,
-                    EmissiveTint = new Vector3D<float>(1f, 1f, 1f),
+                    EmissiveTint = WhiteEmissive,
                     EmissiveIntensity = 0.6f,
                     DepthHint = em.SortKey,
                     UvRect = default

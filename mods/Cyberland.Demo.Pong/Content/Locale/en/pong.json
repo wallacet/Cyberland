@@ -1,0 +1,8 @@
+{
+  "demo.pong.title": "PONG",
+  "demo.pong.hint_title": "Enter / R — start     Q — quit",
+  "demo.pong.hint_gameover": "Enter / R — restart     Q — quit",
+  "demo.pong.score_you": "You",
+  "demo.pong.score_cpu": "CPU",
+  "demo.pong.game_over": "GAME OVER"
+}

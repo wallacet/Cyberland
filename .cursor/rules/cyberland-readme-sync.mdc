@@ -34,7 +34,7 @@ Apply this rule when any of these are true:
 
 ## Verification checklist (before handoff on README edits)
 
-1. **Frame loop** — Match `GameApplication`: `OnUpdate` → `SystemScheduler.RunFrame`; `OnRender` → `VulkanRenderer.DrawFrame`. Do not attribute mod-only behavior (e.g. exit key handling) to the host unless `GameApplication` actually implements it.
+1. **Frame loop** — Match `GameApplication`: `OnRender` → `SystemScheduler.RunFrame` then `VulkanRenderer.DrawFrame`; the window `Update` handler is intentionally empty. Do not attribute mod-only behavior (e.g. exit key handling) to the host unless `GameApplication` actually implements it.
 2. **CI** — Default branch and path filters match `.github/workflows/*.yml` (e.g. `master` vs `main`, glob paths).
 3. **Mods** — Staging target names (`StageBaseMod`, `StageDemoMod`, …) and `Mods/` layout match `Cyberland.Host.csproj`.
 4. **Further reading** — File paths for partials/helpers exist (or update the list).

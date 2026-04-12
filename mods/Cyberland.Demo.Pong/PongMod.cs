@@ -1,8 +1,11 @@
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
@@ -16,6 +19,13 @@ public sealed class PongMod : IMod
 {
     public void OnLoad(ModLoadContext context)
     {
+        context.MountDefaultContent();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var textCache = new TextGlyphCache();
+        LocalizationBootstrap.LoadAsync(context.Localization, new AssetManager(context.VirtualFileSystem),
+            "Locale/en/pong.json").GetAwaiter().GetResult();
+
         var w = context.World;
         var session = w.CreateEntity();
         w.Components<PongState>().GetOrAdd(session);
@@ -43,7 +53,8 @@ public sealed class PongMod : IMod
         context.RegisterSequential("cyberland.demo.pong/input", new PongInputSystem(host, session, context.Scheduler));
         context.RegisterSequential("cyberland.demo.pong/simulation", new PongSimulationSystem(host, session));
         context.RegisterSequential("cyberland.demo.pong/lights", new PongLightsSystem(host, session));
-        context.RegisterSequential("cyberland.demo.pong/visual-sync", new PongVisualSyncSystem(host, session, visuals));
+        context.RegisterSequential("cyberland.demo.pong/visual-sync",
+            new PongVisualSyncSystem(host, session, visuals, context.Localization, fonts, textCache));
 
         ApplyPongGlobalPost(host);
     }

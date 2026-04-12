@@ -69,6 +69,8 @@ public sealed unsafe partial class VulkanRenderer
 
     private VkBuffer _pointLightSsbo = default;
     private DeviceMemory _pointLightSsboMemory = default;
+    /// <summary>Persistent host mapping for <see cref="_pointLightSsbo"/>; unmapped on teardown.</summary>
+    private void* _pointLightSsboMapped;
 
     private Image _imgBloom0 = default;
     private DeviceMemory _memBloom0 = default;
@@ -172,6 +174,8 @@ public sealed unsafe partial class VulkanRenderer
     private PostProcessGraph? _postProcessGraph;
     private VkBuffer _lightingBuffer = default;
     private DeviceMemory _lightingBufferMemory = default;
+    /// <summary>Persistent host mapping for <see cref="_lightingBuffer"/>; unmapped on teardown.</summary>
+    private void* _lightingBufferMapped;
 
     /// <summary>One composite descriptor set per in-flight frame so updating bloom binding cannot race overlapping GPU work.</summary>
     private DescriptorSet[] _dsCompositeSlots = new DescriptorSet[MaxFramesInFlight];

@@ -1,8 +1,11 @@
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
@@ -25,6 +28,13 @@ public sealed class DemoMod : IMod
 {
     public void OnLoad(ModLoadContext context)
     {
+        context.MountDefaultContent();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var textCache = new TextGlyphCache();
+        LocalizationBootstrap.LoadAsync(context.Localization, new AssetManager(context.VirtualFileSystem),
+            "Locale/en/demo_hdr.json").GetAwaiter().GetResult();
+
         var w = context.World;
         var player = w.CreateEntity();
         w.Components<Velocity>().GetOrAdd(player);
@@ -59,8 +69,10 @@ public sealed class DemoMod : IMod
         context.RegisterSequential("cyberland.demo/integrate", new DemoIntegrateSystem(host, player));
         // Post volumes merge into one full-frame pass (no per-pixel masking); drive bloom from player X so motion is visible.
         context.RegisterSequential("cyberland.demo/post-volumes",
-            new DelegateSequentialSystem((world, _) => SubmitDemoBloomVolume(world, player, host)));
+            new DelegateSequentialSystem(onLateUpdate: (world, _) => SubmitDemoBloomVolume(world, player, host)));
         context.RegisterParallel("cyberland.demo/velocity-damp", new VelocityDampSystem());
+        context.RegisterSequential("cyberland.demo/hud-text",
+            new DemoHudTextSystem(context.Host, context.Localization, fonts, textCache));
     }
 
     public void OnUnload()

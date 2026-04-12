@@ -127,6 +127,82 @@ public sealed unsafe partial class VulkanRenderer
             return id;
         }
 
+        /// <summary>
+        /// Updates a sub-rectangle of an existing image (layout: ShaderReadOnly → TransferDst → copy → ShaderReadOnly).
+        /// </summary>
+        public bool TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height,
+            ReadOnlySpan<byte> rgba)
+        {
+            if (_r._vk is null || textureId < 0 || textureId >= _r._textureSlots.Count)
+                return false;
+            if (width <= 0 || height <= 0 || rgba.Length < width * height * 4)
+                return false;
+
+            var gt = _r._textureSlots[textureId];
+            if (dstX < 0 || dstY < 0 || dstX + width > gt.Width || dstY + height > gt.Height)
+                return false;
+
+            UploadBuffer(rgba, (ulong)(width * height * 4), out var staging, out var stagingMem);
+            var img = gt.Image;
+
+            OneTimeCommands(cmd =>
+            {
+                ImageMemoryBarrier toTransfer = new()
+                {
+                    SType = StructureType.ImageMemoryBarrier,
+                    OldLayout = ImageLayout.ShaderReadOnlyOptimal,
+                    NewLayout = ImageLayout.TransferDstOptimal,
+                    SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
+                    DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
+                    Image = img,
+                    SubresourceRange = new ImageSubresourceRange
+                    {
+                        AspectMask = ImageAspectFlags.ColorBit,
+                        BaseMipLevel = 0,
+                        LevelCount = 1,
+                        BaseArrayLayer = 0,
+                        LayerCount = 1
+                    },
+                    SrcAccessMask = AccessFlags.ShaderReadBit,
+                    DstAccessMask = AccessFlags.TransferWriteBit
+                };
+
+                _r._vk!.CmdPipelineBarrier(cmd, PipelineStageFlags.FragmentShaderBit, PipelineStageFlags.TransferBit, 0,
+                    0, null, 0, null, 1, &toTransfer);
+
+                BufferImageCopy region = new()
+                {
+                    BufferOffset = 0,
+                    BufferRowLength = 0,
+                    BufferImageHeight = 0,
+                    ImageSubresource = new ImageSubresourceLayers
+                    {
+                        AspectMask = ImageAspectFlags.ColorBit,
+                        MipLevel = 0,
+                        BaseArrayLayer = 0,
+                        LayerCount = 1
+                    },
+                    ImageOffset = new Offset3D { X = dstX, Y = dstY, Z = 0 },
+                    ImageExtent = new Extent3D { Width = (uint)width, Height = (uint)height, Depth = 1 }
+                };
+
+                _r._vk!.CmdCopyBufferToImage(cmd, staging, img, ImageLayout.TransferDstOptimal, 1, &region);
+
+                ImageMemoryBarrier toSample = toTransfer;
+                toSample.OldLayout = ImageLayout.TransferDstOptimal;
+                toSample.NewLayout = ImageLayout.ShaderReadOnlyOptimal;
+                toSample.SrcAccessMask = AccessFlags.TransferWriteBit;
+                toSample.DstAccessMask = AccessFlags.ShaderReadBit;
+
+                _r._vk!.CmdPipelineBarrier(cmd, PipelineStageFlags.TransferBit, PipelineStageFlags.FragmentShaderBit, 0,
+                    0, null, 0, null, 1, &toSample);
+            });
+
+            _r._vk!.DestroyBuffer(_r._device, staging, null);
+            _r._vk.FreeMemory(_r._device, stagingMem, null);
+            return true;
+        }
+
         public void UploadBuffer(ReadOnlySpan<byte> data, ulong size, out VkBuffer buf, out DeviceMemory bmem)
         {
             _r.CreateHostVisibleBuffer(size, BufferUsageFlags.TransferSrcBit, out buf, out bmem);
@@ -197,6 +273,13 @@ public sealed unsafe partial class VulkanRenderer
     {
         _textureUpload ??= new TextureUpload(this);
         return _textureUpload.RegisterTextureRgbaInternal(rgba, width, height);
+    }
+
+    private bool TryUploadTextureRgbaSubregionInternal(int textureId, int dstX, int dstY, int width, int height,
+        ReadOnlySpan<byte> rgba)
+    {
+        _textureUpload ??= new TextureUpload(this);
+        return _textureUpload.TryUploadTextureRgbaSubregion(textureId, dstX, dstY, width, height, rgba);
     }
 
     private void UploadBuffer(ReadOnlySpan<byte> data, ulong size, out VkBuffer buf, out DeviceMemory bmem)

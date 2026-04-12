@@ -20,9 +20,27 @@ public sealed class RenderingArchitectureContractsTests
         var sortIndices = new[] { 0 };
         var screen = new Vector2D<float>(1920f, 1080f);
 
-        var plan = new FramePlan(sprites, pointLights, spotLights, directionalLights, ambientLights, volumes, in global, in resolved, sortIndices, in screen);
+        var plan = new FramePlan(
+            sprites,
+            1,
+            pointLights,
+            1,
+            spotLights,
+            1,
+            directionalLights,
+            1,
+            ambientLights,
+            1,
+            volumes,
+            1,
+            in global,
+            in resolved,
+            sortIndices,
+            transparentSpriteCount: 0,
+            in screen);
 
         Assert.Same(sprites, plan.Sprites);
+        Assert.Equal(1, plan.SpriteCount);
         Assert.Same(pointLights, plan.PointLights);
         Assert.Same(spotLights, plan.SpotLights);
         Assert.Same(directionalLights, plan.DirectionalLights);
@@ -63,14 +81,21 @@ public sealed class RenderingArchitectureContractsTests
 
         var plan = new FramePlan(
             sprites: [],
+            spriteCount: 0,
             pointLights: [],
+            pointLightCount: 0,
             spotLights: [],
+            spotLightCount: 0,
             directionalLights: [],
+            directionalLightCount: 0,
             ambientLights: [],
+            ambientLightCount: 0,
             volumes: [],
+            volumeCount: 0,
             globalPost: default,
             resolvedPost: default,
             sortIndices: [],
+            transparentSpriteCount: 0,
             screen: new Vector2D<float>(1f, 1f));
 
         var context = new PostEffectContext(cmd, fb, in plan, in fullViewport, in fullScissor, in halfViewport, in halfScissor);

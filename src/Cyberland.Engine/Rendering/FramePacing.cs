@@ -10,7 +10,7 @@ namespace Cyberland.Engine.Rendering;
 public enum FramePacingMode
 {
     /// <summary>
-    /// Prefer FIFO swapchain presentation (sync to vertical blank when supported).
+    /// Prefer tear-free presentation at display refresh: mailbox when available (else FIFO / relaxed FIFO).
     /// </summary>
     VSync,
 
@@ -53,7 +53,7 @@ public readonly struct FramePacing : IEquatable<FramePacing>
     /// <summary>Target frames per second when <see cref="Mode"/> is <see cref="FramePacingMode.Limited"/>.</summary>
     public int TargetFps { get; }
 
-    /// <summary>Hardware VSync (FIFO presentation).</summary>
+    /// <summary>Hardware VSync (mailbox when available, else FIFO).</summary>
     public static FramePacing VSync => new(FramePacingMode.VSync);
 
     /// <summary>Uncapped frame rate (non-FIFO presentation when available).</summary>

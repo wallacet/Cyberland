@@ -4,7 +4,7 @@ using Silk.NET.Input;
 
 namespace Cyberland.Demo.Snake;
 
-public sealed class SnakeInputSystem : ISystem
+public sealed class SnakeInputSystem : ISystem, IEarlyUpdate
 {
     private readonly GameHostServices _host;
     private readonly SnakeSession _session;
@@ -17,7 +17,7 @@ public sealed class SnakeInputSystem : ISystem
         _controlEntity = controlEntity;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnEarlyUpdate(World world, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref var ctl = ref world.Components<SnakeControl>().Get(_controlEntity);

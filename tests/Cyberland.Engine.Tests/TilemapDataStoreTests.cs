@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Scene;
 
@@ -17,6 +18,21 @@ public sealed class TilemapDataStoreTests
         Assert.Equal(2, r);
         Assert.Equal(4, mem.Length);
         Assert.Equal(1, mem.Span[0]);
+    }
+
+    [Fact]
+    public void Register_same_dimensions_reuses_tile_buffer()
+    {
+        var s = new TilemapDataStore();
+        var id = new EntityId(5);
+        s.Register(id, new[] { 1, 0, 2, 3 }, 2, 2);
+        Assert.True(s.TryGet(id, out var first, out _, out _));
+        s.Register(id, new[] { 9, 8, 7, 6 }, 2, 2);
+        Assert.True(s.TryGet(id, out var second, out _, out _));
+        Assert.True(MemoryMarshal.TryGetArray(first, out var seg1));
+        Assert.True(MemoryMarshal.TryGetArray(second, out var seg2));
+        Assert.Same(seg1.Array, seg2.Array);
+        Assert.Equal(9, second.Span[0]);
     }
 
     [Fact]

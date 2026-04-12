@@ -265,6 +265,20 @@ public sealed class CoverageFillTests
     }
 
     [Fact]
+    public void FrameEdgeLatch_Arm_TryConsume_and_IsArmed()
+    {
+        var latch = new FrameEdgeLatch();
+        Assert.False(latch.IsArmed);
+        Assert.False(latch.TryConsume());
+
+        latch.Arm();
+        Assert.True(latch.IsArmed);
+        Assert.True(latch.TryConsume());
+        Assert.False(latch.IsArmed);
+        Assert.False(latch.TryConsume());
+    }
+
+    [Fact]
     public void GraphicsInitializationException_without_inner_message()
     {
         var ex = new GraphicsInitializationException("gpu detail");

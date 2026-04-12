@@ -9,7 +9,7 @@ namespace Cyberland.Demo.BrickBreaker;
 /// Submits arena lighting each frame for the deferred path: ambient + directional + spot in the base pass,
 /// multiple <see cref="PointLight"/>s via SSBO + instanced draws (all queued lights are evaluated).
 /// </summary>
-public sealed class BrickLightsSystem : ISystem
+public sealed class BrickLightsSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
     private readonly BrickSession _session;
@@ -20,7 +20,7 @@ public sealed class BrickLightsSystem : ISystem
         _session = session;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnLateUpdate(World world, float deltaSeconds)
     {
         _ = world;
         _ = deltaSeconds;

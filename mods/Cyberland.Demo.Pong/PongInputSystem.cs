@@ -6,7 +6,7 @@ using Silk.NET.Input;
 namespace Cyberland.Demo.Pong;
 
 /// <summary>Keyboard → <see cref="PongControl"/>; quit is immediate.</summary>
-public sealed class PongInputSystem : ISystem
+public sealed class PongInputSystem : ISystem, IEarlyUpdate
 {
     private readonly GameHostServices _host;
     private readonly EntityId _session;
@@ -19,7 +19,7 @@ public sealed class PongInputSystem : ISystem
         _scheduler = scheduler;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnEarlyUpdate(World world, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref var c = ref world.Components<PongControl>().Get(_session);

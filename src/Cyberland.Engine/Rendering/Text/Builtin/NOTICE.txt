@@ -1,0 +1,4 @@
+Embedded fonts in this folder (Roboto, Roboto Mono) are licensed under the Apache License, Version 2.0.
+See: https://github.com/googlefonts/roboto and https://github.com/googlefonts/robotomono
+
+The subset TTF files were obtained from the jsDelivr fontsource CDN for compact engine embedding.

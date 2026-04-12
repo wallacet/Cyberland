@@ -12,11 +12,17 @@ public sealed class VirtualFileSystem
     /// <summary>Mounted directories in add order; last entry wins when resolving duplicates.</summary>
     public IReadOnlyList<string> Roots => _roots;
 
-    /// <summary>Add a directory root; last added wins when resolving duplicates.</summary>
+    /// <summary>
+    /// Add a directory root; last added wins when resolving duplicates.
+    /// A mount whose full path equals the most recently added root is ignored (same resolution order; avoids duplicate scans when the mod loader and <see cref="Cyberland.Engine.Modding.ModLoadContext.MountDefaultContent"/> both mount the same folder).
+    /// </summary>
     public void Mount(string absoluteDirectory)
     {
         var full = Path.GetFullPath(absoluteDirectory);
         if (!Directory.Exists(full))
+            return;
+
+        if (_roots.Count > 0 && string.Equals(_roots[^1], full, StringComparison.OrdinalIgnoreCase))
             return;
 
         _roots.Add(full);
@@ -58,10 +64,13 @@ public sealed class VirtualFileSystem
         if (rel.Length > 0 && _blocked.Contains(rel))
             return false;
 
+        // One OS path segment per resolve; avoid per-root string Replace allocations.
+        var relOs = rel.Replace('/', Path.DirectorySeparatorChar);
+
         // Last mount wins: iterate backwards.
         for (var i = _roots.Count - 1; i >= 0; i--)
         {
-            var candidate = Path.Combine(_roots[i], rel.Replace('/', Path.DirectorySeparatorChar));
+            var candidate = Path.Combine(_roots[i], relOs);
             if (!File.Exists(candidate))
                 continue;
 
@@ -79,9 +88,10 @@ public sealed class VirtualFileSystem
         if (rel.Length > 0 && _blocked.Contains(rel))
             return false;
 
+        var relOs = rel.Replace('/', Path.DirectorySeparatorChar);
         for (var i = _roots.Count - 1; i >= 0; i--)
         {
-            var candidate = Path.Combine(_roots[i], rel.Replace('/', Path.DirectorySeparatorChar));
+            var candidate = Path.Combine(_roots[i], relOs);
             if (File.Exists(candidate))
                 return true;
         }

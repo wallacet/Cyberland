@@ -1,0 +1,7 @@
+{
+  "demo.snake.title": "SNAKE",
+  "demo.snake.hint_title": "Enter / R — start     Q — quit",
+  "demo.snake.hint_gameover": "Enter / R — restart     Q — quit",
+  "demo.snake.playing": "Foods",
+  "demo.snake.game_over": "GAME OVER"
+}

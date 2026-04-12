@@ -11,8 +11,10 @@ namespace Cyberland.Engine.Scene.Systems;
 /// <summary>
 /// Parallel pass: for each <see cref="Tilemap"/> entity, looks up grid indices in <see cref="Hosting.GameHostServices.Tilemaps"/> and issues textured quads per solid cell.
 /// </summary>
-public sealed class TilemapRenderSystem : IParallelSystem
+public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
 {
+    private static readonly Vector4D<float> OpaqueWhite = new(1f, 1f, 1f, 1f);
+
     private readonly List<ComponentChunkView<Tilemap>> _chunks = new();
     private readonly GameHostServices _host;
 
@@ -21,7 +23,7 @@ public sealed class TilemapRenderSystem : IParallelSystem
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
@@ -36,8 +38,9 @@ public sealed class TilemapRenderSystem : IParallelSystem
         if (_chunks.Count == 0)
             return;
 
-        Parallel.ForEach(_chunks, parallelOptions, chunk =>
+        Parallel.For(0, _chunks.Count, parallelOptions, idx =>
         {
+            var chunk = _chunks[idx];
             var ents = chunk.Entities;
             var maps = chunk.Components;
             for (var i = 0; i < chunk.Count; i++)
@@ -54,6 +57,7 @@ public sealed class TilemapRenderSystem : IParallelSystem
                 var oy = tm.OriginY;
                 var tid = tm.AtlasAlbedoTextureId;
                 var minI = tm.NonEmptyTileMinIndex;
+                var defaultNormal = r.DefaultNormalTextureId;
 
                 for (var y = 0; y < rows; y++)
                 for (var x = 0; x < cols; x++)
@@ -72,9 +76,9 @@ public sealed class TilemapRenderSystem : IParallelSystem
                         Layer = tm.Layer,
                         SortKey = tm.SortKey + x * 0.001f + y * 0.0001f,
                         AlbedoTextureId = tid,
-                        NormalTextureId = r.DefaultNormalTextureId,
+                        NormalTextureId = defaultNormal,
                         EmissiveTextureId = -1,
-                        ColorMultiply = new Vector4D<float>(1f, 1f, 1f, 1f),
+                        ColorMultiply = OpaqueWhite,
                         Alpha = 1f,
                         EmissiveTint = default,
                         EmissiveIntensity = 0f,

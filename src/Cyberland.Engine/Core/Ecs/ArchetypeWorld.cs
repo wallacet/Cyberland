@@ -203,9 +203,12 @@ internal sealed class ArchetypeWorld
         Archetype oldArch, ArchetypeChunk oldChunk, int oldRow,
         Archetype newArch, ArchetypeChunk newChunk, int newRow)
     {
-        foreach (var uid in newArch.Signature)
+        // Column index matches sorted signature index; avoid a second BinarySearch per component.
+        var sig = newArch.Signature;
+        for (var i = 0; i < sig.Length; i++)
         {
-            var newCol = newArch.ColumnIndexOf(uid);
+            var uid = sig[i];
+            var newCol = i;
             if (!oldArch.TryColumnIndexOf(uid, out var oldCol))
             {
                 newChunk.Columns[newCol].WriteDefault(newRow);

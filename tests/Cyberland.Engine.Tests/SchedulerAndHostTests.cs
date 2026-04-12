@@ -34,16 +34,16 @@ public sealed class SchedulerAndHostTests
         Assert.Same(a, p.CreateParallelOptions());
     }
 
-    private sealed class TrackSeq : ISystem
+    private sealed class TrackSeq : ISystem, ILateUpdate
     {
         public int Step;
-        public void OnUpdate(World world, float deltaSeconds) => Step = 1;
+        public void OnLateUpdate(World world, float deltaSeconds) => Step = 1;
     }
 
-    private sealed class TrackPar : IParallelSystem
+    private sealed class TrackPar : IParallelSystem, IParallelLateUpdate
     {
         public int Step;
-        public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions) => Step = 2;
+        public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions) => Step = 2;
     }
 
     [Fact]
@@ -64,11 +64,11 @@ public sealed class SchedulerAndHostTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<int>();
-        sched.RegisterSequential("s1", new OrderSeq { Order = order, Mark = 1 });
-        sched.RegisterParallel("p1", new OrderPar { Order = order, Mark = 2 });
-        sched.RegisterSequential("s2", new OrderSeq { Order = order, Mark = 3 });
+        sched.RegisterSequential("s1", new OrderSeqEarly { Order = order, Mark = 1 });
+        sched.RegisterParallel("p1", new OrderParFixed { Order = order, Mark = 2 });
+        sched.RegisterSequential("s2", new OrderSeqLate { Order = order, Mark = 3 });
         sched.RegisterParallel("p2", new OrderPar { Order = order, Mark = 4 });
-        sched.RunFrame(new World(), 0.016f);
+        sched.RunFrame(new World(), 1f / 60f);
         Assert.Equal(new[] { 1, 2, 3, 4 }, order);
     }
 
@@ -106,11 +106,18 @@ public sealed class SchedulerAndHostTests
         Assert.False(sched.TryUnregister("a"));
     }
 
-    private sealed class OrderSeq : ISystem
+    private sealed class OrderSeqEarly : ISystem, IEarlyUpdate
     {
         public required List<int> Order { get; init; }
         public required int Mark { get; init; }
-        public void OnUpdate(World world, float deltaSeconds) => Order.Add(Mark);
+        public void OnEarlyUpdate(World world, float deltaSeconds) => Order.Add(Mark);
+    }
+
+    private sealed class OrderSeqLate : ISystem, ILateUpdate
+    {
+        public required List<int> Order { get; init; }
+        public required int Mark { get; init; }
+        public void OnLateUpdate(World world, float deltaSeconds) => Order.Add(Mark);
     }
 
     [Fact]
@@ -118,10 +125,10 @@ public sealed class SchedulerAndHostTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<int>();
-        sched.RegisterSequential("a", new OrderSeq { Order = order, Mark = 1 });
-        sched.RegisterSequential("b", new OrderSeq { Order = order, Mark = 2 });
-        sched.RegisterSequential("c", new OrderSeq { Order = order, Mark = 3 });
-        sched.RegisterSequential("b", new OrderSeq { Order = order, Mark = 20 });
+        sched.RegisterSequential("a", new OrderSeqLate { Order = order, Mark = 1 });
+        sched.RegisterSequential("b", new OrderSeqLate { Order = order, Mark = 2 });
+        sched.RegisterSequential("c", new OrderSeqLate { Order = order, Mark = 3 });
+        sched.RegisterSequential("b", new OrderSeqLate { Order = order, Mark = 20 });
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(new[] { 1, 20, 3 }, order);
     }
@@ -165,11 +172,20 @@ public sealed class SchedulerAndHostTests
         Assert.Throws<ArgumentNullException>(() => sched.RegisterParallel("id", null!));
     }
 
-    private sealed class OrderPar : IParallelSystem
+    private sealed class OrderParFixed : IParallelSystem, IParallelFixedUpdate
     {
         public required List<int> Order { get; init; }
         public required int Mark { get; init; }
-        public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions) => Order.Add(Mark);
+        public void OnParallelFixedUpdate(World world, float fixedDeltaSeconds, ParallelOptions parallelOptions) =>
+            Order.Add(Mark);
+    }
+
+    private sealed class OrderPar : IParallelSystem, IParallelLateUpdate
+    {
+        public required List<int> Order { get; init; }
+        public required int Mark { get; init; }
+        public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions) =>
+            Order.Add(Mark);
     }
 
     [Fact]
@@ -230,5 +246,31 @@ public sealed class SchedulerAndHostTests
         host.Input = null;
         Assert.NotNull(host.ParticleEmitterIdsForFrame);
         Assert.Empty(host.ParticleEmitterIdsForFrame);
+
+        Assert.Equal(0f, host.LastPresentDeltaSeconds);
+        host.LastPresentDeltaSeconds = 1f / 60f;
+        Assert.Equal(1f / 60f, host.LastPresentDeltaSeconds);
+
+        Assert.Equal(0f, host.FixedAccumulatorSeconds);
+        host.FixedAccumulatorSeconds = 0.012f;
+        Assert.Equal(0.012f, host.FixedAccumulatorSeconds);
+
+        Assert.Equal(1f / 60f, host.FixedDeltaSeconds);
+        host.FixedDeltaSeconds = 1f / 120f;
+        Assert.Equal(1f / 120f, host.FixedDeltaSeconds);
+    }
+
+    [Fact]
+    public void GameHostServices_fixed_timing_can_mirror_scheduler_after_RunFrame()
+    {
+        var sched = new SystemScheduler(new ParallelismSettings()) { FixedDeltaSeconds = 1f / 60f };
+        sched.RunFrame(new World(), 0.01f);
+        var host = new GameHostServices(new KeyBindingStore())
+        {
+            FixedAccumulatorSeconds = sched.FixedAccumulator,
+            FixedDeltaSeconds = sched.FixedDeltaSeconds
+        };
+        Assert.Equal(sched.FixedAccumulator, host.FixedAccumulatorSeconds);
+        Assert.Equal(sched.FixedDeltaSeconds, host.FixedDeltaSeconds);
     }
 }

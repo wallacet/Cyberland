@@ -13,6 +13,36 @@ public sealed class VirtualFileSystemAndAssetTests
     }
 
     [Fact]
+    public void VirtualFileSystem_Mount_skips_consecutive_duplicate_full_path()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb vfs dup " + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+        try
+        {
+            File.WriteAllText(Path.Combine(root, "note.txt"), "x");
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            vfs.Mount(root);
+            Assert.Single(vfs.Roots);
+            Assert.True(vfs.TryOpenRead("note.txt", out var stream));
+            using (stream)
+            using (var reader = new StreamReader(stream!))
+                Assert.Equal("x", reader.ReadToEnd());
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, true);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+    }
+
+    [Fact]
     public void VirtualFileSystem_last_mount_wins_for_try_open()
     {
         var a = Path.Combine(Path.GetTempPath(), "cyb vfs a " + Guid.NewGuid());

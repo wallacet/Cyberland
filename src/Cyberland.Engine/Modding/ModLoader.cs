@@ -16,7 +16,8 @@ namespace Cyberland.Engine.Modding;
 /// <b>Load flow (two passes):</b> (1) Enumerate <c>Mods/*/manifest.json</c>, skip disabled/excluded ids, sort by
 /// <see cref="ModManifest.LoadOrder"/> then id. For each manifest, record it and mount <see cref="ModManifest.ContentRoot"/>,
 /// then apply <see cref="ModManifest.ContentBlocklist"/> via <see cref="VirtualFileSystem.BlockPath"/>. (2) For each entry
-/// with an <see cref="ModManifest.EntryAssembly"/>, load the DLL from disk, find a concrete <see cref="IMod"/>, construct it,
+/// with an <see cref="ModManifest.EntryAssembly"/>, load the DLL from disk, resolve a concrete <see cref="IMod"/> (optional
+/// <see cref="ModManifest.EntryType"/> hint, else scan <see cref="Assembly.GetExportedTypes"/>), construct it,
 /// and call <see cref="IMod.OnLoad"/> with a <see cref="ModLoadContext"/>.
 /// <para>
 /// Entry assemblies load in <see cref="AssemblyLoadContext.Default"/> so <see cref="IMod"/> matches the host’s
@@ -90,6 +91,11 @@ public sealed class ModLoader
     /// <param name="scheduler">Where mods register systems.</param>
     /// <param name="host">Renderer, input, optional stores.</param>
     /// <param name="excludedModIds">Mod ids to skip entirely (from <see cref="ExcludeModsParser"/>).</param>
+    /// <remarks>
+    /// Calling this again on the same <see cref="ModLoader"/> replaces the previous result: <see cref="UnloadAll"/> runs first
+    /// (reverse <see cref="IMod.OnUnload"/>), then manifests and instances are repopulated. The host’s <see cref="VirtualFileSystem"/>
+    /// is not cleared; mounts accumulate across repeated loads unless the host replaces or clears the <see cref="Assets.VirtualFileSystem"/>.
+    /// </remarks>
     public void LoadAll(
         string modsRootDirectory,
         VirtualFileSystem vfs,
@@ -101,6 +107,8 @@ public sealed class ModLoader
     {
         if (!Directory.Exists(modsRootDirectory))
             return;
+
+        UnloadAll();
 
         var dirs = Directory.GetDirectories(modsRootDirectory);
         var manifests = new List<(string Dir, ModManifest M)>();
@@ -166,12 +174,22 @@ public sealed class ModLoader
                 }
 
                 Type? modType = null;
-                foreach (var t in asm.GetExportedTypes())
+                if (!string.IsNullOrWhiteSpace(entry.M.EntryType))
                 {
-                    if (typeof(IMod).IsAssignableFrom(t) && t is { IsClass: true, IsAbstract: false })
+                    var hinted = asm.GetType(entry.M.EntryType!, throwOnError: false, ignoreCase: false);
+                    if (hinted is not null && typeof(IMod).IsAssignableFrom(hinted) && hinted is { IsClass: true, IsAbstract: false })
+                        modType = hinted;
+                }
+
+                if (modType is null)
+                {
+                    foreach (var t in asm.GetExportedTypes())
                     {
-                        modType = t;
-                        break;
+                        if (typeof(IMod).IsAssignableFrom(t) && t is { IsClass: true, IsAbstract: false })
+                        {
+                            modType = t;
+                            break;
+                        }
                     }
                 }
 

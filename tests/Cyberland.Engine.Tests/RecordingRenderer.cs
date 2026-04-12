@@ -21,12 +21,52 @@ internal sealed class RecordingRenderer : IRenderer
     public List<PostProcessVolume> Volumes { get; } = new();
     public GlobalPostProcessSettings? LastGlobal { get; private set; }
 
-    public int RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height) => 3;
+    /// <summary>When set, returned from <see cref="RegisterTextureRgba"/> instead of the default id (tests upload failures).</summary>
+    public int? RegisterTextureRgbaOverride { get; set; }
+
+    private int _nextTextureId = 3;
+
+    /// <summary>Increments for each <see cref="RegisterTextureRgba"/> call (atlas page creation).</summary>
+    public int RegisterTextureRgbaCallCount { get; private set; }
+
+    public int RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height)
+    {
+        RegisterTextureRgbaCallCount++;
+        return RegisterTextureRgbaOverride ?? _nextTextureId++;
+    }
+
+    /// <summary>Counts successful subregion uploads (atlas updates).</summary>
+    public int UploadSubregionCount { get; private set; }
+
+    /// <summary>When true, <see cref="TryUploadTextureRgbaSubregion"/> returns false (atlas update failure path).</summary>
+    public bool FailSubregionUpload { get; set; }
+
+    public bool TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height,
+        ReadOnlySpan<byte> rgba)
+    {
+        if (textureId < 0 || width <= 0 || height <= 0 || rgba.Length < width * height * 4)
+            return false;
+        if (FailSubregionUpload)
+            return false;
+        UploadSubregionCount++;
+        return true;
+    }
 
     public void SubmitSprite(in SpriteDrawRequest draw)
     {
         lock (_lock)
             Sprites.Add(draw);
+    }
+
+    public void SubmitSprites(ReadOnlySpan<SpriteDrawRequest> draws)
+    {
+        if (draws.Length == 0)
+            return;
+        lock (_lock)
+        {
+            foreach (ref readonly var d in draws)
+                Sprites.Add(d);
+        }
     }
 
     public void SubmitPointLight(in PointLight light)

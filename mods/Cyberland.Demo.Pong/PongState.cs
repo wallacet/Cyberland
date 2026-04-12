@@ -13,6 +13,10 @@ public struct PongState
     public Vector2D<float> BallVel;
     public float LeftPaddleY;
     public float RightPaddleY;
+    /// <summary>Last fixed-step vertical velocity (world units/sec) for display extrapolation.</summary>
+    public float LeftPaddleVelY;
+    /// <summary>Last fixed-step vertical velocity (world units/sec) for display extrapolation.</summary>
+    public float RightPaddleVelY;
     public float ArenaMinX;
     public float ArenaMaxX;
     public float ArenaMinY;

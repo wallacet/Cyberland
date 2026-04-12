@@ -3,7 +3,7 @@ using Cyberland.Engine.Hosting;
 
 namespace Cyberland.Demo.Snake;
 
-public sealed class SnakeTickSystem : ISystem
+public sealed class SnakeTickSystem : ISystem, IFixedUpdate
 {
     private readonly GameHostServices _host;
     private readonly SnakeSession _session;
@@ -16,7 +16,7 @@ public sealed class SnakeTickSystem : ISystem
         _controlEntity = controlEntity;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnFixedUpdate(World world, float fixedDeltaSeconds)
     {
         var r = _host.Renderer;
         if (r is null)
@@ -39,7 +39,7 @@ public sealed class SnakeTickSystem : ISystem
         if (s.Phase != SnakePhase.Playing)
             return;
 
-        s.TickAcc += deltaSeconds;
+        s.TickAcc += fixedDeltaSeconds;
         while (s.TickAcc >= SnakeConstants.TickSeconds)
         {
             s.TickAcc -= SnakeConstants.TickSeconds;

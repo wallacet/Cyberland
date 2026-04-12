@@ -8,7 +8,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo;
 
 /// <summary>Places the player once in <see cref="OnStart"/>, then integrates <see cref="Position"/> from <see cref="Velocity"/> and clamps to the playfield.</summary>
-public sealed class DemoIntegrateSystem : ISystem
+public sealed class DemoIntegrateSystem : ISystem, IFixedUpdate
 {
     private readonly GameHostServices _host;
     private readonly EntityId _player;
@@ -34,7 +34,7 @@ public sealed class DemoIntegrateSystem : ISystem
         pos.Y = p.Y;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnFixedUpdate(World world, float fixedDeltaSeconds)
     {
         var r = _host.Renderer;
         if (r is null)
@@ -44,8 +44,8 @@ public sealed class DemoIntegrateSystem : ISystem
         ref var pos = ref world.Components<Position>().Get(_player);
         ref var vel = ref world.Components<Velocity>().Get(_player);
 
-        pos.X += vel.X * deltaSeconds;
-        pos.Y += vel.Y * deltaSeconds;
+        pos.X += vel.X * fixedDeltaSeconds;
+        pos.Y += vel.Y * fixedDeltaSeconds;
 
         var h = DemoPlayerConstants.SpriteHalfExtent;
         pos.X = Math.Clamp(pos.X, h, fb.X - h);

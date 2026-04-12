@@ -9,7 +9,7 @@ namespace Cyberland.Engine.Scene.Systems;
 /// <summary>
 /// Parallel pass: integrates simple CPU particles into <see cref="ParticleStore"/> for each <see cref="ParticleEmitter"/> entity.
 /// </summary>
-public sealed class ParticleSimulationSystem : IParallelSystem
+public sealed class ParticleSimulationSystem : IParallelSystem, IParallelFixedUpdate
 {
     private readonly GameHostServices _host;
 
@@ -18,7 +18,7 @@ public sealed class ParticleSimulationSystem : IParallelSystem
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelFixedUpdate(World world, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
         var store = _host.Particles;
         var ids = _host.ParticleEmitterIdsForFrame;
@@ -36,18 +36,19 @@ public sealed class ParticleSimulationSystem : IParallelSystem
         if (ids.Count == 0)
             return;
 
-        Parallel.ForEach(ids, parallelOptions, id =>
-            SimulateEmitter(world, store, id, deltaSeconds));
+        var emitters = world.Components<ParticleEmitter>();
+
+        Parallel.For(0, ids.Count, parallelOptions, i =>
+            SimulateEmitter(emitters, store, ids[i], fixedDeltaSeconds));
     }
 
-    private static void SimulateEmitter(World world, ParticleStore store, EntityId id, float deltaSeconds)
+    private static void SimulateEmitter(ComponentStore<ParticleEmitter> emitters, ParticleStore store, EntityId id, float deltaSeconds)
     {
-        ref var e = ref world.Components<ParticleEmitter>().Get(id);
+        ref var e = ref emitters.Get(id);
         if (!e.Active || e.MaxParticles <= 0 || e.ParticleLifeSeconds <= 0f)
             return;
 
-        store.EnsureCapacity(id, e.MaxParticles);
-        var b = store.GetBucketAfterEnsure(id);
+        var b = store.EnsureCapacity(id, e.MaxParticles);
 
         e.SpawnAccumulator += deltaSeconds;
         while (e.SpawnAccumulator >= e.SpawnIntervalSeconds && b.Count < e.MaxParticles &&

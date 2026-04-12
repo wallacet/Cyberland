@@ -12,8 +12,11 @@ namespace Cyberland.Engine.Scene.Systems;
 /// Resolves <see cref="Transform"/> hierarchies into world <see cref="Position"/>, <see cref="Rotation"/>, <see cref="Scale"/>.
 /// Forest roots are solved in parallel (disjoint subtrees); cycle leftovers are resolved sequentially.
 /// </summary>
-public sealed class TransformHierarchySystem : IParallelSystem
+public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUpdate
 {
+    // Reuse child adjacency lists across frames to avoid allocating a new List per parent each tick.
+    private readonly Stack<List<EntityId>> _childListPool = new();
+
     private readonly List<EntityId> _order = new();
     private readonly Queue<EntityId> _queue = new();
     private readonly Dictionary<EntityId, List<EntityId>> _children = new();
@@ -28,12 +31,19 @@ public sealed class TransformHierarchySystem : IParallelSystem
     private readonly ThreadLocal<List<EntityId>> _bfsOrderTls = new(() => new List<EntityId>(64));
     private readonly ThreadLocal<Queue<EntityId>> _bfsQueueTls = new(() => new Queue<EntityId>(64));
     private readonly ThreadLocal<Dictionary<EntityId, Matrix3x2>> _localWorldTls =
-        new(() => new Dictionary<EntityId, Matrix3x2>());
+        new(() => new Dictionary<EntityId, Matrix3x2>(64));
 
     /// <inheritdoc />
-    public void OnParallelUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelEarlyUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
+        // Return last frame's adjacency lists to the pool before rebuilding (avoids per-parent List alloc when stable).
+        foreach (var kv in _children)
+        {
+            kv.Value.Clear();
+            _childListPool.Push(kv.Value);
+        }
+
         _children.Clear();
         _tfSet.Clear();
         _order.Clear();
@@ -45,6 +55,9 @@ public sealed class TransformHierarchySystem : IParallelSystem
         _processed.Clear();
 
         var tfStore = world.Components<Transform>();
+        var posStore = world.Components<Position>();
+        var rotStore = world.Components<Rotation>();
+        var scaleStore = world.Components<Scale>();
         foreach (var view in world.QueryChunks<Transform>())
         {
             var ents = view.Entities;
@@ -64,7 +77,7 @@ public sealed class TransformHierarchySystem : IParallelSystem
 
             if (!_children.TryGetValue(p, out var list))
             {
-                list = new List<EntityId>();
+                list = _childListPool.Count > 0 ? _childListPool.Pop() : new List<EntityId>(8);
                 _children[p] = list;
             }
 
@@ -104,13 +117,14 @@ public sealed class TransformHierarchySystem : IParallelSystem
 
         if (_roots.Count > 0)
         {
-            Parallel.ForEach(_roots, parallelOptions, root =>
+            Parallel.For(0, _roots.Count, parallelOptions, i =>
             {
+                var root = _roots[i];
                 var localW = _localWorldTls.Value!;
                 localW.Clear();
                 var subOrder = BuildSubtreeBfsOrder(root);
                 foreach (var eid in subOrder)
-                    SolveOne(world, tfStore, eid, localW, _processed);
+                    SolveOne(world, tfStore, posStore, rotStore, scaleStore, eid, localW, _processed);
             });
         }
 
@@ -120,7 +134,7 @@ public sealed class TransformHierarchySystem : IParallelSystem
                 continue;
 
             // Same parent resolution as parallel SolveOne, using the shared world matrix map built for this frame.
-            SolveOne(world, tfStore, id, _world, _processed);
+            SolveOne(world, tfStore, posStore, rotStore, scaleStore, id, _world, _processed);
         }
     }
 
@@ -148,6 +162,9 @@ public sealed class TransformHierarchySystem : IParallelSystem
     private void SolveOne(
         World world,
         ComponentStore<Transform> tfStore,
+        ComponentStore<Position> posStore,
+        ComponentStore<Rotation> rotStore,
+        ComponentStore<Scale> scaleStore,
         EntityId id,
         Dictionary<EntityId, Matrix3x2> localW,
         ConcurrentDictionary<EntityId, byte> processed)
@@ -161,29 +178,33 @@ public sealed class TransformHierarchySystem : IParallelSystem
         else if (localW.TryGetValue(p, out var pm))
             parentM = pm;
         else
-            parentM = StaticBasisMatrix(world, p);
+            parentM = StaticBasisMatrix(posStore, rotStore, scaleStore, p);
 
         var wM = TransformMath.Compose(parentM, local);
         localW[id] = wM;
         TransformMath.DecomposeToPRS(wM, out var pos, out var rad, out var sc);
 
-        ref var wp = ref world.Components<Position>().GetOrAdd(id);
+        ref var wp = ref posStore.GetOrAdd(id);
         wp.X = pos.X;
         wp.Y = pos.Y;
-        ref var wr = ref world.Components<Rotation>().GetOrAdd(id);
+        ref var wr = ref rotStore.GetOrAdd(id);
         wr.Radians = rad;
-        ref var ws = ref world.Components<Scale>().GetOrAdd(id);
+        ref var ws = ref scaleStore.GetOrAdd(id);
         ws.X = sc.X;
         ws.Y = sc.Y;
 
         processed.TryAdd(id, 0);
     }
 
-    private static Matrix3x2 StaticBasisMatrix(World world, EntityId id)
+    private static Matrix3x2 StaticBasisMatrix(
+        ComponentStore<Position> posStore,
+        ComponentStore<Rotation> rotStore,
+        ComponentStore<Scale> scaleStore,
+        EntityId id)
     {
-        var pos = world.Components<Position>().TryGet(id, out var p) ? p : default;
-        var rot = world.Components<Rotation>().TryGet(id, out var r) ? r.Radians : 0f;
-        var sc = world.Components<Scale>().TryGet(id, out var s) ? s : Scale.One;
+        var pos = posStore.TryGet(id, out var p) ? p : default;
+        var rot = rotStore.TryGet(id, out var r) ? r.Radians : 0f;
+        var sc = scaleStore.TryGet(id, out var s) ? s : Scale.One;
         return TransformMath.MatrixFromPositionRotationScale(pos.AsVector(), rot, sc.AsVector());
     }
 }

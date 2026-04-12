@@ -5,7 +5,9 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.Pong;
 
 /// <summary>Arena layout, match flow, ball/paddle physics, scoring.</summary>
-public sealed class PongSimulationSystem : ISystem
+/// <remarks>All displacement uses the fixed-step <c>fixedDeltaSeconds</c> from <see cref="IFixedUpdate.OnFixedUpdate"/> — not
+/// the variable render delta — so gameplay stays consistent across refresh rates and frame pacing modes.</remarks>
+public sealed class PongSimulationSystem : ISystem, IFixedUpdate
 {
     private readonly GameHostServices _host;
     private readonly EntityId _session;
@@ -16,7 +18,7 @@ public sealed class PongSimulationSystem : ISystem
         _session = session;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnFixedUpdate(World world, float fixedDeltaSeconds)
     {
         var r = _host.Renderer;
         if (r is null)
@@ -32,17 +34,17 @@ public sealed class PongSimulationSystem : ISystem
         st.ArenaMinY = margin;
         st.ArenaMaxY = fb.Y - margin;
 
-        st.Pulse += deltaSeconds * 3f;
+        st.Pulse += fixedDeltaSeconds * 3f;
 
         if (ctl.StartMatch)
             StartMatch(ref st, fb);
+        ctl.StartMatch = false;
 
         var up = ctl.PaddleUp;
         var down = ctl.PaddleDown;
-        ctl = default;
 
         if (st.Phase == PongPhase.Playing)
-            StepPlaying(ref st, fb, up, down, deltaSeconds);
+            StepPlaying(ref st, fb, up, down, fixedDeltaSeconds);
     }
 
     private static void StartMatch(ref PongState st, Vector2D<int> fb)
@@ -53,6 +55,8 @@ public sealed class PongSimulationSystem : ISystem
         ResetBall(ref st, fb, playerServes: true);
         st.LeftPaddleY = fb.Y * 0.5f;
         st.RightPaddleY = st.LeftPaddleY;
+        st.LeftPaddleVelY = 0f;
+        st.RightPaddleVelY = 0f;
     }
 
     private static void ResetBall(ref PongState st, Vector2D<int> fb, bool playerServes)
@@ -63,7 +67,7 @@ public sealed class PongSimulationSystem : ISystem
         st.BallVel = new Vector2D<float>(sx * PongConstants.BallSpeed * 0.85f,
             (Random.Shared.NextSingle() - 0.5f) * PongConstants.BallSpeed * 0.4f);
         NormalizeBallSpeed(ref st);
-        st.ServeDelay = 0.35f;
+        st.ServeDelay = PongConstants.ServeDelaySeconds;
     }
 
     private static void NormalizeBallSpeed(ref PongState st)
@@ -78,10 +82,15 @@ public sealed class PongSimulationSystem : ISystem
         if (st.ServeDelay > 0f)
         {
             st.ServeDelay -= dt;
+            st.LeftPaddleVelY = 0f;
+            st.RightPaddleVelY = 0f;
             return;
         }
 
-        var move = 380f * dt;
+        var prevLeft = st.LeftPaddleY;
+        var prevRight = st.RightPaddleY;
+
+        var move = PongConstants.PlayerPaddleSpeed * dt;
         if (paddleUp)
             st.LeftPaddleY += move;
         if (paddleDown)
@@ -90,7 +99,7 @@ public sealed class PongSimulationSystem : ISystem
         st.LeftPaddleY = Math.Clamp(st.LeftPaddleY, st.ArenaMinY + PongConstants.PaddleHalfH,
             st.ArenaMaxY - PongConstants.PaddleHalfH);
 
-        var cpuSpeed = 260f * dt;
+        var cpuSpeed = PongConstants.CpuPaddleSpeed * dt;
         var target = st.BallPos.Y;
         if (st.RightPaddleY < target)
             st.RightPaddleY += Math.Min(cpuSpeed, target - st.RightPaddleY);
@@ -98,6 +107,9 @@ public sealed class PongSimulationSystem : ISystem
             st.RightPaddleY -= Math.Min(cpuSpeed, st.RightPaddleY - target);
         st.RightPaddleY = Math.Clamp(st.RightPaddleY, st.ArenaMinY + PongConstants.PaddleHalfH,
             st.ArenaMaxY - PongConstants.PaddleHalfH);
+
+        st.LeftPaddleVelY = (st.LeftPaddleY - prevLeft) / dt;
+        st.RightPaddleVelY = (st.RightPaddleY - prevRight) / dt;
 
         st.BallPos += st.BallVel * dt;
 
@@ -122,7 +134,7 @@ public sealed class PongSimulationSystem : ISystem
             st.BallPos.X = leftX + PongConstants.PaddleHalfW + PongConstants.BallR;
             st.BallVel.X *= -1f;
             var off = (st.BallPos.Y - st.LeftPaddleY) / PongConstants.PaddleHalfH;
-            st.BallVel.Y += off * 180f;
+            st.BallVel.Y += off * PongConstants.PaddleEnglish;
             NormalizeBallSpeed(ref st);
         }
         else if (st.BallVel.X > 0f &&
@@ -133,7 +145,7 @@ public sealed class PongSimulationSystem : ISystem
             st.BallPos.X = rightX - PongConstants.PaddleHalfW - PongConstants.BallR;
             st.BallVel.X *= -1f;
             var off = (st.BallPos.Y - st.RightPaddleY) / PongConstants.PaddleHalfH;
-            st.BallVel.Y += off * 180f;
+            st.BallVel.Y += off * PongConstants.PaddleEnglish;
             NormalizeBallSpeed(ref st);
         }
 

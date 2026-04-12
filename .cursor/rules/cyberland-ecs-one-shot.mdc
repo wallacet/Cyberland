@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## Principle
 
-Do **not** add an `ISystem` / `IParallelSystem` whose `OnUpdate` / `OnParallelUpdate` only performs work that could run **once** (e.g. `IMod.OnLoad`, host init, or a single explicit call after entities exist).
+Do **not** add an `ISystem` / `IParallelSystem` whose per-frame phase hooks (**`OnEarlyUpdate`**, **`OnFixedUpdate`**, **`OnLateUpdate`**, or parallel equivalents) only perform work that could run **once** (e.g. `IMod.OnLoad`, host init, or a single explicit call after entities exist).
 
 Per-frame registration has a real cost (scheduler walk, virtual dispatch) and obscures intent when nothing about the problem is continuous.
 
@@ -18,7 +18,7 @@ Per-frame registration has a real cost (scheduler walk, virtual dispatch) and ob
 - **Per-frame input sampling** or gameplay that must run in deterministic order with other systems.
 - **Work that truly depends on every frame** (e.g. animation advance, particle integration).
 
-**One-time init that still belongs in the scheduler** (not every frame) should use **`ISystem.OnStart`** / **`IParallelSystem.OnStart`**: it runs once when the system entry is first **enabled**, before the first **`OnUpdate`** / **`OnParallelUpdate`**. Prefer **`IMod.OnLoad`** when no ECS frame ordering is required; use **`OnStart`** when init must run relative to other registered systems. **`SetSystemEnabled(false)`** avoids per-frame cost without unregistering; **`OnStart`** does not run again after re-enable.
+**One-time init that still belongs in the scheduler** (not every frame) should use **`ISystem.OnStart`** / **`IParallelSystem.OnStart`**: it runs once when the system entry is first **enabled**, before any **Early** phase callback. Prefer **`IMod.OnLoad`** when no ECS frame ordering is required; use **`OnStart`** when init must run relative to other registered systems. **`SetSystemEnabled(false)`** avoids per-frame cost without unregistering; **`OnStart`** does not run again after re-enable.
 
 ## What does not
 

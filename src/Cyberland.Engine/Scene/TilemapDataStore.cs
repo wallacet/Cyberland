@@ -15,6 +15,7 @@ public sealed class TilemapDataStore : ITilemapDataStore
     private readonly Dictionary<EntityId, Entry> _map = new();
 
     /// <inheritdoc />
+    /// <remarks>Repeated <see cref="Register"/> for the same <paramref name="owner"/> and grid size reuses the backing <c>int[]</c> when possible.</remarks>
     public void Register(EntityId owner, ReadOnlySpan<int> tileIndices, int columns, int rows)
     {
         if (columns <= 0 || rows <= 0)
@@ -22,7 +23,16 @@ public sealed class TilemapDataStore : ITilemapDataStore
         if (tileIndices.Length != columns * rows)
             throw new ArgumentException("Tile buffer size must equal columns * rows.");
 
-        var e = new Entry { Columns = columns, Rows = rows, Tiles = tileIndices.ToArray() };
+        var len = columns * rows;
+        if (!_map.TryGetValue(owner, out var e))
+            e = new Entry();
+
+        if (e.Tiles.Length != len)
+            e.Tiles = new int[len];
+
+        tileIndices.CopyTo(e.Tiles);
+        e.Columns = columns;
+        e.Rows = rows;
         _map[owner] = e;
     }
 

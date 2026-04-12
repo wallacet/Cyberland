@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Cyberland.Engine.Modding;
 
 /// <summary>
@@ -27,10 +29,28 @@ public static class ExcludeModsParser
             if (rest.IsWhiteSpace())
                 return Array.Empty<string>();
 
-            var parts = rest.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return parts.Length == 0 ? Array.Empty<string>() : parts;
+            return SplitCommaTrimmed(rest);
         }
 
         return null;
+    }
+
+    /// <summary>Comma-separated tokens; trims each segment without allocating the full argv slice as one string first.</summary>
+    private static string[] SplitCommaTrimmed(ReadOnlySpan<char> rest)
+    {
+        var list = new List<string>(4);
+        while (!rest.IsEmpty)
+        {
+            var comma = rest.IndexOf(',');
+            var segment = comma < 0 ? rest : rest[..comma];
+            rest = comma < 0 ? ReadOnlySpan<char>.Empty : rest[(comma + 1)..];
+            segment = segment.Trim();
+            if (!segment.IsEmpty)
+                list.Add(segment.ToString());
+            if (comma < 0)
+                break;
+        }
+
+        return list.Count == 0 ? Array.Empty<string>() : list.ToArray();
     }
 }

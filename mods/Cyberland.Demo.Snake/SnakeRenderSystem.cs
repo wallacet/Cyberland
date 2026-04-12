@@ -1,24 +1,37 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
 using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Snake;
 
 /// <summary>Snake segments, food, and UI (grid is drawn via engine <see cref="Tilemap"/>).</summary>
-public sealed class SnakeRenderSystem : ISystem
+public sealed class SnakeRenderSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
     private readonly SnakeSession _session;
+    private readonly LocalizationManager _localization;
+    private readonly FontLibrary _fonts;
+    private readonly TextGlyphCache _textCache;
 
-    public SnakeRenderSystem(GameHostServices host, SnakeSession session)
+    public SnakeRenderSystem(
+        GameHostServices host,
+        SnakeSession session,
+        LocalizationManager localization,
+        FontLibrary fonts,
+        TextGlyphCache textCache)
     {
         _host = host;
         _session = session;
+        _localization = localization;
+        _fonts = fonts;
+        _textCache = textCache;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnLateUpdate(World world, float deltaSeconds)
     {
         _ = world;
         _ = deltaSeconds;
@@ -81,6 +94,40 @@ public sealed class SnakeRenderSystem : ISystem
             r.SubmitSprite(SnakeSpriteUtil.Q(white, n, new Vector2D<float>(fb.X * 0.5f - (fb.X * 0.45f - scoreW) * 0.5f, fb.Y * 0.5f + 28f),
                 new Vector2D<float>(scoreW * 0.5f, 10f), (int)SpriteLayer.Ui, 201f,
                 new Vector4D<float>(1f, 0.85f, 0.2f, 1f), 1f, 0.4f, new Vector3D<float>(1f, 0.9f, 0.2f)));
+        }
+
+        DrawSnakeText(r, fb, in s);
+    }
+
+    private void DrawSnakeText(IRenderer r, Vector2D<int> fb, in SnakeSession s)
+    {
+        var titleSt = new TextStyle(BuiltinFonts.UiSans, 24f, new Vector4D<float>(0.25f, 1f, 0.45f, 1f), Bold: true);
+        var hintSt = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(0.55f, 0.65f, 0.6f, 0.9f));
+        var hudSt = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(0.85f, 1f, 0.9f, 1f));
+        var numSt = new TextStyle(BuiltinFonts.Mono, 18f, new Vector4D<float>(0.95f, 1f, 0.85f, 1f));
+        var goSt = new TextStyle(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.45f, 0.35f, 1f), Italic: true,
+            Underline: true);
+
+        if (s.Phase == SnakePhase.Title)
+        {
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, titleSt, "demo.snake.title",
+                new Vector2D<float>(36f, fb.Y - 50f));
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hintSt, "demo.snake.hint_title",
+                new Vector2D<float>(36f, 100f));
+        }
+        else if (s.Phase == SnakePhase.GameOver)
+        {
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, goSt, "demo.snake.game_over",
+                new Vector2D<float>(fb.X * 0.5f - 120f, fb.Y * 0.5f + 52f));
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hintSt, "demo.snake.hint_gameover",
+                new Vector2D<float>(36f, 118f));
+        }
+        else if (s.Phase == SnakePhase.Playing)
+        {
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hudSt, "demo.snake.playing",
+                new Vector2D<float>(24f, fb.Y - 36f));
+            TextRenderer.DrawLiteral(r, _fonts, _textCache, numSt, s.FoodsEaten.ToString(),
+                new Vector2D<float>(110f, fb.Y - 36f));
         }
     }
 }

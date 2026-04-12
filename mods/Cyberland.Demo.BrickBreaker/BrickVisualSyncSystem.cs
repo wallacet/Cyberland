@@ -1,14 +1,16 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>Maps <see cref="BrickSession"/> to ECS sprites for the engine draw pass.</summary>
-public sealed class BrickVisualSyncSystem : ISystem
+public sealed class BrickVisualSyncSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
     private readonly BrickSession _session;
@@ -20,6 +22,12 @@ public sealed class BrickVisualSyncSystem : ISystem
     private readonly EntityId _gameOverBar;
     private readonly EntityId[] _lives;
     private readonly EntityId[,] _cells;
+    private readonly LocalizationManager _localization;
+    private readonly FontLibrary _fonts;
+    private readonly TextGlyphCache _textCache;
+
+    /// <summary>Exponential moving average of instantaneous FPS for a stable HUD readout.</summary>
+    private float _fpsSmoothed;
 
     public BrickVisualSyncSystem(
         GameHostServices host,
@@ -31,7 +39,10 @@ public sealed class BrickVisualSyncSystem : ISystem
         EntityId gameOverPanel,
         EntityId gameOverBar,
         EntityId[] lives,
-        EntityId[,] cells)
+        EntityId[,] cells,
+        LocalizationManager localization,
+        FontLibrary fonts,
+        TextGlyphCache textCache)
     {
         _host = host;
         _session = session;
@@ -43,14 +54,28 @@ public sealed class BrickVisualSyncSystem : ISystem
         _gameOverBar = gameOverBar;
         _lives = lives;
         _cells = cells;
+        _localization = localization;
+        _fonts = fonts;
+        _textCache = textCache;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnLateUpdate(World world, float deltaSeconds)
     {
-        _ = deltaSeconds;
         var r = _host.Renderer;
         if (r is null)
             return;
+
+        // Prefer time between draw/present callbacks; raw per-tick dt can differ from visible frame time.
+        // "FPS" than the user sees when the window runs many updates per rendered frame.
+        var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
+        if (frameSeconds > 1e-6f)
+        {
+            var instant = 1f / frameSeconds;
+            const float blend = 0.15f;
+            _fpsSmoothed = _fpsSmoothed <= 0f
+                ? instant
+                : _fpsSmoothed + (instant - _fpsSmoothed) * blend;
+        }
 
         var s = _session;
         var fb = r.SwapchainPixelSize;
@@ -196,6 +221,47 @@ public sealed class BrickVisualSyncSystem : ISystem
             spr.ColorMultiply = new Vector4D<float>(0.9f, 0.3f, 0.35f, 1f);
             spr.EmissiveTint = new Vector3D<float>(1f, 0.35f, 0.4f);
             spr.EmissiveIntensity = 0.2f;
+        }
+
+        DrawBrickText(r, fb, in s);
+    }
+
+    private void DrawBrickText(IRenderer r, Vector2D<int> fb, in BrickSession s)
+    {
+        var titleSt = new TextStyle(BuiltinFonts.UiSans, 22f, new Vector4D<float>(0.45f, 0.78f, 1f, 1f), Bold: true);
+        var hintSt = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(0.55f, 0.62f, 0.72f, 0.9f));
+        var hudSt = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(0.8f, 0.9f, 1f, 1f));
+        var numSt = new TextStyle(BuiltinFonts.Mono, 20f, new Vector4D<float>(1f, 0.85f, 0.35f, 1f));
+        var goSt = new TextStyle(BuiltinFonts.UiSans, 19f, new Vector4D<float>(1f, 0.5f, 0.35f, 1f), Italic: true);
+
+        if (s.Phase == BrickPhase.Title)
+        {
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, titleSt, "demo.brick.title",
+                new Vector2D<float>(36f, fb.Y - 58f));
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hintSt, "demo.brick.hint_title",
+                new Vector2D<float>(36f, 100f));
+        }
+        else if (s.Phase == BrickPhase.GameOver)
+        {
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, goSt, "demo.brick.game_over",
+                new Vector2D<float>(fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f));
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hintSt, "demo.brick.hint_gameover",
+                new Vector2D<float>(36f, 118f));
+        }
+        else if (s.Phase == BrickPhase.Playing)
+        {
+            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hudSt, "demo.brick.playing_score",
+                new Vector2D<float>(24f, fb.Y - 32f));
+            TextRenderer.DrawLiteral(r, _fonts, _textCache, numSt, s.Score.ToString(),
+                new Vector2D<float>(130f, fb.Y - 32f));
+        }
+
+        if (fb.X > 0 && fb.Y > 0)
+        {
+            var fpsSt = new TextStyle(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
+            var line = _fpsSmoothed > 0f ? $"FPS {_fpsSmoothed:0}" : "FPS —";
+            TextRenderer.DrawLiteral(r, _fonts, _textCache, fpsSt, line,
+                new Vector2D<float>(fb.X - 120f, fb.Y - 26f));
         }
     }
 }

@@ -60,7 +60,10 @@ public sealed class KeyBindingStore
         await JsonSerializer.SerializeAsync(fs, serializable, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>True if the bound key for <paramref name="actionId"/> is currently pressed.</summary>
+    /// <summary>
+    /// True if the bound key for <paramref name="actionId"/> is currently held down.
+    /// Uses <see cref="IKeyboard.IsKeyPressed"/> (Silk names it “pressed” but it is the <strong>current</strong> key state, not an edge).
+    /// </summary>
     public bool IsDown(IKeyboard keyboard, string actionId) =>
         TryGet(actionId, out var key) && keyboard.IsKeyPressed(key);
 }

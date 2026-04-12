@@ -41,6 +41,7 @@ public sealed unsafe partial class VulkanRenderer
         var screen = framePlan.Screen;
         var sortIdx = framePlan.SortIndices;
         var sprites = framePlan.Sprites;
+        var nSprite = framePlan.SpriteCount;
         var post = framePlan.ResolvedPost;
         UpdateLightingFrameData(in framePlan);
         UploadPointLightSsboData(in framePlan);
@@ -82,8 +83,9 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
         _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
 
-        foreach (var idx in sortIdx)
+        for (var si = 0; si < nSprite; si++)
         {
+            var idx = sortIdx[si];
             ref readonly var s = ref sprites[idx];
             DrawSprite(cmd, in s, screen, 0);
         }
@@ -114,8 +116,9 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
         _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
 
-        foreach (var idx in sortIdx)
+        for (var si = 0; si < nSprite; si++)
         {
+            var idx = sortIdx[si];
             ref readonly var s = ref sprites[idx];
             if (!s.Transparent)
                 DrawSprite(cmd, in s, screen, 1);
@@ -164,7 +167,7 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredPoint, 0, 2, setsPt, 0, null);
         _vk.CmdPushConstants(cmd, _plDeferredPoint, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
             (uint)(sizeof(float) * 4), scrPush);
-        var nPt = Math.Min(framePlan.PointLights.Length, DeferredRenderingConstants.MaxPointLights);
+        var nPt = Math.Min(framePlan.PointLightCount, DeferredRenderingConstants.MaxPointLights);
         if (nPt > 0)
         {
             _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
@@ -183,66 +186,73 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdEndRenderPass(cmd);
         _offsWrittenHdr = true;
 
-        ClearValue cWAccum = cEm;
-        ClearValue cWReveal = new()
+        var hasTransparentSprites = framePlan.TransparentSpriteCount > 0;
+        if (hasTransparentSprites)
         {
-            Color = new ClearColorValue { Float32_0 = 1f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f }
-        };
-        var cWboit = stackalloc ClearValue[2];
-        cWboit[0] = cWAccum;
-        cWboit[1] = cWReveal;
+            ClearValue cWAccum = cEm;
+            ClearValue cWReveal = new()
+            {
+                Color = new ClearColorValue { Float32_0 = 1f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f }
+            };
+            var cWboit = stackalloc ClearValue[2];
+            cWboit[0] = cWAccum;
+            cWboit[1] = cWReveal;
 
-        RenderPassBeginInfo rpW = new()
-        {
-            SType = StructureType.RenderPassBeginInfo,
-            RenderPass = WboitRpFor(_offsWrittenWboit),
-            Framebuffer = _fbWboit,
-            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
-            ClearValueCount = 2,
-            PClearValues = cWboit
-        };
+            RenderPassBeginInfo rpW = new()
+            {
+                SType = StructureType.RenderPassBeginInfo,
+                RenderPass = WboitRpFor(_offsWrittenWboit),
+                Framebuffer = _fbWboit,
+                RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
+                ClearValueCount = 2,
+                PClearValues = cWboit
+            };
 
-        _vk.CmdBeginRenderPass(cmd, &rpW, SubpassContents.Inline);
-        _vk.CmdSetViewport(cmd, 0, 1, &vp);
-        _vk.CmdSetScissor(cmd, 0, 1, &sci);
-        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTransparentWboit);
-        _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
-        _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
+            _vk.CmdBeginRenderPass(cmd, &rpW, SubpassContents.Inline);
+            _vk.CmdSetViewport(cmd, 0, 1, &vp);
+            _vk.CmdSetScissor(cmd, 0, 1, &sci);
+            _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTransparentWboit);
+            _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
+            _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
 
-        foreach (var idx in sortIdx)
-        {
-            ref readonly var s = ref sprites[idx];
-            if (!s.Transparent)
-                continue;
-            DrawSprite(cmd, in s, screen, 2);
+            for (var si = 0; si < nSprite; si++)
+            {
+                var idx = sortIdx[si];
+                ref readonly var s = ref sprites[idx];
+                if (!s.Transparent)
+                    continue;
+                DrawSprite(cmd, in s, screen, 2);
+            }
+
+            _vk.CmdEndRenderPass(cmd);
+            _offsWrittenWboit = true;
+
+            ClearValue cRes = cEm;
+            RenderPassBeginInfo rpRes = new()
+            {
+                SType = StructureType.RenderPassBeginInfo,
+                RenderPass = OffscreenRpFor(_offsWrittenHdrComposite),
+                Framebuffer = _fbHdrComposite,
+                RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
+                ClearValueCount = 1,
+                PClearValues = &cRes
+            };
+
+            _vk.CmdBeginRenderPass(cmd, &rpRes, SubpassContents.Inline);
+            _vk.CmdSetViewport(cmd, 0, 1, &vp);
+            _vk.CmdSetScissor(cmd, 0, 1, &sci);
+            _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTransparentResolve);
+            fixed (DescriptorSet* dsTr = &_dsTransparentResolve)
+            {
+                _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plTransparentResolve, 0, 1, dsTr, 0, null);
+            }
+            _vk.CmdPushConstants(cmd, _plTransparentResolve, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), scrPush);
+            _vk.CmdDraw(cmd, 3, 1, 0, 0);
+            _vk.CmdEndRenderPass(cmd);
+            _offsWrittenHdrComposite = true;
         }
 
-        _vk.CmdEndRenderPass(cmd);
-        _offsWrittenWboit = true;
-
-        ClearValue cRes = cEm;
-        RenderPassBeginInfo rpRes = new()
-        {
-            SType = StructureType.RenderPassBeginInfo,
-            RenderPass = OffscreenRpFor(_offsWrittenHdrComposite),
-            Framebuffer = _fbHdrComposite,
-            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
-            ClearValueCount = 1,
-            PClearValues = &cRes
-        };
-
-        _vk.CmdBeginRenderPass(cmd, &rpRes, SubpassContents.Inline);
-        _vk.CmdSetViewport(cmd, 0, 1, &vp);
-        _vk.CmdSetScissor(cmd, 0, 1, &sci);
-        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTransparentResolve);
-        fixed (DescriptorSet* dsTr = &_dsTransparentResolve)
-        {
-            _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plTransparentResolve, 0, 1, dsTr, 0, null);
-        }
-        _vk.CmdPushConstants(cmd, _plTransparentResolve, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), scrPush);
-        _vk.CmdDraw(cmd, 3, 1, 0, 0);
-        _vk.CmdEndRenderPass(cmd);
-        _offsWrittenHdrComposite = true;
+        UpdateSceneHdrSourcesForPostProcess(hasTransparentSprites ? _viewHdrComposite : _viewHdr);
 
         var bloomGain = post.BloomEnabled ? post.BloomGain : 0f;
         var bloomOn = bloomGain > 0f;

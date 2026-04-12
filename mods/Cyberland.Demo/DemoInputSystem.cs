@@ -6,7 +6,7 @@ using Silk.NET.Input;
 namespace Cyberland.Demo;
 
 /// <summary>Writes <see cref="Velocity"/> from keybindings / arrows (world units/sec).</summary>
-public sealed class DemoInputSystem : ISystem
+public sealed class DemoInputSystem : ISystem, IEarlyUpdate
 {
     private readonly GameHostServices _host;
     private readonly EntityId _player;
@@ -19,7 +19,7 @@ public sealed class DemoInputSystem : ISystem
         _scheduler = scheduler;
     }
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnEarlyUpdate(World world, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref var v = ref world.Components<Velocity>().Get(_player);

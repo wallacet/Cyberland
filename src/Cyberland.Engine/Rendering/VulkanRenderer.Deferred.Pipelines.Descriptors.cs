@@ -189,6 +189,48 @@ public sealed unsafe partial class VulkanRenderer
         }
     }
 
+    /// <summary>
+    /// Bloom extract and composite both sample the same HDR scene texture; that image is either opaque-only (<see cref="_viewHdr"/>)
+    /// or post-WBOIT resolve (<see cref="_viewHdrComposite"/>). Updates both bindings for the current frame before post-process.
+    /// </summary>
+    private void UpdateSceneHdrSourcesForPostProcess(ImageView sceneHdr)
+    {
+        if (_vk is null || _dsBloomExtract.Handle == default)
+            return;
+
+        DescriptorImageInfo h = new()
+        {
+            ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
+            ImageView = sceneHdr,
+            Sampler = _samplerLinear
+        };
+
+        WriteDescriptorSet wb = new()
+        {
+            SType = StructureType.WriteDescriptorSet,
+            DstSet = _dsBloomExtract,
+            DstBinding = 0,
+            DescriptorCount = 1,
+            DescriptorType = DescriptorType.CombinedImageSampler,
+            PImageInfo = &h
+        };
+
+        WriteDescriptorSet wc = new()
+        {
+            SType = StructureType.WriteDescriptorSet,
+            DstSet = _dsCompositeSlots[_currentFrame],
+            DstBinding = 0,
+            DescriptorCount = 1,
+            DescriptorType = DescriptorType.CombinedImageSampler,
+            PImageInfo = &h
+        };
+
+        var batch = stackalloc WriteDescriptorSet[2];
+        batch[0] = wb;
+        batch[1] = wc;
+        _vk.UpdateDescriptorSets(_device, 2, batch, 0, null);
+    }
+
     private void UpdateCompositeBloomSource(ImageView bloomFinalView)
     {
         _descriptorManager ??= new DescriptorManager(this);
@@ -252,6 +294,10 @@ public sealed unsafe partial class VulkanRenderer
             return;
         var bytes = (ulong)(DeferredRenderingConstants.MaxPointLights * 2 * sizeof(Vector4D<float>));
         CreateHostVisibleBuffer(bytes, BufferUsageFlags.StorageBufferBit, out _pointLightSsbo, out _pointLightSsboMemory);
+        void* p;
+        if (_vk!.MapMemory(_device, _pointLightSsboMemory, 0, bytes, 0, &p) != Result.Success)
+            throw new GraphicsInitializationException("map point ssbo (persistent)");
+        _pointLightSsboMapped = p;
     }
 
     private void AllocateDeferredDescriptorSets()

@@ -82,6 +82,11 @@ public sealed unsafe partial class VulkanRenderer
 
     private void DestroyPointLightSsboResources()
     {
+        if (_pointLightSsboMemory.Handle != default && _pointLightSsboMapped != null)
+        {
+            _vk!.UnmapMemory(_device, _pointLightSsboMemory);
+            _pointLightSsboMapped = null;
+        }
         if (_pointLightSsbo.Handle != default)
         {
             _vk!.DestroyBuffer(_device, _pointLightSsbo, null);

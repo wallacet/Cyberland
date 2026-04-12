@@ -9,14 +9,14 @@ namespace Cyberland.Demo;
 /// Submits fixed world lights each frame. The renderer packs one ambient, directional, point, and spot into the
 /// lighting UBO (see <c>sprite_lit.frag.glsl</c>); this demo uses all four for a simple multi-pool look.
 /// </summary>
-internal sealed class DemoStationaryLightsSystem : ISystem
+internal sealed class DemoStationaryLightsSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
 
     public DemoStationaryLightsSystem(GameHostServices host) =>
         _host = host;
 
-    public void OnUpdate(World world, float deltaSeconds)
+    public void OnLateUpdate(World world, float deltaSeconds)
     {
         _ = world;
         _ = deltaSeconds;
