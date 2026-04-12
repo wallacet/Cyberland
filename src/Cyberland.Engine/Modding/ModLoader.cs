@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Text.Json;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
@@ -16,17 +17,68 @@ namespace Cyberland.Engine.Modding;
 /// <see cref="ModManifest.LoadOrder"/> then id. For each manifest, record it and mount <see cref="ModManifest.ContentRoot"/>,
 /// then apply <see cref="ModManifest.ContentBlocklist"/> via <see cref="VirtualFileSystem.BlockPath"/>. (2) For each entry
 /// with an <see cref="ModManifest.EntryAssembly"/>, load the DLL from disk, find a concrete <see cref="IMod"/>, construct it,
-/// and call <see cref="IMod.OnLoad"/> with a <see cref="ModLoadContext"/>. Loading uses <c>Assembly.LoadFrom</c> —
-/// mod DLLs execute with host trust; third-party mods imply arbitrary native code (document for contributors, not end users).
+/// and call <see cref="IMod.OnLoad"/> with a <see cref="ModLoadContext"/>.
+/// <para>
+/// Entry assemblies load in <see cref="AssemblyLoadContext.Default"/> so <see cref="IMod"/> matches the host’s
+/// <c>Cyberland.Engine</c> contract. While an entry assembly is loading, <see cref="DefaultLoadContextResolving"/> uses
+/// <see cref="SatelliteResolutionModDirectory"/> (thread-static) to resolve satellite DLLs from that mod’s folder (and optional
+/// <c>lib\</c> subfolder) before other probing, excluding <c>Cyberland.Engine</c> so the contract stays unified with the host.
+/// </para>
+/// Mod loading is expected on the main thread during startup; <see cref="SatelliteResolutionModDirectory"/> is thread-static so nested loads do not cross mod directories.
+/// Mods execute with host trust; third-party mods imply arbitrary native code (document for contributors, not end users).
 /// </remarks>
 public sealed class ModLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
+    static ModLoader()
+    {
+        AssemblyLoadContext.Default.Resolving += DefaultLoadContextResolving;
+    }
+
     /// <summary>Manifests successfully staged in the last <see cref="LoadAll"/> (content pass + assembly load pass).</summary>
     public IReadOnlyList<ModManifest> LoadedManifests => _manifests;
     private readonly List<ModManifest> _manifests = new();
     private readonly List<IMod> _instances = new();
+
+    /// <summary>While non-null, <see cref="DefaultLoadContextResolving"/> resolves satellites for this mod directory.</summary>
+    [ThreadStatic]
+    internal static string? SatelliteResolutionModDirectory;
+
+    /// <summary>
+    /// Resolves a dependency assembly from a mod directory tree (root and <c>lib\</c>), keeping <c>Cyberland.Engine</c> on the default context.
+    /// Invoked from <see cref="AssemblyLoadContext.Default"/> while an entry assembly is loading (see <see cref="SatelliteResolutionModDirectory"/>).
+    /// </summary>
+    internal static Assembly? DefaultLoadContextResolving(AssemblyLoadContext? context, AssemblyName assemblyName)
+    {
+        _ = context;
+        var dir = SatelliteResolutionModDirectory;
+        return dir is null ? null : ResolveSatelliteAssembly(dir, assemblyName);
+    }
+
+    /// <summary>
+    /// Resolves a dependency assembly from a mod directory tree (root and <c>lib\</c>), keeping <c>Cyberland.Engine</c> on the default context.
+    /// Exposed for unit tests; production path is <see cref="DefaultLoadContextResolving"/>.
+    /// </summary>
+    internal static Assembly? ResolveSatelliteAssembly(string modDirectory, AssemblyName assemblyName)
+    {
+        if (string.IsNullOrEmpty(assemblyName.Name))
+            return null;
+
+        if (string.Equals(assemblyName.Name, "Cyberland.Engine", StringComparison.Ordinal))
+            return null;
+
+        var name = assemblyName.Name + ".dll";
+        var path = Path.Combine(modDirectory, name);
+        if (!File.Exists(path))
+        {
+            path = Path.Combine(modDirectory, "lib", name);
+            if (!File.Exists(path))
+                return null;
+        }
+
+        return AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
+    }
 
     /// <summary>
     /// Mounts mod content in load order, applies blocklists, then loads each mod’s <see cref="ModManifest.EntryAssembly"/> and invokes <see cref="IMod.OnLoad"/>.
@@ -99,24 +151,42 @@ public sealed class ModLoader
             if (!File.Exists(dll))
                 continue;
 
-            var asm = Assembly.LoadFrom(dll);
-            Type? modType = null;
-            foreach (var t in asm.GetExportedTypes())
+            var modDir = entry.Dir;
+            SatelliteResolutionModDirectory = modDir;
+            try
             {
-                if (typeof(IMod).IsAssignableFrom(t) && t is { IsClass: true, IsAbstract: false })
+                Assembly asm;
+                try
                 {
-                    modType = t;
-                    break;
+                    asm = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(dll));
                 }
+                catch (BadImageFormatException)
+                {
+                    continue;
+                }
+
+                Type? modType = null;
+                foreach (var t in asm.GetExportedTypes())
+                {
+                    if (typeof(IMod).IsAssignableFrom(t) && t is { IsClass: true, IsAbstract: false })
+                    {
+                        modType = t;
+                        break;
+                    }
+                }
+
+                if (modType is null)
+                    continue;
+
+                var mod = (IMod)Activator.CreateInstance(modType)!;
+                var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localization, world, scheduler, host);
+                mod.OnLoad(ctx);
+                _instances.Add(mod);
             }
-
-            if (modType is null)
-                continue;
-
-            var mod = (IMod)Activator.CreateInstance(modType)!;
-            var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localization, world, scheduler, host);
-            mod.OnLoad(ctx);
-            _instances.Add(mod);
+            finally
+            {
+                SatelliteResolutionModDirectory = null;
+            }
         }
     }
 

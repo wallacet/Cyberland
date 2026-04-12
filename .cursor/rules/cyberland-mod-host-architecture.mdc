@@ -1,6 +1,6 @@
 ---
 description: Where host vs mod code lives and how to register gameplay (IMod, ECS, GameHostServices)
-globs: "**/GameApplication.cs,**/Hosting/**/*.cs,**/Modding/**/*.cs,**/mods/**/*.cs"
+globs: "**/GameApplication.cs,**/Hosting/**/*.cs,**/Modding/**/*.cs,**/mods/**/*.cs,**/scripts/StageModsForHost.ps1,**/Cyberland.Host.csproj"
 alwaysApply: false
 ---
 
@@ -10,17 +10,27 @@ alwaysApply: false
 
 | Layer | Project / location | Owns |
 |--------|-------------------|------|
-| **Host** | `Cyberland.Host`, `Cyberland.Engine.GameApplication` | Process entry, window, Vulkan init, swapchain present, global input context, keybinding store file, audio device, ECS `World` + `SystemScheduler`, mod discovery, `Mods/` staging |
+| **Host** | `Cyberland.Host`, `Cyberland.Engine.GameApplication` | Process entry, window, Vulkan init, swapchain present, global input context, keybinding store file, audio device, ECS `World` + `SystemScheduler`, mod discovery, `Mods/` staging (via **`scripts/StageModsForHost.ps1`**) |
 | **Base campaign** | `mods/Cyberland.Game` | `IMod` (`BaseGameMod`), locale and future core **`Content/`** |
-| **Optional samples** | `mods/Cyberland.Demo`, `Cyberland.Demo.Pong`, `.Snake`, `.BrickBreaker` | `IMod` demos: 2D HDR sprites + ECS; arcade minigames (optional staging) |
-| **Engine** | `Cyberland.Engine` | Reusable APIs: ECS, tasks, rendering, input helpers, `GameHostServices`, `ModLoadContext` |
+| **Optional samples** | `mods/Cyberland.Demo`, `Cyberland.Demo.Pong`, `.Snake`, `.BrickBreaker` | `IMod` demos: 2D HDR sprites + ECS; arcade minigames (often **`disabled`** in **`manifest.json`**) |
+| **Engine** | `Cyberland.Engine` | Reusable APIs: ECS, tasks, rendering, input helpers, `GameHostServices`, `ModLoadContext`, `ModLoader` |
 
 Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` unless it is truly host-only (e.g. **Escape** → close window). Prototypes and samples belong in their own mod assemblies.
 
+## Host vs mod assemblies
+
+- **`Cyberland.Host`** references **`Cyberland.Engine` only** at compile time. **Do not** add **`ProjectReference`** entries to mod game projects; that would list mod DLLs in **`Cyberland.Host.deps.json`** and couples shipping to a central compile-time graph.
+- **Shipped mods** are built from **`mods/<Name>/`** and staged into **`Mods/<Name>/`** beside the executable by **`scripts/StageModsForHost.ps1`** (invoked from **`Cyberland.Host.csproj`** after **Build** and **Publish**). Staging copies **`manifest.json`**, built **`.dll`** files from the mod’s output (excluding **`Cyberland.Engine.dll`**, which the host already carries), and optional **`Content/`**.
+- **Drop-in mods:** End users add folders under **`Mods/<Name>/`** with **`manifest.json`**; **`ModLoader`** discovers them at runtime. No host **`deps.json`** edit is required to register mods.
+- **Satellite DLLs:** Mod folders may include additional **`.dll`** files (root or **`lib/`**). While an **`entryAssembly`** loads, **`AssemblyLoadContext.Default.Resolving`** (see **`ModLoader`**) resolves those dependencies from the mod directory before other probing, keeping **`Cyberland.Engine`** on the default context so **`IMod`** type identity matches the host.
+- **Pure-content mods:** Omit **`entryAssembly`** (or leave it empty) for packs that only add or override VFS assets.
+- **Pure-code mods:** **`entryAssembly`** present; **`Content/`** may be absent (VFS mount for **`contentRoot`** is a no-op when the path does not exist). Avoid **`contentRoot: ""`** (that can mount the entire mod directory into the VFS).
+- **Publish / CI:** Mods with **`"disabled": true`** in **`mods/<Name>/manifest.json`** are **not** copied into staged **`Mods/`** for distribution builds.
+
 ## Mod pipeline
 
-1. Each mod folder under `Mods/<Name>/` has `manifest.json` (`entryAssembly`, `loadOrder`, `contentRoot`).
-2. Host build stages **`Cyberland.Game`**, **`Cyberland.Demo`**, and optional arcade demos into `$(OutDir)Mods/` (see `Cyberland.Host.csproj` — `Stage*Mod` targets).
+1. Each mod folder under `Mods/<Name>/` has `manifest.json` (`entryAssembly`, `loadOrder`, `contentRoot`, optional `disabled`).
+2. **`scripts/StageModsForHost.ps1`** builds each **`mods/*/`** project that has a manifest and stages enabled mods into **`$(OutDir)Mods/`** and into **`$(PublishDir)Mods/`** when publishing.
 3. `ModLoader.LoadAll` mounts each mod’s content in load order (skipping ids passed via **`--exclude-mods`**), applies optional **`contentBlocklist`** paths (`VirtualFileSystem.BlockPath`), then loads each `entryAssembly`, finds a concrete `IMod` per DLL, calls `OnLoad(ModLoadContext)`.
 
 ### Default engine systems (2D scene)
@@ -51,7 +61,7 @@ After **`VulkanRenderer`** initializes, **`GameApplication`** applies baseline H
 
 ## Adding a new gameplay feature (checklist)
 
-1. Prefer a **new `ISystem` or `IParallelSystem`** in the appropriate mod project (`Cyberland.Game` for campaign, or a new mod + staging target).
+1. Prefer a **new `ISystem` or `IParallelSystem`** in the appropriate mod project (`Cyberland.Game` for campaign, or a new mod under **`mods/`**).
 2. Register it from that mod’s **`IMod.OnLoad`**.
 3. Add **components** as `struct`s in the mod assembly (see **`Velocity`** in **`Cyberland.Demo`**).
 4. If the feature needs drawing, prefer engine **`Scene`** components and the host-registered sprite/tilemap/particle render systems; call **`Host.Renderer`** (`SubmitSprite`, post volumes, etc.) only when a custom immediate-mode path is justified — keep **world vs screen** rules in `WorldScreenSpace` / renderer.
@@ -59,4 +69,4 @@ After **`VulkanRenderer`** initializes, **`GameApplication`** applies baseline H
 
 ## Third-party mods
 
-Same as shipped mods: implement `IMod`, ship `manifest.json` + DLL under `Mods/`, use `ModLoadContext` only (no private host APIs beyond `GameHostServices`).
+Same as shipped mods: implement `IMod`, ship `manifest.json` + DLL under `Mods/`, use `ModLoadContext` only (no private host APIs beyond `GameHostServices`). Prerequisites between mods are handled with **`loadOrder`** and by shipping any extra **`.dll`** dependencies beside the entry assembly (resolved via the mod folder / `lib/`).

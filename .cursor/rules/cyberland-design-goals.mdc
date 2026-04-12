@@ -21,7 +21,7 @@ This is a cyberpunk 2D single-player RPG optimized for **low footprint** and **b
 - **Keep mod boundaries sharp.** Prefer self-contained mods: code, `manifest.json`, and optional `content.release.manifest.json` + `Content/` live together so a mod can be understood, versioned, and replaced without central registries.
 - **Avoid a second “god manifest.”** Do not route mod-specific release metadata through repo-wide files when per-mod manifests suffice; the engine host discovers mods by folder structure and each mod’s own files.
 - **Composition over monoliths.** Multiple mods compose at runtime via load order, VFS layering, and ECS system registration — design features so they extend or replace behavior through those mechanisms instead of hard-wiring cross-mod dependencies in the host.
-- The host (`Cyberland.Host` + `GameApplication`) stays thin: bootstrap, window, devices, and mod load — see **cyberland-mod-host-architecture** for boundaries.
+- The host (`Cyberland.Host` + `GameApplication`) stays thin: bootstrap, window, devices, and mod load — see **cyberland-mod-host-architecture** for boundaries. **`Cyberland.Host` compiles against `Cyberland.Engine` only**; mod assemblies are not project references. **`dotnet publish`** output must not ship mods whose **`manifest.json`** sets **`disabled`**: **`true`** (staging skips them).
 
 ## Performance and disk size
 

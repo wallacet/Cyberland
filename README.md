@@ -44,7 +44,9 @@ Open the **Command Palette** (`Ctrl+Shift+P`) → **Tasks: Run Task** → pick a
 |------|--------|
 | **Cyberland: Run** | `dotnet run` the host (Debug) — *run-cyberland* skill |
 | **Cyberland: Test Engine** | Engine tests with coverlet — *test-cyberland-engine* skill |
-| **Cyberland: Publish Release** | `dotnet publish` + copy `Mods/` into publish output — *publish-cyberland* skill (see `scripts/Publish-Cyberland.ps1`) |
+| **Cyberland: Publish Release** | `dotnet publish` (MSBuild stages `Mods/` into **`artifacts/publish/...`**) — full distributable folder — *publish-cyberland* skill (see `scripts/Publish-Cyberland.ps1`) |
+| **Cyberland: Publish Release + distribution zip** | Same as Publish Release, then writes **`artifacts/dist/Cyberland-Host-release.zip`** (archive the publish tree for upload) |
+| **Cyberland: Zip publish output only** | `Archive-CyberlandPublish.ps1` — zip an existing publish folder without rebuilding |
 | **Cyberland: Clear Artifacts** | Delete repo-root `artifacts/` — *clear-cyberland-artifacts* skill (see `scripts/Clear-CyberlandArtifacts.ps1`) |
 
 ---
@@ -94,7 +96,7 @@ The solution uses **.NET 8 [artifacts output layout](https://learn.microsoft.com
 |------|----------|
 | **`artifacts/bin/<ProjectName>/debug/`** or **`.../release/`** | Built assemblies and deps (e.g. **`artifacts/bin/Cyberland.Host/debug/Cyberland.Host.exe`**). Mod staging runs on **build** and places **`Mods/`** here next to the host. |
 | **`artifacts/obj/...`** | MSBuild intermediate files per project. |
-| **`artifacts/publish/<ProjectName>/debug/`** or **`.../release/`** | **`dotnet publish`** output for that project (e.g. **`Cyberland.Host.exe`** and dependencies). **`Mods/`** is not copied here automatically; see [Clean build and packaging](#clean-build-and-packaging) below. |
+| **`artifacts/publish/<ProjectName>/debug/`** or **`.../release/`** | **`dotnet publish`** output for that project (e.g. **`Cyberland.Host.exe`** and dependencies). **`Mods/`** is staged here by the same **`scripts/StageModsForHost.ps1`** step that runs after publish. |
 
 After **Cyberland.Host** builds, mods are **staged** next to the host executable under `Mods/`:
 
@@ -104,7 +106,7 @@ After **Cyberland.Host** builds, mods are **staged** next to the host executable
 | **`Mods/Cyberland.Demo/`** | 2D HDR deferred sprite + ECS sample. **`disabled`: `true`** in `manifest.json` by default — see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). |
 | **`Mods/Cyberland.Demo.Pong/`**, **`...Snake/`**, **`...BrickBreaker/`** | Arcade samples; **`disabled`: `true`** by default. |
 
-`Cyberland.Host.csproj` copies these on build. Demo mods stay in the tree for development but do not load until you opt in (edit the staged **`manifest.json`** or the copy under **`mods/`** and rebuild).
+**`scripts/StageModsForHost.ps1`** runs after **build** and after **publish**: it builds each mod project under **`mods/`**, skips manifests with **`"disabled": true`**, and copies **`manifest.json`**, built **`.dll`** files (except **`Cyberland.Engine.dll`**, which ships with the host), and **`Content/`** into **`Mods/<folder>/`**. Demo mods stay in the tree for development but are not staged or loaded until you opt in (set **`"disabled": false`** under **`mods/`** and rebuild).
 
 ### Clean build and packaging
 
@@ -130,19 +132,12 @@ Use this when you want a **fresh tree** or a **folder you can zip** and run else
    .\scripts\Sync-CyberlandAssets.ps1
    ```
 
-4. **Stage mods into the publish folder.** Staging targets run **`AfterTargets="Build"`**, so **`Mods/`** lands under **`artifacts/bin/Cyberland.Host/release/`**, not automatically under **`publish/`**. Copy it beside the published exe:
-
-   ```powershell
-   Copy-Item -Recurse -Force "artifacts/bin/Cyberland.Host/release/Mods" "artifacts/publish/Cyberland.Host/release/"
-   ```
-
-5. **Package** — archive **`artifacts/publish/Cyberland.Host/release/`** (e.g. zip that folder). **`keybindings.json`** is created at runtime next to the exe if missing.
+4. **Package** — archive **`artifacts/publish/Cyberland.Host/release/`** (e.g. zip that folder). **`Mods/`** is already next to the published exe. **`keybindings.json`** is created at runtime next to the exe if missing.
 
 **Self-contained** (larger, no shared runtime on the target), example for Windows x64:
 
 ```powershell
 dotnet publish src/Cyberland.Host/Cyberland.Host.csproj -c Release -r win-x64 --self-contained true
-Copy-Item -Recurse -Force "artifacts/bin/Cyberland.Host/release/Mods" "artifacts/publish/Cyberland.Host/release/"
 ```
 
 Project-specific notes for agents live in **`.cursor/skills/publish-cyberland/`** and **`.cursor/skills/clear-cyberland-artifacts/`**.
@@ -177,7 +172,7 @@ tests/
   Cyberland.Engine.Tests/      # xUnit + coverlet (100% line coverage on Cyberland.Engine)
   Cyberland.TestMod/           # Minimal IMod assembly used by ModLoader tests
 src/
-  Cyberland.Host/              # Executable: references Engine + staged mods (build)
+  Cyberland.Host/              # Executable: references Engine only; mods staged by scripts/StageModsForHost.ps1
   Cyberland.Engine/            # Engine library (ECS, Vulkan, input, mods, assets, …)
 mods/
   Cyberland.Game/              # Base campaign mod (IMod, locale Content/)
@@ -186,6 +181,8 @@ mods/
 scripts/
   Run-Cyberland.ps1
   Publish-Cyberland.ps1
+  Archive-CyberlandPublish.ps1
+  StageModsForHost.ps1
   Clear-CyberlandArtifacts.ps1
 .vscode/
   tasks.json, launch.json
@@ -194,7 +191,7 @@ scripts/
 
 | Project | Role |
 |---------|------|
-| **Cyberland.Host** | Entry point (`Program.cs` → `GameApplication`). Builds and stages **`Cyberland.Game`**, **`Cyberland.Demo`**, and arcade demo mods into `$(OutDir)Mods/`. |
+| **Cyberland.Host** | Entry point (`Program.cs` → `GameApplication`). References **`Cyberland.Engine`** only at compile time. **`scripts/StageModsForHost.ps1`** (MSBuild after **Build** / **Publish**) builds each **`mods/*/`** project and stages enabled mods into **`Mods/`** next to the host output. |
 | **Cyberland.Engine** | All shared runtime: windowing, Vulkan renderer, ECS, task scheduler, virtual FS, assets, localization, OpenAL, mod loader, `GameHostServices`. |
 | **Cyberland.Game** | Base campaign mod → `Cyberland.Game.dll` (locale and future core data). Loaded by default. |
 | **Cyberland.Demo** (and **Pong** / **Snake** / **BrickBreaker**) | Sample mods → respective DLLs. **`disabled`: `true`** in each **`manifest.json`** by default so normal runs load only the base game. |
@@ -282,7 +279,7 @@ Frame order is **registration order**: one list where each entry is either **`IS
 
 - **`IMod`** — **`OnLoad(ModLoadContext)`**, **`OnUnload()`**.
 - **`ModManifest`** — id, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, optional **`disabled`**, optional **`contentBlocklist`** (see `manifest.json`).
-- **`ModLoader`** — discovers `Mods/*/manifest.json`, skips mods with **`disabled`**: **`true`** or ids listed in the optional **CLI exclude set**, mounts remaining content (then applies each mod’s blocklist), loads **`entryAssembly`**, finds one concrete **`IMod`**, invokes **`OnLoad`**.
+- **`ModLoader`** — discovers `Mods/*/manifest.json`, skips mods with **`disabled`**: **`true`** or ids listed in the optional **CLI exclude set**, mounts remaining content (then applies each mod’s blocklist), loads **`entryAssembly`** in the default assembly load context with a **`Resolving`** hook so satellite **`.dll`** files resolve from the mod folder (and optional **`lib/`**), finds one concrete **`IMod`**, invokes **`OnLoad`**.
 
 ### Hosting (`Hosting/`)
 
@@ -387,7 +384,7 @@ The host sets **`Renderer`** and **`Input`** only after successful window/input 
 
 ### 1. Prefer a system in the mod, not the host
 
-Add logic under **`mods/<YourMod>/`** with a **`manifest.json`** and stage it from **`Cyberland.Host.csproj`** like **`Cyberland.Game`** / **`Cyberland.Demo`**.
+Add logic under **`mods/<YourMod>/`** with a **`manifest.json`** and a **`.csproj`** referencing **`Cyberland.Engine`**. Add the mod project to **`Cyberland.sln`**; **`scripts/StageModsForHost.ps1`** picks up each **`mods/*/`** folder that contains **`manifest.json`** (skipped when **`disabled`** is true).
 
 ### 2. Define data as components
 
@@ -440,7 +437,7 @@ c = new MyComponent { Value = 1f };
 1. Add a project under **`mods/YourMod/`** referencing **`Cyberland.Engine`**.
 2. Implement **`IMod`**.
 3. Add **`manifest.json`**.
-4. Reference the mod from **`Cyberland.Host.csproj`** and add a **`Stage*Mod`** **Copy** target (mirror **`StageBaseMod`** / **`StageDemoMod`**) so **`Mods/YourMod/`** is populated in the output directory.
+4. Ensure the mod appears under **`mods/YourMod/`** with **`manifest.json`** — no host project reference is required. Rebuild **Cyberland.Host** so **`Mods/YourMod/`** is populated in the output directory.
 
 ---
 

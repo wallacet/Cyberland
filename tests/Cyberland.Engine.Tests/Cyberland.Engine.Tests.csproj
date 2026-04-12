@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Cyberland.Engine\Cyberland.Engine.csproj" />
+    <ProjectReference Include="..\Cyberland.ModPluginHelper\Cyberland.ModPluginHelper.csproj" />
     <ProjectReference Include="..\Cyberland.TestMod\Cyberland.TestMod.csproj" />
   </ItemGroup>
 

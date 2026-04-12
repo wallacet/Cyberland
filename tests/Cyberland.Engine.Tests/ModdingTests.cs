@@ -12,6 +12,14 @@ namespace Cyberland.Engine.Tests;
 
 public sealed class ModdingTests
 {
+    private static void UnloadModsAndGc(ModLoader? loader)
+    {
+        loader?.UnloadAll();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+    }
+
     private static string StageMod(
         string modsRoot,
         string folderName,
@@ -22,10 +30,17 @@ public sealed class ModdingTests
     {
         var modDir = Path.Combine(modsRoot, folderName);
         Directory.CreateDirectory(Path.Combine(modDir, "Content"));
-        var srcDll = typeof(TestModEntry).Assembly.Location;
-        var destDll = Path.Combine(modDir, "Cyberland.TestMod.dll");
         if (includeDll)
-            File.Copy(srcDll, destDll, overwrite: true);
+        {
+            var srcDir = Path.GetDirectoryName(typeof(TestModEntry).Assembly.Location)!;
+            foreach (var path in Directory.GetFiles(srcDir, "*.dll"))
+            {
+                var name = Path.GetFileName(path);
+                if (string.Equals(name, "Cyberland.Engine.dll", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                File.Copy(path, Path.Combine(modDir, name), overwrite: true);
+            }
+        }
 
         var manifest = new Dictionary<string, object?>
         {
@@ -180,6 +195,9 @@ public sealed class ModdingTests
         }
         finally
         {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
             Directory.Delete(modsRoot, true);
         }
     }
@@ -222,16 +240,17 @@ public sealed class ModdingTests
     }
 
     [Fact]
-    public void ModLoader_skips_assembly_when_entry_dropped_or_missing_file()
+    public void ModLoader_skips_imod_when_entry_assembly_not_valid_pe()
     {
         TestModEntry.ResetCounters();
-        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb mods skip " + Guid.NewGuid());
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb bad pe " + Guid.NewGuid());
         Directory.CreateDirectory(modsRoot);
-        StageMod(modsRoot, "noasm", "n", 0, includeDll: true, includeEntryAsmInManifest: false);
-
-        var miss = Path.Combine(modsRoot, "miss");
-        Directory.CreateDirectory(miss);
-        File.WriteAllText(Path.Combine(miss, "manifest.json"), """{"id":"m","entryAssembly":"ghost.dll","contentRoot":"Content","loadOrder":0}""");
+        var modDir = Path.Combine(modsRoot, "bad");
+        Directory.CreateDirectory(Path.Combine(modDir, "Content"));
+        File.WriteAllText(Path.Combine(modDir, "Fake.dll"), "not a PE file");
+        File.WriteAllText(
+            Path.Combine(modDir, "manifest.json"),
+            """{"id":"bad.pe","entryAssembly":"Fake.dll","contentRoot":"Content","loadOrder":0}""");
 
         try
         {
@@ -243,10 +262,121 @@ public sealed class ModdingTests
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
+
+            Assert.Equal(0, TestModEntry.OnLoadCount);
+            Assert.Single(loader.LoadedManifests);
+            Assert.Equal("bad.pe", loader.LoadedManifests[0].Id);
+            loader.UnloadAll();
+        }
+        finally
+        {
+            Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoader_pure_content_manifest_mounts_without_entry_assembly()
+    {
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb pure content " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        var modDir = Path.Combine(modsRoot, "pack");
+        Directory.CreateDirectory(Path.Combine(modDir, "Content"));
+        File.WriteAllText(Path.Combine(modDir, "Content", "asset.bin"), "x");
+        File.WriteAllText(
+            Path.Combine(modDir, "manifest.json"),
+            """{"id":"tex.pack","contentRoot":"Content","loadOrder":0}""");
+
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            var loader = new ModLoader();
+            loader.LoadAll(
+                modsRoot,
+                vfs,
+                new LocalizationManager(),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                new GameHostServices(new KeyBindingStore()));
+
+            Assert.Single(loader.LoadedManifests);
+            Assert.Equal("tex.pack", loader.LoadedManifests[0].Id);
+            Assert.True(vfs.Exists("asset.bin"));
+            loader.UnloadAll();
+        }
+        finally
+        {
+            Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoader_skips_assembly_when_entry_dropped_or_missing_file()
+    {
+        TestModEntry.ResetCounters();
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb mods skip " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        StageMod(modsRoot, "noasm", "n", 0, includeDll: true, includeEntryAsmInManifest: false);
+
+        var miss = Path.Combine(modsRoot, "miss");
+        Directory.CreateDirectory(miss);
+        File.WriteAllText(Path.Combine(miss, "manifest.json"), """{"id":"m","entryAssembly":"ghost.dll","contentRoot":"Content","loadOrder":0}""");
+
+        ModLoader? loader = null;
+        try
+        {
+            loader = new ModLoader();
+            loader.LoadAll(
+                modsRoot,
+                new VirtualFileSystem(),
+                new LocalizationManager(),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                new GameHostServices(new KeyBindingStore()));
             Assert.Equal(0, TestModEntry.OnLoadCount);
         }
         finally
         {
+            UnloadModsAndGc(loader);
+            Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoader_resolves_satellite_dependency_from_mod_lib_subfolder()
+    {
+        TestModEntry.ResetCounters();
+        var modsRoot = Path.Combine(Path.GetTempPath(), "cyb mod libsat " + Guid.NewGuid());
+        Directory.CreateDirectory(modsRoot);
+        var modDir = Path.Combine(modsRoot, "withlib");
+        Directory.CreateDirectory(Path.Combine(modDir, "Content"));
+        var srcDir = Path.GetDirectoryName(typeof(TestModEntry).Assembly.Location)!;
+        File.Copy(Path.Combine(srcDir, "Cyberland.TestMod.dll"), Path.Combine(modDir, "Cyberland.TestMod.dll"), overwrite: true);
+        Directory.CreateDirectory(Path.Combine(modDir, "lib"));
+        File.Copy(
+            Path.Combine(srcDir, "Cyberland.ModPluginHelper.dll"),
+            Path.Combine(modDir, "lib", "Cyberland.ModPluginHelper.dll"),
+            overwrite: true);
+        File.WriteAllText(
+            Path.Combine(modDir, "manifest.json"),
+            """{"id":"lib.sat","entryAssembly":"Cyberland.TestMod.dll","contentRoot":"Content","loadOrder":0}""");
+
+        ModLoader? loader = null;
+        try
+        {
+            loader = new ModLoader();
+            loader.LoadAll(
+                modsRoot,
+                new VirtualFileSystem(),
+                new LocalizationManager(),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                new GameHostServices(new KeyBindingStore()));
+
+            Assert.Equal(1, TestModEntry.OnLoadCount);
+        }
+        finally
+        {
+            UnloadModsAndGc(loader);
             Directory.Delete(modsRoot, true);
         }
     }
@@ -257,11 +387,12 @@ public sealed class ModdingTests
         TestModEntry.ResetCounters();
         var modsRoot = Path.Combine(Path.GetTempPath(), "cyb host " + Guid.NewGuid());
         StageMod(modsRoot, "one", "one.mod", 0);
+        ModLoader? loader = null;
         try
         {
             var keys = new KeyBindingStore();
             var host = new GameHostServices(keys);
-            var loader = new ModLoader();
+            loader = new ModLoader();
             loader.LoadAll(
                 modsRoot,
                 new VirtualFileSystem(),
@@ -273,6 +404,7 @@ public sealed class ModdingTests
         }
         finally
         {
+            UnloadModsAndGc(loader);
             Directory.Delete(modsRoot, true);
         }
     }
@@ -286,11 +418,12 @@ public sealed class ModdingTests
         StageMod(modsRoot, "a", "keep.mod", loadOrder: 0);
         StageMod(modsRoot, "b", "drop.mod", loadOrder: 1);
 
+        ModLoader? loader = null;
         try
         {
             var vfs = new VirtualFileSystem();
             var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "drop.mod" };
-            var loader = new ModLoader();
+            loader = new ModLoader();
             loader.LoadAll(
                 modsRoot,
                 vfs,
@@ -308,6 +441,7 @@ public sealed class ModdingTests
         }
         finally
         {
+            UnloadModsAndGc(loader);
             Directory.Delete(modsRoot, true);
         }
     }
@@ -331,10 +465,11 @@ public sealed class ModdingTests
             {"id":"off.mod","entryAssembly":"Cyberland.TestMod.dll","contentRoot":"Content","loadOrder":10,"disabled":true}
             """);
 
+        ModLoader? loader = null;
         try
         {
             var vfs = new VirtualFileSystem();
-            var loader = new ModLoader();
+            loader = new ModLoader();
             loader.LoadAll(
                 modsRoot,
                 vfs,
@@ -352,6 +487,7 @@ public sealed class ModdingTests
         }
         finally
         {
+            UnloadModsAndGc(loader);
             Directory.Delete(modsRoot, true);
         }
     }

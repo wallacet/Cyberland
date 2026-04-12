@@ -3,6 +3,11 @@ namespace Cyberland.Engine.Modding;
 /// <summary>
 /// Describes a mod on disk. The loader mounts each mod's content in order, applies optional blocklists, then loads assemblies.
 /// </summary>
+/// <remarks>
+/// <b>Content-only packs:</b> omit <see cref="EntryAssembly"/> (or leave it empty) for texture/audio-only overrides — no <c>IMod</c> assembly is loaded.
+/// <b>Code-only mods:</b> you may keep the default <see cref="ContentRoot"/> of <c>Content</c> even when that folder is absent; the VFS mount is skipped when the path does not exist.
+/// Avoid setting <see cref="ContentRoot"/> to an empty string: that can mount the entire mod directory into the VFS.
+/// </remarks>
 public sealed class ModManifest
 {
     /// <summary>Stable id used for exclusions (<c>--exclude-mods</c>) and ordering; should be unique.</summary>

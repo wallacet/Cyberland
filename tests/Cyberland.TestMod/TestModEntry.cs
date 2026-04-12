@@ -1,4 +1,5 @@
 using Cyberland.Engine.Modding;
+using Cyberland.ModPluginHelper;
 
 namespace Cyberland.TestMod;
 
@@ -13,6 +14,7 @@ public sealed class TestModEntry : IMod
     {
         OnLoadCount++;
         LastContext = context;
+        _ = PluginHelper.Token;
     }
 
     public void OnUnload() =>

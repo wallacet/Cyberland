@@ -76,10 +76,67 @@
         "reveal": "always",
         "panel": "shared"
       },
-      "detail": "dotnet publish Cyberland.Host (Release) and copy Mods into publish output. Same as publish-cyberland skill.",
+      "detail": "dotnet publish Cyberland.Host (Release). MSBuild stages Mods/ into artifacts/publish/.../ — full runnable folder (exe, runtime deps, Mods) ready to zip or upload.",
       "icon": {
         "id": "package",
         "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + distribution zip",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Publish then create artifacts/dist/Cyberland-Host-release.zip (entire publish tree: exe, deps, Mods) for store/CDN upload.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Zip publish output only",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Archive-CyberlandPublish.ps1",
+        "-Configuration",
+        "Release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Re-zip existing artifacts/publish/Cyberland.Host/release/ without rebuilding. Use after Publish Release if you only changed packaging.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiMagenta"
       }
     },
     {

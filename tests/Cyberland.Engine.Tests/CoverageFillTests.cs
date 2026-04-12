@@ -298,13 +298,15 @@ public sealed class CoverageFillTests
         Directory.CreateDirectory(modsRoot);
         var modDir = Path.Combine(modsRoot, "m");
         Directory.CreateDirectory(Path.Combine(modDir, "Content"));
-        File.Copy(typeof(ModLoader).Assembly.Location, Path.Combine(modDir, "Cyberland.Engine.dll"), true);
+        var helperDll = typeof(Cyberland.ModPluginHelper.PluginHelper).Assembly.Location;
+        File.Copy(helperDll, Path.Combine(modDir, "Cyberland.ModPluginHelper.dll"), true);
         File.WriteAllText(
             Path.Combine(modDir, "manifest.json"),
-            """{"id":"m","entryAssembly":"Cyberland.Engine.dll","contentRoot":"Content","loadOrder":0}""");
+            """{"id":"m","entryAssembly":"Cyberland.ModPluginHelper.dll","contentRoot":"Content","loadOrder":0}""");
+        ModLoader? loader = null;
         try
         {
-            var loader = new ModLoader();
+            loader = new ModLoader();
             loader.LoadAll(
                 modsRoot,
                 new VirtualFileSystem(),
@@ -317,6 +319,10 @@ public sealed class CoverageFillTests
         }
         finally
         {
+            loader?.UnloadAll();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
             Directory.Delete(modsRoot, true);
         }
     }
