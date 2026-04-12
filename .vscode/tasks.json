@@ -76,7 +76,187 @@
         "reveal": "always",
         "panel": "shared"
       },
-      "detail": "dotnet publish Cyberland.Host (Release). MSBuild stages Mods/ into artifacts/publish/.../ — full runnable folder (exe, runtime deps, Mods) ready to zip or upload.",
+      "detail": "Framework-dependent portable publish (artifacts/publish/.../release/). Requires .NET 8 runtime. Use a (win-x64) RID task when you need platform-specific native dependencies without bundling CoreCLR.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release (win-x64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "win-x64"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent RID publish for win-x64 (--self-contained false). Requires .NET 8 runtime installed; small output vs bundling the runtime. Add -SelfContained in scripts/Publish-Cyberland.ps1 for offline bundles.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release (win-arm64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "win-arm64"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent RID publish for win-arm64. Requires .NET 8 runtime.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release (linux-x64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "linux-x64"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent RID publish for linux-x64. Requires .NET 8 runtime.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release (linux-arm64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "linux-arm64"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent RID publish for linux-arm64. Requires .NET 8 runtime.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release (osx-x64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "osx-x64"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent RID publish for osx-x64. Requires .NET 8 runtime.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release (osx-arm64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "osx-arm64"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent RID publish for osx-arm64. Requires .NET 8 runtime.",
       "icon": {
         "id": "package",
         "color": "terminal.ansiYellow"
@@ -112,6 +292,192 @@
       }
     },
     {
+      "label": "Cyberland: Publish Release + zip (win-x64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "win-x64",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent win-x64 publish then artifacts/dist/Cyberland-Host-release-win-x64.zip.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + zip (win-arm64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "win-arm64",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent win-arm64 publish then Cyberland-Host-release-win-arm64.zip.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + zip (linux-x64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "linux-x64",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent linux-x64 publish then Cyberland-Host-release-linux-x64.zip.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + zip (linux-arm64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "linux-arm64",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent linux-arm64 publish then Cyberland-Host-release-linux-arm64.zip.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + zip (osx-x64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "osx-x64",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent osx-x64 publish then Cyberland-Host-release-osx-x64.zip.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + zip (osx-arm64)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-Cyberland.ps1",
+        "-Configuration",
+        "Release",
+        "-RuntimeIdentifier",
+        "osx-arm64",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Framework-dependent osx-arm64 publish then Cyberland-Host-release-osx-arm64.zip.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
       "label": "Cyberland: Zip publish output only",
       "type": "shell",
       "command": "powershell.exe",
@@ -133,7 +499,7 @@
         "reveal": "always",
         "panel": "shared"
       },
-      "detail": "Re-zip existing artifacts/publish/Cyberland.Host/release/ without rebuilding. Use after Publish Release if you only changed packaging.",
+      "detail": "Re-zip portable artifacts/publish/.../release/ without rebuilding. For RID output, run Archive-CyberlandPublish.ps1 -RuntimeIdentifier <rid> in the terminal.",
       "icon": {
         "id": "package",
         "color": "terminal.ansiMagenta"

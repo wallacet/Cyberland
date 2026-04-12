@@ -40,22 +40,25 @@ Or zip an already-published tree without rebuilding:
 
 **VS Code / Cursor:** Command Palette (`Ctrl+Shift+P`) → **Tasks: Run Task** → **`Cyberland: Publish Release`** or **`Cyberland: Publish Release + distribution zip`**.
 
-- **Publish output:** **`artifacts/publish/Cyberland.Host/release/`** (contains **`Cyberland.Host.exe`**, dependencies, and **`Mods/`** from staging).
+- **Publish output (portable):** **`artifacts/publish/Cyberland.Host/release/`** (contains **`Cyberland.Host.exe`** on Windows, dependencies, and **`Mods/`** from staging).
 
-## Optional: self-contained single-folder (example)
+## Per-platform RID publish (small; uses shared .NET)
 
-For a folder that does not require a shared .NET 8 runtime (larger output):
+**Self-contained is optional.** By default, **`Publish-Cyberland.ps1 -RuntimeIdentifier <rid>`** uses **`--self-contained false`**: the game ships as a small folder of assemblies plus native deps (Silk.NET, etc.) and relies on the user’s **installed .NET 8 runtime** (same model as portable publish, but with RID-specific native assets). Add **`-SelfContained`** only when you need a fully offline bundle (larger).
 
 ```powershell
-dotnet publish src/Cyberland.Host/Cyberland.Host.csproj -c Release -r win-x64 --self-contained true
+.\scripts\Publish-Cyberland.ps1 -RuntimeIdentifier win-x64
+.\scripts\Publish-Cyberland.ps1 -RuntimeIdentifier win-x64 -SelfContained   # optional: bundle CoreCLR + shared framework
 ```
 
-Adjust **`-r`** for another [RID](https://learn.microsoft.com/en-us/dotnet/core/rid-catalog) if needed. Publish still lands under **`artifacts/publish/Cyberland.Host/release/`** (with RID-specific layout as emitted by the SDK); **`Mods/`** is staged into that same folder by the publish step.
+Output: **`artifacts/publish/Cyberland.Host/<config>_<rid>/`** (for example **`release_win-x64`**). Other RIDs: **`win-arm64`**, **`linux-x64`**, **`linux-arm64`**, **`osx-x64`**, **`osx-arm64`**. Optional **`-Archive`** zips to **`artifacts/dist/Cyberland-Host-<config>-<rid>.zip`**.
+
+**VS Code / Cursor:** **Tasks: Run Task** includes per-RID **Publish Release** and **… + zip** tasks (framework-dependent by default).
 
 ## Verification
 
-- **`artifacts/publish/Cyberland.Host/release/Cyberland.Host.exe`** exists.
-- **`Mods/`** exists beside the exe (e.g. **`Mods/Cyberland.Game/`** with **`manifest.json`** and **`Cyberland.Game.dll`** when that mod is not disabled).
+- Portable: **`artifacts/publish/Cyberland.Host/release/`** has **`Cyberland.Host.exe`** (Windows) or **`Cyberland.Host`** (Unix) and **`Mods/`**.
+- Self-contained RID: **`artifacts/publish/Cyberland.Host/release_<rid>/`** has the host entrypoint and **`Mods/`** (e.g. **`Mods/Cyberland.Game/`** with **`manifest.json`** and **`Cyberland.Game.dll`** when that mod is not disabled).
 
 ## Agent workflow
 

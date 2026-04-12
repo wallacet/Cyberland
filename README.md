@@ -134,11 +134,13 @@ Use this when you want a **fresh tree** or a **folder you can zip** and run else
 
 4. **Package** — archive **`artifacts/publish/Cyberland.Host/release/`** (e.g. zip that folder). **`Mods/`** is already next to the published exe. **`keybindings.json`** is created at runtime next to the exe if missing.
 
-**Self-contained** (larger, no shared runtime on the target), example for Windows x64:
+**RID-specific publish** (platform-native dependencies, still uses the shared .NET 8 runtime — small download), example for Windows x64:
 
 ```powershell
-dotnet publish src/Cyberland.Host/Cyberland.Host.csproj -c Release -r win-x64 --self-contained true
+dotnet publish src/Cyberland.Host/Cyberland.Host.csproj -c Release -r win-x64 --self-contained false
 ```
+
+Or use **`.\scripts\Publish-Cyberland.ps1 -RuntimeIdentifier win-x64`** (same idea). Add **`-SelfContained`** to the script, or **`--self-contained true`** here, only when you need a larger offline bundle that does not rely on an installed runtime.
 
 Project-specific notes for agents live in **`.cursor/skills/publish-cyberland/`** and **`.cursor/skills/clear-cyberland-artifacts/`**.
 

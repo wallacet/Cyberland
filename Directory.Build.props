@@ -9,4 +9,10 @@
     <UseArtifactsOutput>true</UseArtifactsOutput>
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
   </PropertyGroup>
+
+  <!-- Release: do not emit portable PDBs beside shipped binaries (publish/install zips stay symbol-free). Debug keeps symbols for local dev and coverlet. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
 </Project>
