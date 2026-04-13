@@ -105,3 +105,6 @@ mods/*/Content/**/*.wav
 mods/*/Content/**/*.flac
 mods/*/Content/**/*.mp3
 mods/*/Content/**/*.m4a
+
+# Don't commit plans
+.cursor/plans/
