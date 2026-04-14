@@ -10,7 +10,7 @@ description: >-
 
 The host project is **`src/Cyberland.Host/Cyberland.Host.csproj`**. Centralized output is configured in **`Directory.Build.props`** (`UseArtifactsOutput`, **`ArtifactsPath`** = repo **`artifacts/`**).
 
-**Mods:** After **Build** and after **Publish**, MSBuild runs **`scripts/StageModsForHost.ps1`**, which builds each **`mods/*/`** project and copies enabled mods into **`Mods/`** next to the host output. Mods with **`"disabled": true`** in **`manifest.json`** are not staged.
+**Mods:** After **Build** and after **Publish**, MSBuild runs **`scripts/StageModsForHost.ps1`**, which stages enabled **`mods/*/`** into **`Mods/`** next to the host output (copies **`manifest.json`** + **`Content/`**; runs **`dotnet build`** only for mods that declare **`entryAssembly`**). Mods with **`"disabled": true`** in **`manifest.json`** are not staged.
 
 ## Default publish (framework-dependent, Windows)
 

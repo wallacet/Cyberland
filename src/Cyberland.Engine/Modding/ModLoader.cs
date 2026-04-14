@@ -86,7 +86,7 @@ public sealed class ModLoader
     /// </summary>
     /// <param name="modsRootDirectory">Typically <c>Mods</c> next to the executable.</param>
     /// <param name="vfs">Shared layered file system.</param>
-    /// <param name="localization">Merged string tables.</param>
+    /// <param name="localizedContent">Merged string tables + localized asset resolution.</param>
     /// <param name="world">Shared ECS world.</param>
     /// <param name="scheduler">Where mods register systems.</param>
     /// <param name="host">Renderer, input, optional stores.</param>
@@ -99,7 +99,7 @@ public sealed class ModLoader
     public void LoadAll(
         string modsRootDirectory,
         VirtualFileSystem vfs,
-        LocalizationManager localization,
+        ILocalizedContent localizedContent,
         World world,
         SystemScheduler scheduler,
         GameHostServices host,
@@ -197,7 +197,7 @@ public sealed class ModLoader
                     continue;
 
                 var mod = (IMod)Activator.CreateInstance(modType)!;
-                var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localization, world, scheduler, host);
+                var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localizedContent, world, scheduler, host);
                 mod.OnLoad(ctx);
                 _instances.Add(mod);
             }

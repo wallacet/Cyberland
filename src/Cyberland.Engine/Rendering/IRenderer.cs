@@ -8,6 +8,11 @@ namespace Cyberland.Engine.Rendering;
 /// </summary>
 /// <remarks>
 /// <para>
+/// <b>Coordinate spaces:</b> <see cref="SubmitSprite"/> / <see cref="SpriteDrawRequest"/> use <b>world space</b> (origin bottom-left, +Y up).
+/// Lights and volumes that take <c>*World</c> positions use the same convention. Fullscreen post-processing and compositing operate in
+/// internal framebuffer space; <see cref="SetGlobalPostProcess"/> does not take world coordinates.
+/// </para>
+/// <para>
 /// <b>Threading:</b> <see cref="SubmitSprite"/>, <see cref="SubmitPointLight"/>, <see cref="SubmitPostProcessVolume"/>,
 /// and <see cref="SetGlobalPostProcess"/> are safe to call from <see cref="Cyberland.Engine.Core.Ecs.IParallelSystem"/> workers concurrently
 /// (implementations synchronize CPU-side queues with the render thread). Vulkan command recording and <c>DrawFrame</c> run on

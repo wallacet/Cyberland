@@ -321,10 +321,11 @@ public sealed class CoverageFillTests
         try
         {
             loader = new ModLoader();
+            var vfs = new VirtualFileSystem();
             loader.LoadAll(
                 modsRoot,
-                new VirtualFileSystem(),
-                new LocalizationManager(),
+                vfs,
+                new LocalizedContent(new LocalizationManager(), vfs, "en"),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -353,7 +354,7 @@ public sealed class CoverageFillTests
                 new ModManifest { Id = "x", ContentRoot = "Content" },
                 modRoot,
                 vfs,
-                new LocalizationManager(),
+                new LocalizedContent(new LocalizationManager(), vfs, "en"),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));

@@ -106,7 +106,7 @@ After **Cyberland.Host** builds, mods are **staged** next to the host executable
 | **`Mods/Cyberland.Demo/`** | 2D HDR deferred sprite + ECS sample. **`disabled`: `true`** in `manifest.json` by default — see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). |
 | **`Mods/Cyberland.Demo.Pong/`**, **`...Snake/`**, **`...BrickBreaker/`** | Arcade samples; **`disabled`: `true`** by default. |
 
-**`scripts/StageModsForHost.ps1`** runs after **build** and after **publish**: it builds each mod project under **`mods/`**, skips manifests with **`"disabled": true`**, and copies **`manifest.json`**, built **`.dll`** files (except **`Cyberland.Engine.dll`**, which ships with the host), and **`Content/`** into **`Mods/<folder>/`**. Demo mods stay in the tree for development but are not staged or loaded until you opt in (set **`"disabled": false`** under **`mods/`** and rebuild).
+**`scripts/StageModsForHost.ps1`** runs after **build** and after **publish**: it **removes the host’s existing `Mods/` folder**, then for each enabled mod under **`mods/`** copies **`manifest.json`** and **`Content/`** (when present). Mods with an **`entryAssembly`** in **`manifest.json`** also run **`dotnet build`** on that mod’s **`.csproj`** and copy built **`.dll`** files (except **`Cyberland.Engine.dll`**). Mods that **omit** **`entryAssembly`** are **content-only** (e.g. locale or asset packs): no project build, no DLL—same behavior as **`ModLoader`** at runtime. Skips manifests with **`"disabled": true`**. That wipe prevents a mod you disabled in source from leaving an old copy next to the exe (which would still load).
 
 ### Clean build and packaging
 
@@ -271,9 +271,11 @@ Within each phase, order is still **global registration order**: each entry is e
 
 ### Localization (`Localization/`)
 
-- **`LocalizationManager`** — merged key → string tables (JSON), culture fallback; **`TryRemoveKey`** / **`RemoveKey`** drop keys for later mods.
-- Mods merge strings through the load pipeline / your own loads as needed.
-- **`TextRenderer.DrawLocalized`** resolves keys at draw time; pair with per-mod JSON under **`Content/Locale/<culture>/`** (merged in **`OnLoad`**) for HUD copy that stays consistent with the rest of the string table.
+- **`ILocalizedContent`** / **`LocalizedContent`** — single façade for **strings** and **localized media paths**. Call **`MergeStringTableAsync("snake.json")`** (table file name only; IO uses the same layered VFS as **`ModLoadContext.VirtualFileSystem`**) so the engine loads **`Content/Locale/en/…`**, then parent cultures, then the active language (later merges override keys). Use **`TryResolveLocalizedPath`**, **`TryLoadLocalizedBytesAsync`**, or **`TryOpenLocalizedRead`** for player-facing textures/audio/video instead of hardcoding **`Locale/en/…`**.
+- **`LocalizationManager`** — merged key → string table behind **`ILocalizedContent.Strings`**; **`TryRemoveKey`** / **`RemoveKey`** drop keys for later mods.
+- **Active language** — read from **`language.json`** next to the executable (`{ "primaryCulture": "de" }`). Override per launch with **`--lang=de`** or **`--lang de`** (takes precedence). Changing language requires a **restart**; the host merges **`strings.json`** after all mods load.
+- **Language-pack mods** — ship **`Content/Locale/{culture}/…`** with a **higher `loadOrder`** than the content you override. Omit **`entryAssembly`** in **`manifest.json`** for a **content-only** pack (no DLL); staging copies **`manifest.json`** + **`Content/`** only.
+- **`TextRenderer.DrawLocalized`** resolves keys at draw time; pair with merged JSON tables for HUD copy.
 
 ### Audio (`Audio/`)
 
@@ -287,7 +289,7 @@ Within each phase, order is still **global registration order**: each entry is e
 
 ### Hosting (`Hosting/`)
 
-- **`GameHostServices`** — **`KeyBindings`**, **`Renderer`** (**`IRenderer?`**; concrete type **`VulkanRenderer`**), **`Input`** (**`IInputContext?`**), optional **`Tilemaps`** (**`ITilemapDataStore?`**) and **`Particles`** (**`ParticleStore?`**) for tile indices and CPU particle buffers used by engine render/sim systems. **`LastPresentDeltaSeconds`** is wall time between draws (matches ECS **`deltaSeconds`** in the stock host, which runs **`RunFrame`** once per **Render** tick). Populated by **`GameApplication`** after the window and device exist, then passed into **`ModLoadContext`** so mods do not use static globals.
+- **`GameHostServices`** — **`KeyBindings`**, **`Renderer`** (**`IRenderer?`**; concrete type **`VulkanRenderer`**), **`Input`** (**`IInputContext?`**), **`LocalizedContent`** (**`ILocalizedContent?`**), built-in **`Fonts`** (**`FontLibrary`**) and **`TextGlyphCache`** for **`TextRenderSystem`** / **`TextRenderer`**, optional **`Tilemaps`** (**`ITilemapDataStore?`**) and **`Particles`** (**`ParticleStore?`**) for tile indices and CPU particle buffers used by engine render/sim systems. **`LastPresentDeltaSeconds`** is wall time between draws (matches ECS **`deltaSeconds`** in the stock host, which runs **`RunFrame`** once per **Render** tick). Populated by **`GameApplication`** after the window and device exist, then passed into **`ModLoadContext`** so mods do not use static globals.
 
 ### Diagnostics (`Diagnostics/`)
 
@@ -297,11 +299,11 @@ Within each phase, order is still **global registration order**: each entry is e
 
 ### Scene (`Scene/`)
 
-- **Components** — **`Position`**, **`Rotation`**, **`Scale`**, **`Transform`** (local TRS + optional parent), **`Sprite`** (includes **`Transparent`** for WBOIT vs deferred opaque path; optional **`EmissiveTextureId`**), **`Tilemap`**, **`SpriteAnimation`**, **`ParticleEmitter`**.
+- **Components** — **`Position`**, **`Rotation`**, **`Scale`**, **`Transform`** (local TRS + optional parent), **`Sprite`** (includes **`Transparent`** for WBOIT vs deferred opaque path; optional **`EmissiveTextureId`**), **`BitmapText`** (HUD strings; pair with **`Position`** for baseline), **`Tilemap`**, **`SpriteAnimation`**, **`ParticleEmitter`**.
 - **Stores** — **`TilemapDataStore`** / **`ITilemapDataStore`**, **`ParticleStore`** (indexed by entity; not stored inside ECS chunks).
-- **Systems** (registered by the host; see frame order above) — **`TransformHierarchySystem`**, **`SpriteAnimationSystem`**, **`ParticleSimulationSystem`**, **`TilemapRenderSystem`**, **`SpriteRenderSystem`**, **`ParticleRenderSystem`**. Baseline global post lives in **`EngineDefaultGlobalPostProcess`** (applied at init, not as a system).
+- **Systems** (registered by the host; see frame order above) — **`TransformHierarchySystem`**, **`SpriteAnimationSystem`**, **`ParticleSimulationSystem`**, **`TilemapRenderSystem`**, **`SpriteRenderSystem`**, **`ParticleRenderSystem`**, **`TextRenderSystem`**. Baseline global post lives in **`EngineDefaultGlobalPostProcess`** (applied at init, not as a system).
 
-Mods typically attach **`Sprite`** + **`Position`** (and optional rotation/scale) and let **`SpriteRenderSystem`** build **`SpriteDrawRequest`** (copying **`Transparent`**, texture ids, etc.) and call **`SubmitSprite`**, instead of issuing draws manually.
+Mods typically attach **`Sprite`** + **`Position`** (and optional rotation/scale) and let **`SpriteRenderSystem`** submit draws; for bitmap UI copy, add **`BitmapText`** + **`Position`** and let **`TextRenderSystem`** call **`TextRenderer`** using host **`Fonts`** / **`TextGlyphCache`**, instead of custom HUD render systems.
 
 ---
 
@@ -325,7 +327,7 @@ Mods/
 
 Shipped **demo** mods (**`Cyberland.Demo`**, **Pong**, **Snake**, **BrickBreaker**) have **`"disabled": true`** in their **`mods/<...>/manifest.json`** so a normal **`dotnet run`** loads only **`cyberland.base`**.
 
-1. **Turn on one demo** — In the repo, open that mod’s **`manifest.json`** and set **`"disabled": false`** (or remove the **`disabled`** property). Rebuild so the updated manifest is copied into **`artifacts/bin/Cyberland.Host/.../Mods/`** (staging runs after build). Alternatively, edit **`manifest.json`** next to the host exe under **`Mods/<ModName>/`** if you are iterating without rebuilding.
+1. **Turn on one demo** — In the repo, open that mod’s **`manifest.json`** and set **`"disabled": false`** (or remove the **`disabled`** property). Rebuild so staging refreshes **`artifacts/.../Mods/`** from source (each build **replaces** that folder, so disabling a demo you had enabled removes it from the output). Alternatively, edit **`manifest.json`** next to the host exe under **`Mods/<ModName>/`** if you are iterating **without** rebuilding (the next build overwrites from **`mods/`** in the repo).
 2. **Skip the base game** — The base mod’s id is **`cyberland.base`**. Pass **`--exclude-mods`** so only your demo runs:
 
    ```powershell
@@ -429,7 +431,7 @@ c = new MyComponent { Value = 1f };
 
 - Read actions through **`context.Host.KeyBindings`** and **`context.Host.Input`**.
 - **Lighting** — queue **`SubmitPointLight`**, **`SubmitSpotLight`**, **`SubmitDirectionalLight`**, and **`SubmitAmbientLight`** on **`context.Host.Renderer`** each frame you need them (same **`IRenderer`** as sprites); the deferred path evaluates **all** queued point lights.
-- For drawing, prefer **`Sprite`** + **`Position`** (and optional **`Rotation`** / **`Scale`**) on entities; the engine’s **`SpriteRenderSystem`** submits **`SpriteDrawRequest`** in **world space** after your mod systems run. For one-off or procedural draws, build **`SpriteDrawRequest`** yourself and call **`context.Host.Renderer?.SubmitSprite(...)`** (and post volumes as needed).
+- For drawing, prefer **`Sprite`** + **`Position`** (and optional **`Rotation`** / **`Scale`**) on entities; the engine’s **`SpriteRenderSystem`** submits **`SpriteDrawRequest`** in **world space** after your mod systems run. For HUD text, prefer **`BitmapText`** + **`Position`** and **`TextRenderSystem`**. For one-off or procedural draws, build **`SpriteDrawRequest`** yourself and call **`context.Host.Renderer?.SubmitSprite(...)`** (and post volumes as needed).
 
 ### 7. Assets and localization
 
@@ -461,7 +463,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 
 **Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, and **BrickBreaker** drive **`Position`** / **`Sprite`** from simulation or layout systems; arcade HDR tuning calls **`SetGlobalPostProcess`** once from **`IMod.OnLoad`**. **Cyberland.Demo** also submits a half-screen bloom **volume** each frame so bounds follow **`SwapchainPixelSize`** on resize (**`cyberland.demo/post-volumes`**).
 
-**Cyberland.Demo.Snake** uses **`SubmitSprite`** for immediate draws (snake segments, food, UI overlays) for a thin, grid-aligned presentation; the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Other samples can follow the same pattern or route everything through **`Sprite`** entities and **`SpriteRenderSystem`**.
+**Cyberland.Demo.Snake** drives **`Sprite`** and **`BitmapText`** entities from a visual sync system (grid-aligned quads); the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Samples use **`GameHostServices.Fonts`** / **`TextGlyphCache`** only when calling **`TextRenderer`** directly for special cases.
 
 ---
 

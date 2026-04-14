@@ -1,7 +1,6 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
-using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -9,7 +8,7 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-/// <summary>Maps <see cref="BrickSession"/> to ECS sprites for the engine draw pass.</summary>
+/// <summary>Maps <see cref="BrickSession"/> to ECS sprites and HUD <see cref="BitmapText"/> for the engine draw passes.</summary>
 public sealed class BrickVisualSyncSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
@@ -22,9 +21,7 @@ public sealed class BrickVisualSyncSystem : ISystem, ILateUpdate
     private readonly EntityId _gameOverBar;
     private readonly EntityId[] _lives;
     private readonly EntityId[,] _cells;
-    private readonly LocalizationManager _localization;
-    private readonly FontLibrary _fonts;
-    private readonly TextGlyphCache _textCache;
+    private readonly BrickHudTextIds _texts;
 
     /// <summary>Exponential moving average of instantaneous FPS for a stable HUD readout.</summary>
     private float _fpsSmoothed;
@@ -40,9 +37,7 @@ public sealed class BrickVisualSyncSystem : ISystem, ILateUpdate
         EntityId gameOverBar,
         EntityId[] lives,
         EntityId[,] cells,
-        LocalizationManager localization,
-        FontLibrary fonts,
-        TextGlyphCache textCache)
+        BrickHudTextIds texts)
     {
         _host = host;
         _session = session;
@@ -54,9 +49,7 @@ public sealed class BrickVisualSyncSystem : ISystem, ILateUpdate
         _gameOverBar = gameOverBar;
         _lives = lives;
         _cells = cells;
-        _localization = localization;
-        _fonts = fonts;
-        _textCache = textCache;
+        _texts = texts;
     }
 
     public void OnLateUpdate(World world, float deltaSeconds)
@@ -223,10 +216,10 @@ public sealed class BrickVisualSyncSystem : ISystem, ILateUpdate
             spr.EmissiveIntensity = 0.2f;
         }
 
-        DrawBrickText(r, fb, in s);
+        SyncBrickHudText(world, fb, in s);
     }
 
-    private void DrawBrickText(IRenderer r, Vector2D<int> fb, in BrickSession s)
+    private void SyncBrickHudText(World world, Vector2D<int> fb, in BrickSession s)
     {
         var titleSt = new TextStyle(BuiltinFonts.UiSans, 22f, new Vector4D<float>(0.45f, 0.78f, 1f, 1f), Bold: true);
         var hintSt = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(0.55f, 0.62f, 0.72f, 0.9f));
@@ -234,34 +227,56 @@ public sealed class BrickVisualSyncSystem : ISystem, ILateUpdate
         var numSt = new TextStyle(BuiltinFonts.Mono, 20f, new Vector4D<float>(1f, 0.85f, 0.35f, 1f));
         var goSt = new TextStyle(BuiltinFonts.UiSans, 19f, new Vector4D<float>(1f, 0.5f, 0.35f, 1f), Italic: true);
 
+        HideAllBrickText(world);
+
         if (s.Phase == BrickPhase.Title)
         {
-            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, titleSt, "demo.brick.title",
-                new Vector2D<float>(36f, fb.Y - 58f));
-            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hintSt, "demo.brick.hint_title",
-                new Vector2D<float>(36f, 100f));
+            SetBrickRow(world, _texts.Title, titleSt, "demo.brick.title", true, 36f, fb.Y - 58f);
+            SetBrickRow(world, _texts.HintTitle, hintSt, "demo.brick.hint_title", true, 36f, 100f);
         }
         else if (s.Phase == BrickPhase.GameOver)
         {
-            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, goSt, "demo.brick.game_over",
-                new Vector2D<float>(fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f));
-            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hintSt, "demo.brick.hint_gameover",
-                new Vector2D<float>(36f, 118f));
+            SetBrickRow(world, _texts.GameOver, goSt, "demo.brick.game_over", true, fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
+            SetBrickRow(world, _texts.HintGameOver, hintSt, "demo.brick.hint_gameover", true, 36f, 118f);
         }
         else if (s.Phase == BrickPhase.Playing)
         {
-            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hudSt, "demo.brick.playing_score",
-                new Vector2D<float>(24f, fb.Y - 32f));
-            TextRenderer.DrawLiteral(r, _fonts, _textCache, numSt, s.Score.ToString(),
-                new Vector2D<float>(130f, fb.Y - 32f));
+            SetBrickRow(world, _texts.PlayingScore, hudSt, "demo.brick.playing_score", true, 24f, fb.Y - 32f);
+            SetBrickRow(world, _texts.ScoreNum, numSt, s.Score.ToString(), false, 130f, fb.Y - 32f);
         }
 
         if (fb.X > 0 && fb.Y > 0)
         {
             var fpsSt = new TextStyle(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
             var line = _fpsSmoothed > 0f ? $"FPS {_fpsSmoothed:0}" : "FPS —";
-            TextRenderer.DrawLiteral(r, _fonts, _textCache, fpsSt, line,
-                new Vector2D<float>(fb.X - 120f, fb.Y - 26f));
+            SetBrickRow(world, _texts.Fps, fpsSt, line, false, fb.X - 120f, fb.Y - 26f);
         }
+    }
+
+    private void HideAllBrickText(World world)
+    {
+        foreach (var e in new[]
+                 {
+                     _texts.Title, _texts.HintTitle, _texts.GameOver, _texts.HintGameOver, _texts.PlayingScore,
+                     _texts.ScoreNum, _texts.Fps
+                 })
+        {
+            ref var bt = ref world.Components<BitmapText>().Get(e);
+            bt.Visible = false;
+        }
+    }
+
+    private static void SetBrickRow(World world, EntityId e, TextStyle style, string content, bool isKey, float sx, float sy)
+    {
+        ref var pos = ref world.Components<Position>().Get(e);
+        pos.X = sx;
+        pos.Y = sy;
+        ref var bt = ref world.Components<BitmapText>().Get(e);
+        bt.Visible = true;
+        bt.Style = style;
+        bt.Content = content;
+        bt.IsLocalizationKey = isKey;
+        bt.BaselineWorldSpace = false;
+        bt.SortKey = 450f;
     }
 }

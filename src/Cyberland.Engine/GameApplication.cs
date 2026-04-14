@@ -27,7 +27,7 @@ namespace Cyberland.Engine;
 /// The host wires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Input"/> after graphics init so mods receive a working <see cref="Modding.ModLoadContext"/>.
 /// </para>
 /// <para>
-/// Core engine systems (transforms, sprite animation, particles, tilemaps, sprites) register on the scheduler before and after <see cref="Modding.ModLoader.LoadAll"/>; mods add their own sequential or parallel systems via <see cref="Modding.ModLoadContext.RegisterSequential"/> / <see cref="Modding.ModLoadContext.RegisterParallel"/>, implementing <see cref="Core.Ecs.IEarlyUpdate"/> / <see cref="Core.Ecs.IFixedUpdate"/> / <see cref="Core.Ecs.ILateUpdate"/> (or parallel equivalents) as needed.
+/// Core engine systems (transforms, sprite animation, particles, tilemaps, sprites, bitmap text) register on the scheduler before and after <see cref="Modding.ModLoader.LoadAll"/>; mods add their own sequential or parallel systems via <see cref="Modding.ModLoadContext.RegisterSequential"/> / <see cref="Modding.ModLoadContext.RegisterParallel"/>, implementing <see cref="Core.Ecs.IEarlyUpdate"/> / <see cref="Core.Ecs.IFixedUpdate"/> / <see cref="Core.Ecs.ILateUpdate"/> (or parallel equivalents) as needed.
 /// </para>
 /// <para>
 /// <see cref="Core.Tasks.SystemScheduler.RunFrame(Cyberland.Engine.Core.Ecs.World, float)"/> runs once per window <strong>Render</strong> tick (not per <strong>Update</strong>), with <c>deltaSeconds</c> equal to Silk’s <c>Render</c> callback argument (the render stopwatch interval from <c>DoRender</c>). Avoid a <c>minimum</c> frame duration clamp: at high refresh + mailbox, real intervals can fall below 2 ms; a floor would add fake time every tick and make fixed-step sim run faster than wall clock. Only cap large hitches (max) to keep the accumulator bounded. Silk may call <strong>Update</strong> more often than <strong>Render</strong>; running the full ECS from <strong>Update</strong> advanced gameplay multiple times per presented frame and made HUD frame timing misleading.
@@ -51,6 +51,7 @@ public sealed class GameApplication : IDisposable
     private readonly KeyBindingStore _bindings = new();
     private readonly GameHostServices _host;
     private readonly string[] _commandLineArgs;
+    private ILocalizedContent? _localizedContent;
     private OpenALAudioDevice? _audio;
     private VulkanRenderer? _renderer;
     private IWindow? _window;
@@ -132,30 +133,43 @@ public sealed class GameApplication : IDisposable
         var bindingsFile = Path.Combine(AppContext.BaseDirectory, "keybindings.json");
         _bindings.LoadOrCreateUserFileAsync(bindingsFile).GetAwaiter().GetResult();
 
-        _scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
-        _scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
-        _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem(_host));
+        var languageFile = Path.Combine(AppContext.BaseDirectory, "language.json");
+        var primaryCulture = LanguagePreference.Resolve(_commandLineArgs, languageFile);
+        _localizedContent = new LocalizedContent(_localization, _vfs, primaryCulture);
+        _host.LocalizedContent = _localizedContent;
 
-        var assets = new AssetManager(_vfs);
-        var excluded = ExcludeModsParser.TryParse(_commandLineArgs);
-        IReadOnlySet<string>? excludedSet = null;
-        if (excluded is not null)
-            excludedSet = new HashSet<string>(excluded, StringComparer.OrdinalIgnoreCase);
+        _scheduler.BeginDeferExecutionOrderRebuilds();
+        try
+        {
+            _scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
+            _scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
+            _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem(_host));
 
-        _mods.LoadAll(
-            Path.Combine(AppContext.BaseDirectory, "Mods"),
-            _vfs,
-            _localization,
-            _world,
-            _scheduler,
-            _host,
-            excludedSet);
+            var excluded = ExcludeModsParser.TryParse(_commandLineArgs);
+            IReadOnlySet<string>? excludedSet = null;
+            if (excluded is not null)
+                excludedSet = new HashSet<string>(excluded, StringComparer.OrdinalIgnoreCase);
 
-        _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
-        _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
-        _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
+            _mods.LoadAll(
+                Path.Combine(AppContext.BaseDirectory, "Mods"),
+                _vfs,
+                _localizedContent,
+                _world,
+                _scheduler,
+                _host,
+                excludedSet);
 
-        LocalizationBootstrap.LoadAsync(_localization, assets, "Locale/en/strings.json").GetAwaiter().GetResult();
+            _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
+            _scheduler.RegisterSequential("cyberland.engine/text-render", new TextRenderSystem(_host));
+        }
+        finally
+        {
+            _scheduler.EndDeferExecutionOrderRebuilds();
+        }
+
+        _localizedContent.MergeStringTableAsync("strings.json").GetAwaiter().GetResult();
     }
 
     private void OnUpdate(double delta)

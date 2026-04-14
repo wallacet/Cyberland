@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
@@ -10,6 +11,7 @@ namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
 /// Parallel pass: for each <see cref="Tilemap"/> entity, looks up grid indices in <see cref="Hosting.GameHostServices.Tilemaps"/> and issues textured quads per solid cell.
+/// Cell centers are converted to world space (<see cref="WorldScreenSpace.ScreenPixelToWorldCenter"/>) before <see cref="IRenderer.SubmitSprite"/>.
 /// </summary>
 public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
 {
@@ -30,6 +32,8 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
         var store = _host.Tilemaps;
         if (r is null || store is null)
             return;
+
+        var fb = r.SwapchainPixelSize;
 
         _chunks.Clear();
         foreach (var chunk in world.QueryChunks<Tilemap>())
@@ -68,9 +72,10 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
 
                     var cx = ox + (x + 0.5f) * tw;
                     var cy = oy + (y + 0.5f) * th;
+                    var centerWorld = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(cx, cy), fb);
                     var req = new SpriteDrawRequest
                     {
-                        CenterWorld = new Vector2D<float>(cx, cy),
+                        CenterWorld = centerWorld,
                         HalfExtentsWorld = new Vector2D<float>(tw * 0.48f, th * 0.48f),
                         RotationRadians = 0f,
                         Layer = tm.Layer,

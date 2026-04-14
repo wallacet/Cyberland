@@ -1,7 +1,11 @@
+using Cyberland.Engine;
+using Silk.NET.Maths;
+
 namespace Cyberland.Demo.Snake;
 
 /// <summary>
 /// Snake body and food live in heap collections (not ECS chunks). Systems read/write this session from split <see cref="ISystem"/> passes.
+/// Grid indices use <b>world space</b>: origin at the bottom-left cell, +X right, +Y up (matches <see cref="Cyberland.Engine.Scene.Position"/>).
 /// </summary>
 public sealed class SnakeSession
 {
@@ -26,6 +30,19 @@ public sealed class SnakeSession
         OriginY = (fbY - SnakeConstants.GridH * Cell) * 0.5f;
     }
 
+    /// <summary>Pixel center of a cell in framebuffer space (top-left origin, +Y down). Row 0 of the tilemap is the top row on screen.</summary>
+    public Vector2D<float> CellCenterScreen(int x, int y)
+    {
+        var rowFromTop = SnakeConstants.GridH - 1 - y;
+        return new Vector2D<float>(
+            OriginX + (x + 0.5f) * Cell,
+            OriginY + (rowFromTop + 0.5f) * Cell);
+    }
+
+    /// <summary>World-space center for sprite placement; renderer maps world → framebuffer.</summary>
+    public Vector2D<float> CellCenterWorld(int x, int y, Vector2D<int> framebufferSize) =>
+        WorldScreenSpace.ScreenPixelToWorldCenter(CellCenterScreen(x, y), framebufferSize);
+
     public void StartGame()
     {
         Phase = SnakePhase.Playing;
@@ -36,10 +53,10 @@ public sealed class SnakeSession
         NextDirX = 1;
         NextDirY = 0;
         Snake.Clear();
-        var cx = SnakeConstants.GridW / 2;
-        var cy = SnakeConstants.GridH / 2;
+        var wx = SnakeConstants.GridW / 2;
+        var wy = (SnakeConstants.GridH - 1) / 2;
         for (var i = 0; i < 4; i++)
-            Snake.AddLast((cx - i, cy));
+            Snake.AddLast((wx - i, wy));
         SpawnFood();
     }
 

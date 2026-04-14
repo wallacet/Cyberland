@@ -1,8 +1,6 @@
-using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
-using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
@@ -20,11 +18,7 @@ public sealed class BrickMod : IMod
     public void OnLoad(ModLoadContext context)
     {
         context.MountDefaultContent();
-        var fonts = new FontLibrary();
-        BuiltinFonts.AddTo(fonts);
-        var textCache = new TextGlyphCache();
-        LocalizationBootstrap.LoadAsync(context.Localization, new AssetManager(context.VirtualFileSystem),
-            "Locale/en/brick.json").GetAwaiter().GetResult();
+        context.LocalizedContent.MergeStringTableAsync("brick.json").GetAwaiter().GetResult();
 
         var session = new BrickSession();
         var w = context.World;
@@ -54,13 +48,36 @@ public sealed class BrickMod : IMod
         for (var cy = 0; cy < BrickConstants.Rows; cy++)
             cells[cx, cy] = Sprite(w);
 
+        static EntityId HudText(World world)
+        {
+            var e = world.CreateEntity();
+            world.Components<Position>().GetOrAdd(e);
+            ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+            bt.Visible = false;
+            bt.Content = " ";
+            bt.SortKey = 450f;
+            bt.BaselineWorldSpace = false;
+            bt.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
+            bt.IsLocalizationKey = false;
+            return e;
+        }
+
+        var texts = new BrickHudTextIds(
+            HudText(w),
+            HudText(w),
+            HudText(w),
+            HudText(w),
+            HudText(w),
+            HudText(w),
+            HudText(w));
+
         var host = context.Host;
         context.RegisterSequential("cyberland.demo.brick/input", new BrickInputSystem(host, session, controlEntity));
         context.RegisterSequential("cyberland.demo.brick/simulation", new BrickSimulationSystem(host, session, controlEntity));
         context.RegisterSequential("cyberland.demo.brick/lights", new BrickLightsSystem(host, session));
         context.RegisterSequential("cyberland.demo.brick/visual-sync",
             new BrickVisualSyncSystem(host, session, background, paddle, ball, titleUi, gameOverPanel, gameOverBar, lives,
-                cells, context.Localization, fonts, textCache));
+                cells, texts));
 
         ApplyBrickGlobalPost(host);
     }

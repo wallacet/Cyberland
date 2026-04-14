@@ -1,4 +1,3 @@
-using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
@@ -29,11 +28,7 @@ public sealed class DemoMod : IMod
     public void OnLoad(ModLoadContext context)
     {
         context.MountDefaultContent();
-        var fonts = new FontLibrary();
-        BuiltinFonts.AddTo(fonts);
-        var textCache = new TextGlyphCache();
-        LocalizationBootstrap.LoadAsync(context.Localization, new AssetManager(context.VirtualFileSystem),
-            "Locale/en/demo_hdr.json").GetAwaiter().GetResult();
+        context.LocalizedContent.MergeStringTableAsync("demo_hdr.json").GetAwaiter().GetResult();
 
         var w = context.World;
         var player = w.CreateEntity();
@@ -62,8 +57,29 @@ public sealed class DemoMod : IMod
 
         ApplyViewportDecor(w, host, background, neon);
 
+        var hudTitle = w.CreateEntity();
+        w.Components<Position>().GetOrAdd(hudTitle);
+        ref var btTitle = ref w.Components<BitmapText>().GetOrAdd(hudTitle);
+        btTitle.Visible = true;
+        btTitle.IsLocalizationKey = true;
+        btTitle.Content = "demo.hdr.title";
+        btTitle.Style = new TextStyle(BuiltinFonts.UiSans, 22f, new Vector4D<float>(0.85f, 0.95f, 1f, 1f), Bold: true);
+        btTitle.SortKey = 450f;
+        btTitle.BaselineWorldSpace = false;
+
+        var hudHint = w.CreateEntity();
+        w.Components<Position>().GetOrAdd(hudHint);
+        ref var btHint = ref w.Components<BitmapText>().GetOrAdd(hudHint);
+        btHint.Visible = true;
+        btHint.IsLocalizationKey = true;
+        btHint.Content = "demo.hdr.hint";
+        btHint.Style = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.55f, 0.65f, 0.75f, 0.9f), Italic: true);
+        btHint.SortKey = 451f;
+        btHint.BaselineWorldSpace = false;
+
         ApplyDemoGlobalPost(host);
 
+        context.RegisterSequential("cyberland.demo/hud-layout", new DemoHudLayoutSystem(host, hudTitle, hudHint));
         context.RegisterSequential("cyberland.demo/lights", new DemoStationaryLightsSystem(host));
         context.RegisterSequential("cyberland.demo/input", new DemoInputSystem(host, player, context.Scheduler));
         context.RegisterSequential("cyberland.demo/integrate", new DemoIntegrateSystem(host, player));
@@ -71,8 +87,6 @@ public sealed class DemoMod : IMod
         context.RegisterSequential("cyberland.demo/post-volumes",
             new DelegateSequentialSystem(onLateUpdate: (world, _) => SubmitDemoBloomVolume(world, player, host)));
         context.RegisterParallel("cyberland.demo/velocity-damp", new VelocityDampSystem());
-        context.RegisterSequential("cyberland.demo/hud-text",
-            new DemoHudTextSystem(context.Host, context.Localization, fonts, textCache));
     }
 
     public void OnUnload()

@@ -2,16 +2,19 @@ using System.Buffers;
 using System.Text;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Rendering.Text;
 
 /// <summary>
 /// Submits bitmap text as UI-layer <see cref="SpriteDrawRequest"/> quads (LTR, packed glyph atlas textures).
+/// Ordinary HUD should use <see cref="Scene.Systems.TextRenderSystem"/> with <see cref="Scene.BitmapText"/>; call these methods only for custom drawing.
 /// </summary>
 /// <remarks>
-/// Coordinates follow <see cref="WorldScreenSpace"/>: the baseline-left point has +Y upward. Localization keys use
-/// <see cref="LocalizationManager.Get"/> (missing keys echo the key).
+/// <see cref="DrawLiteral"/>, <see cref="DrawLocalized"/>, and <see cref="DrawRuns"/> take a <b>world-space</b> baseline-left (+Y up).
+/// <c>*Screen</c> overloads take baseline-left in <b>screen pixels</b> (top-left origin, +Y down) and convert via <see cref="WorldScreenSpace"/>.
+/// Localization keys use <see cref="LocalizationManager.Get"/> (missing keys echo the key).
 /// </remarks>
 public static class TextRenderer
 {
@@ -56,6 +59,37 @@ public static class TextRenderer
             renderer.DefaultNormalTextureId);
     }
 
+    /// <summary>Like <see cref="DrawLiteral"/> but <paramref name="baselineLeftScreen"/> is in framebuffer pixels (top-left, +Y down).</summary>
+    public static void DrawLiteralScreen(
+        IRenderer renderer,
+        FontLibrary fonts,
+        TextGlyphCache cache,
+        in TextStyle style,
+        string text,
+        Vector2D<float> baselineLeftScreen,
+        Vector2D<int> framebufferSize,
+        float sortKey = 450f)
+    {
+        var w = WorldScreenSpace.ScreenPixelToWorldCenter(baselineLeftScreen, framebufferSize);
+        DrawLiteral(renderer, fonts, cache, in style, text, w, sortKey);
+    }
+
+    /// <summary>Like <see cref="DrawLocalized"/> but <paramref name="baselineLeftScreen"/> is in framebuffer pixels (top-left, +Y down).</summary>
+    public static void DrawLocalizedScreen(
+        IRenderer renderer,
+        FontLibrary fonts,
+        TextGlyphCache cache,
+        LocalizationManager localization,
+        in TextStyle style,
+        string key,
+        Vector2D<float> baselineLeftScreen,
+        Vector2D<int> framebufferSize,
+        float sortKey = 450f)
+    {
+        var w = WorldScreenSpace.ScreenPixelToWorldCenter(baselineLeftScreen, framebufferSize);
+        DrawLocalized(renderer, fonts, cache, localization, in style, key, w, sortKey);
+    }
+
     /// <summary>Draws multiple runs (mixed colors, styles, and localized segments).</summary>
     public static void DrawRuns(
         IRenderer renderer,
@@ -86,6 +120,21 @@ public static class TextRenderer
             AddDecorations(renderer, st, baselineLeftWorld, runStart, runEnd, sortKey, renderer.WhiteTextureId,
                 renderer.DefaultNormalTextureId);
         }
+    }
+
+    /// <summary>Like <see cref="DrawRuns"/> but <paramref name="baselineLeftScreen"/> is in framebuffer pixels (top-left, +Y down).</summary>
+    public static void DrawRunsScreen(
+        IRenderer renderer,
+        FontLibrary fonts,
+        TextGlyphCache cache,
+        LocalizationManager? localization,
+        ReadOnlySpan<TextRun> runs,
+        Vector2D<float> baselineLeftScreen,
+        Vector2D<int> framebufferSize,
+        float sortKey = 450f)
+    {
+        var w = WorldScreenSpace.ScreenPixelToWorldCenter(baselineLeftScreen, framebufferSize);
+        DrawRuns(renderer, fonts, cache, localization, runs, w, sortKey);
     }
 
     private static float DrawRunContentWithPen(

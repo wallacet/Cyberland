@@ -1,3 +1,4 @@
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
@@ -8,7 +9,7 @@ namespace Cyberland.Demo.Snake;
 /// <summary>
 /// Submits arena lighting each frame for the deferred path: ambient + directional + spot in the base pass,
 /// multiple <see cref="PointLight"/>s via SSBO + instanced draws (all queued lights are evaluated).
-/// Positions match <see cref="SnakeRenderSystem"/> (grid to world via <see cref="SnakeSession"/> layout).
+/// Positions match <see cref="SnakeVisualSyncSystem"/> (grid to world via <see cref="SnakeSession"/> layout).
 /// </summary>
 public sealed class SnakeLightsSystem : ISystem, ILateUpdate
 {
@@ -43,6 +44,8 @@ public sealed class SnakeLightsSystem : ISystem, ILateUpdate
         var oy = s.OriginY;
         var gridCx = ox + SnakeConstants.GridW * 0.5f * cell;
         var gridCy = oy + SnakeConstants.GridH * 0.5f * cell;
+        var gridCenterWorld =
+            WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(gridCx, gridCy), fb);
 
         r.SubmitAmbientLight(new AmbientLight
         {
@@ -58,10 +61,10 @@ public sealed class SnakeLightsSystem : ISystem, ILateUpdate
             CastsShadow = false
         });
 
-        var spotPos = new Vector2D<float>(ox + cell * 2f, oy + cell * 1.5f);
-        var center = new Vector2D<float>(gridCx, gridCy);
-        var dx = center.X - spotPos.X;
-        var dy = center.Y - spotPos.Y;
+        var spotPosScreen = new Vector2D<float>(ox + cell * 2f, oy + cell * 1.5f);
+        var spotPos = WorldScreenSpace.ScreenPixelToWorldCenter(spotPosScreen, fb);
+        var dx = gridCenterWorld.X - spotPos.X;
+        var dy = gridCenterWorld.Y - spotPos.Y;
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
         var dir = dLen > 1e-4f
             ? new Vector2D<float>(dx / dLen, dy / dLen)
@@ -84,14 +87,12 @@ public sealed class SnakeLightsSystem : ISystem, ILateUpdate
         if (s.Phase == SnakePhase.Playing && s.Snake.Count > 0)
         {
             var head = s.Snake.First!.Value;
-            headWorld = new Vector2D<float>(
-                ox + (head.x + 0.5f) * cell,
-                oy + (head.y + 0.5f) * cell);
+            headWorld = s.CellCenterWorld(head.x, head.y, fb);
             headIntensity = 0.52f;
         }
         else
         {
-            headWorld = new Vector2D<float>(gridCx, gridCy);
+            headWorld = gridCenterWorld;
             headIntensity = 0.26f;
         }
 
@@ -109,16 +110,15 @@ public sealed class SnakeLightsSystem : ISystem, ILateUpdate
         float foodIntensity;
         if (s.Phase == SnakePhase.Playing)
         {
-            foodWorld = new Vector2D<float>(
-                ox + (s.Food.x + 0.5f) * cell,
-                oy + (s.Food.y + 0.5f) * cell);
+            foodWorld = s.CellCenterWorld(s.Food.x, s.Food.y, fb);
             foodIntensity = 0.44f;
         }
         else
         {
-            foodWorld = new Vector2D<float>(
+            var foodScreen = new Vector2D<float>(
                 ox + (SnakeConstants.GridW - 0.5f) * cell,
                 oy + cell * 0.5f);
+            foodWorld = WorldScreenSpace.ScreenPixelToWorldCenter(foodScreen, fb);
             foodIntensity = 0.22f;
         }
 

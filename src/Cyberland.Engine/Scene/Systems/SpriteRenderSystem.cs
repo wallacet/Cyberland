@@ -9,7 +9,8 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Parallel pass: walks all <see cref="Sprite"/> chunks, pairs with <see cref="Position"/> / <see cref="Rotation"/> / <see cref="Scale"/>, and submits <see cref="SpriteDrawRequest"/>s to <see cref="Hosting.GameHostServices.Renderer"/>.
+/// Default engine sprite pass: walks <see cref="Sprite"/> chunks with <see cref="Position"/> / <see cref="Rotation"/> / <see cref="Scale"/> and
+/// submits <see cref="SpriteDrawRequest"/>s. Mods normally attach components and let this system draw—no custom <see cref="IRenderer.SubmitSprite"/> calls.
 /// </summary>
 public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
 {

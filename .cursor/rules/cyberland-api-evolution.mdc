@@ -1,0 +1,23 @@
+---
+description: API change policy — early project; prefer clarity over compatibility
+alwaysApply: true
+---
+
+# Cyberland — API evolution (early development)
+
+The project is **not** stabilizing a long-lived public ABI yet. **Breaking changes are acceptable and often preferred** when they simplify the codebase, remove confusion, or improve architecture.
+
+## What agents should do
+
+- **Prefer the better API** over preserving old signatures. Rename, remove, or replace types and members when a cleaner design is available.
+- **Update all in-repo call sites and tests in the same change** (engine, host, mods under `mods/`, tests). Do not leave dead compatibility paths “for later.”
+- **Do not** add `[Obsolete]` shims, overload sets kept “for backward compatibility,” feature flags for old behavior, or parallel “v1/v2” APIs **unless the user explicitly asks for a transition period.**
+
+## What agents should not do
+
+- Do **not** avoid a refactor because “mods might break” or “it’s a breaking change.” External consumers are not a constraint at this stage.
+- Do **not** spend effort on migration guides, upgrade checklists, or release-note prose for API churn **unless the user asks.** Keep documentation describing **current** behavior only (see **cyberland-readme-sync**).
+
+## When this policy might change
+
+If the maintainer later declares a stable modding contract or ships numbered releases with compatibility guarantees, this rule should be revised. Until then, assume **ship the cleanest design.**

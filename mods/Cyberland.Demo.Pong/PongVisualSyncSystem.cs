@@ -1,7 +1,6 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
-using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -9,15 +8,13 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Pong;
 
-/// <summary>Copies <see cref="PongState"/> into <see cref="Position"/> + <see cref="Sprite"/> for the engine sprite pass.</summary>
+/// <summary>Copies <see cref="PongState"/> into <see cref="Position"/> + <see cref="Sprite"/> and HUD <see cref="BitmapText"/> for the engine render passes.</summary>
 public sealed class PongVisualSyncSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
     private readonly EntityId _session;
     private readonly PongVisualIds _v;
-    private readonly LocalizationManager _localization;
-    private readonly FontLibrary _fonts;
-    private readonly TextGlyphCache _textCache;
+    private readonly PongHudTextIds _t;
 
     private int _cachedPlayerPoints = int.MinValue;
     private int _cachedCpuPoints = int.MinValue;
@@ -28,16 +25,12 @@ public sealed class PongVisualSyncSystem : ISystem, ILateUpdate
         GameHostServices host,
         EntityId session,
         PongVisualIds visuals,
-        LocalizationManager localization,
-        FontLibrary fonts,
-        TextGlyphCache textCache)
+        PongHudTextIds texts)
     {
         _host = host;
         _session = session;
         _v = visuals;
-        _localization = localization;
-        _fonts = fonts;
-        _textCache = textCache;
+        _t = texts;
     }
 
     public void OnLateUpdate(World world, float deltaSeconds)
@@ -57,36 +50,28 @@ public sealed class PongVisualSyncSystem : ISystem, ILateUpdate
         SetHint(world, fb, st, white, n);
         SetScores(world, fb, st, white, n);
         SetPlaying(world, st, white, n);
-        DrawPongText(r, fb, in st);
+        SyncPongHudText(world, fb, in st);
     }
 
-    private void DrawPongText(IRenderer r, Vector2D<int> fb, in PongState st)
+    private void SyncPongHudText(World world, Vector2D<int> fb, in PongState st)
     {
         var titleSt = new TextStyle(BuiltinFonts.UiSans, 26f, new Vector4D<float>(0.25f, 0.92f, 1f, 1f), Bold: true);
         var hintSt = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.52f, 0.58f, 0.68f, 0.92f));
         var hudSt = new TextStyle(BuiltinFonts.UiSans, 17f, new Vector4D<float>(0.72f, 0.88f, 1f, 1f));
         var numSt = new TextStyle(BuiltinFonts.Mono, 20f, new Vector4D<float>(0.92f, 0.96f, 1f, 1f));
+        var goSt = new TextStyle(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.42f, 0.48f, 1f), Underline: true);
+
+        HideAllText(world);
 
         if (st.Phase is PongPhase.Title or PongPhase.GameOver)
         {
-            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, titleSt, "demo.pong.title",
-                new Vector2D<float>(36f, fb.Y - 48f));
+            SetRow(world, _t.Title, titleSt, "demo.pong.title", true, 36f, fb.Y - 48f);
             if (st.Phase == PongPhase.GameOver)
-            {
-                var go = titleSt with
-                {
-                    SizePixels = 20f,
-                    Color = new Vector4D<float>(1f, 0.42f, 0.48f, 1f),
-                    Underline = true
-                };
-                TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, go, "demo.pong.game_over",
-                    new Vector2D<float>(36f, fb.Y - 78f));
-            }
+                SetRow(world, _t.GameOverLine, goSt, "demo.pong.game_over", true, 36f, fb.Y - 78f);
 
             var hintKey = st.Phase == PongPhase.Title ? "demo.pong.hint_title" : "demo.pong.hint_gameover";
             var hy = st.Phase == PongPhase.GameOver ? 130f : 100f;
-            TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hintSt, hintKey,
-                new Vector2D<float>(36f, hy));
+            SetRow(world, _t.Hint, hintSt, hintKey, true, 36f, hy);
         }
 
         if (st.Phase != PongPhase.Playing)
@@ -104,14 +89,36 @@ public sealed class PongVisualSyncSystem : ISystem, ILateUpdate
             _cachedCpuPointsText = st.CpuPoints.ToString();
         }
 
-        TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hudSt, "demo.pong.score_you",
-            new Vector2D<float>(32f, fb.Y - 40f));
-        TextRenderer.DrawLiteral(r, _fonts, _textCache, numSt, _cachedPlayerPointsText,
-            new Vector2D<float>(118f, fb.Y - 40f));
-        TextRenderer.DrawLocalized(r, _fonts, _textCache, _localization, hudSt, "demo.pong.score_cpu",
-            new Vector2D<float>(fb.X - 210f, fb.Y - 40f));
-        TextRenderer.DrawLiteral(r, _fonts, _textCache, numSt, _cachedCpuPointsText,
-            new Vector2D<float>(fb.X - 88f, fb.Y - 40f));
+        SetRow(world, _t.ScoreYou, hudSt, "demo.pong.score_you", true, 32f, fb.Y - 40f);
+        SetRow(world, _t.ScorePlayerNum, numSt, _cachedPlayerPointsText, false, 118f, fb.Y - 40f);
+        SetRow(world, _t.ScoreCpuLabel, hudSt, "demo.pong.score_cpu", true, fb.X - 210f, fb.Y - 40f);
+        SetRow(world, _t.ScoreCpuNum, numSt, _cachedCpuPointsText, false, fb.X - 88f, fb.Y - 40f);
+    }
+
+    private void HideAllText(World world)
+    {
+        foreach (var e in new[]
+                 {
+                     _t.Title, _t.GameOverLine, _t.Hint, _t.ScoreYou, _t.ScorePlayerNum, _t.ScoreCpuLabel, _t.ScoreCpuNum
+                 })
+        {
+            ref var bt = ref world.Components<BitmapText>().Get(e);
+            bt.Visible = false;
+        }
+    }
+
+    private static void SetRow(World world, EntityId e, TextStyle style, string content, bool isKey, float sx, float sy)
+    {
+        ref var pos = ref world.Components<Position>().Get(e);
+        pos.X = sx;
+        pos.Y = sy;
+        ref var bt = ref world.Components<BitmapText>().Get(e);
+        bt.Visible = true;
+        bt.Style = style;
+        bt.Content = content;
+        bt.IsLocalizationKey = isKey;
+        bt.BaselineWorldSpace = false;
+        bt.SortKey = 450f;
     }
 
     private void SetBg(World world, Vector2D<int> fb, int white, int defN)

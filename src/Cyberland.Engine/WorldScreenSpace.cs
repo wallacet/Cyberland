@@ -4,10 +4,12 @@ namespace Cyberland.Engine;
 
 /// <summary>
 /// Helpers for converting between <b>world space</b> (gameplay: origin bottom-left, +X right, +Y up, typically pixels)
-/// and <b>screen / framebuffer space</b> (top-left origin, +Y down), which is what the renderer uses for submitted sprite centers.
+/// and <b>screen / framebuffer space</b> (top-left origin, +Y down).
 /// </summary>
 /// <remarks>
-/// Use these when you compute positions in “math Y-up” but submit draws through <see cref="Rendering.IRenderer"/> expecting screen-style coordinates.
+/// <see cref="Rendering.SpriteDrawRequest.CenterWorld"/> and lighting positions passed to <see cref="Rendering.IRenderer"/> are expressed in
+/// <b>world space</b>; <see cref="Rendering.VulkanRenderer"/> converts to framebuffer pixels internally. Use these helpers when you have UI or
+/// input in screen pixels and need world-space values (or the reverse) for layout and debugging.
 /// </remarks>
 public static class WorldScreenSpace
 {

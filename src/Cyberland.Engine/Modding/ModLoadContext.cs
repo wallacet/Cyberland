@@ -18,7 +18,7 @@ public sealed class ModLoadContext
     /// <param name="manifest">This mod’s parsed <c>manifest.json</c>.</param>
     /// <param name="modDirectory">Absolute path to this mod’s folder.</param>
     /// <param name="vfs">Layered virtual file system (may already include earlier mods).</param>
-    /// <param name="localization">Merged localization tables.</param>
+    /// <param name="localizedContent">Merged strings + localized asset resolution (see <see cref="LocalizedContent"/>).</param>
     /// <param name="world">Shared ECS world.</param>
     /// <param name="scheduler">Where this mod registers systems.</param>
     /// <param name="host">Renderer, input, and optional stores from the host.</param>
@@ -26,7 +26,7 @@ public sealed class ModLoadContext
         ModManifest manifest,
         string modDirectory,
         VirtualFileSystem vfs,
-        LocalizationManager localization,
+        ILocalizedContent localizedContent,
         World world,
         SystemScheduler scheduler,
         GameHostServices host)
@@ -34,7 +34,8 @@ public sealed class ModLoadContext
         Manifest = manifest;
         ModDirectory = modDirectory;
         VirtualFileSystem = vfs;
-        Localization = localization;
+        LocalizedContent = localizedContent;
+        Localization = localizedContent.Strings;
         World = world;
         Scheduler = scheduler;
         Host = host;
@@ -46,7 +47,10 @@ public sealed class ModLoadContext
     public string ModDirectory { get; }
     /// <summary>Layered virtual file system; earlier mods may already have mounted content.</summary>
     public VirtualFileSystem VirtualFileSystem { get; }
-    /// <summary>String table merged across mods; later mods can override keys.</summary>
+    /// <summary>Localized strings and media (merge string tables via <see cref="ILocalizedContent.MergeStringTableAsync"/>).</summary>
+    public ILocalizedContent LocalizedContent { get; }
+
+    /// <summary>Same as <see cref="ILocalizedContent.Strings"/>; merged across mods.</summary>
     public LocalizationManager Localization { get; }
     /// <summary>Shared ECS world for entities and components.</summary>
     public World World { get; }

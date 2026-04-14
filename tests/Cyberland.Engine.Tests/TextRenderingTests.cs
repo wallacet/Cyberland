@@ -1,3 +1,4 @@
+using Cyberland.Engine;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Localization;
 using System.Globalization;
@@ -106,6 +107,57 @@ public sealed class TextRenderingTests
             new Vector2D<float>(5f, 100f));
 
         Assert.NotEmpty(r.Sprites);
+    }
+
+    [Fact]
+    public void TextRenderer_DrawRunsScreen_matches_DrawRuns_world_baseline()
+    {
+        var fb = new Vector2D<int>(640, 480);
+        var screenBaseline = new Vector2D<float>(10f, 22f);
+        var worldBaseline = WorldScreenSpace.ScreenPixelToWorldCenter(screenBaseline, fb);
+        var a = new RecordingRenderer { SwapchainPixelSize = fb };
+        var b = new RecordingRenderer { SwapchainPixelSize = fb };
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var loc = new LocalizationManager();
+        loc.MergeJson("""{"k":"Z"}"""u8.ToArray());
+        var st = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var runs = new[]
+        {
+            new TextRun("k", st, true),
+            new TextRun("!", st with { Italic = true })
+        };
+
+        TextRenderer.DrawRunsScreen(a, lib, cache, loc, runs, screenBaseline, fb);
+        TextRenderer.DrawRuns(b, lib, cache, loc, runs, worldBaseline);
+
+        Assert.Equal(b.Sprites.Count, a.Sprites.Count);
+    }
+
+    [Fact]
+    public void TextRenderer_Screen_overloads_match_world_baseline_for_literals()
+    {
+        var fb = new Vector2D<int>(800, 600);
+        var screenBaseline = new Vector2D<float>(24f, 100f);
+        var worldBaseline = WorldScreenSpace.ScreenPixelToWorldCenter(screenBaseline, fb);
+
+        var a = new RecordingRenderer { SwapchainPixelSize = fb };
+        var b = new RecordingRenderer { SwapchainPixelSize = fb };
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var st = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        TextRenderer.DrawLiteralScreen(a, lib, cache, st, "B", screenBaseline, fb);
+        TextRenderer.DrawLiteral(b, lib, cache, st, "B", worldBaseline);
+
+        Assert.Equal(b.Sprites.Count, a.Sprites.Count);
+        if (a.Sprites.Count > 0)
+        {
+            Assert.Equal(b.Sprites[0].CenterWorld.X, a.Sprites[0].CenterWorld.X, 5);
+            Assert.Equal(b.Sprites[0].CenterWorld.Y, a.Sprites[0].CenterWorld.Y, 5);
+        }
     }
 
     [Fact]

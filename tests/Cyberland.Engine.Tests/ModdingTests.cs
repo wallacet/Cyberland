@@ -20,6 +20,9 @@ public sealed class ModdingTests
         GC.Collect();
     }
 
+    private static ILocalizedContent TestLoc(VirtualFileSystem vfs, LocalizationManager? existing = null) =>
+        new LocalizedContent(existing ?? new LocalizationManager(), vfs, "en");
+
     private static string StageMod(
         string modsRoot,
         string folderName,
@@ -73,24 +76,26 @@ public sealed class ModdingTests
         {
             var vfs = new VirtualFileSystem();
             var m = new ModManifest { Id = "m", ContentRoot = "Content" };
-            var loc = new LocalizationManager();
-            loc.MergeJson("""{"rm":"v"}"""u8.ToArray());
+            var locMgr = new LocalizationManager();
+            locMgr.MergeJson("""{"rm":"v"}"""u8.ToArray());
+            var localized = TestLoc(vfs, locMgr);
             var world = new World();
             var sched = new SystemScheduler(new ParallelismSettings());
             var ctx = new ModLoadContext(
                 m,
                 modRoot,
                 vfs,
-                loc,
+                localized,
                 world,
                 sched,
                 new GameHostServices(new KeyBindingStore()));
 
-            Assert.Same(loc, ctx.Localization);
+            Assert.Same(locMgr, ctx.Localization);
+            Assert.Same(localized, ctx.LocalizedContent);
             Assert.Same(world, ctx.World);
             Assert.Same(sched, ctx.Scheduler);
             Assert.True(ctx.TryRemoveLocalizationKey("rm"));
-            Assert.Equal("rm", loc.Get("rm"));
+            Assert.Equal("rm", locMgr.Get("rm"));
 
             ctx.MountDefaultContent();
             ctx.MountContentSubfolder("Extra");
@@ -142,7 +147,7 @@ public sealed class ModdingTests
         loader.LoadAll(
             Path.Combine(Path.GetTempPath(), "absent_" + Guid.NewGuid()),
             vfs,
-            new LocalizationManager(),
+            TestLoc(vfs),
             new World(),
             new SystemScheduler(new ParallelismSettings()),
             new GameHostServices(new KeyBindingStore()));
@@ -177,7 +182,7 @@ public sealed class ModdingTests
             loader.LoadAll(
                 modsRoot,
                 vfs,
-                new LocalizationManager(),
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -229,7 +234,7 @@ public sealed class ModdingTests
             new ModLoader().LoadAll(
                 modsRoot,
                 vfs,
-                new LocalizationManager(),
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -258,11 +263,12 @@ public sealed class ModdingTests
 
         try
         {
+            var vfs = new VirtualFileSystem();
             var loader = new ModLoader();
             loader.LoadAll(
                 modsRoot,
-                new VirtualFileSystem(),
-                new LocalizationManager(),
+                vfs,
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -297,7 +303,7 @@ public sealed class ModdingTests
             loader.LoadAll(
                 modsRoot,
                 vfs,
-                new LocalizationManager(),
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -329,10 +335,11 @@ public sealed class ModdingTests
         try
         {
             loader = new ModLoader();
+            var vfs = new VirtualFileSystem();
             loader.LoadAll(
                 modsRoot,
-                new VirtualFileSystem(),
-                new LocalizationManager(),
+                vfs,
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -368,10 +375,11 @@ public sealed class ModdingTests
         try
         {
             loader = new ModLoader();
+            var vfs = new VirtualFileSystem();
             loader.LoadAll(
                 modsRoot,
-                new VirtualFileSystem(),
-                new LocalizationManager(),
+                vfs,
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -397,10 +405,11 @@ public sealed class ModdingTests
             var keys = new KeyBindingStore();
             var host = new GameHostServices(keys);
             loader = new ModLoader();
+            var vfs = new VirtualFileSystem();
             loader.LoadAll(
                 modsRoot,
-                new VirtualFileSystem(),
-                new LocalizationManager(),
+                vfs,
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 host);
@@ -431,7 +440,7 @@ public sealed class ModdingTests
             loader.LoadAll(
                 modsRoot,
                 vfs,
-                new LocalizationManager(),
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()),
@@ -477,7 +486,7 @@ public sealed class ModdingTests
             loader.LoadAll(
                 modsRoot,
                 vfs,
-                new LocalizationManager(),
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -512,7 +521,7 @@ public sealed class ModdingTests
             loader.LoadAll(
                 modsRoot,
                 vfs,
-                new LocalizationManager(),
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -544,7 +553,7 @@ public sealed class ModdingTests
             loader.LoadAll(
                 modsRoot,
                 vfs,
-                new LocalizationManager(),
+                TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices(new KeyBindingStore()));
@@ -575,7 +584,7 @@ public sealed class ModdingTests
             var host = new GameHostServices(new KeyBindingStore());
             var world = new World();
             var sched = new SystemScheduler(new ParallelismSettings());
-            var loc = new LocalizationManager();
+            var loc = TestLoc(vfs);
 
             loader.LoadAll(modsRoot, vfs, loc, world, sched, host);
             Assert.Equal(1, TestModEntry.OnLoadCount);

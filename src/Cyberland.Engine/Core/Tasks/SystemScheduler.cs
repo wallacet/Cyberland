@@ -3,10 +3,12 @@ using Cyberland.Engine.Core.Ecs;
 namespace Cyberland.Engine.Core.Tasks;
 
 /// <summary>
-/// Runs ECS systems in strict <strong>registration order</strong>. Each entry is either an <see cref="ISystem"/>
-/// or an <see cref="IParallelSystem"/>; optional <see cref="IEarlyUpdate"/> / <see cref="IFixedUpdate"/> / <see cref="ILateUpdate"/>
-/// (or parallel equivalents) control which phases run. Phase interfaces are resolved once at <c>Register*</c> so
-/// <see cref="RunFrame(World, float)"/> does not repeat type tests on the hot path.
+/// Runs ECS systems in <strong>registration order</strong> by default; optional <see cref="RunBeforeAttribute"/> /
+/// <see cref="RunAfterAttribute"/> on system classes add ordering constraints resolved when the entry list changes.
+/// Each entry is either an <see cref="ISystem"/> or an <see cref="IParallelSystem"/>; optional
+/// <see cref="IEarlyUpdate"/> / <see cref="IFixedUpdate"/> / <see cref="ILateUpdate"/> (or parallel equivalents) control
+/// which phases run. Phase interfaces are resolved once at <c>Register*</c> so <see cref="RunFrame(World, float)"/> does not
+/// repeat type tests on the hot path.
 /// </summary>
 public sealed class SystemScheduler
 {
@@ -36,11 +38,29 @@ public sealed class SystemScheduler
         public IParallelLateUpdate? Late { get; init; }
     }
 
+    private sealed class DeferScope : IDisposable
+    {
+        private SystemScheduler? _owner;
+
+        public DeferScope(SystemScheduler owner) => _owner = owner;
+
+        public void Dispose()
+        {
+            _owner?.EndDeferExecutionOrderRebuilds();
+            _owner = null;
+        }
+    }
+
     private readonly ParallelismSettings _parallelism;
     private readonly List<Entry> _entries = new();
     private readonly Dictionary<string, int> _logicalIds = new(StringComparer.Ordinal);
+    /// <summary>First-seen registration ordinal per logical id (tie-break for topological sort).</summary>
+    private readonly Dictionary<string, int> _registrationOrdinals = new(StringComparer.Ordinal);
 
     private float _fixedAccumulator;
+    private int _nextRegistrationOrdinal;
+    private int _deferExecutionOrderRebuildDepth;
+    private bool _constraintTargetsValidatedOnFirstRunFrame;
 
     /// <summary>Creates a scheduler that supplies <paramref name="parallelism"/> to parallel ECS systems.</summary>
     public SystemScheduler(ParallelismSettings parallelism) => _parallelism = parallelism;
@@ -75,7 +95,36 @@ public sealed class SystemScheduler
     /// <summary>Invoked after all late-phase callbacks for this frame.</summary>
     public event Action<World, float>? AfterLateUpdate;
 
-    /// <summary>Registers or replaces a sequential system. Execution order follows registration order.</summary>
+    /// <summary>
+    /// Suppresses <see cref="TryRebuildExecutionOrder"/> after each structural change until <see cref="EndDeferExecutionOrderRebuilds"/>.
+    /// Nesting increments a depth counter; the order is rebuilt once when the counter returns to zero.
+    /// </summary>
+    public void BeginDeferExecutionOrderRebuilds() => _deferExecutionOrderRebuildDepth++;
+
+    /// <summary>
+    /// Ends a matching <see cref="BeginDeferExecutionOrderRebuilds"/>; when the defer depth reaches zero, runs
+    /// <see cref="TryRebuildExecutionOrder"/> once.
+    /// </summary>
+    public void EndDeferExecutionOrderRebuilds()
+    {
+        _deferExecutionOrderRebuildDepth--;
+        if (_deferExecutionOrderRebuildDepth < 0)
+            throw new InvalidOperationException("Unbalanced EndDeferExecutionOrderRebuilds (no matching Begin).");
+
+        if (_deferExecutionOrderRebuildDepth == 0)
+            TryRebuildExecutionOrder();
+    }
+
+    /// <summary>
+    /// Same as <see cref="BeginDeferExecutionOrderRebuilds"/> followed by <see cref="EndDeferExecutionOrderRebuilds"/> on dispose.
+    /// </summary>
+    public IDisposable DeferExecutionOrderRebuilds()
+    {
+        BeginDeferExecutionOrderRebuilds();
+        return new DeferScope(this);
+    }
+
+    /// <summary>Registers or replaces a sequential system. Execution order follows registration order unless constrained by attributes.</summary>
     public void RegisterSequential(string logicalId, ISystem system, bool enabled = true)
     {
         ValidateLogicalId(logicalId);
@@ -92,7 +141,7 @@ public sealed class SystemScheduler
         });
     }
 
-    /// <summary>Registers or replaces a parallel system. Execution order follows registration order.</summary>
+    /// <summary>Registers or replaces a parallel system. Execution order follows registration order unless constrained by attributes.</summary>
     public void RegisterParallel(string logicalId, IParallelSystem system, bool enabled = true)
     {
         ValidateLogicalId(logicalId);
@@ -159,8 +208,10 @@ public sealed class SystemScheduler
             return false;
 
         _entries.RemoveAt(idx);
+        _registrationOrdinals.Remove(logicalId);
         RebuildIdMap();
         SystemUnregistered?.Invoke(logicalId);
+        NotifyStructureChanged();
         return true;
     }
 
@@ -190,6 +241,12 @@ public sealed class SystemScheduler
     /// </param>
     public void RunFrame(World world, float deltaSeconds, Action<float>? syncFixedAccumulatorBeforeLate)
     {
+        if (!_constraintTargetsValidatedOnFirstRunFrame)
+        {
+            _constraintTargetsValidatedOnFirstRunFrame = true;
+            ValidateAllConstraintTargetsRegistered();
+        }
+
         if (FixedDeltaSeconds <= 0f)
             throw new InvalidOperationException($"{nameof(FixedDeltaSeconds)} must be positive.");
 
@@ -294,12 +351,150 @@ public sealed class SystemScheduler
         if (_logicalIds.TryGetValue(logicalId, out var idx))
         {
             _entries[idx] = entry;
+            NotifyStructureChanged();
             return;
         }
 
+        _registrationOrdinals[logicalId] = _nextRegistrationOrdinal++;
         idx = _entries.Count;
         _entries.Add(entry);
         _logicalIds[logicalId] = idx;
+        NotifyStructureChanged();
+    }
+
+    private void NotifyStructureChanged()
+    {
+        if (_deferExecutionOrderRebuildDepth == 0)
+            TryRebuildExecutionOrder();
+    }
+
+    /// <summary>
+    /// Applies <see cref="RunBeforeAttribute"/> / <see cref="RunAfterAttribute"/> constraints. Returns false if a referenced
+    /// id is not registered yet (caller may register more systems and retry). Throws if constraints are contradictory (cycle).
+    /// </summary>
+    private bool TryRebuildExecutionOrder()
+    {
+        if (_entries.Count == 0)
+            return true;
+
+        var ids = new List<string>(_entries.Count);
+        foreach (var e in _entries)
+            ids.Add(e.Id);
+
+        var rawEdges = new List<(string From, string To)>();
+        foreach (var e in _entries)
+        {
+            var t = GetEntrySystemType(e);
+            var id = e.Id;
+            foreach (RunAfterAttribute attr in t.GetCustomAttributes(typeof(RunAfterAttribute), false))
+            {
+                if (!_logicalIds.ContainsKey(attr.TargetId))
+                    return false;
+                rawEdges.Add((attr.TargetId, id));
+            }
+
+            foreach (RunBeforeAttribute attr in t.GetCustomAttributes(typeof(RunBeforeAttribute), false))
+            {
+                if (!_logicalIds.ContainsKey(attr.TargetId))
+                    return false;
+                rawEdges.Add((id, attr.TargetId));
+            }
+        }
+
+        var successors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var indegree = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var id in ids)
+        {
+            indegree[id] = 0;
+            successors[id] = new List<string>();
+        }
+
+        var seenEdges = new HashSet<(string From, string To)>();
+        foreach (var (from, to) in rawEdges)
+        {
+            if (!seenEdges.Add((from, to)))
+                continue;
+            successors[from].Add(to);
+            indegree[to]++;
+        }
+
+        var result = new List<string>(ids.Count);
+        var ready = new List<string>();
+        foreach (var id in ids)
+        {
+            if (indegree[id] == 0)
+                ready.Add(id);
+        }
+
+        while (ready.Count > 0)
+        {
+            string? best = null;
+            var bestOrd = int.MaxValue;
+            foreach (var id in ready)
+            {
+                var o = _registrationOrdinals[id];
+                if (best is null || o < bestOrd)
+                {
+                    best = id;
+                    bestOrd = o;
+                }
+            }
+
+            ready.Remove(best!);
+            result.Add(best!);
+            foreach (var succ in successors[best!])
+            {
+                indegree[succ]--;
+                if (indegree[succ] == 0)
+                    ready.Add(succ);
+            }
+        }
+
+        if (result.Count != ids.Count)
+            throw new InvalidOperationException("System ordering constraints contain a cycle (check RunBefore / RunAfter attributes).");
+
+        var idToEntry = new Dictionary<string, Entry>(StringComparer.Ordinal);
+        foreach (var e in _entries)
+            idToEntry[e.Id] = e;
+
+        _entries.Clear();
+        foreach (var id in result)
+            _entries.Add(idToEntry[id]);
+
+        RebuildIdMap();
+        return true;
+    }
+
+    private static Type GetEntrySystemType(Entry e)
+    {
+        if (e is SequentialEntry se)
+            return se.System.GetType();
+        return ((ParallelEntry)e).System.GetType();
+    }
+
+    private void ValidateAllConstraintTargetsRegistered()
+    {
+        foreach (var e in _entries)
+        {
+            var t = GetEntrySystemType(e);
+            foreach (RunAfterAttribute attr in t.GetCustomAttributes(typeof(RunAfterAttribute), false))
+            {
+                if (!_logicalIds.ContainsKey(attr.TargetId))
+                {
+                    throw new InvalidOperationException(
+                        $"System \"{e.Id}\" has RunAfter(\"{attr.TargetId}\") but no system is registered with that logical id.");
+                }
+            }
+
+            foreach (RunBeforeAttribute attr in t.GetCustomAttributes(typeof(RunBeforeAttribute), false))
+            {
+                if (!_logicalIds.ContainsKey(attr.TargetId))
+                {
+                    throw new InvalidOperationException(
+                        $"System \"{e.Id}\" has RunBefore(\"{attr.TargetId}\") but no system is registered with that logical id.");
+                }
+            }
+        }
     }
 
     private void RebuildIdMap()
