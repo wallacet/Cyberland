@@ -1,3 +1,4 @@
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 
@@ -10,13 +11,13 @@ public sealed class DelegateSequentialSystemTests
     {
         var w = new World();
         var n = 0;
-        var s = new DelegateSequentialSystem(onLateUpdate: (world, dt) =>
+        var s = new DelegateSequentialSystem(onLateUpdate: (world, _, dt) =>
         {
             Assert.Same(w, world);
             Assert.Equal(0.05f, dt);
             n++;
         });
-        s.OnLateUpdate(w, 0.05f);
+        s.OnLateUpdate(w, w.QueryChunks(SystemQuerySpec.Empty), 0.05f);
         Assert.Equal(1, n);
     }
 
@@ -32,8 +33,8 @@ public sealed class DelegateSequentialSystemTests
         var sched = new SystemScheduler(new ParallelismSettings());
         var n = 0;
         var s = new DelegateSequentialSystem(
-            onLateUpdate: (_, _) => { },
-            onStart: _ => n++);
+            onLateUpdate: (_, _, _) => { },
+            onStart: (_, _) => n++);
         sched.RegisterSequential("x", s);
         sched.RunFrame(new World(), 0.05f);
         Assert.Equal(1, n);

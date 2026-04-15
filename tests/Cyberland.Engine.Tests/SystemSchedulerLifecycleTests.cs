@@ -1,3 +1,4 @@
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 
@@ -9,17 +10,37 @@ public sealed class SystemSchedulerLifecycleTests
     {
         public int OnStartCount;
         public int LateCount;
-        public void OnStart(World world) => OnStartCount++;
-        public void OnLateUpdate(World world, float deltaSeconds) => LateCount++;
+        public void OnStart(World world, ChunkQueryAll archetype)
+        {
+            _ = archetype;
+            OnStartCount++;
+        }
+
+        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        {
+            _ = archetype;
+            _ = deltaSeconds;
+            LateCount++;
+        }
     }
 
     private sealed class CountingPar : IParallelSystem, IParallelFixedUpdate
     {
         public int OnStartCount;
         public int FixedCount;
-        public void OnStart(World world) => OnStartCount++;
-        public void OnParallelFixedUpdate(World world, float fixedDeltaSeconds, ParallelOptions parallelOptions) =>
+        public void OnStart(World world, ChunkQueryAll archetype)
+        {
+            _ = archetype;
+            OnStartCount++;
+        }
+
+        public void OnParallelFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+        {
+            _ = archetype;
+            _ = fixedDeltaSeconds;
+            _ = parallelOptions;
             FixedCount++;
+        }
     }
 
     [Fact]
@@ -54,9 +75,9 @@ public sealed class SystemSchedulerLifecycleTests
     {
         public Action? Callback;
 
-        public void OnParallelEarlyUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+        public void OnParallelEarlyUpdate(World world, ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
         {
-            _ = world;
+            _ = archetype;
             _ = deltaSeconds;
             _ = parallelOptions;
             Callback?.Invoke();
@@ -78,16 +99,24 @@ public sealed class SystemSchedulerLifecycleTests
             _late = late;
         }
 
-        public void OnStart(World world) => _log.Add(_name + ":start");
-
-        public void OnEarlyUpdate(World world, float deltaSeconds)
+        public void OnStart(World world, ChunkQueryAll archetype)
         {
+            _ = archetype;
+            _log.Add(_name + ":start");
+        }
+
+        public void OnEarlyUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        {
+            _ = archetype;
+            _ = deltaSeconds;
             if (_early)
                 _log.Add(_name + ":early");
         }
 
-        public void OnLateUpdate(World world, float deltaSeconds)
+        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
         {
+            _ = archetype;
+            _ = deltaSeconds;
             if (_late)
                 _log.Add(_name + ":late");
         }
@@ -106,10 +135,15 @@ public sealed class SystemSchedulerLifecycleTests
             _fixedU = fixedU;
         }
 
-        public void OnStart(World world) => _log.Add(_name + ":start");
-
-        public void OnParallelFixedUpdate(World world, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+        public void OnStart(World world, ChunkQueryAll archetype)
         {
+            _ = archetype;
+            _log.Add(_name + ":start");
+        }
+
+        public void OnParallelFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+        {
+            _ = archetype;
             if (_fixedU)
                 _log.Add(_name + ":fixed");
         }
@@ -314,7 +348,12 @@ public sealed class SystemSchedulerLifecycleTests
     {
         private readonly IntHolder _h;
         public FixedCounter(IntHolder h) => _h = h;
-        public void OnFixedUpdate(World world, float fixedDeltaSeconds) => _h.N++;
+        public void OnFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds)
+        {
+            _ = archetype;
+            _ = fixedDeltaSeconds;
+            _h.N++;
+        }
     }
 
     [Fact]
@@ -362,7 +401,7 @@ public sealed class SystemSchedulerLifecycleTests
         var sched = new SystemScheduler(new ParallelismSettings()) { FixedDeltaSeconds = 1f / 60f };
         var accFromCallback = -1f;
         var accSeenInLate = -2f;
-        sched.RegisterSequential("capture", new DelegateSequentialSystem(onLateUpdate: (_, _) =>
+        sched.RegisterSequential("capture", new DelegateSequentialSystem(onLateUpdate: (_, _, _) =>
         {
             accSeenInLate = accFromCallback;
         }));

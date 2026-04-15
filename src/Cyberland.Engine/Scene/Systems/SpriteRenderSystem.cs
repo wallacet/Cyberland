@@ -14,15 +14,18 @@ namespace Cyberland.Engine.Scene.Systems;
 /// </summary>
 public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
 {
-    private readonly List<ComponentChunkView<Sprite>> _chunks = new();
+    private readonly List<MultiComponentChunkView> _chunks = new();
     private readonly GameHostServices _host;
+
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Sprite>();
 
     /// <param name="host">Must expose a non-null <see cref="Hosting.GameHostServices.Renderer"/> after startup.</param>
     public SpriteRenderSystem(GameHostServices host) =>
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
@@ -30,7 +33,7 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
             return;
 
         _chunks.Clear();
-        foreach (var chunk in world.QueryChunks<Sprite>())
+        foreach (var chunk in query)
             _chunks.Add(chunk);
 
         if (_chunks.Count == 0)
@@ -44,7 +47,7 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
         {
             var chunk = _chunks[idx];
             var ents = chunk.Entities;
-            var sprites = chunk.Components;
+            var sprites = chunk.Column<Sprite>(0);
             for (var i = 0; i < chunk.Count; i++)
             {
                 ref readonly var spr = ref sprites[i];

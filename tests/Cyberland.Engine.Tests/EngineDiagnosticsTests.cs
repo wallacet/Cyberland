@@ -1,7 +1,9 @@
 using Cyberland.Engine.Diagnostics;
+using Xunit;
 
 namespace Cyberland.Engine.Tests;
 
+[Collection("EngineDiagnostics")]
 public sealed class EngineDiagnosticsTests
 {
     private sealed class RecordingSink : IEngineDiagnosticSink

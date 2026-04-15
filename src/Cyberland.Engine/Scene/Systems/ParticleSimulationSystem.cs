@@ -13,12 +13,15 @@ public sealed class ParticleSimulationSystem : IParallelSystem, IParallelFixedUp
 {
     private readonly GameHostServices _host;
 
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ParticleEmitter>();
+
     /// <param name="host">Uses <see cref="Hosting.GameHostServices.Particles"/> buffer store.</param>
     public ParticleSimulationSystem(GameHostServices host) =>
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelFixedUpdate(World world, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelFixedUpdate(World world, ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
         var store = _host.Particles;
         var ids = _host.ParticleEmitterIdsForFrame;
@@ -26,7 +29,7 @@ public sealed class ParticleSimulationSystem : IParallelSystem, IParallelFixedUp
         if (store is null)
             return;
 
-        foreach (var view in world.QueryChunks<ParticleEmitter>())
+        foreach (var view in query)
         {
             var ents = view.Entities;
             for (var i = 0; i < view.Count; i++)

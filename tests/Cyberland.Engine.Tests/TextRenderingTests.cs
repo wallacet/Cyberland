@@ -453,6 +453,8 @@ public sealed class TextRenderingTests
         Assert.Equal(2, r.Sprites.Count);
         Assert.Equal(r.Sprites[0].AlbedoTextureId, r.Sprites[1].AlbedoTextureId);
         Assert.NotEqual(r.Sprites[0].UvRect.X, r.Sprites[1].UvRect.X);
+        Assert.True(r.Sprites[1].DepthHint > r.Sprites[0].DepthHint,
+            "Glyph quads share SortKey; DepthHint must tie-break so unstable Array.Sort does not reorder overlapping transparent quads.");
     }
 
     [Fact]
@@ -465,6 +467,23 @@ public sealed class TextRenderingTests
         var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
         TextRenderer.DrawLiteral(r, lib, cache, st, "AB", new Vector2D<float>(0f, 20f));
         Assert.Single(r.Sprites);
+    }
+
+    [Fact]
+    public void TextRenderer_advances_pen_when_mid_string_subregion_upload_fails_so_later_glyphs_do_not_overlap()
+    {
+        var r = new RecordingRenderer { FailSubregionUploadOnAttempt = 2 };
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
+        TextRenderer.DrawLiteral(r, lib, cache, st, "ABCD", new Vector2D<float>(100f, 200f));
+        Assert.Equal(3, r.Sprites.Count);
+        var ax = r.Sprites[0].CenterWorld.X;
+        var bx = r.Sprites[1].CenterWorld.X;
+        var dx = r.Sprites[2].CenterWorld.X;
+        Assert.True(bx > ax);
+        Assert.True(dx > bx, "Fourth character must lay out after the third failed, not on top of B.");
     }
 
     [Fact]
@@ -571,6 +590,47 @@ public sealed class TextRenderingTests
         TextRenderer.DrawLiteral(r, lib, cache, st, "A", new Vector2D<float>(0f, 12f));
         Assert.Equal(2, list.Count);
         Assert.NotEmpty(r.Sprites);
+    }
+
+    [Fact]
+    public void FillGlyphRunSprites_returns_zero_for_empty_destination_span()
+    {
+        var r = new RecordingRenderer();
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
+        Span<SpriteDrawRequest> empty = stackalloc SpriteDrawRequest[0];
+        var n = TextRenderer.FillGlyphRunSprites(r, lib, cache, "A", in st, new Vector2D<float>(0f, 10f), 0f, 400f, empty,
+            out var penAfter);
+        Assert.Equal(0, n);
+        Assert.Equal(0f, penAfter);
+        Assert.Empty(r.Sprites);
+    }
+
+    [Fact]
+    public void FillGlyphRunSprites_stops_when_destination_buffer_fills()
+    {
+        var r = new RecordingRenderer();
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
+        Span<SpriteDrawRequest> one = stackalloc SpriteDrawRequest[1];
+        var n = TextRenderer.FillGlyphRunSprites(r, lib, cache, "AB", in st, new Vector2D<float>(0f, 10f), 0f, 400f, one,
+            out _);
+        Assert.Equal(1, n);
+    }
+
+    [Fact]
+    public void DrawRuns_returns_early_when_renderer_null_but_runs_nonempty()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var loc = new LocalizationManager();
+        var st = new TextStyle(BuiltinFonts.UiSans, 12f, Vector4D<float>.One);
+        TextRenderer.DrawRuns(null!, lib, cache, loc, new[] { new TextRun("x", st, false) }, default);
     }
 
 }

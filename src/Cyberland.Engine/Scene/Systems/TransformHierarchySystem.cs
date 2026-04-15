@@ -14,6 +14,9 @@ namespace Cyberland.Engine.Scene.Systems;
 /// </summary>
 public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUpdate
 {
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Transform>();
+
     // Reuse child adjacency lists across frames to avoid allocating a new List per parent each tick.
     private readonly Stack<List<EntityId>> _childListPool = new();
 
@@ -34,7 +37,7 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
         new(() => new Dictionary<EntityId, Matrix3x2>(64));
 
     /// <inheritdoc />
-    public void OnParallelEarlyUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelEarlyUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
         // Return last frame's adjacency lists to the pool before rebuilding (avoids per-parent List alloc when stable).
@@ -58,7 +61,7 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
         var posStore = world.Components<Position>();
         var rotStore = world.Components<Rotation>();
         var scaleStore = world.Components<Scale>();
-        foreach (var view in world.QueryChunks<Transform>())
+        foreach (var view in query)
         {
             var ents = view.Entities;
             for (var i = 0; i < view.Count; i++)

@@ -41,12 +41,23 @@ internal sealed class RecordingRenderer : IRenderer
     /// <summary>When true, <see cref="TryUploadTextureRgbaSubregion"/> returns false (atlas update failure path).</summary>
     public bool FailSubregionUpload { get; set; }
 
+    /// <summary>
+    /// When set to a positive N, the Nth call to <see cref="TryUploadTextureRgbaSubregion"/> returns false (1-based).
+    /// Other calls succeed unless <see cref="FailSubregionUpload"/> is true. Resets when this property is reassigned.
+    /// </summary>
+    public int FailSubregionUploadOnAttempt { get; set; } = -1;
+
+    private int _subregionUploadAttempt;
+
     public bool TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height,
         ReadOnlySpan<byte> rgba)
     {
         if (textureId < 0 || width <= 0 || height <= 0 || rgba.Length < width * height * 4)
             return false;
         if (FailSubregionUpload)
+            return false;
+        _subregionUploadAttempt++;
+        if (FailSubregionUploadOnAttempt > 0 && _subregionUploadAttempt == FailSubregionUploadOnAttempt)
             return false;
         UploadSubregionCount++;
         return true;

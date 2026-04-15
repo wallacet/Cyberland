@@ -2,21 +2,22 @@ namespace Cyberland.Engine.Core.Ecs;
 
 /// <summary>
 /// Single-threaded ECS entry: lifecycle plus optional <see cref="IEarlyUpdate"/>, <see cref="IFixedUpdate"/>, and/or <see cref="ILateUpdate"/>.
+/// Declare chunk requirements via <see cref="IEcsQuerySource.QuerySpec"/>; the scheduler passes matching <see cref="ChunkQueryAll"/> views.
 /// </summary>
-public interface ISystem
+public interface ISystem : IEcsQuerySource
 {
     /// <summary>
     /// Called at most <strong>once</strong> per scheduler registration: on the first <see cref="Tasks.SystemScheduler.RunFrame(World, float)"/>
     /// where this entry exists and is <strong>enabled</strong>. Runs before any phase callback for that entry.
     /// </summary>
-    void OnStart(World world) { }
+    void OnStart(World world, ChunkQueryAll query) { }
 }
 
 /// <summary>Parallel ECS entry: lifecycle plus optional parallel early/fixed/late interfaces.</summary>
-public interface IParallelSystem
+public interface IParallelSystem : IEcsQuerySource
 {
     /// <inheritdoc cref="ISystem.OnStart"/>
-    void OnStart(World world) { }
+    void OnStart(World world, ChunkQueryAll query) { }
 }
 
 /// <summary>
@@ -26,8 +27,9 @@ public interface IParallelSystem
 public interface IEarlyUpdate
 {
     /// <param name="world">Shared ECS world.</param>
+    /// <param name="query">Pre-queried chunks for this system’s <see cref="IEcsQuerySource.QuerySpec"/>.</param>
     /// <param name="deltaSeconds">Elapsed wall time for this frame (variable).</param>
-    void OnEarlyUpdate(World world, float deltaSeconds);
+    void OnEarlyUpdate(World world, ChunkQueryAll query, float deltaSeconds);
 }
 
 /// <summary>
@@ -38,8 +40,9 @@ public interface IEarlyUpdate
 public interface IFixedUpdate
 {
     /// <param name="world">Shared ECS world.</param>
+    /// <param name="query">Pre-queried chunks for this system’s <see cref="IEcsQuerySource.QuerySpec"/>.</param>
     /// <param name="fixedDeltaSeconds">Scheduler <see cref="Tasks.SystemScheduler.FixedDeltaSeconds"/>.</param>
-    void OnFixedUpdate(World world, float fixedDeltaSeconds);
+    void OnFixedUpdate(World world, ChunkQueryAll query, float fixedDeltaSeconds);
 }
 
 /// <summary>
@@ -50,33 +53,37 @@ public interface IFixedUpdate
 public interface ILateUpdate
 {
     /// <param name="world">Shared ECS world.</param>
+    /// <param name="query">Pre-queried chunks for this system’s <see cref="IEcsQuerySource.QuerySpec"/>.</param>
     /// <param name="deltaSeconds">Elapsed wall time for this frame (variable).</param>
-    void OnLateUpdate(World world, float deltaSeconds);
+    void OnLateUpdate(World world, ChunkQueryAll query, float deltaSeconds);
 }
 
 /// <summary>Parallel: early variable phase.</summary>
 public interface IParallelEarlyUpdate
 {
     /// <param name="world">Shared ECS world.</param>
+    /// <param name="query">Pre-queried chunks for this system’s <see cref="IEcsQuerySource.QuerySpec"/>.</param>
     /// <param name="deltaSeconds">Elapsed wall time for this frame (variable).</param>
     /// <param name="parallelOptions">Concurrency from the host.</param>
-    void OnParallelEarlyUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions);
+    void OnParallelEarlyUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions);
 }
 
 /// <summary>Parallel: fixed timestep phase (may run multiple substeps per frame — see <see cref="IFixedUpdate"/>).</summary>
 public interface IParallelFixedUpdate
 {
     /// <param name="world">Shared ECS world.</param>
+    /// <param name="query">Pre-queried chunks for this system’s <see cref="IEcsQuerySource.QuerySpec"/>.</param>
     /// <param name="fixedDeltaSeconds">Scheduler fixed step size.</param>
     /// <param name="parallelOptions">Concurrency from the host.</param>
-    void OnParallelFixedUpdate(World world, float fixedDeltaSeconds, ParallelOptions parallelOptions);
+    void OnParallelFixedUpdate(World world, ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions);
 }
 
 /// <summary>Parallel: late variable phase.</summary>
 public interface IParallelLateUpdate
 {
     /// <param name="world">Shared ECS world.</param>
+    /// <param name="query">Pre-queried chunks for this system’s <see cref="IEcsQuerySource.QuerySpec"/>.</param>
     /// <param name="deltaSeconds">Elapsed wall time for this frame (variable).</param>
     /// <param name="parallelOptions">Concurrency from the host.</param>
-    void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions);
+    void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions);
 }

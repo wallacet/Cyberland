@@ -1,4 +1,1 @@
-global using System.Collections.Concurrent;
-global using System.Diagnostics.CodeAnalysis;
-global using System.Runtime.InteropServices;
-global using System.Threading.Tasks;
+// Intentionally empty: ECS system types live in Cyberland.Engine.Core.Ecs.

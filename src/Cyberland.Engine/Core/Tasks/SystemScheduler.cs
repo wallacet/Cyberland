@@ -5,7 +5,8 @@ namespace Cyberland.Engine.Core.Tasks;
 /// <summary>
 /// Runs ECS systems in <strong>registration order</strong> by default; optional <see cref="RunBeforeAttribute"/> /
 /// <see cref="RunAfterAttribute"/> on system classes add ordering constraints resolved when the entry list changes.
-/// Each entry is either an <see cref="ISystem"/> or an <see cref="IParallelSystem"/>; optional
+/// Each entry is either an <see cref="ISystem"/> or an <see cref="IParallelSystem"/>; chunk iteration uses
+/// <see cref="IEcsQuerySource.QuerySpec"/> from that instance. Optional
 /// <see cref="IEarlyUpdate"/> / <see cref="IFixedUpdate"/> / <see cref="ILateUpdate"/> (or parallel equivalents) control
 /// which phases run. Phase interfaces are resolved once at <c>Register*</c> so <see cref="RunFrame(World, float)"/> does not
 /// repeat type tests on the hot path.
@@ -15,27 +16,25 @@ public sealed class SystemScheduler
     private abstract class Entry
     {
         public required string Id { get; init; }
+        public required Type SystemType { get; init; }
+        public required SystemQuerySpec QuerySpec { get; init; }
         public bool Enabled;
         public bool Started;
+        public required Action<World> Start { get; init; }
+        public Action<World, float>? Early { get; init; }
+        public Action<World, float>? Fixed { get; init; }
+        public Action<World, float>? Late { get; init; }
     }
 
     private sealed class SequentialEntry : Entry
     {
-        public required ISystem System { get; init; }
-
-        // Resolved once at Register* so RunFrame avoids repeated pattern-matching / type tests on every tick.
-        public IEarlyUpdate? Early { get; init; }
-        public IFixedUpdate? Fixed { get; init; }
-        public ILateUpdate? Late { get; init; }
     }
 
     private sealed class ParallelEntry : Entry
     {
-        public required IParallelSystem System { get; init; }
-
-        public IParallelEarlyUpdate? Early { get; init; }
-        public IParallelFixedUpdate? Fixed { get; init; }
-        public IParallelLateUpdate? Late { get; init; }
+        public Action<World, float, ParallelOptions>? ParallelEarly { get; init; }
+        public Action<World, float, ParallelOptions>? ParallelFixed { get; init; }
+        public Action<World, float, ParallelOptions>? ParallelLate { get; init; }
     }
 
     private sealed class DeferScope : IDisposable
@@ -125,36 +124,60 @@ public sealed class SystemScheduler
     }
 
     /// <summary>Registers or replaces a sequential system. Execution order follows registration order unless constrained by attributes.</summary>
+    /// <param name="logicalId">Stable id for ordering attributes, enable/disable, and diagnostics.</param>
+    /// <param name="system">Sequential ECS system implementation; chunk query comes from <see cref="IEcsQuerySource.QuerySpec"/>.</param>
+    /// <param name="enabled">When false, the entry is registered but skipped until <see cref="SetEnabled"/> enables it.</param>
     public void RegisterSequential(string logicalId, ISystem system, bool enabled = true)
     {
         ValidateLogicalId(logicalId);
         ArgumentNullException.ThrowIfNull(system);
+        var query = system.QuerySpec;
         Upsert(logicalId, new SequentialEntry
         {
             Id = logicalId,
-            System = system,
+            SystemType = system.GetType(),
+            QuerySpec = query,
+            Start = world => system.OnStart(world, world.QueryChunks(query)),
             Enabled = enabled,
             Started = false,
-            Early = system as IEarlyUpdate,
-            Fixed = system as IFixedUpdate,
-            Late = system as ILateUpdate,
+            Early = system is IEarlyUpdate early
+                ? (world, deltaSeconds) => early.OnEarlyUpdate(world, world.QueryChunks(query), deltaSeconds)
+                : null,
+            Fixed = system is IFixedUpdate fixedUpdate
+                ? (world, fixedDeltaSeconds) => fixedUpdate.OnFixedUpdate(world, world.QueryChunks(query), fixedDeltaSeconds)
+                : null,
+            Late = system is ILateUpdate late
+                ? (world, deltaSeconds) => late.OnLateUpdate(world, world.QueryChunks(query), deltaSeconds)
+                : null,
         });
     }
 
     /// <summary>Registers or replaces a parallel system. Execution order follows registration order unless constrained by attributes.</summary>
+    /// <param name="logicalId">Stable id for ordering attributes, enable/disable, and diagnostics.</param>
+    /// <param name="system">Parallel ECS system implementation; chunk query comes from <see cref="IEcsQuerySource.QuerySpec"/>.</param>
+    /// <param name="enabled">When false, the entry is registered but skipped until <see cref="SetEnabled"/> enables it.</param>
     public void RegisterParallel(string logicalId, IParallelSystem system, bool enabled = true)
     {
         ValidateLogicalId(logicalId);
         ArgumentNullException.ThrowIfNull(system);
+        var query = system.QuerySpec;
         Upsert(logicalId, new ParallelEntry
         {
             Id = logicalId,
-            System = system,
+            SystemType = system.GetType(),
+            QuerySpec = query,
+            Start = world => system.OnStart(world, world.QueryChunks(query)),
             Enabled = enabled,
             Started = false,
-            Early = system as IParallelEarlyUpdate,
-            Fixed = system as IParallelFixedUpdate,
-            Late = system as IParallelLateUpdate,
+            ParallelEarly = system is IParallelEarlyUpdate early
+                ? (world, deltaSeconds, parallelOptions) => early.OnParallelEarlyUpdate(world, world.QueryChunks(query), deltaSeconds, parallelOptions)
+                : null,
+            ParallelFixed = system is IParallelFixedUpdate fixedUpdate
+                ? (world, fixedDeltaSeconds, parallelOptions) => fixedUpdate.OnParallelFixedUpdate(world, world.QueryChunks(query), fixedDeltaSeconds, parallelOptions)
+                : null,
+            ParallelLate = system is IParallelLateUpdate late
+                ? (world, deltaSeconds, parallelOptions) => late.OnParallelLateUpdate(world, world.QueryChunks(query), deltaSeconds, parallelOptions)
+                : null,
         });
     }
 
@@ -270,10 +293,10 @@ public sealed class SystemScheduler
             switch (e)
             {
                 case SequentialEntry se:
-                    se.Early?.OnEarlyUpdate(world, deltaSeconds);
+                    se.Early?.Invoke(world, deltaSeconds);
                     break;
                 case ParallelEntry pe:
-                    pe.Early?.OnParallelEarlyUpdate(world, deltaSeconds, opts);
+                    pe.ParallelEarly?.Invoke(world, deltaSeconds, opts);
                     break;
             }
         }
@@ -292,10 +315,10 @@ public sealed class SystemScheduler
                 switch (e)
                 {
                     case SequentialEntry se:
-                        se.Fixed?.OnFixedUpdate(world, fixedDt);
+                        se.Fixed?.Invoke(world, fixedDt);
                         break;
                     case ParallelEntry pe:
-                        pe.Fixed?.OnParallelFixedUpdate(world, fixedDt, opts);
+                        pe.ParallelFixed?.Invoke(world, fixedDt, opts);
                         break;
                 }
             }
@@ -316,10 +339,10 @@ public sealed class SystemScheduler
             switch (e)
             {
                 case SequentialEntry se:
-                    se.Late?.OnLateUpdate(world, deltaSeconds);
+                    se.Late?.Invoke(world, deltaSeconds);
                     break;
                 case ParallelEntry pe:
-                    pe.Late?.OnParallelLateUpdate(world, deltaSeconds, opts);
+                    pe.ParallelLate?.Invoke(world, deltaSeconds, opts);
                     break;
             }
         }
@@ -332,15 +355,7 @@ public sealed class SystemScheduler
         if (e.Started)
             return;
 
-        switch (e)
-        {
-            case SequentialEntry se:
-                se.System.OnStart(world);
-                break;
-            case ParallelEntry pe:
-                pe.System.OnStart(world);
-                break;
-        }
+        e.Start.Invoke(world);
 
         e.Started = true;
         SystemStarted?.Invoke(e.Id);
@@ -467,9 +482,7 @@ public sealed class SystemScheduler
 
     private static Type GetEntrySystemType(Entry e)
     {
-        if (e is SequentialEntry se)
-            return se.System.GetType();
-        return ((ParallelEntry)e).System.GetType();
+        return e.SystemType;
     }
 
     private void ValidateAllConstraintTargetsRegistered()

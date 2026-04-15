@@ -13,6 +13,7 @@ This is a cyberpunk 2D single-player RPG optimized for **low footprint** and **b
 
 ## Parallelism
 
+- **Default mod systems to parallel scheduling** unless they must stay sequential: implement `IParallelSystem` with `IParallelEarlyUpdate` / `IParallelFixedUpdate` / `IParallelLateUpdate` as appropriate, register with `ModLoadContext.RegisterParallel`, and pass host `ParallelOptions` into inner `Parallel.ForEach` (or similar) when partitioning work. Reserve `ISystem` + `RegisterSequential` for input polling, documented main-thread-only APIs, or other cases that cannot safely run in the parallel phase (see **cyberland-mod-system-lifecycle**).
 - **Scale across cores** where it matters: prefer `IParallelSystem` + `Parallel.ForEach` over independent chunks or subtrees; avoid serializing work that can be partitioned without races.
 - **Thread-safety contracts:** engine services used from parallel systems (`IRenderer`, stores, queues) must be explicitly safe for concurrent use or documented as main-thread-only. When adding shared state, state who may call and under what locking or isolation rules.
 - Parallelism must still respect **predictable performance**: no unbounded allocations or chaotic per-frame sync in hot loops; weak machines may cap `ParallelOptions.MaxDegreeOfParallelism` via existing settings.

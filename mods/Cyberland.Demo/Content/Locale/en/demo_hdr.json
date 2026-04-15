@@ -1,4 +1,4 @@
 {
   "demo.hdr.title": "HDR sprite demo",
-  "demo.hdr.hint": "WASD — move     Q — quit"
+  "demo.hdr.hint": "WASD — move     arrows — tap to step     F9 — extra friction     Q — quit"
 }

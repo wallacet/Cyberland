@@ -1,0 +1,54 @@
+---
+description: Mod ECS lifecycle patterns: OnStart init, update-only runtime, tight component ownership
+globs: mods/**/*.cs
+alwaysApply: false
+---
+
+# Cyberland Mod System Lifecycle
+
+Use ECS systems with clear lifecycle boundaries and ownership.
+
+## Clean, modern ECS patterns
+
+- Prefer data-oriented, composition-first design with small components and focused systems.
+- Keep systems single-purpose and phase-appropriate (input, simulation, presentation, lighting should be separate).
+- Model gameplay state in ECS components (including singleton/state entities) instead of ad-hoc session objects when practical.
+- Favor query/chunk iteration patterns over hard-coded entity wiring when roles can be expressed by components.
+- **Prefer `IParallelSystem` + `RegisterParallel`** for simulation and rendering systems; use `IParallelEarlyUpdate` / `IParallelFixedUpdate` / `IParallelLateUpdate` so the host supplies `ParallelOptions`. Keep `ISystem` + `RegisterSequential` + `IEarlyUpdate` / `IFixedUpdate` / `ILateUpdate` when the work must stay single-threaded (typical example: keyboard/gamepad polling in early update). This aligns with **cyberland-design-goals** parallelism and performance pillars.
+- Design for parallel-friendly execution where safe: avoid hidden shared mutable state and keep write-sets explicit.
+- Use stable naming and folder organization (`Components` / `Systems`) so responsibilities are obvious at a glance.
+
+## Lifecycle split
+
+- Put one-time setup in `OnStart` (cache stores, initialize static sprite/text/material state, validate dependencies).
+- Keep parallel phase methods (`OnParallelEarlyUpdate` / `OnParallelFixedUpdate` / `OnParallelLateUpdate`) or sequential phase methods (`OnEarlyUpdate` / `OnFixedUpdate` / `OnLateUpdate`) focused on per-tick state changes only.
+- Do not perform first-frame lazy initialization in `*Update`; no "if not initialized then init" paths.
+
+## Required init behavior
+
+- If a required dependency for initialization is missing in `OnStart` (for example `Host.Renderer`, required entities/components, or required services), report an engine error and fail fast.
+- Prefer explicit diagnostics that name the system and missing dependency.
+
+## Component-system association
+
+- Keep component ownership tight: each system should read/write a small, intentional component set.
+- Avoid "god systems" that mix unrelated domains (input, simulation, UI, lighting) in one class.
+- Static visual configuration belongs to startup/setup; runtime systems should mutate only dynamic fields.
+
+## Example pattern
+
+```csharp
+public void OnStart(World world)
+{
+    if (_host.Renderer is null)
+        throw new InvalidOperationException("Renderer required for startup init.");
+    InitializeStaticVisualState(world);
+}
+
+public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+{
+    _ = parallelOptions;
+    UpdateDynamicVisibility(world);
+    UpdateRuntimeHudValues(world);
+}
+```

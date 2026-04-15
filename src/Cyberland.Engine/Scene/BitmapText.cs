@@ -4,11 +4,16 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
-/// Bitmap label drawn by <see cref="Systems.TextRenderSystem"/>; pair with <see cref="Position"/> for baseline-left.
+/// Bitmap label drawn by <see cref="Systems.TextStagingSystem"/> then <see cref="Systems.TextRenderSystem"/>; pair with <see cref="Position"/> for baseline-left.
 /// </summary>
 /// <remarks>
-/// When <see cref="BaselineWorldSpace"/> is true, <see cref="Position"/> is world space (+Y up). When false, <see cref="Position.X"/> /
-/// <see cref="Position.Y"/> are framebuffer pixels (top-left origin, +Y down), matching <see cref="TextRenderer.DrawLiteralScreen"/>.
+/// <para>
+/// Use <see cref="TextCoordinateSpace.WorldBaseline"/> for diegetic labels in the playfield; use <see cref="TextCoordinateSpace.ScreenPixels"/> for HUD chrome.
+/// Screen-space rows often pair with <see cref="ViewportAnchor2D"/> so <see cref="Position"/> tracks resize.
+/// </para>
+/// <para>
+/// Recommended <see cref="SortKey"/> bands: lower values for world text, higher (e.g. 400+) for UI so HUD stacks above gameplay.
+/// </para>
 /// </remarks>
 public struct BitmapText
 {
@@ -27,6 +32,6 @@ public struct BitmapText
     /// <summary>Tie-break for draw order among UI text (passed to <see cref="TextRenderer"/>).</summary>
     public float SortKey;
 
-    /// <summary>World vs screen interpretation of <see cref="Position"/> (see summary).</summary>
-    public bool BaselineWorldSpace;
+    /// <summary>Whether <see cref="Position"/> is world (+Y up) or screen pixels (+Y down).</summary>
+    public TextCoordinateSpace CoordinateSpace;
 }

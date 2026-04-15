@@ -5,6 +5,8 @@ namespace Cyberland.Engine.Rendering;
 /// <summary>
 /// Sorts sprite draw order: lower <see cref="SpriteDrawRequest.Layer"/> first, then lower
 /// <see cref="SpriteDrawRequest.SortKey"/>, then lower <see cref="SpriteDrawRequest.DepthHint"/>.
+/// <c>Array.Sort</c> is not stable when keys tie; bitmap text assigns a small per-glyph <see cref="SpriteDrawRequest.DepthHint"/>
+/// so overlapping transparent glyph quads keep a consistent draw order frame-to-frame.
 /// Uses a thread-static draw buffer only for the duration of <see cref="SortByLayerOrder"/> so
 /// <c>Array.Sort</c> does not allocate a per-call <c>Comparison&lt;int&gt;</c> closure (sort runs after parallel submit, on the recording path).
 /// </summary>

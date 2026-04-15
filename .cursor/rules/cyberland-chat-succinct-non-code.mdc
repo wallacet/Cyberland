@@ -1,0 +1,25 @@
+---
+description: Keep non-code chat answers concise while preserving code quality
+alwaysApply: true
+---
+
+# Cyberland — Succinct Non-Code Answers
+
+For chat responses that are **not code-related**, keep answers brief and direct by default.
+
+## Scope
+
+- Applies to conversational guidance, status updates, and general Q&A in chat windows.
+- Do **not** apply this brevity rule to code, project files, documentation, or comments in code files.
+- In those code-related contexts, prioritize readability, maintainability, and clear explanation quality.
+
+## Ask Mode Exception
+
+- In Ask mode, prefer completeness over brevity when needed.
+- If detail materially improves correctness or clarity, provide the fuller explanation.
+
+## Style Guidance
+
+- Lead with the direct answer first.
+- Use short, high-signal wording and avoid unnecessary framing.
+- Add only the minimum supporting context needed for the user to act.

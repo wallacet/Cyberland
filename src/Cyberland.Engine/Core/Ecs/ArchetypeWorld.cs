@@ -302,4 +302,44 @@ internal sealed class ArchetypeWorld
 
     public List<int>? GetArchetypeIndicesContaining(ComponentId id) =>
         _archetypesByComponent.TryGetValue(id, out var list) ? list : null;
+
+    /// <summary>
+    /// Archetype indices whose signature contains every id in <paramref name="sortedUniqueIds"/> (ascending, no duplicates).
+    /// </summary>
+    public List<int> GetArchetypeIndicesMatchingAll(uint[] sortedUniqueIds)
+    {
+        if (sortedUniqueIds.Length == 0)
+            return new List<int>();
+
+        List<int>? smallest = null;
+        foreach (var uid in sortedUniqueIds)
+        {
+            var list = GetArchetypeIndicesContaining(new ComponentId(uid));
+            if (list is null || list.Count == 0)
+                return new List<int>();
+
+            if (smallest is null || list.Count < smallest.Count)
+                smallest = list;
+        }
+
+        var result = new List<int>();
+        for (var i = 0; i < smallest!.Count; i++)
+        {
+            var arch = _archetypes[smallest[i]];
+            var ok = true;
+            foreach (var uid in sortedUniqueIds)
+            {
+                if (!arch.SignatureContains(uid))
+                {
+                    ok = false;
+                    break;
+                }
+            }
+
+            if (ok)
+                result.Add(smallest[i]);
+        }
+
+        return result;
+    }
 }

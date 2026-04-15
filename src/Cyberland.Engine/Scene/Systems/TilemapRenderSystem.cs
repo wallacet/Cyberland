@@ -17,15 +17,18 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
 {
     private static readonly Vector4D<float> OpaqueWhite = new(1f, 1f, 1f, 1f);
 
-    private readonly List<ComponentChunkView<Tilemap>> _chunks = new();
+    private readonly List<MultiComponentChunkView> _chunks = new();
     private readonly GameHostServices _host;
+
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Tilemap>();
 
     /// <param name="host">Requires both <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Tilemaps"/>.</param>
     public TilemapRenderSystem(GameHostServices host) =>
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
@@ -36,7 +39,7 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
         var fb = r.SwapchainPixelSize;
 
         _chunks.Clear();
-        foreach (var chunk in world.QueryChunks<Tilemap>())
+        foreach (var chunk in query)
             _chunks.Add(chunk);
 
         if (_chunks.Count == 0)
@@ -46,7 +49,7 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
         {
             var chunk = _chunks[idx];
             var ents = chunk.Entities;
-            var maps = chunk.Components;
+            var maps = chunk.Column<Tilemap>(0);
             for (var i = 0; i < chunk.Count; i++)
             {
                 var id = ents[i];

@@ -7,28 +7,32 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Parallel pass: for entities with both <see cref="SpriteAnimation"/> and <see cref="Sprite"/>, advances time and recomputes atlas <see cref="Sprite.UvRect"/> from a uniform grid.
-/// Uses <see cref="World.QueryChunks{T0,T1}"/> so each row has paired columns (no per-entity random <see cref="ComponentStore{T}"/> lookups).
+/// Parallel pass: for entities with <see cref="SpriteAnimation"/>, advances time and recomputes atlas
+/// <see cref="Sprite.UvRect"/> from a uniform grid.
 /// </summary>
 public sealed class SpriteAnimationSystem : IParallelSystem, IParallelLateUpdate
 {
-    private readonly List<ComponentChunkView2<SpriteAnimation, Sprite>> _chunks = new();
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<SpriteAnimation>();
+
+    private readonly List<MultiComponentChunkView> _chunks = new();
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _chunks.Clear();
-        foreach (var chunk in world.QueryChunks<SpriteAnimation, Sprite>())
+        foreach (var chunk in query)
             _chunks.Add(chunk);
 
         if (_chunks.Count == 0)
             return;
 
+        var spriteStore = world.Components<Sprite>();
         Parallel.For(0, _chunks.Count, parallelOptions, idx =>
         {
             var chunk = _chunks[idx];
-            var anims = chunk.Components0;
-            var sprites = chunk.Components1;
+            var anims = chunk.Column<SpriteAnimation>(0);
+            var entities = chunk.Entities;
             for (var i = 0; i < chunk.Count; i++)
             {
                 ref var a = ref anims[i];
@@ -36,7 +40,7 @@ public sealed class SpriteAnimationSystem : IParallelSystem, IParallelLateUpdate
                     continue;
 
                 a.ElapsedSeconds += deltaSeconds;
-                ref var spr = ref sprites[i];
+                ref var spr = ref spriteStore.GetOrAdd(entities[i]);
                 SpriteAnimationMath.Apply(ref a, ref spr);
             }
         });

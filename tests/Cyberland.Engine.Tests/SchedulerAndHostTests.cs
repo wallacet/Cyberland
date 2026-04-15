@@ -1,3 +1,4 @@
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
@@ -37,13 +38,24 @@ public sealed class SchedulerAndHostTests
     private sealed class TrackSeq : ISystem, ILateUpdate
     {
         public int Step;
-        public void OnLateUpdate(World world, float deltaSeconds) => Step = 1;
+        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        {
+            _ = archetype;
+            _ = deltaSeconds;
+            Step = 1;
+        }
     }
 
     private sealed class TrackPar : IParallelSystem, IParallelLateUpdate
     {
         public int Step;
-        public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions) => Step = 2;
+        public void OnParallelLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
+        {
+            _ = archetype;
+            _ = deltaSeconds;
+            _ = parallelOptions;
+            Step = 2;
+        }
     }
 
     [Fact]
@@ -110,14 +122,24 @@ public sealed class SchedulerAndHostTests
     {
         public required List<int> Order { get; init; }
         public required int Mark { get; init; }
-        public void OnEarlyUpdate(World world, float deltaSeconds) => Order.Add(Mark);
+        public void OnEarlyUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        {
+            _ = archetype;
+            _ = deltaSeconds;
+            Order.Add(Mark);
+        }
     }
 
     private sealed class OrderSeqLate : ISystem, ILateUpdate
     {
         public required List<int> Order { get; init; }
         public required int Mark { get; init; }
-        public void OnLateUpdate(World world, float deltaSeconds) => Order.Add(Mark);
+        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        {
+            _ = archetype;
+            _ = deltaSeconds;
+            Order.Add(Mark);
+        }
     }
 
     [Fact]
@@ -176,7 +198,7 @@ public sealed class SchedulerAndHostTests
     {
         public required List<int> Order { get; init; }
         public required int Mark { get; init; }
-        public void OnParallelFixedUpdate(World world, float fixedDeltaSeconds, ParallelOptions parallelOptions) =>
+        public void OnParallelFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds, ParallelOptions parallelOptions) =>
             Order.Add(Mark);
     }
 
@@ -184,7 +206,7 @@ public sealed class SchedulerAndHostTests
     {
         public required List<int> Order { get; init; }
         public required int Mark { get; init; }
-        public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions) =>
+        public void OnParallelLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions) =>
             Order.Add(Mark);
     }
 

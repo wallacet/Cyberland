@@ -54,7 +54,7 @@ public sealed class ModLoadContext
     public LocalizationManager Localization { get; }
     /// <summary>Shared ECS world for entities and components.</summary>
     public World World { get; }
-    /// <summary>Register <see cref="Core.Ecs.ISystem"/> / <see cref="Core.Ecs.IParallelSystem"/> implementations (optionally implementing early/fixed/late update interfaces).</summary>
+    /// <summary>Register <see cref="Core.Ecs.ISystem"/> / <see cref="Core.Ecs.IParallelSystem"/> implementations (chunk query from <see cref="Core.Ecs.IEcsQuerySource.QuerySpec"/>).</summary>
     public SystemScheduler Scheduler { get; }
 
     /// <summary>Renderer, input, optional tilemap/particle stores — assigned by the host before <see cref="IMod.OnLoad"/>.</summary>

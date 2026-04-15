@@ -21,12 +21,15 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
 
     private readonly GameHostServices _host;
 
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ParticleEmitter>();
+
     /// <param name="host">Requires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Particles"/>.</param>
     public ParticleRenderSystem(GameHostServices host) =>
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
         var r = _host.Renderer;

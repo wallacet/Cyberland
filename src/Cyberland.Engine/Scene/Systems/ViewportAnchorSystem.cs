@@ -1,0 +1,99 @@
+using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Diagnostics;
+using Cyberland.Engine.Hosting;
+using Silk.NET.Maths;
+
+namespace Cyberland.Engine.Scene.Systems;
+
+/// <summary>
+/// Applies <see cref="ViewportAnchor2D"/> to <see cref="Position"/> (and optional <see cref="Sprite"/> half extents) from <see cref="Hosting.GameHostServices.Renderer"/>'s swapchain size.
+/// </summary>
+public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
+{
+    private readonly GameHostServices _host;
+
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ViewportAnchor2D, Position>();
+
+    /// <summary>Creates the system.</summary>
+    public ViewportAnchorSystem(GameHostServices host) => _host = host;
+
+    /// <inheritdoc />
+    public void OnStart(World world, ChunkQueryAll archetype)
+    {
+        _ = world;
+        _ = archetype;
+        if (_host.Renderer is null)
+        {
+            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Engine.ViewportAnchorSystem",
+                "Host.Renderer was null during OnStart.");
+            throw new InvalidOperationException("ViewportAnchorSystem requires Host.Renderer during OnStart.");
+        }
+    }
+
+    /// <inheritdoc />
+    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    {
+        _ = deltaSeconds;
+        var renderer = _host.Renderer;
+        if (renderer is null)
+            return;
+
+        var fb = renderer.SwapchainPixelSize;
+        if (fb.X <= 0 || fb.Y <= 0)
+            return;
+
+        var sprites = world.Components<Sprite>();
+
+        foreach (var chunk in archetype)
+        {
+            var ents = chunk.Entities;
+            var anchors = chunk.Column<ViewportAnchor2D>(0);
+            var positions = chunk.Column<Position>(1);
+            for (var i = 0; i < chunk.Count; i++)
+            {
+                ref readonly var a = ref anchors[i];
+                if (!a.Active)
+                    continue;
+
+                ref var pos = ref positions[i];
+                var e = ents[i];
+                var p = a.ContentSpace == ViewportContentSpace.ScreenPixels
+                    ? ComputeScreen(fb, a)
+                    : ComputeWorld(fb, a);
+                pos.X = p.X;
+                pos.Y = p.Y;
+
+                if (a.SyncSpriteHalfExtentsToViewport && sprites.Contains(e))
+                {
+                    ref var s = ref sprites.Get(e);
+                    s.HalfExtents = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
+                }
+            }
+        }
+    }
+
+    private static Vector2D<float> ComputeScreen(Vector2D<int> fb, in ViewportAnchor2D a)
+    {
+        var w = fb.X;
+        var h = fb.Y;
+        var ox = a.OffsetX;
+        var oy = a.OffsetY;
+        return a.Anchor switch
+        {
+            ViewportAnchorPreset.TopLeft => new Vector2D<float>(ox, oy),
+            ViewportAnchorPreset.TopRight => new Vector2D<float>(w - ox, oy),
+            ViewportAnchorPreset.BottomLeft => new Vector2D<float>(ox, h - oy),
+            ViewportAnchorPreset.BottomRight => new Vector2D<float>(w - ox, h - oy),
+            ViewportAnchorPreset.Center => new Vector2D<float>(w * 0.5f + ox, h * 0.5f + oy),
+            ViewportAnchorPreset.LeftCenter => new Vector2D<float>(ox, h * 0.5f),
+            _ => new Vector2D<float>(ox, oy)
+        };
+    }
+
+    private static Vector2D<float> ComputeWorld(Vector2D<int> fb, in ViewportAnchor2D a)
+    {
+        var screen = ComputeScreen(fb, a);
+        return WorldScreenSpace.ScreenPixelToWorldCenter(screen, fb);
+    }
+}

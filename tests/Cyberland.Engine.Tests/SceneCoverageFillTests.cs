@@ -69,12 +69,12 @@ public sealed class SceneCoverageFillTests
         spr = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(5f, 5f));
         spr.Visible = false;
 
-        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, 0f, ParOpts());
+        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite>()), 0f, ParOpts());
         Assert.Empty(r.Sprites);
 
         spr.Visible = true;
         r.Sprites.Clear();
-        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, 0f, ParOpts());
+        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite>()), 0f, ParOpts());
         Assert.Single(r.Sprites);
         Assert.NotEqual(0f, r.Sprites[0].RotationRadians);
     }
@@ -85,11 +85,11 @@ public sealed class SceneCoverageFillTests
         var w = new World();
         var kb = new KeyBindingStore();
         var hNullR = new GameHostServices(kb) { Renderer = null, Tilemaps = new TilemapDataStore() };
-        new TilemapRenderSystem(hNullR).OnParallelLateUpdate(w, 0f, ParOpts());
+        new TilemapRenderSystem(hNullR).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Tilemap>()), 0f, ParOpts());
 
         var r = new RecordingRenderer();
         var hNullTm = new GameHostServices(kb) { Renderer = r, Tilemaps = null };
-        new TilemapRenderSystem(hNullTm).OnParallelLateUpdate(w, 0f, ParOpts());
+        new TilemapRenderSystem(hNullTm).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Tilemap>()), 0f, ParOpts());
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class SceneCoverageFillTests
             NonEmptyTileMinIndex = 1
         };
 
-        new TilemapRenderSystem(Host(r, tm)).OnParallelLateUpdate(w, 0f, ParOpts());
+        new TilemapRenderSystem(Host(r, tm)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Tilemap>()), 0f, ParOpts());
         Assert.Single(r.Sprites);
     }
 
@@ -126,7 +126,7 @@ public sealed class SceneCoverageFillTests
         w.Components<Position>().GetOrAdd(e) = new Position();
         w.Components<ParticleEmitter>().GetOrAdd(e) = new ParticleEmitter { Active = false, MaxParticles = 2 };
 
-        new ParticleSimulationSystem(h).OnParallelFixedUpdate(w, 0.1f, ParOpts());
+        new ParticleSimulationSystem(h).OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.1f, ParOpts());
     }
 
     [Fact]
@@ -153,8 +153,8 @@ public sealed class SceneCoverageFillTests
         };
 
         var sim = new ParticleSimulationSystem(h);
-        sim.OnParallelFixedUpdate(w, 0.2f, ParOpts());
-        sim.OnParallelFixedUpdate(w, 0.2f, ParOpts());
+        sim.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.2f, ParOpts());
+        sim.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.2f, ParOpts());
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public sealed class SceneCoverageFillTests
         };
 
         var sim = new ParticleSimulationSystem(h);
-        sim.OnParallelFixedUpdate(w, 0.01f, ParOpts());
-        new ParticleRenderSystem(h).OnParallelLateUpdate(w, 0f, ParOpts());
+        sim.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.01f, ParOpts());
+        new ParticleRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0f, ParOpts());
         Assert.Empty(r.Sprites);
     }
 
@@ -196,11 +196,13 @@ public sealed class SceneCoverageFillTests
         var kb = new KeyBindingStore();
         var r = new RecordingRenderer();
         var hNoPt = new GameHostServices(kb) { Renderer = r, Particles = null };
-        new ParticleSimulationSystem(hNoPt).OnParallelFixedUpdate(new World(), 0.1f, ParOpts());
-        new ParticleRenderSystem(hNoPt).OnParallelLateUpdate(new World(), 0f, ParOpts());
+        var emptyWorld = new World();
+        new ParticleSimulationSystem(hNoPt).OnParallelFixedUpdate(emptyWorld, emptyWorld.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.1f, ParOpts());
+        new ParticleRenderSystem(hNoPt).OnParallelLateUpdate(emptyWorld, emptyWorld.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0f, ParOpts());
 
         var hNoR = new GameHostServices(kb) { Renderer = null, Particles = new ParticleStore() };
-        new ParticleRenderSystem(hNoR).OnParallelLateUpdate(new World(), 0f, ParOpts());
+        var emptyWorld2 = new World();
+        new ParticleRenderSystem(hNoR).OnParallelLateUpdate(emptyWorld2, emptyWorld2.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0f, ParOpts());
     }
 
     [Fact]
@@ -227,9 +229,9 @@ public sealed class SceneCoverageFillTests
         };
 
         var sim = new ParticleSimulationSystem(h);
-        sim.OnParallelFixedUpdate(w, 0.1f, ParOpts());
+        sim.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.1f, ParOpts());
         Assert.True(pt.TryGetBucket(emitter, out var b) && b!.Count > 0);
-        new ParticleRenderSystem(h).OnParallelLateUpdate(w, 0f, ParOpts());
+        new ParticleRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0f, ParOpts());
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -239,10 +241,10 @@ public sealed class SceneCoverageFillTests
         var w = new World();
         var h = Host(new RecordingRenderer());
         var o = ParOpts();
-        new SpriteRenderSystem(h).OnParallelLateUpdate(w, 0f, o);
-        new TilemapRenderSystem(h).OnParallelLateUpdate(w, 0f, o);
-        new ParticleSimulationSystem(h).OnParallelFixedUpdate(w, 0f, o);
-        new ParticleRenderSystem(h).OnParallelLateUpdate(w, 0f, o);
+        new SpriteRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite>()), 0f, o);
+        new TilemapRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Tilemap>()), 0f, o);
+        new ParticleSimulationSystem(h).OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0f, o);
+        new ParticleRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0f, o);
     }
 
     [Fact]
@@ -258,7 +260,7 @@ public sealed class SceneCoverageFillTests
             Loop = true
         };
 
-        new SpriteAnimationSystem().OnParallelLateUpdate(w, 1f, new ParallelismSettings().CreateParallelOptions());
+        new SpriteAnimationSystem().OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<SpriteAnimation>()), 1f, new ParallelismSettings().CreateParallelOptions());
     }
 
     [Fact]
@@ -275,7 +277,7 @@ public sealed class SceneCoverageFillTests
             Loop = true
         };
 
-        new SpriteAnimationSystem().OnParallelLateUpdate(w, 1f, ParOpts());
+        new SpriteAnimationSystem().OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<SpriteAnimation>()), 1f, ParOpts());
     }
 
     [Fact]
@@ -297,7 +299,7 @@ public sealed class SceneCoverageFillTests
             NonEmptyTileMinIndex = 0
         };
 
-        new TilemapRenderSystem(Host(r, store)).OnParallelLateUpdate(w, 0f, ParOpts());
+        new TilemapRenderSystem(Host(r, store)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Tilemap>()), 0f, ParOpts());
         Assert.Empty(r.Sprites);
     }
 
@@ -316,8 +318,62 @@ public sealed class SceneCoverageFillTests
         tb.LocalPosition = new Vector2D<float>(0f, 1f);
         tb.Parent = a;
 
-        new TransformHierarchySystem().OnParallelEarlyUpdate(w, 0f, ParOpts());
+        new TransformHierarchySystem().OnParallelEarlyUpdate(w, w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
         Assert.True(w.Components<Position>().Contains(a));
         Assert.True(w.Components<Position>().Contains(b));
+    }
+
+    [Fact]
+    public void Trigger_defaults_and_event_payload_round_trip()
+    {
+        var trigger = Trigger.DefaultPoint;
+        Assert.True(trigger.Enabled);
+        Assert.Equal(TriggerShapeKind.Point, trigger.Shape);
+
+        var entity = EntityId.FromParts(12, 2);
+        var ev = new TriggerEvent { Other = entity, Kind = TriggerEventKind.OnTriggerEnter };
+        Assert.Equal(12u, ev.Other.Index);
+        Assert.Equal(TriggerEventKind.OnTriggerEnter, ev.Kind);
+    }
+
+    [Fact]
+    public void Trigger_pair_key_object_equals_path_is_exercised()
+    {
+        var triggerSystemType = typeof(TriggerSystem);
+        var pairKeyType = triggerSystemType.GetNestedType("TriggerPairKey", System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(pairKeyType);
+
+        var ctor = pairKeyType!.GetConstructor(
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
+            binder: null,
+            new[] { typeof(EntityId), typeof(EntityId) },
+            modifiers: null);
+        Assert.NotNull(ctor);
+
+        var a = EntityId.FromParts(5, 1);
+        var b = EntityId.FromParts(2, 1);
+        var left = ctor!.Invoke(new object[] { a, b });
+        var right = ctor.Invoke(new object[] { b, a });
+
+        Assert.True(left.Equals(right));
+    }
+
+    /// <summary>
+    /// Registers stock <see cref="Scene.Systems"/> types like <see cref="GameApplication"/> so
+    /// <see cref="IEcsQuerySource.QuerySpec"/> getters are exercised for line coverage.
+    /// </summary>
+    [Fact]
+    public void Stock_engine_scene_systems_register_using_self_declared_QuerySpec()
+    {
+        var sched = new SystemScheduler(new ParallelismSettings());
+        var host = new GameHostServices(new KeyBindingStore());
+        sched.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
+        sched.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
+        sched.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
+        sched.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem(host));
+        sched.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(host));
+        sched.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(host));
+        sched.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(host));
+        sched.RegisterSequential("cyberland.engine/text-render", new TextRenderSystem(host));
     }
 }

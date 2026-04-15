@@ -66,6 +66,27 @@ public sealed class World
         where T0 : struct
         where T1 : struct => new(_ecs);
 
+    /// <summary>
+    /// Chunks matching the scheduler query spec (all listed components required). Prefer scheduler-passed <see cref="ChunkQueryAll"/>
+    /// in <see cref="Tasks.SystemScheduler"/> systems; this is for tests and tooling.
+    /// </summary>
+    public ChunkQueryAll QueryChunks(SystemQuerySpec spec) => new(_ecs, spec);
+
+    /// <summary>
+    /// Zero-based column index for <typeparamref name="T"/> in <see cref="MultiComponentChunkView.Column{T}"/> for <paramref name="spec"/>
+    /// (sorted runtime component ids).
+    /// </summary>
+    public int GetQueryColumnIndex<T>(SystemQuerySpec spec) where T : struct
+    {
+        if (Array.IndexOf(spec.Types, typeof(T)) < 0)
+            throw new ArgumentException($"{typeof(T).FullName} is not part of this query spec.", nameof(spec));
+
+        var want = _ecs.Registry.GetOrRegister<T>().Value;
+        var ids = spec.ResolveSortedComponentIds(_ecs.Registry);
+        var idx = Array.BinarySearch(ids, want);
+        return idx;
+    }
+
     internal ref T RefGetOrAdd<T>(EntityId entity) where T : struct =>
         ref _ecs.GetOrAddComponent(entity, new T());
 

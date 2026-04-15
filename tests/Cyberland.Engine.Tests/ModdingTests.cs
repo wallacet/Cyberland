@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cyberland.Engine.Assets;
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
@@ -127,13 +128,19 @@ public sealed class ModdingTests
     private sealed class ModCtxSeq : ISystem, ILateUpdate
     {
         public int Calls;
-        public void OnLateUpdate(World world, float deltaSeconds) => Calls++;
+        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        {
+            _ = archetype;
+            _ = deltaSeconds;
+            Calls++;
+        }
     }
 
     private sealed class ModCtxPar : IParallelSystem, IParallelLateUpdate
     {
-        public void OnParallelLateUpdate(World world, float deltaSeconds, ParallelOptions parallelOptions)
+        public void OnParallelLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
         {
+            _ = archetype;
             _ = deltaSeconds;
             _ = parallelOptions;
         }

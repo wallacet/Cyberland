@@ -18,6 +18,12 @@ namespace Cyberland.Engine.Rendering.Text;
 /// </remarks>
 public static class TextRenderer
 {
+    /// <summary>
+    /// Per-glyph <see cref="SpriteDrawRequest.DepthHint"/> spacing so <see cref="SpriteDrawSorter"/> has a stable tie-break
+    /// when every glyph in a run shares the same <see cref="SpriteDrawRequest.SortKey"/> (Array.Sort is not stable).
+    /// </summary>
+    private const float GlyphOrdinalDepthHintEpsilon = 1e-5f;
+
     /// <summary>Draws a literal string with a single style.</summary>
     public static void DrawLiteral(
         IRenderer renderer,
@@ -31,8 +37,8 @@ public static class TextRenderer
         if (renderer is null || string.IsNullOrEmpty(text))
             return;
 
-        var pen = DrawRunContentWithPen(renderer, fonts, cache, text, in style, baselineLeftWorld, 0f, sortKey);
-        AddDecorations(renderer, style, baselineLeftWorld, 0f, pen, sortKey, renderer.WhiteTextureId,
+        var pen = FillGlyphRunAndSubmit(renderer, fonts, cache, text, in style, baselineLeftWorld, 0f, sortKey);
+        SubmitTextDecorations(renderer, in style, baselineLeftWorld, 0f, pen, sortKey, renderer.WhiteTextureId,
             renderer.DefaultNormalTextureId);
     }
 
@@ -54,8 +60,8 @@ public static class TextRenderer
         if (string.IsNullOrEmpty(resolved))
             return;
 
-        var pen = DrawRunContentWithPen(renderer, fonts, cache, resolved, in style, baselineLeftWorld, 0f, sortKey);
-        AddDecorations(renderer, style, baselineLeftWorld, 0f, pen, sortKey, renderer.WhiteTextureId,
+        var pen = FillGlyphRunAndSubmit(renderer, fonts, cache, resolved, in style, baselineLeftWorld, 0f, sortKey);
+        SubmitTextDecorations(renderer, in style, baselineLeftWorld, 0f, pen, sortKey, renderer.WhiteTextureId,
             renderer.DefaultNormalTextureId);
     }
 
@@ -115,9 +121,9 @@ public static class TextRenderer
 
             var st = run.Style;
             var runStart = pen;
-            pen = DrawRunContentWithPen(renderer, fonts, cache, text, in st, baselineLeftWorld, pen, sortKey);
+            pen = FillGlyphRunAndSubmit(renderer, fonts, cache, text, in st, baselineLeftWorld, pen, sortKey);
             var runEnd = pen;
-            AddDecorations(renderer, st, baselineLeftWorld, runStart, runEnd, sortKey, renderer.WhiteTextureId,
+            SubmitTextDecorations(renderer, in st, baselineLeftWorld, runStart, runEnd, sortKey, renderer.WhiteTextureId,
                 renderer.DefaultNormalTextureId);
         }
     }
@@ -137,7 +143,57 @@ public static class TextRenderer
         DrawRuns(renderer, fonts, cache, localization, runs, w, sortKey);
     }
 
-    private static float DrawRunContentWithPen(
+    /// <summary>
+    /// Fills <paramref name="destination"/> with glyph quads (no submit). Returns glyph count and final pen.
+    /// </summary>
+    internal static int FillGlyphRunSprites(
+        IRenderer renderer,
+        FontLibrary fonts,
+        TextGlyphCache cache,
+        string text,
+        in TextStyle style,
+        Vector2D<float> baselineLeftWorld,
+        float initialPen,
+        float sortKey,
+        Span<SpriteDrawRequest> destination,
+        out float penAfter)
+    {
+        penAfter = initialPen;
+        if (string.IsNullOrEmpty(text) || destination.Length == 0)
+            return 0;
+
+        var defN = renderer.DefaultNormalTextureId;
+        var span = text.AsSpan();
+        var n = 0;
+        var pen = initialPen;
+        for (var i = 0; i < span.Length;)
+        {
+            if (Rune.DecodeFromUtf16(span[i..], out var r, out var len) != OperationStatus.Done)
+                break;
+            var g = span.Slice(i, len);
+            i += len;
+
+            if (!cache.TryGetGlyph(renderer, fonts, in style, r.Value, g, out var cg))
+            {
+                pen += FallbackAdvanceWhenGlyphUnavailable(in style);
+                continue;
+            }
+
+            if (n >= destination.Length)
+                break;
+
+            var cx = baselineLeftWorld.X + pen + cg.OffsetPenToCenterX;
+            var cy = baselineLeftWorld.Y + cg.OffsetPenToCenterYWorld;
+            var ordinal = n;
+            destination[n++] = CreateGlyphSpriteRequest(cg, cx, cy, in style, sortKey, defN, ordinal);
+            pen += cg.AdvancePx;
+        }
+
+        penAfter = pen;
+        return n;
+    }
+
+    private static float FillGlyphRunAndSubmit(
         IRenderer renderer,
         FontLibrary fonts,
         TextGlyphCache cache,
@@ -147,34 +203,19 @@ public static class TextRenderer
         float pen,
         float sortKey)
     {
-        var defN = renderer.DefaultNormalTextureId;
-        // Callers (DrawLiteral/DrawLocalized/DrawRuns) skip empty strings; avoid a redundant branch the gate cannot hit.
+        // Callers skip empty strings; avoid a redundant branch the gate cannot hit.
         var span = text.AsSpan();
 
         var pool = ArrayPool<SpriteDrawRequest>.Shared;
         var buf = pool.Rent(span.Length);
         try
         {
-            var n = 0;
-            for (var i = 0; i < span.Length;)
-            {
-                if (Rune.DecodeFromUtf16(span[i..], out var r, out var len) != OperationStatus.Done)
-                    break;
-                var g = span.Slice(i, len);
-                i += len;
-
-                if (!cache.TryGetGlyph(renderer, fonts, in style, r.Value, g, out var cg))
-                    continue;
-
-                var cx = baselineLeftWorld.X + pen + cg.OffsetPenToCenterX;
-                var cy = baselineLeftWorld.Y + cg.OffsetPenToCenterYWorld;
-                buf[n++] = CreateGlyphSpriteRequest(cg, cx, cy, in style, sortKey, defN);
-                pen += cg.AdvancePx;
-            }
-
+            var dest = buf.AsSpan(0, span.Length);
+            var n = FillGlyphRunSprites(renderer, fonts, cache, text, in style, baselineLeftWorld, pen, sortKey, dest,
+                out var penAfter);
             if (n > 0)
-                renderer.SubmitSprites(buf.AsSpan(0, n));
-            return pen;
+                renderer.SubmitSprites(dest[..n]);
+            return penAfter;
         }
         finally
         {
@@ -182,13 +223,29 @@ public static class TextRenderer
         }
     }
 
+    internal static void SubmitTextDecorations(
+        IRenderer renderer,
+        in TextStyle style,
+        Vector2D<float> baselineLeftWorld,
+        float penStart,
+        float penEnd,
+        float sortKey,
+        int whiteTex,
+        int defNormal) =>
+        AddDecorations(renderer, in style, baselineLeftWorld, penStart, penEnd, sortKey, whiteTex, defNormal);
+
+    /// <summary>Approximate em advance when a glyph cannot be cached so the rest of the string still lays out.</summary>
+    private static float FallbackAdvanceWhenGlyphUnavailable(in TextStyle style) =>
+        MathF.Max(4f, style.SizePixels * 0.35f);
+
     private static SpriteDrawRequest CreateGlyphSpriteRequest(
         TextGlyphCache.CachedGlyph g,
         float centerWorldX,
         float centerWorldY,
         in TextStyle style,
         float sortKey,
-        int defNormal)
+        int defNormal,
+        int glyphOrdinalInRun)
     {
         var cm = style.Color;
         return new SpriteDrawRequest
@@ -205,7 +262,7 @@ public static class TextRenderer
             Alpha = cm.W,
             EmissiveTint = default,
             EmissiveIntensity = 0f,
-            DepthHint = 0f,
+            DepthHint = glyphOrdinalInRun * GlyphOrdinalDepthHintEpsilon,
             UvRect = g.UvRect,
             Transparent = true
         };

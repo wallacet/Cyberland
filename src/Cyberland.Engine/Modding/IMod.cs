@@ -23,8 +23,8 @@ public interface IMod
 {
     /// <summary>
     /// Called once after content mounts and host services (<see cref="Hosting.GameHostServices"/>) are ready.
-    /// Register <see cref="Core.Tasks.SystemScheduler"/> entries: <see cref="Core.Ecs.ISystem"/> / <see cref="Core.Ecs.IParallelSystem"/> plus optional
-    /// <see cref="Core.Ecs.IEarlyUpdate"/>, <see cref="Core.Ecs.IFixedUpdate"/>, <see cref="Core.Ecs.ILateUpdate"/> (or parallel equivalents).
+    /// Register <see cref="Core.Tasks.SystemScheduler"/> entries: <see cref="Core.Ecs.ISystem"/> / <see cref="Core.Ecs.IParallelSystem"/> (declare chunk needs via <see cref="Core.Ecs.IEcsQuerySource.QuerySpec"/>)
+    /// plus optional <see cref="Core.Ecs.IEarlyUpdate"/>, <see cref="Core.Ecs.IFixedUpdate"/>, <see cref="Core.Ecs.ILateUpdate"/> (or parallel equivalents).
     /// </summary>
     /// <param name="context">Access to the shared <see cref="Core.Ecs.World"/>, scheduler, VFS, and host.</param>
     void OnLoad(ModLoadContext context);
