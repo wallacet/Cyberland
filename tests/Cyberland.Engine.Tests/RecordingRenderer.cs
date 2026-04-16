@@ -1,5 +1,6 @@
 using Cyberland.Engine.Rendering;
 using Silk.NET.Maths;
+using TextureId = System.UInt32;
 
 namespace Cyberland.Engine.Tests;
 
@@ -10,8 +11,8 @@ internal sealed class RecordingRenderer : IRenderer
     public Vector2D<int> SwapchainPixelSize { get; set; } = new(800, 600);
     public Action? RequestClose { get; set; }
     public FramePacing FramePacing { get; set; } = FramePacing.VSync;
-    public int DefaultNormalTextureId => 1;
-    public int WhiteTextureId => 2;
+    public TextureId DefaultNormalTextureId => 1;
+    public TextureId WhiteTextureId => 2;
 
     public List<SpriteDrawRequest> Sprites { get; } = new();
     public List<PointLight> PointLights { get; } = new();
@@ -22,14 +23,14 @@ internal sealed class RecordingRenderer : IRenderer
     public GlobalPostProcessSettings? LastGlobal { get; private set; }
 
     /// <summary>When set, returned from <see cref="RegisterTextureRgba"/> instead of the default id (tests upload failures).</summary>
-    public int? RegisterTextureRgbaOverride { get; set; }
+    public TextureId? RegisterTextureRgbaOverride { get; set; }
 
-    private int _nextTextureId = 3;
+    private TextureId _nextTextureId = 3;
 
     /// <summary>Increments for each <see cref="RegisterTextureRgba"/> call (atlas page creation).</summary>
     public int RegisterTextureRgbaCallCount { get; private set; }
 
-    public int RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height)
+    public TextureId RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height)
     {
         RegisterTextureRgbaCallCount++;
         return RegisterTextureRgbaOverride ?? _nextTextureId++;
@@ -49,10 +50,10 @@ internal sealed class RecordingRenderer : IRenderer
 
     private int _subregionUploadAttempt;
 
-    public bool TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height,
+    public bool TryUploadTextureRgbaSubregion(TextureId textureId, int dstX, int dstY, int width, int height,
         ReadOnlySpan<byte> rgba)
     {
-        if (textureId < 0 || width <= 0 || height <= 0 || rgba.Length < width * height * 4)
+        if (textureId == TextureId.MaxValue || width <= 0 || height <= 0 || rgba.Length < width * height * 4)
             return false;
         if (FailSubregionUpload)
             return false;

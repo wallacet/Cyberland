@@ -52,7 +52,7 @@ public sealed class SceneCoverageFillTests
     public void Sprite_DefaultWhiteUnlit_populates()
     {
         var s = Sprite.DefaultWhiteUnlit(9, 8, new Vector2D<float>(3f, 4f));
-        Assert.Equal(9, s.AlbedoTextureId);
+        Assert.Equal(9u, s.AlbedoTextureId);
         Assert.True(s.Visible);
     }
 

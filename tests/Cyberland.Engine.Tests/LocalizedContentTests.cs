@@ -2,6 +2,9 @@ using Cyberland.Engine.Assets;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using TextureId = System.UInt32;
 
 namespace Cyberland.Engine.Tests;
 
@@ -303,5 +306,72 @@ public sealed class LocalizedContentTests
     {
         var lc = new LocalizedContent(new LocalizationManager(), new VirtualFileSystem(), "en");
         Assert.Null(lc.TryResolveLocalizedPath("  "));
+    }
+
+    [Fact]
+    public async Task LocalizedContent_TryLoadLocalizedTextureAsync_missing_returns_invalid_id()
+    {
+        var lc = new LocalizedContent(new LocalizationManager(), new VirtualFileSystem(), "en");
+        var renderer = new RecordingRenderer();
+        var textureId = await lc.TryLoadLocalizedTextureAsync("Textures/missing.png", renderer);
+        Assert.Equal(TextureId.MaxValue, textureId);
+        Assert.Equal(0, renderer.RegisterTextureRgbaCallCount);
+    }
+
+    [Fact]
+    public async Task LocalizedContent_TryLoadLocalizedTextureAsync_prefers_primary_locale_asset()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-loc-tex-pref-" + Guid.NewGuid());
+        Directory.CreateDirectory(Path.Combine(root, "Locale", "de", "Textures"));
+        Directory.CreateDirectory(Path.Combine(root, "Textures"));
+        WriteSolidRgbaPng(Path.Combine(root, "Locale", "de", "Textures", "x.png"), 255, 0, 0, 255);
+        WriteSolidRgbaPng(Path.Combine(root, "Textures", "x.png"), 0, 255, 0, 255);
+
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var lc = new LocalizedContent(new LocalizationManager(), vfs, "de");
+            var renderer = new RecordingRenderer();
+            var textureId = await lc.TryLoadLocalizedTextureAsync("Textures/x.png", renderer);
+
+            Assert.NotEqual(TextureId.MaxValue, textureId);
+            Assert.Equal(1, renderer.RegisterTextureRgbaCallCount);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task LocalizedContent_TryLoadLocalizedTextureAsync_falls_back_to_base_asset()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-loc-tex-base-" + Guid.NewGuid());
+        Directory.CreateDirectory(Path.Combine(root, "Textures"));
+        WriteSolidRgbaPng(Path.Combine(root, "Textures", "base.png"), 12, 34, 56, 255);
+
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var lc = new LocalizedContent(new LocalizationManager(), vfs, "de-DE");
+            var renderer = new RecordingRenderer();
+            var textureId = await lc.TryLoadLocalizedTextureAsync("Textures/base.png", renderer);
+
+            Assert.NotEqual(TextureId.MaxValue, textureId);
+            Assert.Equal(1, renderer.RegisterTextureRgbaCallCount);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void WriteSolidRgbaPng(string path, byte r, byte g, byte b, byte a)
+    {
+        using var image = new Image<Rgba32>(1, 1);
+        image[0, 0] = new Rgba32(r, g, b, a);
+        image.SaveAsPng(path);
     }
 }

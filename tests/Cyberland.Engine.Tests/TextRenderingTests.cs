@@ -10,6 +10,7 @@ using SixLabors.Fonts;
 using Silk.NET.Maths;
 using TextRenderer = Cyberland.Engine.Rendering.Text.TextRenderer;
 using TextRun = Cyberland.Engine.Rendering.Text.TextRun;
+using TextureId = System.UInt32;
 
 namespace Cyberland.Engine.Tests;
 
@@ -292,7 +293,7 @@ public sealed class TextRenderingTests
     [Fact]
     public void TextGlyphCache_RegisterTexture_failure_returns_false()
     {
-        var r = new RecordingRenderer { RegisterTextureRgbaOverride = -1 };
+        var r = new RecordingRenderer { RegisterTextureRgbaOverride = TextureId.MaxValue };
         var lib = new FontLibrary();
         BuiltinFonts.AddTo(lib);
         var cache = new TextGlyphCache();
@@ -406,7 +407,7 @@ public sealed class TextRenderingTests
     [Fact]
     public void TextRenderer_skips_glyph_when_upload_fails_but_continues_loop()
     {
-        var r = new RecordingRenderer { RegisterTextureRgbaOverride = -1 };
+        var r = new RecordingRenderer { RegisterTextureRgbaOverride = TextureId.MaxValue };
         var lib = new FontLibrary();
         BuiltinFonts.AddTo(lib);
         var cache = new TextGlyphCache();
