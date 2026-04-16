@@ -15,10 +15,10 @@ public sealed unsafe partial class VulkanRenderer
 
         public TextureUpload(VulkanRenderer renderer) => _r = renderer;
 
-        public int RegisterTextureRgbaInternal(ReadOnlySpan<byte> rgba, int width, int height)
+        public TextureId RegisterTextureRgbaInternal(ReadOnlySpan<byte> rgba, int width, int height)
         {
             if (_r._vk is null || width <= 0 || height <= 0 || rgba.Length < width * height * 4)
-                return -1;
+                return TextureId.MaxValue;
 
             Image img = default;
             DeviceMemory mem = default;
@@ -122,7 +122,7 @@ public sealed unsafe partial class VulkanRenderer
                 Height = height
             };
 
-            var id = _r._textureSlots.Count;
+            var id = (TextureId)_r._textureSlots.Count;
             _r._textureSlots.Add(slot);
             return id;
         }
@@ -130,15 +130,15 @@ public sealed unsafe partial class VulkanRenderer
         /// <summary>
         /// Updates a sub-rectangle of an existing image (layout: ShaderReadOnly → TransferDst → copy → ShaderReadOnly).
         /// </summary>
-        public bool TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height,
+        public bool TryUploadTextureRgbaSubregion(TextureId textureId, int dstX, int dstY, int width, int height,
             ReadOnlySpan<byte> rgba)
         {
-            if (_r._vk is null || textureId < 0 || textureId >= _r._textureSlots.Count)
+            if (_r._vk is null || textureId >= (TextureId)_r._textureSlots.Count)
                 return false;
             if (width <= 0 || height <= 0 || rgba.Length < width * height * 4)
                 return false;
 
-            var gt = _r._textureSlots[textureId];
+            var gt = _r._textureSlots[(int)textureId];
             if (dstX < 0 || dstY < 0 || dstX + width > gt.Width || dstY + height > gt.Height)
                 return false;
 
@@ -269,13 +269,13 @@ public sealed unsafe partial class VulkanRenderer
         }
     }
 
-    private int RegisterTextureRgbaInternal(ReadOnlySpan<byte> rgba, int width, int height)
+    private TextureId RegisterTextureRgbaInternal(ReadOnlySpan<byte> rgba, int width, int height)
     {
         _textureUpload ??= new TextureUpload(this);
         return _textureUpload.RegisterTextureRgbaInternal(rgba, width, height);
     }
 
-    private bool TryUploadTextureRgbaSubregionInternal(int textureId, int dstX, int dstY, int width, int height,
+    private bool TryUploadTextureRgbaSubregionInternal(TextureId textureId, int dstX, int dstY, int width, int height,
         ReadOnlySpan<byte> rgba)
     {
         _textureUpload ??= new TextureUpload(this);

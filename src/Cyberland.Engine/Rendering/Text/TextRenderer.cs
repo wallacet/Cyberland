@@ -230,8 +230,8 @@ public static class TextRenderer
         float penStart,
         float penEnd,
         float sortKey,
-        int whiteTex,
-        int defNormal) =>
+        TextureId whiteTex,
+        TextureId defNormal) =>
         AddDecorations(renderer, in style, baselineLeftWorld, penStart, penEnd, sortKey, whiteTex, defNormal);
 
     /// <summary>Approximate em advance when a glyph cannot be cached so the rest of the string still lays out.</summary>
@@ -244,7 +244,7 @@ public static class TextRenderer
         float centerWorldY,
         in TextStyle style,
         float sortKey,
-        int defNormal,
+        TextureId defNormal,
         int glyphOrdinalInRun)
     {
         var cm = style.Color;
@@ -257,7 +257,7 @@ public static class TextRenderer
             SortKey = sortKey,
             AlbedoTextureId = g.TextureId,
             NormalTextureId = defNormal,
-            EmissiveTextureId = -1,
+            EmissiveTextureId = TextureId.MaxValue,
             ColorMultiply = cm,
             Alpha = cm.W,
             EmissiveTint = default,
@@ -275,8 +275,8 @@ public static class TextRenderer
         float penStart,
         float penEnd,
         float sortKey,
-        int whiteTex,
-        int defNormal)
+        TextureId whiteTex,
+        TextureId defNormal)
     {
         if (penEnd <= penStart)
             return;
@@ -303,8 +303,8 @@ public static class TextRenderer
         float halfHeight,
         Vector4D<float> color,
         float sortKey,
-        int whiteTex,
-        int defN)
+        TextureId whiteTex,
+        TextureId defN)
     {
         var midX = (worldXStart + worldXEnd) * 0.5f;
         var halfW = MathF.Max(0.5f, (worldXEnd - worldXStart) * 0.5f);
@@ -317,7 +317,7 @@ public static class TextRenderer
             SortKey = sortKey,
             AlbedoTextureId = whiteTex,
             NormalTextureId = defN,
-            EmissiveTextureId = -1,
+            EmissiveTextureId = TextureId.MaxValue,
             ColorMultiply = color,
             Alpha = color.W,
             EmissiveTint = default,

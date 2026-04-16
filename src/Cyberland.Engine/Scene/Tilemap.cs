@@ -14,7 +14,7 @@ public struct Tilemap
     /// <summary>World Y of cell (0,0)’s corner.</summary>
     public float OriginY;
     /// <summary>Shared albedo atlas for all non-empty tiles in this map.</summary>
-    public int AtlasAlbedoTextureId;
+    public TextureId AtlasAlbedoTextureId;
     /// <summary>Sprite layer for the whole grid pass.</summary>
     public int Layer;
     /// <summary>Sort key within the layer.</summary>

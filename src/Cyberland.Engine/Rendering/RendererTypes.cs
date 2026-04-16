@@ -47,11 +47,11 @@ public struct SpriteDrawRequest
     public float SortKey;
 
     /// <summary>Albedo slot from <see cref="IRenderer.RegisterTextureRgba"/>.</summary>
-    public int AlbedoTextureId;
-    /// <summary>-1 uses default flat normal.</summary>
-    public int NormalTextureId;
-    /// <summary>-1 = no emissive texture (use tint only).</summary>
-    public int EmissiveTextureId;
+    public TextureId AlbedoTextureId;
+    /// <summary><see cref="TextureId.MaxValue"/> uses default flat normal.</summary>
+    public TextureId NormalTextureId;
+    /// <summary><see cref="TextureId.MaxValue"/> = no emissive texture (use tint only).</summary>
+    public TextureId EmissiveTextureId;
 
     /// <summary>Multiplies sampled RGBA.</summary>
     public Vector4D<float> ColorMultiply;

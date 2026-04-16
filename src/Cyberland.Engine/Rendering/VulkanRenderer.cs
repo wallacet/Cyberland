@@ -117,9 +117,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     };
 
     private readonly List<GpuTexture> _textureSlots = new();
-    private int _whiteTextureId = -1;
-    private int _blackTextureId = -1;
-    private int _defaultNormalTextureId = -1;
+    private TextureId _whiteTextureId = TextureId.MaxValue;
+    private TextureId _blackTextureId = TextureId.MaxValue;
+    private TextureId _defaultNormalTextureId = TextureId.MaxValue;
 
     /// <summary>True when swapchain uses an sRGB image format so the composite shader outputs linear and avoids double gamma.</summary>
     private bool _swapchainUsesSrgbFramebuffer;
@@ -166,16 +166,16 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     /// <summary>Current swapchain size in pixels — use for world-space clamps (matches shader <c>screenSize</c>).</summary>
     public Vector2D<int> SwapchainPixelSize => new((int)_swapchainExtent.Width, (int)_swapchainExtent.Height);
 
-    int IRenderer.RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height) =>
+    TextureId IRenderer.RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height) =>
         RegisterTextureRgbaInternal(rgba, width, height);
 
-    bool IRenderer.TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height,
+    bool IRenderer.TryUploadTextureRgbaSubregion(TextureId textureId, int dstX, int dstY, int width, int height,
         ReadOnlySpan<byte> rgba) =>
         TryUploadTextureRgbaSubregionInternal(textureId, dstX, dstY, width, height, rgba);
 
-    int IRenderer.DefaultNormalTextureId => _defaultNormalTextureId;
+    TextureId IRenderer.DefaultNormalTextureId => _defaultNormalTextureId;
 
-    int IRenderer.WhiteTextureId => _whiteTextureId;
+    TextureId IRenderer.WhiteTextureId => _whiteTextureId;
 
     void IRenderer.SubmitSprite(in SpriteDrawRequest draw)
     {

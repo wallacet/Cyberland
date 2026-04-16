@@ -25,7 +25,7 @@ public sealed class TextGlyphCache
     public readonly struct CachedGlyph
     {
         /// <summary>Atlas page texture id from <see cref="IRenderer.RegisterTextureRgba"/>.</summary>
-        public int TextureId { get; init; }
+        public TextureId TextureId { get; init; }
 
         /// <summary>Bitmap width in pixels.</summary>
         public int WidthPx { get; init; }
@@ -156,10 +156,10 @@ public sealed class TextGlyphCache
         byte[] rgba,
         int w,
         int h,
-        out int textureId,
+        out TextureId textureId,
         out Vector4D<float> uvRect)
     {
-        textureId = -1;
+        textureId = TextureId.MaxValue;
         uvRect = default;
 
         GlyphAtlasPage? page = _pages.Count > 0 ? _pages[^1] : null;
@@ -177,10 +177,10 @@ public sealed class TextGlyphCache
         var invH = 1f / GlyphAtlasPage.SizePx;
         uvRect = new Vector4D<float>(ox * invW, oy * invH, (ox + w) * invW, (oy + h) * invH);
 
-        if (page.TextureId < 0)
+        if (page.TextureId == TextureId.MaxValue)
         {
             var id = renderer.RegisterTextureRgba(page.Pixels, GlyphAtlasPage.SizePx, GlyphAtlasPage.SizePx);
-            if (id < 0)
+            if (id == TextureId.MaxValue)
                 return false;
             page.TextureId = id;
             textureId = id;

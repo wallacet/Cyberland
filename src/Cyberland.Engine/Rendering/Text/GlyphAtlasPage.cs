@@ -11,7 +11,7 @@ internal sealed class GlyphAtlasPage
     /// <summary>Premultiplied RGBA8, row-major, top row first (matches texture sampling).</summary>
     internal readonly byte[] Pixels = new byte[SizePx * SizePx * 4];
 
-    internal int TextureId = -1;
+    internal TextureId TextureId = TextureId.MaxValue;
 
     private int _cursorX = PadPx;
     private int _cursorY = PadPx;

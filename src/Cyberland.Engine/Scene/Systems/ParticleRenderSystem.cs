@@ -66,7 +66,7 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
                     SortKey = em.SortKey + p * 0.001f,
                     AlbedoTextureId = em.AlbedoTextureId,
                     NormalTextureId = defaultNormal,
-                    EmissiveTextureId = -1,
+                    EmissiveTextureId = TextureId.MaxValue,
                     ColorMultiply = WhiteColor,
                     Alpha = 1f,
                     EmissiveTint = WhiteEmissive,

@@ -20,7 +20,7 @@ public struct ParticleEmitter
     /// <summary>Downward acceleration (world units/s²); negative Y is “down” in world space.</summary>
     public float GravityY;
     /// <summary>Texture slot for each billboard.</summary>
-    public int AlbedoTextureId;
+    public TextureId AlbedoTextureId;
     /// <summary>Sprite layer for draws.</summary>
     public int Layer;
     /// <summary>Sort key for submission.</summary>

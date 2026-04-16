@@ -85,7 +85,7 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
                         SortKey = tm.SortKey + x * 0.001f + y * 0.0001f,
                         AlbedoTextureId = tid,
                         NormalTextureId = defaultNormal,
-                        EmissiveTextureId = -1,
+                        EmissiveTextureId = TextureId.MaxValue,
                         ColorMultiply = OpaqueWhite,
                         Alpha = 1f,
                         EmissiveTint = default,

@@ -1,0 +1,1 @@
+global using TextureId = System.UInt32;

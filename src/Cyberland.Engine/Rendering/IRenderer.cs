@@ -44,7 +44,7 @@ public interface IRenderer
     /// <param name="rgba">Packed RGBA8 pixels, length <c>width * height * 4</c>.</param>
     /// <param name="width">Texture width in pixels.</param>
     /// <param name="height">Texture height in pixels.</param>
-    int RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height);
+    TextureId RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height);
 
     /// <summary>
     /// Copies premultiplied RGBA into a sub-rectangle of an existing texture (same dimensions as when registered).
@@ -57,13 +57,13 @@ public interface IRenderer
     /// <param name="height">Region height.</param>
     /// <param name="rgba">Tightly packed RGBA8, length at least <c>width * height * 4</c>.</param>
     /// <returns>False if the id is invalid, the region is out of bounds, or <paramref name="rgba"/> is too small.</returns>
-    bool TryUploadTextureRgbaSubregion(int textureId, int dstX, int dstY, int width, int height, ReadOnlySpan<byte> rgba);
+    bool TryUploadTextureRgbaSubregion(TextureId textureId, int dstX, int dstY, int width, int height, ReadOnlySpan<byte> rgba);
 
     /// <summary>Default flat normal (128,128,255) 1×1 if not registered.</summary>
-    int DefaultNormalTextureId { get; }
+    TextureId DefaultNormalTextureId { get; }
 
     /// <summary>1×1 white texture.</summary>
-    int WhiteTextureId { get; }
+    TextureId WhiteTextureId { get; }
 
     /// <summary>Queues one sprite for the next frame (thread-safe; see interface remarks).</summary>
     void SubmitSprite(in SpriteDrawRequest draw);

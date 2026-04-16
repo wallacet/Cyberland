@@ -284,8 +284,8 @@ public sealed unsafe partial class VulkanRenderer
 
     private void DrawSprite(CommandBuffer cmd, in SpriteDrawRequest s, Vector2D<float> screen, int mode)
     {
-        var al = s.AlbedoTextureId >= 0 && s.AlbedoTextureId < _textureSlots.Count
-            ? _textureSlots[s.AlbedoTextureId]
+        var al = s.AlbedoTextureId < (TextureId)_textureSlots.Count
+            ? _textureSlots[(int)s.AlbedoTextureId]
             : null;
         if (al is null)
             return;
@@ -308,9 +308,9 @@ public sealed unsafe partial class VulkanRenderer
 
         if (mode == 0)
         {
-            var useEm = s.EmissiveTextureId >= 0 && s.EmissiveTextureId < _textureSlots.Count ? 1 : 0;
+            var useEm = s.EmissiveTextureId < (TextureId)_textureSlots.Count ? 1 : 0;
             var emTexId = useEm != 0 ? s.EmissiveTextureId : _blackTextureId;
-            var emSlot = emTexId >= 0 && emTexId < _textureSlots.Count ? _textureSlots[emTexId] : null;
+            var emSlot = emTexId < (TextureId)_textureSlots.Count ? _textureSlots[(int)emTexId] : null;
             if (emSlot is null)
                 return;
             push.UseEmissiveMap = useEm;
@@ -324,10 +324,10 @@ public sealed unsafe partial class VulkanRenderer
         }
         else if (mode == 1)
         {
-            var nid = s.NormalTextureId >= 0 && s.NormalTextureId < _textureSlots.Count
+            var nid = s.NormalTextureId < (TextureId)_textureSlots.Count
                 ? s.NormalTextureId
                 : _defaultNormalTextureId;
-            var nt = _textureSlots[nid];
+            var nt = _textureSlots[(int)nid];
 
             var setsG = stackalloc DescriptorSet[2];
             setsG[0] = al.DescriptorSet;

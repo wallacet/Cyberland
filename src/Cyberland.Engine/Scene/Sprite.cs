@@ -12,11 +12,11 @@ public struct Sprite
     /// <summary>Half-size in world units (rectangle from center).</summary>
     public Vector2D<float> HalfExtents;
     /// <summary>Slot from <see cref="Rendering.IRenderer.RegisterTextureRgba"/>; albedo/base color.</summary>
-    public int AlbedoTextureId;
+    public TextureId AlbedoTextureId;
     /// <summary>Normal map slot (tangent space); use renderer default for flat shading.</summary>
-    public int NormalTextureId;
-    /// <summary>Emissive texture slot, or -1 for tint-only emissive.</summary>
-    public int EmissiveTextureId;
+    public TextureId NormalTextureId;
+    /// <summary>Emissive texture slot, or <see cref="TextureId.MaxValue"/> for tint-only emissive.</summary>
+    public TextureId EmissiveTextureId;
     /// <summary>Draw bucket; lower <see cref="Rendering.SpriteLayer"/> values draw first within the main sprite pass.</summary>
     public int Layer;
     /// <summary>Tie-breaker when <see cref="Layer"/> matches (larger = draw on top).</summary>
@@ -48,13 +48,13 @@ public struct Sprite
     }
 
     /// <summary>Convenience preset: white quad, default layer, fully opaque, no emissive.</summary>
-    public static Sprite DefaultWhiteUnlit(int whiteTextureId, int normalTextureId, Vector2D<float> halfExtents)
+    public static Sprite DefaultWhiteUnlit(TextureId whiteTextureId, TextureId normalTextureId, Vector2D<float> halfExtents)
     {
         Sprite s;
         s.HalfExtents = halfExtents;
         s.AlbedoTextureId = whiteTextureId;
         s.NormalTextureId = normalTextureId;
-        s.EmissiveTextureId = -1;
+        s.EmissiveTextureId = TextureId.MaxValue;
         s.Layer = (int)SpriteLayer.World;
         s.SortKey = 0f;
         s.ColorMultiply = new Vector4D<float>(1f, 1f, 1f, 1f);
