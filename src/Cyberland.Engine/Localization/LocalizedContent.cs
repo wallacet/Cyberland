@@ -1,4 +1,7 @@
 using Cyberland.Engine.Assets;
+using Cyberland.Engine.Rendering;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Cyberland.Engine.Localization;
 
@@ -68,6 +71,20 @@ public sealed class LocalizedContent : ILocalizedContent
             return null;
 
         return await _assets.LoadBytesAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<TextureId> TryLoadLocalizedTextureAsync(string canonicalContentPath,
+        IRenderer renderer,
+        CancellationToken cancellationToken = default)
+    {
+        var bytes = await TryLoadLocalizedBytesAsync(canonicalContentPath, cancellationToken).ConfigureAwait(false);
+        if (bytes is null)
+            return TextureId.MaxValue;
+
+        using var image = Image.Load<Rgba32>(bytes);
+        var rgba = new byte[image.Width * image.Height * 4];image.CopyPixelDataTo(rgba);
+        return renderer.RegisterTextureRgba(rgba, image.Width, image.Height);
     }
 
     /// <inheritdoc />

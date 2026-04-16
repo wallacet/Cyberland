@@ -1,3 +1,5 @@
+using Cyberland.Engine.Rendering;
+
 namespace Cyberland.Engine.Localization;
 
 /// <summary>
@@ -32,6 +34,11 @@ public interface ILocalizedContent
 
     /// <summary>Loads bytes for the resolved localized path, or <c>null</c> if missing.</summary>
     Task<byte[]?> TryLoadLocalizedBytesAsync(string canonicalContentPath,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Loads a texture for the resolved localized path, or <c>null</c> if missing.</summary>
+    Task<TextureId> TryLoadLocalizedTextureAsync(string canonicalContentPath,
+        IRenderer renderer,
         CancellationToken cancellationToken = default);
 
     /// <summary>Opens a stream for the resolved localized path, or <c>null</c> if missing.</summary>
