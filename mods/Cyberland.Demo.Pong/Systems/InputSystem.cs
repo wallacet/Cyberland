@@ -48,7 +48,8 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
 
         var renderer = _host.Renderer!;
         var keyboard = _keyboard!;
-        if (keyboard.IsKeyPressed(Key.F10) && _scheduler.TryGetEnabled("cyberland.demo.pong/visual-sync", out var syncOn))
+        var syncOn = _scheduler.IsEnabled("cyberland.demo.pong/visual-sync");
+        if (keyboard.IsKeyPressed(Key.F10) && syncOn)
             _scheduler.SetEnabled("cyberland.demo.pong/visual-sync", !syncOn);
         if (keyboard.IsKeyPressed(Key.Q)) { renderer.RequestClose?.Invoke(); return; }
 

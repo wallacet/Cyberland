@@ -16,18 +16,17 @@ public sealed class SystemScheduler
     private abstract class Entry
     {
         public required string Id { get; init; }
-        public required Type SystemType { get; init; }
         public required SystemQuerySpec QuerySpec { get; init; }
         public bool Enabled;
         public bool Started;
         public required Action<World> Start { get; init; }
-        public Action<World, float>? Early { get; init; }
-        public Action<World, float>? Fixed { get; init; }
-        public Action<World, float>? Late { get; init; }
     }
 
     private sealed class SequentialEntry : Entry
     {
+        public Action<World, float>? Early { get; init; }
+        public Action<World, float>? Fixed { get; init; }
+        public Action<World, float>? Late { get; init; }
     }
 
     private sealed class ParallelEntry : Entry
@@ -114,14 +113,6 @@ public sealed class SystemScheduler
             TryRebuildExecutionOrder();
     }
 
-    /// <summary>
-    /// Same as <see cref="BeginDeferExecutionOrderRebuilds"/> followed by <see cref="EndDeferExecutionOrderRebuilds"/> on dispose.
-    /// </summary>
-    public IDisposable DeferExecutionOrderRebuilds()
-    {
-        BeginDeferExecutionOrderRebuilds();
-        return new DeferScope(this);
-    }
 
     /// <summary>Registers or replaces a sequential system. Execution order follows registration order unless constrained by attributes.</summary>
     /// <param name="logicalId">Stable id for ordering attributes, enable/disable, and diagnostics.</param>
@@ -135,7 +126,6 @@ public sealed class SystemScheduler
         Upsert(logicalId, new SequentialEntry
         {
             Id = logicalId,
-            SystemType = system.GetType(),
             QuerySpec = query,
             Start = world => system.OnStart(world, world.QueryChunks(query)),
             Enabled = enabled,
@@ -164,7 +154,6 @@ public sealed class SystemScheduler
         Upsert(logicalId, new ParallelEntry
         {
             Id = logicalId,
-            SystemType = system.GetType(),
             QuerySpec = query,
             Start = world => system.OnStart(world, world.QueryChunks(query)),
             Enabled = enabled,
@@ -208,19 +197,6 @@ public sealed class SystemScheduler
         return _logicalIds.TryGetValue(logicalId, out var idx) && _entries[idx].Enabled;
     }
 
-    /// <summary>Returns whether <paramref name="logicalId"/> exists; if so, sets <paramref name="enabled"/>.</summary>
-    public bool TryGetEnabled(string logicalId, out bool enabled)
-    {
-        ValidateLogicalId(logicalId);
-        if (!_logicalIds.TryGetValue(logicalId, out var idx))
-        {
-            enabled = false;
-            return false;
-        }
-
-        enabled = _entries[idx].Enabled;
-        return true;
-    }
 
     /// <summary>Removes a system by id. Returns false if not found.</summary>
     public bool TryUnregister(string logicalId)
@@ -399,21 +375,12 @@ public sealed class SystemScheduler
         var rawEdges = new List<(string From, string To)>();
         foreach (var e in _entries)
         {
-            var t = GetEntrySystemType(e);
-            var id = e.Id;
+            var t = e.GetType();
             foreach (RunAfterAttribute attr in t.GetCustomAttributes(typeof(RunAfterAttribute), false))
-            {
-                if (!_logicalIds.ContainsKey(attr.TargetId))
-                    return false;
-                rawEdges.Add((attr.TargetId, id));
-            }
+                rawEdges.Add((attr.TargetId, e.Id));
 
             foreach (RunBeforeAttribute attr in t.GetCustomAttributes(typeof(RunBeforeAttribute), false))
-            {
-                if (!_logicalIds.ContainsKey(attr.TargetId))
-                    return false;
-                rawEdges.Add((id, attr.TargetId));
-            }
+                rawEdges.Add((e.Id, attr.TargetId));
         }
 
         var successors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -480,16 +447,11 @@ public sealed class SystemScheduler
         return true;
     }
 
-    private static Type GetEntrySystemType(Entry e)
-    {
-        return e.SystemType;
-    }
-
     private void ValidateAllConstraintTargetsRegistered()
     {
         foreach (var e in _entries)
         {
-            var t = GetEntrySystemType(e);
+            var t = e.GetType();
             foreach (RunAfterAttribute attr in t.GetCustomAttributes(typeof(RunAfterAttribute), false))
             {
                 if (!_logicalIds.ContainsKey(attr.TargetId))
