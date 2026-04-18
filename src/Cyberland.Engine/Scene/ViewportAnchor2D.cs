@@ -4,7 +4,7 @@ namespace Cyberland.Engine.Scene;
 /// Declarative placement of an entity's <see cref="Position"/> relative to the swapchain rectangle, optionally syncing a fullscreen <see cref="Sprite"/>.
 /// </summary>
 /// <remarks>
-/// Pair <see cref="ViewportContentSpace.ScreenPixels"/> with <see cref="BitmapText"/> using <see cref="TextCoordinateSpace.ScreenPixels"/>.
+/// Pair <see cref="ViewportContentSpace.ScreenPixels"/> with <see cref="BitmapText"/> using <see cref="CoordinateSpace.ScreenSpace"/>.
 /// Use <see cref="ViewportContentSpace.WorldPixels"/> for world sprites (backgrounds, strips) drawn by <see cref="Systems.SpriteRenderSystem"/>.
 /// Applied each frame by <see cref="Systems.ViewportAnchorSystem"/>.
 /// </remarks>
@@ -14,7 +14,7 @@ public struct ViewportAnchor2D
     public bool Active;
 
     /// <summary>Whether to write world (+Y up) or screen (+Y down) positions.</summary>
-    public ViewportContentSpace ContentSpace;
+    public CoordinateSpace ContentSpace;
 
     /// <summary>Which corner or edge the offsets are relative to.</summary>
     public ViewportAnchorPreset Anchor;

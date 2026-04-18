@@ -143,18 +143,6 @@ public sealed class SystemSchedulerOrderingTests
     }
 
     [Fact]
-    public void SystemScheduler_DeferExecutionOrderRebuilds_disposable_pairs_begin_end()
-    {
-        var sched = new SystemScheduler(new ParallelismSettings());
-        using (sched.DeferExecutionOrderRebuilds())
-        {
-            sched.RegisterSequential("d1", new LateMark { Order = new List<string>(), Name = "x" });
-        }
-
-        sched.RunFrame(new World(), 0.016f);
-    }
-
-    [Fact]
     public void SystemScheduler_nested_defer_depth_requires_matching_ends()
     {
         var sched = new SystemScheduler(new ParallelismSettings());

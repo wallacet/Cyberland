@@ -126,7 +126,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         Vector2D<float> baselineWorld;
         int fbW;
         int fbH;
-        if (bt.CoordinateSpace == TextCoordinateSpace.WorldBaseline)
+        if (bt.CoordinateSpace == CoordinateSpace.WorldSpace)
         {
             baselineWorld = pos.AsVector();
             fbW = 0;
@@ -146,7 +146,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         {
             // Decorations add extra sprites; keep using the full path and do not store glyph-only replay data.
             _glyphRowCache.Remove(entity.Raw);
-            if (bt.CoordinateSpace == TextCoordinateSpace.WorldBaseline)
+            if (bt.CoordinateSpace == CoordinateSpace.WorldSpace)
             {
                 if (bt.IsLocalizationKey)
                 {
@@ -237,7 +237,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         public TextRowCacheStamp(
             string resolvedText,
             TextStyle style,
-            TextCoordinateSpace coordinateSpace,
+            CoordinateSpace coordinateSpace,
             float sortKey,
             float baselineWorldX,
             float baselineWorldY,
@@ -256,7 +256,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
 
         public string ResolvedText { get; }
         public TextStyle Style { get; }
-        public TextCoordinateSpace CoordinateSpace { get; }
+        public CoordinateSpace CoordinateSpace { get; }
         public float SortKey { get; }
         public float BaselineWorldX { get; }
         public float BaselineWorldY { get; }

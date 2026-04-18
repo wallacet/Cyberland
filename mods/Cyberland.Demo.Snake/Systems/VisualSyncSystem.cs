@@ -185,7 +185,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         text.Visible = false;
         text.Content = " ";
         text.SortKey = 450f;
-        text.CoordinateSpace = TextCoordinateSpace.ScreenPixels;
+        text.CoordinateSpace = CoordinateSpace.ScreenSpace;
         text.Style = HudStyle;
         text.IsLocalizationKey = false;
     }
@@ -220,6 +220,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     private static void SetHudRow(World world, EntityId e, TextStyle style, string content, bool isKey, float screenX, float screenY)
     {
         ref var pos = ref world.Components<Position>().Get(e); pos.X = screenX; pos.Y = screenY;
-        ref var bt = ref world.Components<BitmapText>().Get(e); bt.Visible = true; bt.Style = style; bt.Content = content; bt.IsLocalizationKey = isKey; bt.CoordinateSpace = TextCoordinateSpace.ScreenPixels; bt.SortKey = 450f;
+        ref var bt = ref world.Components<BitmapText>().Get(e); bt.Visible = true; bt.Style = style; bt.Content = content; bt.IsLocalizationKey = isKey; bt.CoordinateSpace = CoordinateSpace.ScreenSpace; bt.SortKey = 450f;
     }
 }

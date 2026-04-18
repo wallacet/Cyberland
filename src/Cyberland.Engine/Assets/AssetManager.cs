@@ -36,11 +36,9 @@ public sealed class AssetManager
     public async Task<TextureId> LoadTextureAsync(string path, IRenderer renderer, CancellationToken cancellationToken = default)
     {
         var bytes = await LoadBytesAsync(path, cancellationToken).ConfigureAwait(false);
-        if (bytes is null)
-            return TextureId.MaxValue;
-
         using var image = Image.Load<Rgba32>(bytes);
-        var rgba = new byte[image.Width * image.Height * 4];image.CopyPixelDataTo(rgba);
+        var rgba = new byte[image.Width * image.Height * 4];
+        image.CopyPixelDataTo(rgba);
         return renderer.RegisterTextureRgba(rgba, image.Width, image.Height);
     }
 

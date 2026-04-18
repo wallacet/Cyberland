@@ -64,7 +64,7 @@ public sealed partial class VisualSyncSystem
         ref var text = ref world.Components<BitmapText>().Get(entity);
         text.Style = style;
         text.Visible = false;
-        text.CoordinateSpace = TextCoordinateSpace.ScreenPixels;
+        text.CoordinateSpace = CoordinateSpace.ScreenSpace;
         text.SortKey = 450f;
     }
 }

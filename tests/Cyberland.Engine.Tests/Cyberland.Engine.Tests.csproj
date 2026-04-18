@@ -30,6 +30,11 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Xunit namespace: project-level implicit using so IDEs and `dotnet build` agree (package is in ItemGroup above). -->
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Cyberland.Engine\Cyberland.Engine.csproj" />
     <ProjectReference Include="..\Cyberland.ModPluginHelper\Cyberland.ModPluginHelper.csproj" />

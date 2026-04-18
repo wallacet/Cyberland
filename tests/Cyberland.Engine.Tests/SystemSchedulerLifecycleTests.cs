@@ -272,19 +272,16 @@ public sealed class SystemSchedulerLifecycleTests
     }
 
     [Fact]
-    public void IsEnabled_and_TryGetEnabled()
+    public void IsEnabled()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         Assert.False(sched.IsEnabled("x"));
-        Assert.False(sched.TryGetEnabled("x", out _));
 
         sched.RegisterSequential("x", new CountingSeq(), enabled: false);
         Assert.False(sched.IsEnabled("x"));
-        Assert.True(sched.TryGetEnabled("x", out var en) && !en);
 
         sched.SetEnabled("x", true);
         Assert.True(sched.IsEnabled("x"));
-        Assert.True(sched.TryGetEnabled("x", out var en2) && en2);
     }
 
     [Fact]
@@ -293,7 +290,6 @@ public sealed class SystemSchedulerLifecycleTests
         var sched = new SystemScheduler(new ParallelismSettings());
         Assert.Throws<ArgumentException>(() => sched.SetEnabled(" ", true));
         Assert.Throws<ArgumentException>(() => sched.IsEnabled(" "));
-        Assert.Throws<ArgumentException>(() => sched.TryGetEnabled(" ", out _));
     }
 
     [Fact]

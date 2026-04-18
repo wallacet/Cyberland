@@ -16,6 +16,8 @@ public sealed class SystemScheduler
     private abstract class Entry
     {
         public required string Id { get; init; }
+        /// <summary>Runtime type of the registered <see cref="ISystem"/> / <see cref="IParallelSystem"/>; used for <see cref="RunBeforeAttribute"/> / <see cref="RunAfterAttribute"/>.</summary>
+        public required Type SystemImplementationType { get; init; }
         public required SystemQuerySpec QuerySpec { get; init; }
         public bool Enabled;
         public bool Started;
@@ -34,19 +36,6 @@ public sealed class SystemScheduler
         public Action<World, float, ParallelOptions>? ParallelEarly { get; init; }
         public Action<World, float, ParallelOptions>? ParallelFixed { get; init; }
         public Action<World, float, ParallelOptions>? ParallelLate { get; init; }
-    }
-
-    private sealed class DeferScope : IDisposable
-    {
-        private SystemScheduler? _owner;
-
-        public DeferScope(SystemScheduler owner) => _owner = owner;
-
-        public void Dispose()
-        {
-            _owner?.EndDeferExecutionOrderRebuilds();
-            _owner = null;
-        }
     }
 
     private readonly ParallelismSettings _parallelism;
@@ -126,6 +115,7 @@ public sealed class SystemScheduler
         Upsert(logicalId, new SequentialEntry
         {
             Id = logicalId,
+            SystemImplementationType = system.GetType(),
             QuerySpec = query,
             Start = world => system.OnStart(world, world.QueryChunks(query)),
             Enabled = enabled,
@@ -154,6 +144,7 @@ public sealed class SystemScheduler
         Upsert(logicalId, new ParallelEntry
         {
             Id = logicalId,
+            SystemImplementationType = system.GetType(),
             QuerySpec = query,
             Start = world => system.OnStart(world, world.QueryChunks(query)),
             Enabled = enabled,
@@ -375,7 +366,7 @@ public sealed class SystemScheduler
         var rawEdges = new List<(string From, string To)>();
         foreach (var e in _entries)
         {
-            var t = e.GetType();
+            var t = e.SystemImplementationType;
             foreach (RunAfterAttribute attr in t.GetCustomAttributes(typeof(RunAfterAttribute), false))
                 rawEdges.Add((attr.TargetId, e.Id));
 
@@ -396,6 +387,10 @@ public sealed class SystemScheduler
         {
             if (!seenEdges.Add((from, to)))
                 continue;
+            // Defer edges until both endpoints are registered (caller may add more systems before the next rebuild).
+            if (!indegree.ContainsKey(from) || !indegree.ContainsKey(to))
+                continue;
+
             successors[from].Add(to);
             indegree[to]++;
         }
@@ -451,7 +446,7 @@ public sealed class SystemScheduler
     {
         foreach (var e in _entries)
         {
-            var t = e.GetType();
+            var t = e.SystemImplementationType;
             foreach (RunAfterAttribute attr in t.GetCustomAttributes(typeof(RunAfterAttribute), false))
             {
                 if (!_logicalIds.ContainsKey(attr.TargetId))

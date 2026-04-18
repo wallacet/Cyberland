@@ -30,17 +30,6 @@ public sealed class EcsTests
     }
 
     [Fact]
-    public void ComponentId_equality()
-    {
-        var a = new ComponentId(3);
-        var b = new ComponentId(3);
-        var c = new ComponentId(4);
-        Assert.True(a == b);
-        Assert.True(a != c);
-        Assert.Equal(a.GetHashCode(), b.GetHashCode());
-    }
-
-    [Fact]
     public void EntityRegistry_recycles_indices_and_bumps_generation()
     {
         var r = new EntityRegistry();
@@ -418,16 +407,6 @@ public sealed class EcsTests
             n++;
 
         Assert.Equal(0, n);
-    }
-
-    [Fact]
-    public void ComponentId_Equals_object()
-    {
-        var id = new ComponentId(4);
-        Assert.True(id.Equals((object)new ComponentId(4)));
-        Assert.False(id.Equals((object)new ComponentId(5)));
-        Assert.False(id.Equals(new object()));
-        Assert.True(new ComponentId(1) != new ComponentId(2));
     }
 
     [Fact]

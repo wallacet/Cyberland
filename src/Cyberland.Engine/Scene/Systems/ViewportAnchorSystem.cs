@@ -58,7 +58,7 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
 
                 ref var pos = ref positions[i];
                 var e = ents[i];
-                var p = a.ContentSpace == ViewportContentSpace.ScreenPixels
+                var p = a.ContentSpace == CoordinateSpace.ScreenSpace
                     ? ComputeScreen(fb, a)
                     : ComputeWorld(fb, a);
                 pos.X = p.X;

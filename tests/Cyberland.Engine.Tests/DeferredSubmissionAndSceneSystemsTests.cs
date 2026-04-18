@@ -7,7 +7,6 @@ using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
 using Silk.NET.Maths;
-using Xunit;
 
 namespace Cyberland.Engine.Tests;
 
@@ -335,7 +334,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<ViewportAnchor2D>().GetOrAdd(screen) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = ViewportContentSpace.ScreenPixels,
+            ContentSpace = CoordinateSpace.ScreenSpace,
             Anchor = ViewportAnchorPreset.TopRight,
             OffsetX = 10f,
             OffsetY = 20f
@@ -346,7 +345,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<ViewportAnchor2D>().GetOrAdd(world) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = ViewportContentSpace.WorldPixels,
+            ContentSpace = CoordinateSpace.WorldSpace,
             Anchor = ViewportAnchorPreset.Center,
             OffsetX = 0f,
             OffsetY = 0f
@@ -361,7 +360,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<ViewportAnchor2D>().GetOrAdd(full) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = ViewportContentSpace.ScreenPixels,
+            ContentSpace = CoordinateSpace.ScreenSpace,
             Anchor = ViewportAnchorPreset.LeftCenter,
             OffsetX = 0f,
             OffsetY = 0f,
@@ -374,7 +373,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<ViewportAnchor2D>().GetOrAdd(presets) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = ViewportContentSpace.ScreenPixels,
+            ContentSpace = CoordinateSpace.ScreenSpace,
             Anchor = (ViewportAnchorPreset)42,
             OffsetX = 1f,
             OffsetY = 2f
@@ -387,7 +386,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             w.Components<ViewportAnchor2D>().GetOrAdd(ent) = new ViewportAnchor2D
             {
                 Active = true,
-                ContentSpace = ViewportContentSpace.ScreenPixels,
+                ContentSpace = CoordinateSpace.ScreenSpace,
                 Anchor = anchor,
                 OffsetX = ox,
                 OffsetY = oy

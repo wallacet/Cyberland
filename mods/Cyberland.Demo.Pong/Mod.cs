@@ -84,7 +84,7 @@ public sealed class Mod : IMod
         text.Visible = false;
         text.Content = " ";
         text.SortKey = 450f;
-        text.CoordinateSpace = TextCoordinateSpace.ScreenPixels;
+        text.CoordinateSpace = CoordinateSpace.ScreenSpace;
         text.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
         text.IsLocalizationKey = false;
         return entity;

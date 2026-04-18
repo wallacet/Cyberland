@@ -89,7 +89,7 @@ public sealed class SceneSetupSystem : ISystem
         titleText.Content = "demo.hdr.title";
         titleText.Style = new TextStyle(BuiltinFonts.UiSans, 22f, new Vector4D<float>(0.85f, 0.95f, 1f, 1f), Bold: true);
         titleText.SortKey = 450f;
-        titleText.CoordinateSpace = TextCoordinateSpace.ScreenPixels;
+        titleText.CoordinateSpace = CoordinateSpace.ScreenSpace;
         world.Components<ViewportAnchor2D>().GetOrAdd(hudTitle) = new ViewportAnchor2D
         {
             Active = true,
@@ -109,7 +109,7 @@ public sealed class SceneSetupSystem : ISystem
         hintText.Content = "demo.hdr.hint";
         hintText.Style = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.55f, 0.65f, 0.75f, 0.9f), Italic: true);
         hintText.SortKey = 451f;
-        hintText.CoordinateSpace = TextCoordinateSpace.ScreenPixels;
+        hintText.CoordinateSpace = CoordinateSpace.ScreenSpace;
         world.Components<ViewportAnchor2D>().GetOrAdd(hudHint) = new ViewportAnchor2D
         {
             Active = true,

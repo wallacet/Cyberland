@@ -89,7 +89,7 @@ public sealed class Mod : IMod
             bt.Visible = false;
             bt.Content = " ";
             bt.SortKey = sortKey;
-            bt.CoordinateSpace = TextCoordinateSpace.ScreenPixels;
+            bt.CoordinateSpace = CoordinateSpace.ScreenSpace;
             bt.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
             bt.IsLocalizationKey = false;
             return e;

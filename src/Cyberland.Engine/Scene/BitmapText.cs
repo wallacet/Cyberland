@@ -8,7 +8,7 @@ namespace Cyberland.Engine.Scene;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Use <see cref="TextCoordinateSpace.WorldBaseline"/> for diegetic labels in the playfield; use <see cref="TextCoordinateSpace.ScreenPixels"/> for HUD chrome.
+/// Use <see cref="CoordinateSpace.WorldSpace"/> for diegetic labels in the playfield; use <see cref="CoordinateSpace.ScreenSpace"/> for HUD chrome.
 /// Screen-space rows often pair with <see cref="ViewportAnchor2D"/> so <see cref="Position"/> tracks resize.
 /// </para>
 /// <para>
@@ -33,5 +33,5 @@ public struct BitmapText
     public float SortKey;
 
     /// <summary>Whether <see cref="Position"/> is world (+Y up) or screen pixels (+Y down).</summary>
-    public TextCoordinateSpace CoordinateSpace;
+    public CoordinateSpace CoordinateSpace;
 }
