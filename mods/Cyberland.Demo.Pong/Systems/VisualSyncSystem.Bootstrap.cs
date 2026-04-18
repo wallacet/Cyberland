@@ -1,5 +1,6 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
+using TextureId = System.UInt32;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -9,7 +10,7 @@ namespace Cyberland.Demo.Pong;
 
 public sealed partial class VisualSyncSystem
 {
-    private void ConfigureSpritesOnStart(World world, int whiteTextureId, int normalTextureId)
+    private void ConfigureSpritesOnStart(World world, TextureId whiteTextureId, TextureId normalTextureId)
     {
         ConfigureSprite(world, _v.Background, (int)SpriteLayer.Background, 0f, whiteTextureId, normalTextureId, new Vector4D<float>(0.04f, 0.05f, 0.08f, 1f));
         ConfigureSprite(world, _v.TitleBar, (int)SpriteLayer.Ui, 1f, whiteTextureId, normalTextureId, new Vector4D<float>(0.1f, 0.85f, 0.95f, 1f));
@@ -26,8 +27,8 @@ public sealed partial class VisualSyncSystem
         EntityId entity,
         int layer,
         float sortKey,
-        int albedoTextureId,
-        int normalTextureId,
+        TextureId albedoTextureId,
+        TextureId normalTextureId,
         Vector4D<float> colorMultiply,
         Vector3D<float>? emissiveTint = null,
         float emissiveIntensity = 0f,
