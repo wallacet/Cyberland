@@ -7,7 +7,7 @@ internal sealed class ArchetypeWorld
 {
     public readonly ComponentRegistry Registry = new();
     private readonly List<Archetype> _archetypes = new();
-    private readonly Dictionary<uint[], int> _signatureToIndex;
+    private readonly Dictionary<ComponentId[], int> _signatureToIndex;
     private readonly Dictionary<ComponentId, List<int>> _archetypesByComponent = new();
     private EntityRecord[] _records;
 
@@ -59,7 +59,7 @@ internal sealed class ArchetypeWorld
     /// <summary>Expands the entity record table so <paramref name="index"/> is addressable (tests, tooling).</summary>
     internal void GrowRecordsForIndex(int index) => EnsureRecord(index);
 
-    public (Archetype arch, int index) GetOrCreateArchetype(uint[] signatureKey)
+    public (Archetype arch, int index) GetOrCreateArchetype(ComponentId[] signatureKey)
     {
         if (_signatureToIndex.TryGetValue(signatureKey, out var idx))
             return (_archetypes[idx], idx);
@@ -70,7 +70,7 @@ internal sealed class ArchetypeWorld
         _signatureToIndex[arch.Signature] = idx;
         foreach (var u in arch.Signature)
         {
-            var cid = new ComponentId(u);
+            var cid = u;
             if (!_archetypesByComponent.TryGetValue(cid, out var list))
             {
                 list = new List<int>();
@@ -139,12 +139,12 @@ internal sealed class ArchetypeWorld
     public ref T GetOrAddComponent<T>(EntityId entity, T initial) where T : struct
     {
         ref var rec = ref GetRecordRef(entity);
-        var tid = Registry.GetOrRegister<T>().Value;
+        var tid = Registry.GetOrRegister<T>();
 
         if (!rec.HasLayout)
             return ref AddFirstComponent(ref rec, entity, tid, initial);
 
-        var oldArch = _archetypes[(int)rec.ArchetypeIndex];
+        var oldArch = _archetypes[rec.ArchetypeIndex];
         if (oldArch.SignatureContains(tid))
         {
             var colIdx = oldArch.ColumnIndexOf(tid);
@@ -154,7 +154,7 @@ internal sealed class ArchetypeWorld
 
         var newSig = SignatureHelpers.InsertSorted(oldArch.Signature, tid);
         MigrateToSignature(ref rec, entity, oldArch, newSig, tid, initial);
-        var newArch = _archetypes[(int)rec.ArchetypeIndex];
+        var newArch = _archetypes[rec.ArchetypeIndex];
         var newCol = newArch.ColumnIndexOf(tid);
         var nc = newArch.Chunks[rec.ChunkIndex];
         return ref ((Column<T>)nc.Columns[newCol]).At(rec.Row);
@@ -172,7 +172,7 @@ internal sealed class ArchetypeWorld
         ((Column<T>)chunk.Columns[0]).At(row) = initial;
         chunk.Count++;
 
-        rec.ArchetypeIndex = (uint)archIdx;
+        rec.ArchetypeIndex = archIdx;
         rec.ChunkIndex = ci;
         rec.Row = row;
         return ref ((Column<T>)chunk.Columns[0]).At(row);
@@ -194,7 +194,7 @@ internal sealed class ArchetypeWorld
 
         RemoveEntityAt(oldArch, rec.ChunkIndex, oldRow, entity);
 
-        rec.ArchetypeIndex = (uint)newIdx;
+        rec.ArchetypeIndex = newIdx;
         rec.ChunkIndex = destCi;
         rec.Row = destRow;
     }
@@ -225,8 +225,8 @@ internal sealed class ArchetypeWorld
         if (!rec.HasLayout)
             return;
 
-        var tid = Registry.GetOrRegister<T>().Value;
-        var oldArch = _archetypes[(int)rec.ArchetypeIndex];
+        var tid = Registry.GetOrRegister<T>();
+        var oldArch = _archetypes[rec.ArchetypeIndex];
         if (!oldArch.SignatureContains(tid))
             return;
 
@@ -248,7 +248,7 @@ internal sealed class ArchetypeWorld
 
         RemoveEntityAt(oldArch, rec.ChunkIndex, oldRow, entity);
 
-        rec.ArchetypeIndex = (uint)newIdx;
+        rec.ArchetypeIndex = newIdx;
         rec.ChunkIndex = destCi;
         rec.Row = destRow;
     }
@@ -263,7 +263,7 @@ internal sealed class ArchetypeWorld
         if (!rec.HasLayout)
             return false;
 
-        var tid = Registry.GetOrRegister<T>().Value;
+        var tid = Registry.GetOrRegister<T>();
         var arch = _archetypes[(int)rec.ArchetypeIndex];
         if (!arch.TryColumnIndexOf(tid, out var colIdx))
             return false;
@@ -279,7 +279,7 @@ internal sealed class ArchetypeWorld
         if (!rec.HasLayout)
             throw new InvalidOperationException("Component missing for entity.");
 
-        var tid = Registry.GetOrRegister<T>().Value;
+        var tid = Registry.GetOrRegister<T>();
         var arch = _archetypes[(int)rec.ArchetypeIndex];
         var colIdx = arch.ColumnIndexOf(tid);
         var chunk = arch.Chunks[rec.ChunkIndex];
@@ -295,7 +295,7 @@ internal sealed class ArchetypeWorld
         if (!rec.HasLayout)
             return false;
 
-        var tid = Registry.GetOrRegister<T>().Value;
+        var tid = Registry.GetOrRegister<T>();
         var arch = _archetypes[(int)rec.ArchetypeIndex];
         return arch.SignatureContains(tid);
     }
@@ -314,7 +314,7 @@ internal sealed class ArchetypeWorld
         List<int>? smallest = null;
         foreach (var uid in sortedUniqueIds)
         {
-            var list = GetArchetypeIndicesContaining(new ComponentId(uid));
+            var list = GetArchetypeIndicesContaining(uid);
             if (list is null || list.Count == 0)
                 return new List<int>();
 

@@ -78,13 +78,11 @@ public sealed class LocalizedContent : ILocalizedContent
         IRenderer renderer,
         CancellationToken cancellationToken = default)
     {
-        var bytes = await TryLoadLocalizedBytesAsync(canonicalContentPath, cancellationToken).ConfigureAwait(false);
-        if (bytes is null)
+        var path = TryResolveLocalizedPath(canonicalContentPath);
+        if (path is null)
             return TextureId.MaxValue;
 
-        using var image = Image.Load<Rgba32>(bytes);
-        var rgba = new byte[image.Width * image.Height * 4];image.CopyPixelDataTo(rgba);
-        return renderer.RegisterTextureRgba(rgba, image.Width, image.Height);
+        return await _assets.LoadTextureAsync(path, renderer, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

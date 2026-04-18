@@ -78,7 +78,7 @@ public struct ChunkQueryEnumerator<T> where T : struct
             if (_currentArch is null)
             {
                 _currentArch = _world.Archetypes[_archetypeIndices[_archetypeEnumIndex]];
-                _columnIndex = _currentArch.ColumnIndexOf(_tid.Value);
+                _columnIndex = _currentArch.ColumnIndexOf(_tid);
                 _chunkEnumIndex = 0;
             }
 
@@ -162,15 +162,15 @@ public struct ChunkQueryEnumerator2<T0, T1>
             if (_currentArch is null)
             {
                 var arch = _world.Archetypes[_candidates[_archetypeEnumIndex]];
-                if (!arch.SignatureContains(_id1.Value))
+                if (!arch.SignatureContains(_id1))
                 {
                     _archetypeEnumIndex++;
                     continue;
                 }
 
                 _currentArch = arch;
-                _col0 = arch.ColumnIndexOf(_id0.Value);
-                _col1 = arch.ColumnIndexOf(_id1.Value);
+                _col0 = arch.ColumnIndexOf(_id0);
+                _col1 = arch.ColumnIndexOf(_id1);
                 _chunkEnumIndex = 0;
             }
 

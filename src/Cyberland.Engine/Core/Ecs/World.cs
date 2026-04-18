@@ -81,7 +81,7 @@ public sealed class World
         if (Array.IndexOf(spec.Types, typeof(T)) < 0)
             throw new ArgumentException($"{typeof(T).FullName} is not part of this query spec.", nameof(spec));
 
-        var want = _ecs.Registry.GetOrRegister<T>().Value;
+        var want = _ecs.Registry.GetOrRegister<T>();
         var ids = spec.ResolveSortedComponentIds(_ecs.Registry);
         var idx = Array.BinarySearch(ids, want);
         return idx;

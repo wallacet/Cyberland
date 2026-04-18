@@ -22,7 +22,7 @@ internal sealed class ComponentRegistry
 
         EnsureComponentIdSpace();
 
-        id = new ComponentId(_nextId++);
+        id = _nextId++;
         _byType[type] = id;
         _byId[id] = type;
         _columnFactories[id] = static cap => new Column<T>(cap);

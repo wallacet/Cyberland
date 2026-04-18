@@ -5,10 +5,10 @@ namespace Cyberland.Engine.Core.Ecs;
 /// </summary>
 internal struct EntityRecord
 {
-    public const uint NoArchetype = uint.MaxValue;
+    public const int NoArchetype = int.MaxValue;
 
     /// <summary>Archetype index in the owning world's archetype list.</summary>
-    public uint ArchetypeIndex;
+    public int ArchetypeIndex;
 
     public int ChunkIndex;
     public int Row;

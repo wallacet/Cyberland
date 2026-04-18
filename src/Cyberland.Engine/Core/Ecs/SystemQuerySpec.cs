@@ -71,20 +71,20 @@ public readonly struct SystemQuerySpec : IEquatable<SystemQuerySpec>
     public int GetColumnIndex<T>(World world) where T : struct =>
         world.GetQueryColumnIndex<T>(this);
 
-    internal uint[] ResolveSortedComponentIds(ComponentRegistry registry)
+    internal ComponentId[] ResolveSortedComponentIds(ComponentRegistry registry)
     {
         if (Types.Length == 0)
-            return Array.Empty<uint>();
+            return Array.Empty<ComponentId>();
 
-        var ids = new uint[Types.Length];
+        var ids = new ComponentId[Types.Length];
         for (var i = 0; i < Types.Length; i++)
-            ids[i] = registry.GetOrRegister(Types[i]).Value;
+            ids[i] = registry.GetOrRegister(Types[i]);
 
         Array.Sort(ids);
         return DedupeSortedIds(ids);
     }
 
-    private static uint[] DedupeSortedIds(uint[] sorted)
+    private static ComponentId[] DedupeSortedIds(ComponentId[] sorted)
     {
         if (sorted.Length <= 1)
             return sorted;
@@ -100,7 +100,7 @@ public readonly struct SystemQuerySpec : IEquatable<SystemQuerySpec>
         if (len == sorted.Length)
             return sorted;
 
-        var result = new uint[len];
+        var result = new ComponentId[len];
         Array.Copy(sorted, result, len);
         return result;
     }

@@ -12,11 +12,11 @@ internal sealed class ArchetypeChunk
     public readonly ColumnBase[] Columns;
     public int Count;
 
-    public ArchetypeChunk(uint[] signature, ComponentRegistry registry)
+    public ArchetypeChunk(ComponentId[] signature, ComponentRegistry registry)
     {
         Entities = new EntityId[Capacity];
         Columns = new ColumnBase[signature.Length];
         for (var i = 0; i < signature.Length; i++)
-            Columns[i] = registry.CreateColumn(new ComponentId(signature[i]), Capacity);
+            Columns[i] = registry.CreateColumn(signature[i], Capacity);
     }
 }

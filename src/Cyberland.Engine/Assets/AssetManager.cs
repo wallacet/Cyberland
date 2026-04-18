@@ -1,4 +1,7 @@
 using System.Text.Json;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using Cyberland.Engine.Rendering;
 
 namespace Cyberland.Engine.Assets;
 
@@ -27,6 +30,18 @@ public sealed class AssetManager
             await stream.CopyToAsync(ms, cancellationToken).ConfigureAwait(false);
             return ms.ToArray();
         }
+    }
+
+    /// <summary>Load a texture from the VFS into the renderer.</summary>
+    public async Task<TextureId> LoadTextureAsync(string path, IRenderer renderer, CancellationToken cancellationToken = default)
+    {
+        var bytes = await LoadBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        if (bytes is null)
+            return TextureId.MaxValue;
+
+        using var image = Image.Load<Rgba32>(bytes);
+        var rgba = new byte[image.Width * image.Height * 4];image.CopyPixelDataTo(rgba);
+        return renderer.RegisterTextureRgba(rgba, image.Width, image.Height);
     }
 
     /// <summary>Loads UTF-8 text (JSON, shaders, locale files).</summary>

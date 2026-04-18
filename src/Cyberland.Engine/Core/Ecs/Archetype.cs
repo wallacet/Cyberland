@@ -5,12 +5,12 @@ namespace Cyberland.Engine.Core.Ecs;
 /// </summary>
 internal sealed class Archetype
 {
-    public readonly uint[] Signature;
+    public readonly ComponentId[] Signature;
     public readonly List<ArchetypeChunk> Chunks = new();
 
-    public Archetype(uint[] signature) => Signature = signature;
+    public Archetype(ComponentId[] signature) => Signature = signature;
 
-    public int ColumnIndexOf(uint componentIdValue)
+    public int ColumnIndexOf(ComponentId componentIdValue)
     {
         var idx = Array.BinarySearch(Signature, componentIdValue);
         if (idx < 0)
@@ -18,7 +18,7 @@ internal sealed class Archetype
         return idx;
     }
 
-    public bool TryColumnIndexOf(uint componentIdValue, out int index)
+    public bool TryColumnIndexOf(ComponentId componentIdValue, out int index)
     {
         index = Array.BinarySearch(Signature, componentIdValue);
         if (index < 0)
@@ -30,5 +30,5 @@ internal sealed class Archetype
         return true;
     }
 
-    public bool SignatureContains(uint componentIdValue) => Array.BinarySearch(Signature, componentIdValue) >= 0;
+    public bool SignatureContains(ComponentId componentIdValue) => Array.BinarySearch(Signature, componentIdValue) >= 0;
 }
