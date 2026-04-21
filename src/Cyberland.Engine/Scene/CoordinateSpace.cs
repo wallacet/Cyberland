@@ -4,7 +4,7 @@ namespace Cyberland.Engine.Scene;
 /// What coordinate space a position or vector is in.
 /// </summary>
 /// <remarks>
-/// This is used to determine how a position or vector is interpreted for drawing. For example, a position in world space is interpreted as a position in world pixels, while a position in local space is interpreted as a position in local pixels. A position in screen space is interpreted as a position in screen pixels.
+/// This is used to determine how a position or vector is interpreted for drawing. For example, a position in world space is interpreted as a position in world pixels (relative to the world origin), while a position in local space is interpreted as a position in local pixels (relative to the parent transform's position). A position in screen space is interpreted as a position in screen pixels (relative to the screen origin).
 /// </remarks>
 public enum CoordinateSpace
 {
