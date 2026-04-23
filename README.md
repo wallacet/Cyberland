@@ -230,7 +230,7 @@ flowchart TB
 
 **Rule of thumb:** *If it is gameplay, it belongs in a mod (or a new mod assembly), not in `GameApplication`.*
 
-**Default engine systems (2D):** The host registers systems in a fixed **explicit order**: parallel **transform hierarchy**, **triggers**, **sprite animation**, and **CPU particle simulation**; then **`ModLoader.LoadAll`** (mods append **`RegisterSequential`** / **`RegisterParallel`** in manifest order); then sequential **`ViewportAnchorSystem`** (**`cyberland.engine/viewport-layout`**) for **`ViewportAnchor2D`** + **`Position`**; parallel **`LightingSystem`** (**`cyberland.engine/lighting`**) that reads **`AmbientLightSource`**, **`DirectionalLightSource`**, **`SpotLightSource`**, and **`PointLightSource`** and submits to **`IRenderer`**; parallel **`PostProcessVolumeSystem`** (**`cyberland.engine/post-process-volumes`**) for **`PostProcessVolumeSource`**; then parallel **tilemap**, **sprite**, and **particle** submit systems; then sequential **`TextStagingSystem`** (**`cyberland.engine/text-staging`**) and **`TextRenderSystem`** (**`cyberland.engine/text-render`**) for **`BitmapText`** + **`Position`** (see **`TextCoordinateSpace`**). Prefer these ECS-driven paths over calling **`Submit*Light`** / **`SubmitPostProcessVolume`** from mod code unless you need a special-case. After **`VulkanRenderer`** initialization, **`GameApplication`** applies baseline HDR globals once via **`EngineDefaultGlobalPostProcess.Apply`** (not every frame). Mods replace or extend those settings by calling **`SetGlobalPostProcess`** from **`IMod.OnLoad`** (later loads win over earlier ones) or from a system when values must track the frame. **`BitmapText`** in **`TextCoordinateSpace.ScreenPixels`** often pairs with **`ViewportAnchor2D`** so HUD labels track **`SwapchainPixelSize`**.
+**Default engine systems (2D):** The host registers systems in a fixed **explicit order**: parallel **transform hierarchy**, **triggers**, **sprite animation**, and **CPU particle simulation**; then **`ModLoader.LoadAll`** (mods append **`RegisterSequential`** / **`RegisterParallel`** in manifest order); then sequential **`ViewportAnchorSystem`** (**`cyberland.engine/viewport-layout`**) for **`ViewportAnchor2D`** + **`Transform`**; parallel **`LightingSystem`** (**`cyberland.engine/lighting`**) that reads **`AmbientLightSource`**, **`DirectionalLightSource`**, **`SpotLightSource`**, and **`PointLightSource`** and submits to **`IRenderer`** using each light entity's resolved world transform; parallel **`PostProcessVolumeSystem`** (**`cyberland.engine/post-process-volumes`**) for **`PostProcessVolumeSource`**; then parallel **tilemap**, **sprite**, and **particle** submit systems; then sequential **`TextStagingSystem`** (**`cyberland.engine/text-staging`**) and **`TextRenderSystem`** (**`cyberland.engine/text-render`**) for **`BitmapText`** + **`Transform`** (see **`TextCoordinateSpace`**). Prefer these ECS-driven paths over calling **`Submit*Light`** / **`SubmitPostProcessVolume`** from mod code unless you need a special-case. After **`VulkanRenderer`** initialization, **`GameApplication`** applies baseline HDR globals once via **`EngineDefaultGlobalPostProcess.Apply`** (not every frame). Mods replace or extend those settings by calling **`SetGlobalPostProcess`** from **`IMod.OnLoad`** (later loads win over earlier ones) or from a system when values must track the frame. **`BitmapText`** in **`TextCoordinateSpace.ScreenPixels`** often pairs with **`ViewportAnchor2D`** so HUD labels track **`SwapchainPixelSize`**.
 
 ---
 
@@ -300,11 +300,11 @@ Within each phase, order is still **global registration order**: each entry is e
 
 ### Scene (`Scene/`)
 
-- **Components** — **`Position`**, **`Rotation`**, **`Scale`**, **`Transform`** (local TRS + optional parent), **`Sprite`** (includes **`Transparent`** for WBOIT vs deferred opaque path; optional **`EmissiveTextureId`**), **`BitmapText`** (HUD strings; pair with **`Position`** for baseline), **`Tilemap`**, **`SpriteAnimation`**, **`ParticleEmitter`**.
+- **Components** — **`Transform`** (local TRS + optional parent + resolved world cache), **`Sprite`** (includes **`Transparent`** for WBOIT vs deferred opaque path; optional **`EmissiveTextureId`**), **`BitmapText`** (HUD strings; pair with **`Transform`** for baseline), **`Tilemap`**, **`SpriteAnimation`**, **`ParticleEmitter`**.
 - **Stores** — **`TilemapDataStore`** / **`ITilemapDataStore`**, **`ParticleStore`** (indexed by entity; not stored inside ECS chunks).
 - **Systems** (registered by the host; see frame order above) — **`TransformHierarchySystem`**, **`SpriteAnimationSystem`**, **`ParticleSimulationSystem`**, **`TilemapRenderSystem`**, **`SpriteRenderSystem`**, **`ParticleRenderSystem`**, **`TextRenderSystem`**. Baseline global post lives in **`EngineDefaultGlobalPostProcess`** (applied at init, not as a system).
 
-Mods typically attach **`Sprite`** + **`Position`** (and optional rotation/scale) and let **`SpriteRenderSystem`** submit draws; for bitmap UI copy, add **`BitmapText`** + **`Position`** and let **`TextRenderSystem`** call **`TextRenderer`** using host **`Fonts`** / **`TextGlyphCache`**, instead of custom HUD render systems.
+Mods typically attach **`Sprite`** + **`Transform`** and let **`SpriteRenderSystem`** submit draws; for bitmap UI copy, add **`BitmapText`** + **`Transform`** and let **`TextRenderSystem`** call **`TextRenderer`** using host **`Fonts`** / **`TextGlyphCache`**, instead of custom HUD render systems.
 
 ---
 
@@ -432,7 +432,7 @@ c = new MyComponent { Value = 1f };
 
 - Read actions through **`context.Host.KeyBindings`** and **`context.Host.Input`**.
 - **Lighting** — queue **`SubmitPointLight`**, **`SubmitSpotLight`**, **`SubmitDirectionalLight`**, and **`SubmitAmbientLight`** on **`context.Host.Renderer`** each frame you need them (same **`IRenderer`** as sprites); the deferred path evaluates **all** queued point lights.
-- For drawing, prefer **`Sprite`** + **`Position`** (and optional **`Rotation`** / **`Scale`**) on entities; the engine’s **`SpriteRenderSystem`** submits **`SpriteDrawRequest`** in **world space** after your mod systems run. For HUD text, prefer **`BitmapText`** + **`Position`** and **`TextRenderSystem`**. For one-off or procedural draws, build **`SpriteDrawRequest`** yourself and call **`context.Host.Renderer?.SubmitSprite(...)`** (and post volumes as needed).
+- For drawing, prefer **`Sprite`** + **`Transform`** on entities; the engine’s **`SpriteRenderSystem`** submits **`SpriteDrawRequest`** in **world space** after your mod systems run. For HUD text, prefer **`BitmapText`** + **`Transform`** and **`TextRenderSystem`**. For one-off or procedural draws, build **`SpriteDrawRequest`** yourself and call **`context.Host.Renderer?.SubmitSprite(...)`** (and post volumes as needed).
 
 ### 7. Assets and localization
 
@@ -454,7 +454,7 @@ c = new MyComponent { Value = 1f };
 |---------|----------|--------|
 | Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
 | Demo mod entry | `mods/Cyberland.Demo/DemoMod.cs` | **`IMod`**, entity spawn, **`RegisterSequential`** / **`RegisterParallel`** with logical ids |
-| Sequential + input | `mods/Cyberland.Demo/DemoInputSystem.cs`, `DemoIntegrateSystem.cs`; background/neon decor applied once in **`DemoMod.OnLoad`**; global HDR in **`OnLoad`**; half-screen bloom volume via **`DelegateSequentialSystem`** (**`post-volumes`**) | **`ISystem`**, **`GameHostServices`**, engine **`Position`** / **`Sprite`**, **`Velocity`** |
+| Sequential + input | `mods/Cyberland.Demo/DemoInputSystem.cs`, `DemoIntegrateSystem.cs`; background/neon decor applied once in **`DemoMod.OnLoad`**; global HDR in **`OnLoad`**; half-screen bloom volume via **`DelegateSequentialSystem`** (**`post-volumes`**) | **`ISystem`**, **`GameHostServices`**, engine **`Transform`** / **`Sprite`**, **`Velocity`** |
 | Parallel ECS | `mods/Cyberland.Demo/VelocityDampSystem.cs` | **`IParallelSystem`**, **`QueryChunks<Velocity>`**, **`SimdFloat`** on packed floats |
 | Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, optional **`--exclude-mods`** |
 
@@ -462,7 +462,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 
 ### How shipped samples use the engine
 
-**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, and **BrickBreaker** drive **`Position`** / **`Sprite`** from simulation or layout systems; arcade HDR tuning calls **`SetGlobalPostProcess`** once from **`IMod.OnLoad`**. **Cyberland.Demo** also submits a half-screen bloom **volume** each frame so bounds follow **`SwapchainPixelSize`** on resize (**`cyberland.demo/post-volumes`**).
+**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, and **BrickBreaker** drive **`Transform`** / **`Sprite`** from simulation or layout systems; arcade HDR tuning calls **`SetGlobalPostProcess`** once from **`IMod.OnLoad`**. **Cyberland.Demo** also submits a half-screen bloom **volume** each frame so bounds follow **`SwapchainPixelSize`** on resize (**`cyberland.demo/post-volumes`**).
 
 **Cyberland.Demo.Snake** drives **`Sprite`** and **`BitmapText`** entities from a visual sync system (grid-aligned quads); the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Samples use **`GameHostServices.Fonts`** / **`TextGlyphCache`** only when calling **`TextRenderer`** directly for special cases.
 

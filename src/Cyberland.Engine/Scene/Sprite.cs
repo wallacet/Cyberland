@@ -4,7 +4,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
-/// Drawable sprite payload; world pose comes from <see cref="Position"/> / <see cref="Rotation"/> / <see cref="Scale"/> (world space, +Y up).
+/// Drawable sprite payload; world pose comes from <see cref="Transform"/> world cache fields (world space, +Y up).
 /// Submitted by the stock <see cref="Systems.SpriteRenderSystem"/>; prefer adding components over calling <see cref="Rendering.IRenderer.SubmitSprite"/> from mod code.
 /// </summary>
 public struct Sprite

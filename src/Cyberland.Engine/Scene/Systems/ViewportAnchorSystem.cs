@@ -6,14 +6,14 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Applies <see cref="ViewportAnchor2D"/> to <see cref="Position"/> (and optional <see cref="Sprite"/> half extents) from <see cref="Hosting.GameHostServices.Renderer"/>'s swapchain size.
+/// Applies <see cref="ViewportAnchor2D"/> to <see cref="Transform"/> (and optional <see cref="Sprite"/> half extents) from <see cref="Hosting.GameHostServices.Renderer"/>'s swapchain size.
 /// </summary>
 public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ViewportAnchor2D, Position>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ViewportAnchor2D, Transform>();
 
     /// <summary>Creates the system.</summary>
     public ViewportAnchorSystem(GameHostServices host) => _host = host;
@@ -49,20 +49,20 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
         {
             var ents = chunk.Entities;
             var anchors = chunk.Column<ViewportAnchor2D>(0);
-            var positions = chunk.Column<Position>(1);
+            var transforms = chunk.Column<Transform>(1);
             for (var i = 0; i < chunk.Count; i++)
             {
                 ref readonly var a = ref anchors[i];
                 if (!a.Active)
                     continue;
 
-                ref var pos = ref positions[i];
                 var e = ents[i];
                 var p = a.ContentSpace == CoordinateSpace.ScreenSpace
                     ? ComputeScreen(fb, a)
                     : ComputeWorld(fb, a);
-                pos.X = p.X;
-                pos.Y = p.Y;
+                ref var transform = ref transforms[i];
+                transform.LocalPosition = p;
+                transform.WorldPosition = p;
 
                 if (a.SyncSpriteHalfExtentsToViewport && sprites.Contains(e))
                 {

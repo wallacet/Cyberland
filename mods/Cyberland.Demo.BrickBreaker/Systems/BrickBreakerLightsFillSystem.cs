@@ -64,26 +64,26 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
             return;
 
         ref readonly var s = ref world.Components<GameState>().Get(_stateEntity);
-        ref readonly var paddlePos = ref world.Components<Position>().Get(_paddleEntity);
-        ref readonly var ballPos = ref world.Components<Position>().Get(_ballEntity);
+        ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
+        ref readonly var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
         ref readonly var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
         var cx = (s.ArenaMinX + s.ArenaMaxX) * 0.5f;
         var brickMidY = s.BrickTopY - (Constants.Rows * 0.5f) * s.BrickH;
-        var paddleX = paddlePos.X;
+        var paddleX = paddleTransform.WorldPosition.X;
 
         ref var amb = ref world.Components<AmbientLightSource>().Get(_ambient);
         amb.Active = true;
-        amb.Light = new AmbientLight { Color = new Vector3D<float>(0.22f, 0.24f, 0.32f), Intensity = 0.14f };
+        amb.Color = new Vector3D<float>(0.22f, 0.24f, 0.32f);
+        amb.Intensity = 0.14f;
 
+        ref var dirTransform = ref world.Components<Transform>().Get(_directional);
+        dirTransform.LocalRotationRadians = MathF.Atan2(-0.62f, 0.35f);
+        dirTransform.WorldRotationRadians = dirTransform.LocalRotationRadians;
         ref var dir = ref world.Components<DirectionalLightSource>().Get(_directional);
         dir.Active = true;
-        dir.Light = new DirectionalLight
-        {
-            DirectionWorld = new Vector2D<float>(0.35f, -0.62f),
-            Color = new Vector3D<float>(0.55f, 0.52f, 0.48f),
-            Intensity = 0.22f,
-            CastsShadow = false
-        };
+        dir.Color = new Vector3D<float>(0.55f, 0.52f, 0.48f);
+        dir.Intensity = 0.22f;
+        dir.CastsShadow = false;
 
         var spotPos = new Vector2D<float>(s.ArenaMinX + 48f, s.BrickTopY + 20f);
         var center = new Vector2D<float>(cx, brickMidY);
@@ -92,46 +92,44 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
         var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(0f, -1f);
 
+        ref var spotTransform = ref world.Components<Transform>().Get(_spot);
+        spotTransform.LocalPosition = spotPos;
+        spotTransform.WorldPosition = spotPos;
+        spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
+        spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
         ref var sp = ref world.Components<SpotLightSource>().Get(_spot);
         sp.Active = true;
-        sp.Light = new SpotLight
-        {
-            PositionWorld = spotPos,
-            DirectionWorld = dirVec,
-            Radius = w * 0.55f,
-            InnerConeRadians = MathF.PI / 4f,
-            OuterConeRadians = MathF.PI / 2.2f,
-            Color = new Vector3D<float>(0.35f, 0.55f, 0.95f),
-            Intensity = 0.38f,
-            CastsShadow = false
-        };
+        sp.Radius = w * 0.55f;
+        sp.InnerConeRadians = MathF.PI / 4f;
+        sp.OuterConeRadians = MathF.PI / 2.2f;
+        sp.Color = new Vector3D<float>(0.35f, 0.55f, 0.95f);
+        sp.Intensity = 0.38f;
+        sp.CastsShadow = false;
 
+        ref var paddlePointTransform = ref world.Components<Transform>().Get(_paddlePoint);
+        paddlePointTransform.LocalPosition = new Vector2D<float>(paddleX, s.PaddleY - 24f);
+        paddlePointTransform.WorldPosition = paddlePointTransform.LocalPosition;
         ref var pp = ref world.Components<PointLightSource>().Get(_paddlePoint);
         pp.Active = true;
-        pp.Light = new PointLight
-        {
-            PositionWorld = new Vector2D<float>(paddleX, s.PaddleY - 24f),
-            Radius = w * 0.5f,
-            Color = new Vector3D<float>(1f, 0.55f, 0.28f),
-            Intensity = 0.32f,
-            FalloffExponent = 2.2f,
-            CastsShadow = false
-        };
+        pp.Radius = w * 0.5f;
+        pp.Color = new Vector3D<float>(1f, 0.55f, 0.28f);
+        pp.Intensity = 0.32f;
+        pp.FalloffExponent = 2.2f;
+        pp.CastsShadow = false;
 
         var trackedBallPos = s.Phase == Phase.Playing
-            ? new Vector2D<float>(ballPos.X, ballPos.Y)
+            ? ballTransform.WorldPosition
             : new Vector2D<float>(paddleX, s.PaddleY + paddleBody.HalfHeight + Constants.BallR);
 
+        ref var ballPointTransform = ref world.Components<Transform>().Get(_ballPoint);
+        ballPointTransform.LocalPosition = trackedBallPos;
+        ballPointTransform.WorldPosition = trackedBallPos;
         ref var bp = ref world.Components<PointLightSource>().Get(_ballPoint);
         bp.Active = true;
-        bp.Light = new PointLight
-        {
-            PositionWorld = trackedBallPos,
-            Radius = 140f,
-            Color = new Vector3D<float>(0.85f, 0.95f, 1f),
-            Intensity = s.Phase == Phase.Playing ? 0.55f : 0.28f,
-            FalloffExponent = 2f,
-            CastsShadow = false
-        };
+        bp.Radius = 140f;
+        bp.Color = new Vector3D<float>(0.85f, 0.95f, 1f);
+        bp.Intensity = s.Phase == Phase.Playing ? 0.55f : 0.28f;
+        bp.FalloffExponent = 2f;
+        bp.CastsShadow = false;
     }
 }

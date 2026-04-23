@@ -72,17 +72,17 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
 
         ref var amb = ref world.Components<AmbientLightSource>().Get(_ambient);
         amb.Active = true;
-        amb.Light = new AmbientLight { Color = new Vector3D<float>(0.22f, 0.26f, 0.32f), Intensity = 0.13f };
+        amb.Color = new Vector3D<float>(0.22f, 0.26f, 0.32f);
+        amb.Intensity = 0.13f;
 
+        ref var dirTransform = ref world.Components<Transform>().Get(_directional);
+        dirTransform.LocalRotationRadians = MathF.Atan2(-0.58f, 0.38f);
+        dirTransform.WorldRotationRadians = dirTransform.LocalRotationRadians;
         ref var dir = ref world.Components<DirectionalLightSource>().Get(_directional);
         dir.Active = true;
-        dir.Light = new DirectionalLight
-        {
-            DirectionWorld = new Vector2D<float>(0.38f, -0.58f),
-            Color = new Vector3D<float>(0.52f, 0.5f, 0.46f),
-            Intensity = 0.2f,
-            CastsShadow = false
-        };
+        dir.Color = new Vector3D<float>(0.52f, 0.5f, 0.46f);
+        dir.Intensity = 0.2f;
+        dir.CastsShadow = false;
 
         var spotPos = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(ox + cell * 2f, oy + cell * 1.5f), fb);
         var dx = gridCenterWorld.X - spotPos.X;
@@ -90,50 +90,48 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
         var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(0f, 1f);
 
+        ref var spotTransform = ref world.Components<Transform>().Get(_spot);
+        spotTransform.LocalPosition = spotPos;
+        spotTransform.WorldPosition = spotPos;
+        spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
+        spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
         ref var sp = ref world.Components<SpotLightSource>().Get(_spot);
         sp.Active = true;
-        sp.Light = new SpotLight
-        {
-            PositionWorld = spotPos,
-            DirectionWorld = dirVec,
-            Radius = w * 0.52f,
-            InnerConeRadians = MathF.PI / 4f,
-            OuterConeRadians = MathF.PI / 2.15f,
-            Color = new Vector3D<float>(0.35f, 0.72f, 1f),
-            Intensity = 0.36f,
-            CastsShadow = false
-        };
+        sp.Radius = w * 0.52f;
+        sp.InnerConeRadians = MathF.PI / 4f;
+        sp.OuterConeRadians = MathF.PI / 2.15f;
+        sp.Color = new Vector3D<float>(0.35f, 0.72f, 1f);
+        sp.Intensity = 0.36f;
+        sp.CastsShadow = false;
 
         var headWorld = s.Phase == Phase.Playing && s.Snake.Count > 0
             ? s.CellCenterWorld(s.Snake.First!.Value.x, s.Snake.First!.Value.y, fb)
             : gridCenterWorld;
         var headIntensity = s.Phase == Phase.Playing && s.Snake.Count > 0 ? 0.52f : 0.26f;
+        ref var headTransform = ref world.Components<Transform>().Get(_headPoint);
+        headTransform.LocalPosition = headWorld;
+        headTransform.WorldPosition = headWorld;
         ref var hp = ref world.Components<PointLightSource>().Get(_headPoint);
         hp.Active = true;
-        hp.Light = new PointLight
-        {
-            PositionWorld = headWorld,
-            Radius = w * 0.28f,
-            Color = new Vector3D<float>(0.35f, 1f, 0.55f),
-            Intensity = headIntensity,
-            FalloffExponent = 2f,
-            CastsShadow = false
-        };
+        hp.Radius = w * 0.28f;
+        hp.Color = new Vector3D<float>(0.35f, 1f, 0.55f);
+        hp.Intensity = headIntensity;
+        hp.FalloffExponent = 2f;
+        hp.CastsShadow = false;
 
         var foodWorld = s.Phase == Phase.Playing
             ? s.CellCenterWorld(s.Food.x, s.Food.y, fb)
             : WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(ox + (Constants.GridW - 0.5f) * cell, oy + cell * 0.5f), fb);
         var foodIntensity = s.Phase == Phase.Playing ? 0.44f : 0.22f;
+        ref var foodTransform = ref world.Components<Transform>().Get(_foodPoint);
+        foodTransform.LocalPosition = foodWorld;
+        foodTransform.WorldPosition = foodWorld;
         ref var fp = ref world.Components<PointLightSource>().Get(_foodPoint);
         fp.Active = true;
-        fp.Light = new PointLight
-        {
-            PositionWorld = foodWorld,
-            Radius = w * 0.22f,
-            Color = new Vector3D<float>(1f, 0.45f, 0.28f),
-            Intensity = foodIntensity,
-            FalloffExponent = 2.2f,
-            CastsShadow = false
-        };
+        fp.Radius = w * 0.22f;
+        fp.Color = new Vector3D<float>(1f, 0.45f, 0.28f);
+        fp.Intensity = foodIntensity;
+        fp.FalloffExponent = 2.2f;
+        fp.CastsShadow = false;
     }
 }

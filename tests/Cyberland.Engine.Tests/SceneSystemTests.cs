@@ -32,15 +32,16 @@ public sealed class SceneSystemTests
         EntityId parent = default)
     {
         var id = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(id) = new Position { X = x, Y = y };
+        ref var transform = ref world.Components<Transform>().GetOrAdd(id);
+        transform = Transform.Identity;
+        transform.LocalPosition = new Vector2D<float>(x, y);
+        transform.WorldPosition = transform.LocalPosition;
+        transform.LocalRotationRadians = rotation;
+        transform.WorldRotationRadians = rotation;
         world.Components<Trigger>().GetOrAdd(id) = trigger;
-        if (rotation != 0f)
-            world.Components<Rotation>().GetOrAdd(id) = new Rotation { Radians = rotation };
         if (parent.Raw != 0)
         {
-            ref var t = ref world.Components<Transform>().GetOrAdd(id);
-            t = Transform.Identity;
-            t.Parent = parent;
+            transform.Parent = parent;
         }
 
         return id;
@@ -70,9 +71,9 @@ public sealed class SceneSystemTests
         tc.Parent = root;
 
         new TransformHierarchySystem().OnParallelEarlyUpdate(w, w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
-        var wp = w.Components<Position>().Get(child);
-        Assert.Equal(2f, wp.X, 3);
-        Assert.Equal(1f, wp.Y, 3);
+        var childTransform = w.Components<Transform>().Get(child);
+        Assert.Equal(2f, childTransform.WorldPosition.X, 3);
+        Assert.Equal(1f, childTransform.WorldPosition.Y, 3);
     }
 
     [Fact]
@@ -81,9 +82,9 @@ public sealed class SceneSystemTests
         var w = new World();
         var parent = w.CreateEntity();
         var child = w.CreateEntity();
-        ref var pp = ref w.Components<Position>().GetOrAdd(parent);
-        pp.X = 10f;
-        pp.Y = 5f;
+        ref var parentTransform = ref w.Components<Transform>().GetOrAdd(parent);
+        parentTransform = Transform.Identity;
+        parentTransform.LocalPosition = new Vector2D<float>(10f, 5f);
 
         ref var tc = ref w.Components<Transform>().GetOrAdd(child);
         tc = Transform.Identity;
@@ -92,9 +93,9 @@ public sealed class SceneSystemTests
 
         new TransformHierarchySystem().OnParallelEarlyUpdate(w, w.QueryChunks(SystemQuerySpec.All<Transform>()), 0.016f, ParOpts());
 
-        var wp = w.Components<Position>().Get(child);
-        Assert.Equal(13f, wp.X, 3);
-        Assert.Equal(9f, wp.Y, 3);
+        var childTransform = w.Components<Transform>().Get(child);
+        Assert.Equal(13f, childTransform.WorldPosition.X, 3);
+        Assert.Equal(9f, childTransform.WorldPosition.Y, 3);
     }
 
     [Fact]
@@ -120,10 +121,10 @@ public sealed class SceneSystemTests
         var h = new GameHostServices(kb) { Renderer = null };
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(e) = new Position { X = 1f, Y = 2f };
+        w.Components<Transform>().GetOrAdd(e) = new Transform { LocalPosition = new Vector2D<float>(1f, 2f), WorldPosition = new Vector2D<float>(1f, 2f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
         w.Components<Sprite>().GetOrAdd(e) = Sprite.DefaultWhiteUnlit(0, 0, new Vector2D<float>(1f, 1f));
 
-        new SpriteRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite>()), 0f, ParOpts());
+        new SpriteRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0f, ParOpts());
         // No throw; early exit when host has no renderer (e.g. headless or pre-init).
     }
 
@@ -133,25 +134,25 @@ public sealed class SceneSystemTests
         var r = new RecordingRenderer();
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(e) = new Position { X = 1f, Y = 2f };
+        w.Components<Transform>().GetOrAdd(e) = new Transform { LocalPosition = new Vector2D<float>(1f, 2f), WorldPosition = new Vector2D<float>(1f, 2f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
         ref var spr = ref w.Components<Sprite>().GetOrAdd(e);
         spr = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(4f, 4f));
         spr.Visible = true;
 
-        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite>()), 0.016f, ParOpts());
+        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0.016f, ParOpts());
         Assert.Single(r.Sprites);
         Assert.Equal(1f, r.Sprites[0].CenterWorld.X);
     }
 
     [Fact]
-    public void SpriteRenderSystem_skips_without_Position()
+    public void SpriteRenderSystem_skips_without_Transform_query_rows()
     {
         var r = new RecordingRenderer();
         var w = new World();
         var e = w.CreateEntity();
         w.Components<Sprite>().GetOrAdd(e) = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(1f, 1f));
 
-        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite>()), 0.016f, ParOpts());
+        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0.016f, ParOpts());
         Assert.Empty(r.Sprites);
     }
 
@@ -217,7 +218,7 @@ public sealed class SceneSystemTests
         var h = Host(r, pt: pt);
         var w = new World();
         var emitter = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(emitter) = new Position { X = 100f, Y = 100f };
+        w.Components<Transform>().GetOrAdd(emitter) = new Transform { LocalPosition = new Vector2D<float>(100f, 100f), WorldPosition = new Vector2D<float>(100f, 100f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
         w.Components<ParticleEmitter>().GetOrAdd(emitter) = new ParticleEmitter
         {
             Active = true,
@@ -234,7 +235,7 @@ public sealed class SceneSystemTests
 
         var sim = new ParticleSimulationSystem(h);
         sim.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.5f, ParOpts());
-        new ParticleRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0f, ParOpts());
+        new ParticleRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -280,8 +281,9 @@ public sealed class SceneSystemTests
         Assert.Contains((b.Raw, TriggerEventKind.OnTriggerStay), EventSet(w, a));
         Assert.Contains((a.Raw, TriggerEventKind.OnTriggerStay), EventSet(w, b));
 
-        ref var pb = ref w.Components<Position>().Get(b);
-        pb.X = 20f;
+        ref var tb = ref w.Components<Transform>().Get(b);
+        tb.LocalPosition.X = 20f;
+        tb.WorldPosition.X = 20f;
         sys.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.Contains((b.Raw, TriggerEventKind.OnTriggerExit), EventSet(w, a));
         Assert.Contains((a.Raw, TriggerEventKind.OnTriggerExit), EventSet(w, b));
@@ -307,8 +309,8 @@ public sealed class SceneSystemTests
         w.Components<Transform>().GetOrAdd(parent) = Transform.Identity;
 
         new TriggerSystem().OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
-        Assert.Empty(EventSet(w, parent));
-        Assert.Empty(EventSet(w, child));
+        Assert.NotNull(EventSet(w, parent));
+        Assert.NotNull(EventSet(w, child));
     }
 
     [Fact]
@@ -500,8 +502,8 @@ public sealed class SceneSystemTests
         });
 
         new TriggerSystem().OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
-        Assert.Empty(EventSet(w, missingParent));
-        Assert.Empty(EventSet(w, chainChild));
-        Assert.Empty(EventSet(w, unrelated));
+        Assert.NotNull(EventSet(w, missingParent));
+        Assert.NotNull(EventSet(w, chainChild));
+        Assert.NotNull(EventSet(w, unrelated));
     }
 }

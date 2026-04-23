@@ -77,21 +77,24 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
 
     private void SyncTriggerBodies(World world, in State st)
     {
-        var positions = world.Components<Position>();
+        var transforms = world.Components<Transform>();
         var triggers = world.Components<Trigger>();
 
-        ref var leftPos = ref positions.Get(_visuals.LeftPad);
-        leftPos.X = st.ArenaMinX; leftPos.Y = st.LeftPaddleY;
+        ref var leftTransform = ref transforms.Get(_visuals.LeftPad);
+        leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, st.LeftPaddleY);
+        leftTransform.WorldPosition = leftTransform.LocalPosition;
         ref var leftTrigger = ref triggers.Get(_visuals.LeftPad);
         leftTrigger.Enabled = st.Phase == Phase.Playing;
 
-        ref var rightPos = ref positions.Get(_visuals.RightPad);
-        rightPos.X = st.ArenaMaxX; rightPos.Y = st.RightPaddleY;
+        ref var rightTransform = ref transforms.Get(_visuals.RightPad);
+        rightTransform.LocalPosition = new Vector2D<float>(st.ArenaMaxX, st.RightPaddleY);
+        rightTransform.WorldPosition = rightTransform.LocalPosition;
         ref var rightTrigger = ref triggers.Get(_visuals.RightPad);
         rightTrigger.Enabled = st.Phase == Phase.Playing;
 
-        ref var ballPos = ref positions.Get(_visuals.Ball);
-        ballPos.X = st.BallPos.X; ballPos.Y = st.BallPos.Y;
+        ref var ballTransform = ref transforms.Get(_visuals.Ball);
+        ballTransform.LocalPosition = st.BallPos;
+        ballTransform.WorldPosition = st.BallPos;
         ref var ballTrigger = ref triggers.Get(_visuals.Ball);
         ballTrigger.Enabled = st.Phase == Phase.Playing;
     }

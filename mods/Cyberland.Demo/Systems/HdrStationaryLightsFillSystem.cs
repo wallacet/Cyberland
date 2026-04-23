@@ -60,33 +60,28 @@ public sealed class HdrStationaryLightsFillSystem : ISystem, ILateUpdate
 
         ref var amb = ref world.Components<AmbientLightSource>().Get(_ambient);
         amb.Active = true;
-        amb.Light = new AmbientLight
-        {
-            Color = new Vector3D<float>(0.38f, 0.4f, 0.48f),
-            Intensity = 0.11f
-        };
+        amb.Color = new Vector3D<float>(0.38f, 0.4f, 0.48f);
+        amb.Intensity = 0.11f;
 
+        ref var dirTransform = ref world.Components<Transform>().Get(_directional);
+        dirTransform.LocalRotationRadians = MathF.Atan2(-0.55f, 0.4f);
+        dirTransform.WorldRotationRadians = dirTransform.LocalRotationRadians;
         ref var dir = ref world.Components<DirectionalLightSource>().Get(_directional);
         dir.Active = true;
-        dir.Light = new DirectionalLight
-        {
-            DirectionWorld = new Vector2D<float>(0.4f, -0.55f),
-            Color = new Vector3D<float>(0.5f, 0.48f, 0.44f),
-            Intensity = 0.14f,
-            CastsShadow = false
-        };
+        dir.Color = new Vector3D<float>(0.5f, 0.48f, 0.44f);
+        dir.Intensity = 0.14f;
+        dir.CastsShadow = false;
 
+        ref var warmTransform = ref world.Components<Transform>().Get(_warmPoint);
+        warmTransform.LocalPosition = new Vector2D<float>(w * 0.76f, h * 0.3f);
+        warmTransform.WorldPosition = warmTransform.LocalPosition;
         ref var warm = ref world.Components<PointLightSource>().Get(_warmPoint);
         warm.Active = true;
-        warm.Light = new PointLight
-        {
-            PositionWorld = new Vector2D<float>(w * 0.76f, h * 0.3f),
-            Radius = w * 0.4f,
-            Color = new Vector3D<float>(1f, 0.65f, 0.38f),
-            Intensity = 0.48f,
-            FalloffExponent = 2.1f,
-            CastsShadow = false
-        };
+        warm.Radius = w * 0.4f;
+        warm.Color = new Vector3D<float>(1f, 0.65f, 0.38f);
+        warm.Intensity = 0.48f;
+        warm.FalloffExponent = 2.1f;
+        warm.CastsShadow = false;
 
         var spotPos = new Vector2D<float>(w * 0.2f, h * 0.58f);
         var center = new Vector2D<float>(w * 0.5f, h * 0.5f);
@@ -95,18 +90,18 @@ public sealed class HdrStationaryLightsFillSystem : ISystem, ILateUpdate
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
         var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(1f, 0f);
 
+        ref var spotTransform = ref world.Components<Transform>().Get(_spot);
+        spotTransform.LocalPosition = spotPos;
+        spotTransform.WorldPosition = spotPos;
+        spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
+        spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
         ref var sp = ref world.Components<SpotLightSource>().Get(_spot);
         sp.Active = true;
-        sp.Light = new SpotLight
-        {
-            PositionWorld = spotPos,
-            DirectionWorld = dirVec,
-            Radius = w * 0.46f,
-            InnerConeRadians = MathF.PI / 3.5f,
-            OuterConeRadians = MathF.PI / 2.15f,
-            Color = new Vector3D<float>(0.42f, 0.62f, 1f),
-            Intensity = 0.42f,
-            CastsShadow = false
-        };
+        sp.Radius = w * 0.46f;
+        sp.InnerConeRadians = MathF.PI / 3.5f;
+        sp.OuterConeRadians = MathF.PI / 2.15f;
+        sp.Color = new Vector3D<float>(0.42f, 0.62f, 1f);
+        sp.Intensity = 0.42f;
+        sp.CastsShadow = false;
     }
 }

@@ -21,7 +21,7 @@ public sealed class TextStagingSystem : ISystem, ILateUpdate
     private int _colBitmapText;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BitmapText, Position>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BitmapText, Transform>();
 
     /// <summary>Creates the system.</summary>
     public TextStagingSystem(GameHostServices host) => _host = host;

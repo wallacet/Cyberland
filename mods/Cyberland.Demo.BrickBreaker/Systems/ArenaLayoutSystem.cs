@@ -79,7 +79,7 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
         var brickTopY = game.BrickTopY;
         var brickW = game.BrickW;
         var brickH = game.BrickH;
-        var position = world.Components<Position>();
+        var transforms = world.Components<Transform>();
         var trigger = world.Components<Trigger>();
 
         void ApplyChunk(MultiComponentChunkView chunk)
@@ -92,9 +92,9 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
                 ref readonly var cell = ref cells[i];
                 var bx = brickOriginX + (cell.X + 0.5f) * brickW;
                 var by = brickTopY - (cell.Y + 0.5f) * brickH;
-                ref var pos = ref position.Get(entity);
-                pos.X = bx;
-                pos.Y = by;
+                ref var transform = ref transforms.Get(entity);
+                transform.LocalPosition = new Vector2D<float>(bx, by);
+                transform.WorldPosition = transform.LocalPosition;
                 ref var t = ref trigger.Get(entity);
                 t.HalfExtents = new Vector2D<float>(brickW * 0.46f, brickH * 0.45f);
             }

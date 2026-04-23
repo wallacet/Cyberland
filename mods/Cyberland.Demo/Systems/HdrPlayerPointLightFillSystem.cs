@@ -7,7 +7,7 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo;
 
-/// <summary>Updates the player-follow <see cref="PointLightSource"/> from <see cref="PlayerTag"/> position.</summary>
+/// <summary>Updates the player-follow <see cref="PointLightSource"/> from <see cref="PlayerTag"/> transform.</summary>
 public sealed class HdrPlayerPointLightFillSystem : ISystem, ILateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
@@ -39,17 +39,16 @@ public sealed class HdrPlayerPointLightFillSystem : ISystem, ILateUpdate
             return;
 
         var player = archetype.RequireSingleEntityWith<PlayerTag>("player");
-        ref readonly var position = ref world.Components<Position>().Get(player);
+        ref readonly var playerTransform = ref world.Components<Transform>().Get(player);
+        ref var lightTransform = ref world.Components<Transform>().Get(_playerPointEntity);
         ref var pl = ref world.Components<PointLightSource>().Get(_playerPointEntity);
         pl.Active = true;
-        pl.Light = new PointLight
-        {
-            PositionWorld = new Vector2D<float>(position.X, position.Y),
-            Radius = 180f,
-            Color = new Vector3D<float>(0.35f, 0.95f, 0.55f),
-            Intensity = 1.2f,
-            FalloffExponent = 2.25f,
-            CastsShadow = false
-        };
+        lightTransform.LocalPosition = playerTransform.WorldPosition;
+        lightTransform.WorldPosition = playerTransform.WorldPosition;
+        pl.Radius = 180f;
+        pl.Color = new Vector3D<float>(0.35f, 0.95f, 0.55f);
+        pl.Intensity = 1.2f;
+        pl.FalloffExponent = 2.25f;
+        pl.CastsShadow = false;
     }
 }

@@ -46,15 +46,55 @@ public sealed class Mod : IMod
             CreateHudTextEntity(world));
 
         var amb = world.CreateEntity();
-        world.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource { Active = true, Light = default };
+        world.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.2f, 0.23f, 0.3f),
+            Intensity = 0.12f
+        };
         var dir = world.CreateEntity();
-        world.Components<DirectionalLightSource>().GetOrAdd(dir) = new DirectionalLightSource { Active = true, Light = default };
+        world.Components<Transform>().GetOrAdd(dir) = Transform.Identity;
+        world.Components<DirectionalLightSource>().GetOrAdd(dir) = new DirectionalLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.52f, 0.5f, 0.46f),
+            Intensity = 0.19f,
+            CastsShadow = false
+        };
         var spot = world.CreateEntity();
-        world.Components<SpotLightSource>().GetOrAdd(spot) = new SpotLightSource { Active = true, Light = default };
+        world.Components<Transform>().GetOrAdd(spot) = Transform.Identity;
+        world.Components<SpotLightSource>().GetOrAdd(spot) = new SpotLightSource
+        {
+            Active = true,
+            Radius = 460f,
+            InnerConeRadians = MathF.PI / 4f,
+            OuterConeRadians = MathF.PI / 2.2f,
+            Color = new Vector3D<float>(0.38f, 0.58f, 1f),
+            Intensity = 0.35f,
+            CastsShadow = false
+        };
         var ballPt = world.CreateEntity();
-        world.Components<PointLightSource>().GetOrAdd(ballPt) = new PointLightSource { Active = true, Light = default };
+        world.Components<Transform>().GetOrAdd(ballPt) = Transform.Identity;
+        world.Components<PointLightSource>().GetOrAdd(ballPt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 280f,
+            Color = new Vector3D<float>(0.9f, 0.95f, 1f),
+            Intensity = 0.52f,
+            FalloffExponent = 2f,
+            CastsShadow = false
+        };
         var leftPt = world.CreateEntity();
-        world.Components<PointLightSource>().GetOrAdd(leftPt) = new PointLightSource { Active = true, Light = default };
+        world.Components<Transform>().GetOrAdd(leftPt) = Transform.Identity;
+        world.Components<PointLightSource>().GetOrAdd(leftPt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 320f,
+            Color = new Vector3D<float>(0.25f, 0.75f, 1f),
+            Intensity = 0.34f,
+            FalloffExponent = 2.1f,
+            CastsShadow = false
+        };
 
         var host = context.Host;
         context.RegisterSequential("cyberland.demo.pong/input", new InputSystem(host, session, context.Scheduler));
@@ -71,7 +111,7 @@ public sealed class Mod : IMod
     private static EntityId CreateSpriteEntity(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
         world.Components<Sprite>().GetOrAdd(entity);
         return entity;
     }
@@ -79,7 +119,7 @@ public sealed class Mod : IMod
     private static EntityId CreateHudTextEntity(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
         ref var text = ref world.Components<BitmapText>().GetOrAdd(entity);
         text.Visible = false;
         text.Content = " ";

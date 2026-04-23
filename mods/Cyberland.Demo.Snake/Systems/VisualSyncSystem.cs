@@ -121,7 +121,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             {
                 var e = visuals.Segments[segIdx++];
                 var center = session.CellCenterWorld(seg.x, seg.y, fb);
-                ref var pos = ref world.Components<Position>().Get(e); pos.X = center.X; pos.Y = center.Y;
+                ref var transform = ref world.Components<Transform>().Get(e); transform.LocalPosition = center; transform.WorldPosition = center;
                 ref var spr = ref world.Components<Sprite>().Get(e);
                 var head = seg.x == headCell.x && seg.y == headCell.y;
                 spr.Visible = true;
@@ -134,7 +134,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         for (var i = segIdx; i < visuals.Segments.Length; i++) world.Components<Sprite>().Get(visuals.Segments[i]).Visible = false;
 
         var foodCenter = session.CellCenterWorld(session.Food.x, session.Food.y, fb);
-        ref var foodPosition = ref world.Components<Position>().Get(visuals.Food); foodPosition.X = foodCenter.X; foodPosition.Y = foodCenter.Y;
+        ref var foodTransform = ref world.Components<Transform>().Get(visuals.Food); foodTransform.LocalPosition = foodCenter; foodTransform.WorldPosition = foodCenter;
         ref var foodSprite = ref world.Components<Sprite>().Get(visuals.Food);
         foodSprite.Visible = true;
         foodSprite.HalfExtents = new Vector2D<float>(cell * 0.35f, cell * 0.35f);
@@ -143,7 +143,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         if (session.Phase == Phase.Title)
         {
             var titleBar = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y - 48f), fb);
-            ref var titlePosition = ref world.Components<Position>().Get(visuals.TitleBar); titlePosition.X = titleBar.X; titlePosition.Y = titleBar.Y;
+            ref var titleTransform = ref world.Components<Transform>().Get(visuals.TitleBar); titleTransform.LocalPosition = titleBar; titleTransform.WorldPosition = titleBar;
             titleSprite.Visible = true;
             titleSprite.HalfExtents = new Vector2D<float>(fb.X * 0.42f, 20f);
         }
@@ -154,12 +154,12 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         if (session.Phase == Phase.GameOver)
         {
             var goPanel = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f), fb);
-            ref var gameOverPosition = ref world.Components<Position>().Get(visuals.GoPanel); gameOverPosition.X = goPanel.X; gameOverPosition.Y = goPanel.Y;
+            ref var gameOverTransform = ref world.Components<Transform>().Get(visuals.GoPanel); gameOverTransform.LocalPosition = goPanel; gameOverTransform.WorldPosition = goPanel;
             gameOverSprite.Visible = true;
             gameOverSprite.HalfExtents = new Vector2D<float>(fb.X * 0.45f, 80f);
             var scoreW = fb.X * 0.45f * Math.Min(1f, session.FoodsEaten / 30f);
             var scoreBar = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f - (fb.X * 0.45f - scoreW) * 0.5f, fb.Y * 0.5f + 28f), fb);
-            ref var scorePosition = ref world.Components<Position>().Get(visuals.ScoreBar); scorePosition.X = scoreBar.X; scorePosition.Y = scoreBar.Y;
+            ref var scoreTransform = ref world.Components<Transform>().Get(visuals.ScoreBar); scoreTransform.LocalPosition = scoreBar; scoreTransform.WorldPosition = scoreBar;
             scoreSprite.Visible = true;
             scoreSprite.HalfExtents = new Vector2D<float>(Math.Max(0.5f, scoreW * 0.5f), 10f);
         }
@@ -173,14 +173,14 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     }
     private static void InitializeSprite(World world, EntityId entity, int whiteTextureId, int normalTextureId)
     {
-        world.Components<Position>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
         ref var sprite = ref world.Components<Sprite>().GetOrAdd(entity);
         sprite = Sprite.DefaultWhiteUnlit(whiteTextureId, normalTextureId, new Vector2D<float>(1f, 1f));
         sprite.Visible = false;
     }
     private static void InitializeText(World world, EntityId entity)
     {
-        world.Components<Position>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
         ref var text = ref world.Components<BitmapText>().GetOrAdd(entity);
         text.Visible = false;
         text.Content = " ";
@@ -219,7 +219,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     }
     private static void SetHudRow(World world, EntityId e, TextStyle style, string content, bool isKey, float screenX, float screenY)
     {
-        ref var pos = ref world.Components<Position>().Get(e); pos.X = screenX; pos.Y = screenY;
+        ref var transform = ref world.Components<Transform>().Get(e); transform.LocalPosition = new Vector2D<float>(screenX, screenY); transform.WorldPosition = transform.LocalPosition;
         ref var bt = ref world.Components<BitmapText>().Get(e); bt.Visible = true; bt.Style = style; bt.Content = content; bt.IsLocalizationKey = isKey; bt.CoordinateSpace = CoordinateSpace.ScreenSpace; bt.SortKey = 450f;
     }
 }

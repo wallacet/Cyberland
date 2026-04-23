@@ -55,8 +55,6 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         _snapshots.Clear();
         _activeThisTick.Clear();
 
-        var positionStore = world.Components<Position>();
-        var rotationStore = world.Components<Rotation>();
         var transformStore = world.Components<Transform>();
 
         foreach (var chunk in query)
@@ -66,13 +64,11 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             for (var i = 0; i < chunk.Count; i++)
             {
                 var entity = entities[i];
-                if (!positionStore.TryGet(entity, out var pos))
+                if (!transformStore.TryGet(entity, out var transform))
                     continue;
 
                 var trigger = triggers[i];
-                var rot = rotationStore.TryGet(entity, out var rotation) ? rotation.Radians : 0f;
-                var parent = transformStore.TryGet(entity, out var transform) ? transform.Parent : default;
-                _snapshots.Add(new TriggerSnapshot(entity, trigger, pos, rot, parent));
+                _snapshots.Add(new TriggerSnapshot(entity, trigger, in transform));
                 _activeThisTick[entity] = true;
             }
         }
@@ -279,36 +275,40 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         var bPos = b.Position;
         var aTrigger = a.Trigger;
         var bTrigger = b.Trigger;
+        var aRadius = aTrigger.Radius * MathF.Max(MathF.Abs(a.Scale.X), MathF.Abs(a.Scale.Y));
+        var bRadius = bTrigger.Radius * MathF.Max(MathF.Abs(b.Scale.X), MathF.Abs(b.Scale.Y));
+        var aHalfExtents = new Vector2D<float>(aTrigger.HalfExtents.X * MathF.Abs(a.Scale.X), aTrigger.HalfExtents.Y * MathF.Abs(a.Scale.Y));
+        var bHalfExtents = new Vector2D<float>(bTrigger.HalfExtents.X * MathF.Abs(b.Scale.X), bTrigger.HalfExtents.Y * MathF.Abs(b.Scale.Y));
         var aShape = a.Trigger.Shape;
         var bShape = b.Trigger.Shape;
 
         if (aShape == TriggerShapeKind.Point && bShape == TriggerShapeKind.Point)
             return PointPoint(aPos, bPos);
         if (aShape == TriggerShapeKind.Point && bShape == TriggerShapeKind.Circle)
-            return PointCircle(aPos, bPos, bTrigger.Radius);
+            return PointCircle(aPos, bPos, bRadius);
         if (aShape == TriggerShapeKind.Circle && bShape == TriggerShapeKind.Point)
-            return PointCircle(bPos, aPos, aTrigger.Radius);
+            return PointCircle(bPos, aPos, aRadius);
         if (aShape == TriggerShapeKind.Circle && bShape == TriggerShapeKind.Circle)
-            return CircleCircle(aPos, aTrigger.Radius, bPos, bTrigger.Radius);
+            return CircleCircle(aPos, aRadius, bPos, bRadius);
         if (aShape == TriggerShapeKind.Point && bShape == TriggerShapeKind.Rectangle)
-            return PointOrientedRect(aPos, bPos, b.RotationRadians, bTrigger.HalfExtents);
+            return PointOrientedRect(aPos, bPos, b.RotationRadians, bHalfExtents);
         if (aShape == TriggerShapeKind.Rectangle && bShape == TriggerShapeKind.Point)
-            return PointOrientedRect(bPos, aPos, a.RotationRadians, aTrigger.HalfExtents);
+            return PointOrientedRect(bPos, aPos, a.RotationRadians, aHalfExtents);
         if (aShape == TriggerShapeKind.Circle && bShape == TriggerShapeKind.Rectangle)
-            return CircleOrientedRect(aPos, aTrigger.Radius, bPos, b.RotationRadians, bTrigger.HalfExtents);
+            return CircleOrientedRect(aPos, aRadius, bPos, b.RotationRadians, bHalfExtents);
         if (aShape == TriggerShapeKind.Rectangle && bShape == TriggerShapeKind.Circle)
-            return CircleOrientedRect(bPos, bTrigger.Radius, aPos, a.RotationRadians, aTrigger.HalfExtents);
+            return CircleOrientedRect(bPos, bRadius, aPos, a.RotationRadians, aHalfExtents);
 
         return OrientedRectOrientedRect(
             aPos,
             a.RotationRadians,
-            aTrigger.HalfExtents,
+            aHalfExtents,
             bPos,
             b.RotationRadians,
-            bTrigger.HalfExtents);
+            bHalfExtents);
     }
 
-    private static bool PointPoint(Position a, Position b)
+    private static bool PointPoint(Vector2D<float> a, Vector2D<float> b)
     {
         const float epsilon = 0.0001f;
         var dx = a.X - b.X;
@@ -316,7 +316,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         return (dx * dx) + (dy * dy) <= epsilon * epsilon;
     }
 
-    private static bool PointCircle(Position point, Position center, float radius)
+    private static bool PointCircle(Vector2D<float> point, Vector2D<float> center, float radius)
     {
         var r = MathF.Max(radius, 0f);
         var dx = point.X - center.X;
@@ -324,7 +324,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         return (dx * dx) + (dy * dy) <= r * r;
     }
 
-    private static bool CircleCircle(Position aCenter, float aRadius, Position bCenter, float bRadius)
+    private static bool CircleCircle(Vector2D<float> aCenter, float aRadius, Vector2D<float> bCenter, float bRadius)
     {
         var ar = MathF.Max(aRadius, 0f);
         var br = MathF.Max(bRadius, 0f);
@@ -335,8 +335,8 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
     }
 
     private static bool PointOrientedRect(
-        Position point,
-        Position rectCenter,
+        Vector2D<float> point,
+        Vector2D<float> rectCenter,
         float rectRotation,
         Vector2D<float> halfExtents)
     {
@@ -347,9 +347,9 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
     }
 
     private static bool CircleOrientedRect(
-        Position circleCenter,
+        Vector2D<float> circleCenter,
         float radius,
-        Position rectCenter,
+        Vector2D<float> rectCenter,
         float rectRotation,
         Vector2D<float> halfExtents)
     {
@@ -365,10 +365,10 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
     }
 
     private static bool OrientedRectOrientedRect(
-        Position aCenter,
+        Vector2D<float> aCenter,
         float aRotation,
         Vector2D<float> aHalfExtents,
-        Position bCenter,
+        Vector2D<float> bCenter,
         float bRotation,
         Vector2D<float> bHalfExtents)
     {
@@ -425,20 +425,22 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
 
     private readonly struct TriggerSnapshot
     {
-        public TriggerSnapshot(EntityId entity, Trigger trigger, Position position, float rotationRadians, EntityId parent)
+        public TriggerSnapshot(EntityId entity, Trigger trigger, in Transform transform)
         {
             Entity = entity;
             Trigger = trigger;
-            Position = position;
-            RotationRadians = rotationRadians;
-            Parent = parent;
+            Position = transform.WorldPosition;
+            RotationRadians = transform.WorldRotationRadians;
+            Parent = transform.Parent;
+            Scale = transform.WorldScale;
         }
 
         public readonly EntityId Entity;
         public readonly Trigger Trigger;
-        public readonly Position Position;
+        public readonly Vector2D<float> Position;
         public readonly float RotationRadians;
         public readonly EntityId Parent;
+        public readonly Vector2D<float> Scale;
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -9,7 +9,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Default engine sprite pass: walks <see cref="Sprite"/> chunks with <see cref="Position"/> / <see cref="Rotation"/> / <see cref="Scale"/> and
+/// Default engine sprite pass: walks <see cref="Sprite"/> chunks with <see cref="Transform"/> and
 /// submits <see cref="SpriteDrawRequest"/>s. Mods normally attach components and let this system draw—no custom <see cref="IRenderer.SubmitSprite"/> calls.
 /// </summary>
 public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
@@ -18,7 +18,7 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
     private readonly GameHostServices _host;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Sprite>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Sprite, Transform>();
 
     /// <param name="host">Must expose a non-null <see cref="Hosting.GameHostServices.Renderer"/> after startup.</param>
     public SpriteRenderSystem(GameHostServices host) =>
@@ -39,35 +39,29 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
         if (_chunks.Count == 0)
             return;
 
-        var positions = world.Components<Position>();
-        var rotations = world.Components<Rotation>();
-        var scales = world.Components<Scale>();
+        var sprites = world.Components<Sprite>();
+        var transforms = world.Components<Transform>();
 
         Parallel.For(0, _chunks.Count, parallelOptions, idx =>
         {
             var chunk = _chunks[idx];
-            var ents = chunk.Entities;
-            var sprites = chunk.Column<Sprite>(0);
+            var entities = chunk.Entities;
             for (var i = 0; i < chunk.Count; i++)
             {
-                ref readonly var spr = ref sprites[i];
+                var entity = entities[i];
+                ref readonly var spr = ref sprites.Get(entity);
                 if (!spr.Visible)
                     continue;
 
-                var id = ents[i];
-                if (!positions.TryGet(id, out var pos))
-                    continue;
-
-                var rot = rotations.TryGet(id, out var r2) ? r2.Radians : 0f;
-                var sc = scales.TryGet(id, out var sc2) ? sc2 : Scale.One;
-                var hx = spr.HalfExtents.X * sc.X;
-                var hy = spr.HalfExtents.Y * sc.Y;
+                ref readonly var transform = ref transforms.Get(entity);
+                var hx = spr.HalfExtents.X * transform.WorldScale.X;
+                var hy = spr.HalfExtents.Y * transform.WorldScale.Y;
 
                 var req = new SpriteDrawRequest
                 {
-                    CenterWorld = pos.AsVector(),
+                    CenterWorld = transform.WorldPosition,
                     HalfExtentsWorld = new Vector2D<float>(hx, hy),
-                    RotationRadians = rot,
+                    RotationRadians = transform.WorldRotationRadians,
                     Layer = spr.Layer,
                     SortKey = spr.SortKey,
                     AlbedoTextureId = spr.AlbedoTextureId,

@@ -7,7 +7,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo;
 
 /// <summary>
-/// Places the player once in <see cref="OnStart"/> from the initial framebuffer size, then integrates <see cref="Position"/>
+/// Places the player once in <see cref="OnStart"/> from the initial framebuffer size, then integrates <see cref="Transform"/>
 /// from <see cref="Velocity"/> and clamps to the playfield each fixed tick. Sequential fixed update (single player entity).
 /// </summary>
 public sealed class IntegrateSystem : ISystem, IFixedUpdate
@@ -33,11 +33,11 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
                 ?? throw new InvalidOperationException("cyberland.demo/integrate requires Host.Renderer during OnStart.");
         _player = archetype.RequireSingleEntityWith<PlayerTag>("player");
 
-        ref var pos = ref world.Components<Position>().Get(_player);
+        ref var transform = ref world.Components<Transform>().Get(_player);
         var fb = r.SwapchainPixelSize;
         var p = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(fb.X * 0.55f, fb.Y / 2f), fb);
-        pos.X = p.X;
-        pos.Y = p.Y;
+        transform.LocalPosition = p;
+        transform.WorldPosition = p;
         _initialized = true;
     }
 
@@ -49,14 +49,15 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
 
         var r = _host.Renderer!;
         var fb = r.SwapchainPixelSize;
-        ref var pos = ref world.Components<Position>().Get(_player);
+        ref var transform = ref world.Components<Transform>().Get(_player);
         ref var vel = ref world.Components<Velocity>().Get(_player);
 
-        pos.X += vel.X * fixedDeltaSeconds;
-        pos.Y += vel.Y * fixedDeltaSeconds;
+        transform.LocalPosition.X += vel.X * fixedDeltaSeconds;
+        transform.LocalPosition.Y += vel.Y * fixedDeltaSeconds;
 
         var h = Constants.SpriteHalfExtent;
-        pos.X = Math.Clamp(pos.X, h, fb.X - h);
-        pos.Y = Math.Clamp(pos.Y, h, fb.Y - h);
+        transform.LocalPosition.X = Math.Clamp(transform.LocalPosition.X, h, fb.X - h);
+        transform.LocalPosition.Y = Math.Clamp(transform.LocalPosition.Y, h, fb.Y - h);
+        transform.WorldPosition = transform.LocalPosition;
     }
 }

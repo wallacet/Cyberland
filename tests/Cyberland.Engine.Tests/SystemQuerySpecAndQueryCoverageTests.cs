@@ -18,24 +18,27 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e);
-        world.Components<Sprite>().GetOrAdd(e);
         world.Components<Transform>().GetOrAdd(e);
+        world.Components<Sprite>().GetOrAdd(e);
+        world.Components<BitmapText>().GetOrAdd(e);
 
-        var spec = SystemQuerySpec.All<Position, Sprite, Transform>();
+        var spec = SystemQuerySpec.All<BitmapText, Sprite, Transform>();
+        var bitmapCol = spec.GetColumnIndex<BitmapText>(world);
+        var spriteCol = spec.GetColumnIndex<Sprite>(world);
+        var transformCol = spec.GetColumnIndex<Transform>(world);
         var n = 0;
         foreach (var chunk in world.QueryChunks(spec))
         {
             n += chunk.Count;
-            _ = chunk.Column<Position>(0);
-            _ = chunk.Column<Sprite>(1);
-            _ = chunk.Column<Transform>(2);
+            _ = chunk.Column<BitmapText>(bitmapCol);
+            _ = chunk.Column<Sprite>(spriteCol);
+            _ = chunk.Column<Transform>(transformCol);
         }
 
         Assert.Equal(1, n);
-        Assert.Equal(0, spec.GetColumnIndex<Position>(world));
-        Assert.Equal(1, spec.GetColumnIndex<Sprite>(world));
-        Assert.Equal(2, spec.GetColumnIndex<Transform>(world));
+        Assert.InRange(spec.GetColumnIndex<BitmapText>(world), 0, 2);
+        Assert.InRange(spec.GetColumnIndex<Sprite>(world), 0, 2);
+        Assert.InRange(spec.GetColumnIndex<Transform>(world), 0, 2);
     }
 
     [Fact]
@@ -43,9 +46,9 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e);
+        world.Components<Transform>().GetOrAdd(e);
 
-        var spec = new SystemQuerySpec(new[] { typeof(Position), typeof(Position) });
+        var spec = new SystemQuerySpec(new[] { typeof(Transform), typeof(Transform) });
         var ecs = (ArchetypeWorld)typeof(World).GetField("_ecs", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(world)!;
         var ids = spec.ResolveSortedComponentIds(ecs.Registry);
         Assert.Single(ids);
@@ -59,8 +62,8 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     [Fact]
     public void SystemQuerySpec_equals_object_and_hash_code()
     {
-        var a = SystemQuerySpec.All<Position>();
-        var b = SystemQuerySpec.All<Position>();
+        var a = SystemQuerySpec.All<Transform>();
+        var b = SystemQuerySpec.All<Transform>();
         Assert.True(a.Equals(b));
         Assert.True(a.Equals((object)b));
         Assert.False(a.Equals((object?)null));
@@ -72,7 +75,7 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     public void World_GetQueryColumnIndex_throws_when_component_not_in_spec()
     {
         var w = new World();
-        var ex = Assert.Throws<ArgumentException>(() => w.GetQueryColumnIndex<Sprite>(SystemQuerySpec.All<Position>()));
+        var ex = Assert.Throws<ArgumentException>(() => w.GetQueryColumnIndex<Sprite>(SystemQuerySpec.All<Transform>()));
         Assert.Contains("Sprite", ex.Message, StringComparison.Ordinal);
     }
 
@@ -108,19 +111,19 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
         var w = new World();
 
         var ePs = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(ePs);
+        w.Components<Transform>().GetOrAdd(ePs);
         w.Components<Sprite>().GetOrAdd(ePs);
 
         var ePt = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(ePt);
         w.Components<Transform>().GetOrAdd(ePt);
+        w.Components<BitmapText>().GetOrAdd(ePt);
 
         var eFull = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(eFull);
-        w.Components<Sprite>().GetOrAdd(eFull);
         w.Components<Transform>().GetOrAdd(eFull);
+        w.Components<Sprite>().GetOrAdd(eFull);
+        w.Components<BitmapText>().GetOrAdd(eFull);
 
-        var spec = SystemQuerySpec.All<Position, Sprite, Transform>();
+        var spec = SystemQuerySpec.All<BitmapText, Sprite, Transform>();
         var n = 0;
         foreach (var chunk in w.QueryChunks(spec))
             n += chunk.Count;
@@ -134,7 +137,7 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
         var sortUnique = typeof(SystemQuerySpec).GetMethod("SortUnique", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(sortUnique);
         var ex = Assert.Throws<TargetInvocationException>(() =>
-            sortUnique!.Invoke(null, new object[] { new[] { typeof(Position), typeof(Position) } }));
+            sortUnique!.Invoke(null, new object[] { new[] { typeof(Transform), typeof(Transform) } }));
         Assert.IsType<ArgumentException>(ex.InnerException);
     }
 
@@ -155,7 +158,7 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
         var host = new GameHostServices(new KeyBindingStore()) { Renderer = null };
         var world = new World();
         var sys = new TextRenderSystem(host);
-        var spec = SystemQuerySpec.All<BitmapText, Position>();
+        var spec = SystemQuerySpec.All<BitmapText, Transform>();
         sys.OnStart(world, world.QueryChunks(spec));
         sys.OnLateUpdate(world, world.QueryChunks(spec), 0.016f);
     }

@@ -22,7 +22,7 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
     private readonly GameHostServices _host;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ParticleEmitter>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ParticleEmitter, Transform>();
 
     /// <param name="host">Requires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Particles"/>.</param>
     public ParticleRenderSystem(GameHostServices host) =>
@@ -42,14 +42,14 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
             return;
 
         var emitters = world.Components<ParticleEmitter>();
-        var positions = world.Components<Position>();
+        var transforms = world.Components<Transform>();
         var defaultNormal = r.DefaultNormalTextureId;
 
         Parallel.For(0, ids.Count, parallelOptions, i =>
         {
             var id = ids[i];
             ref readonly var em = ref emitters.Get(id);
-            if (!positions.TryGet(id, out var pos))
+            if (!transforms.TryGet(id, out var transform))
                 return;
             if (!store.TryGetBucket(id, out var b) || b is null || b.Count == 0)
                 return;
@@ -59,7 +59,7 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
             {
                 var req = new SpriteDrawRequest
                 {
-                    CenterWorld = new Vector2D<float>(pos.X + b.Px[p], pos.Y + b.Py[p]),
+                    CenterWorld = new Vector2D<float>(transform.WorldPosition.X + b.Px[p], transform.WorldPosition.Y + b.Py[p]),
                     HalfExtentsWorld = new Vector2D<float>(he, he),
                     RotationRadians = 0f,
                     Layer = em.Layer,

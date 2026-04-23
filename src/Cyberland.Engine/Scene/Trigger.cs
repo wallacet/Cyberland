@@ -7,7 +7,7 @@ namespace Cyberland.Engine.Scene;
 /// </summary>
 /// <remarks>
 /// Shapes are evaluated in world space (+Y up). For <see cref="TriggerShapeKind.Rectangle"/>, the trigger uses world
-/// center from <see cref="Position"/>, orientation from <see cref="Rotation.Radians"/>, and local half extents from
+/// center from <see cref="Transform.WorldPosition"/>, orientation from <see cref="Transform.WorldRotationRadians"/>, and local half extents from
 /// <see cref="HalfExtents"/>.
 /// </remarks>
 public struct Trigger

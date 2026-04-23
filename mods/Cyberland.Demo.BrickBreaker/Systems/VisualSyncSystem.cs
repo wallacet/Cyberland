@@ -94,7 +94,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
 
         ref readonly var s = ref world.Components<GameState>().Get(_stateEntity);
         var fb = r.SwapchainPixelSize;
-        var positions = world.Components<Position>();
+        var transforms = world.Components<Transform>();
         var sprites = world.Components<Sprite>();
         var brickStates = world.Components<BrickState>();
         var textStore = world.Components<BitmapText>();
@@ -103,7 +103,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         {
             _lastFbX = fb.X;
             _lastFbY = fb.Y;
-            UpdateResizeSensitivePositionsAndExtents(positions, sprites, fb, s.Score);
+            UpdateResizeSensitivePositionsAndExtents(transforms, sprites, fb, s.Score);
         }
         else
         {
@@ -134,7 +134,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             spr.Visible = playing && i < s.Lives;
         }
 
-        SyncHudText(positions, textStore, fb, in s);
+        SyncHudText(transforms, textStore, fb, in s);
     }
 
     private void InitializeStaticVisualState(ComponentStore<Sprite> sprites, int white, int normal)
@@ -248,39 +248,39 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     }
 
     private void UpdateResizeSensitivePositionsAndExtents(
-        ComponentStore<Position> positions,
+        ComponentStore<Transform> transforms,
         ComponentStore<Sprite> sprites,
         Vector2D<int> fb,
         int score)
     {
-        ref var bgPos = ref positions.Get(_background);
-        bgPos.X = fb.X * 0.5f;
-        bgPos.Y = fb.Y * 0.5f;
+        ref var bgTransform = ref transforms.Get(_background);
+        bgTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
+        bgTransform.WorldPosition = bgTransform.LocalPosition;
         ref var bgSpr = ref sprites.Get(_background);
         bgSpr.HalfExtents = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
 
-        ref var titlePos = ref positions.Get(_titleUi);
-        titlePos.X = fb.X * 0.5f;
-        titlePos.Y = fb.Y - 56f;
+        ref var titleTransform = ref transforms.Get(_titleUi);
+        titleTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y - 56f);
+        titleTransform.WorldPosition = titleTransform.LocalPosition;
         ref var titleSpr = ref sprites.Get(_titleUi);
         titleSpr.HalfExtents = new Vector2D<float>(fb.X * 0.4f, 18f);
 
-        ref var panelPos = ref positions.Get(_gameOverPanel);
-        panelPos.X = fb.X * 0.5f;
-        panelPos.Y = fb.Y * 0.45f;
+        ref var panelTransform = ref transforms.Get(_gameOverPanel);
+        panelTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.45f);
+        panelTransform.WorldPosition = panelTransform.LocalPosition;
         ref var panelSpr = ref sprites.Get(_gameOverPanel);
         panelSpr.HalfExtents = new Vector2D<float>(fb.X * 0.42f, 70f);
 
-        ref var barPos = ref positions.Get(_gameOverBar);
-        barPos.X = fb.X * 0.5f;
-        barPos.Y = fb.Y * 0.45f + 36f;
+        ref var barTransform = ref transforms.Get(_gameOverBar);
+        barTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.45f + 36f);
+        barTransform.WorldPosition = barTransform.LocalPosition;
         UpdateGameOverBarExtentOnly(sprites, fb, score);
 
         for (var i = 0; i < Constants.StartingLives; i++)
         {
-            ref var pos = ref positions.Get(_lives[i]);
-            pos.X = 30f + i * 28f;
-            pos.Y = fb.Y - 28f;
+            ref var lifeTransform = ref transforms.Get(_lives[i]);
+            lifeTransform.LocalPosition = new Vector2D<float>(30f + i * 28f, fb.Y - 28f);
+            lifeTransform.WorldPosition = lifeTransform.LocalPosition;
         }
     }
 
@@ -291,7 +291,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         bar.HalfExtents = new Vector2D<float>(Math.Max(8f, wBar * 0.5f), 10f);
     }
 
-    private void SyncHudText(ComponentStore<Position> positions, ComponentStore<BitmapText> texts, Vector2D<int> fb, in GameState s)
+    private void SyncHudText(ComponentStore<Transform> transforms, ComponentStore<BitmapText> texts, Vector2D<int> fb, in GameState s)
     {
         if (s.Score != _lastScore)
         {
@@ -312,22 +312,22 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
 
         if (s.Phase == Phase.Title)
         {
-            SetTextRow(positions, texts, _texts.Title, _titleStyle, "demo.brick.title", true, 36f, fb.Y - 58f);
-            SetTextRow(positions, texts, _texts.HintTitle, _hintStyle, "demo.brick.hint_title", true, 36f, 100f);
+            SetTextRow(transforms, texts, _texts.Title, _titleStyle, "demo.brick.title", true, 36f, fb.Y - 58f);
+            SetTextRow(transforms, texts, _texts.HintTitle, _hintStyle, "demo.brick.hint_title", true, 36f, 100f);
         }
         else if (s.Phase == Phase.GameOver)
         {
-            SetTextRow(positions, texts, _texts.GameOver, _gameOverStyle, "demo.brick.game_over", true, fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
-            SetTextRow(positions, texts, _texts.HintGameOver, _hintStyle, "demo.brick.hint_gameover", true, 36f, 118f);
+            SetTextRow(transforms, texts, _texts.GameOver, _gameOverStyle, "demo.brick.game_over", true, fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
+            SetTextRow(transforms, texts, _texts.HintGameOver, _hintStyle, "demo.brick.hint_gameover", true, 36f, 118f);
         }
         else if (s.Phase == Phase.Playing)
         {
-            SetTextRow(positions, texts, _texts.PlayingScore, _hudStyle, "demo.brick.playing_score", true, 24f, fb.Y - 32f);
-            SetTextRow(positions, texts, _texts.ScoreNum, _scoreStyle, _scoreText, false, 130f, fb.Y - 32f);
+            SetTextRow(transforms, texts, _texts.PlayingScore, _hudStyle, "demo.brick.playing_score", true, 24f, fb.Y - 32f);
+            SetTextRow(transforms, texts, _texts.ScoreNum, _scoreStyle, _scoreText, false, 130f, fb.Y - 32f);
         }
 
         if (fb.X > 0 && fb.Y > 0)
-            SetTextRow(positions, texts, _texts.Fps, _fpsStyle, _fpsText, false, fb.X - 120f, fb.Y - 26f);
+            SetTextRow(transforms, texts, _texts.Fps, _fpsStyle, _fpsText, false, fb.X - 120f, fb.Y - 26f);
     }
 
     private static void SetTextVisible(ComponentStore<BitmapText> texts, EntityId id, bool visible)
@@ -337,7 +337,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     }
 
     private static void SetTextRow(
-        ComponentStore<Position> positions,
+        ComponentStore<Transform> transforms,
         ComponentStore<BitmapText> texts,
         EntityId id,
         TextStyle style,
@@ -346,9 +346,9 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         float x,
         float y)
     {
-        ref var pos = ref positions.Get(id);
-        pos.X = x;
-        pos.Y = y;
+        ref var transform = ref transforms.Get(id);
+        transform.LocalPosition = new Vector2D<float>(x, y);
+        transform.WorldPosition = transform.LocalPosition;
         ref var bt = ref texts.Get(id);
         bt.Visible = true;
         if (bt.Style != style)

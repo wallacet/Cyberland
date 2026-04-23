@@ -31,15 +31,55 @@ public sealed class Mod : IMod
         w.Components<VisualBundle>().GetOrAdd(visualsEntity);
 
         var amb = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource { Active = true, Light = default };
+        w.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.22f, 0.26f, 0.32f),
+            Intensity = 0.13f
+        };
         var dir = w.CreateEntity();
-        w.Components<DirectionalLightSource>().GetOrAdd(dir) = new DirectionalLightSource { Active = true, Light = default };
+        w.Components<Transform>().GetOrAdd(dir) = Transform.Identity;
+        w.Components<DirectionalLightSource>().GetOrAdd(dir) = new DirectionalLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.52f, 0.5f, 0.46f),
+            Intensity = 0.2f,
+            CastsShadow = false
+        };
         var spot = w.CreateEntity();
-        w.Components<SpotLightSource>().GetOrAdd(spot) = new SpotLightSource { Active = true, Light = default };
+        w.Components<Transform>().GetOrAdd(spot) = Transform.Identity;
+        w.Components<SpotLightSource>().GetOrAdd(spot) = new SpotLightSource
+        {
+            Active = true,
+            Radius = 500f,
+            InnerConeRadians = MathF.PI / 4f,
+            OuterConeRadians = MathF.PI / 2.15f,
+            Color = new Vector3D<float>(0.35f, 0.72f, 1f),
+            Intensity = 0.36f,
+            CastsShadow = false
+        };
         var headPt = w.CreateEntity();
-        w.Components<PointLightSource>().GetOrAdd(headPt) = new PointLightSource { Active = true, Light = default };
+        w.Components<Transform>().GetOrAdd(headPt) = Transform.Identity;
+        w.Components<PointLightSource>().GetOrAdd(headPt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 260f,
+            Color = new Vector3D<float>(0.35f, 1f, 0.55f),
+            Intensity = 0.52f,
+            FalloffExponent = 2f,
+            CastsShadow = false
+        };
         var foodPt = w.CreateEntity();
-        w.Components<PointLightSource>().GetOrAdd(foodPt) = new PointLightSource { Active = true, Light = default };
+        w.Components<Transform>().GetOrAdd(foodPt) = Transform.Identity;
+        w.Components<PointLightSource>().GetOrAdd(foodPt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 220f,
+            Color = new Vector3D<float>(1f, 0.45f, 0.28f),
+            Intensity = 0.44f,
+            FalloffExponent = 2.2f,
+            CastsShadow = false
+        };
 
         var host = context.Host;
         context.RegisterSequential("cyberland.demo.snake/bootstrap", new BootstrapSystem(host, sessionEntity, arena, visualsEntity));

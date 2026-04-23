@@ -6,6 +6,7 @@ using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
 using Silk.NET.Maths;
+using System.Reflection;
 
 namespace Cyberland.Engine.Tests;
 
@@ -24,20 +25,22 @@ public sealed class SceneCoverageFillTests
     }
 
     [Fact]
-    public void Position_AsVector_FromVector_round_trip()
+    public void Transform_local_and_world_position_round_trip()
     {
         var v = new Vector2D<float>(2f, 3f);
-        var p = Position.FromVector(v);
-        Assert.Equal(2f, p.AsVector().X);
-        Assert.Equal(3f, p.AsVector().Y);
+        var t = Transform.Identity;
+        t.LocalPosition = v;
+        t.WorldPosition = v;
+        Assert.Equal(2f, t.WorldPosition.X);
+        Assert.Equal(3f, t.WorldPosition.Y);
     }
 
     [Fact]
-    public void Scale_One_and_AsVector()
+    public void Transform_identity_scale_defaults()
     {
-        var s = Scale.One;
-        Assert.Equal(1f, s.X);
-        Assert.Equal(1f, s.AsVector().Y);
+        var t = Transform.Identity;
+        Assert.Equal(1f, t.LocalScale.X);
+        Assert.Equal(1f, t.WorldScale.Y);
     }
 
     [Fact]
@@ -62,19 +65,25 @@ public sealed class SceneCoverageFillTests
         var r = new RecordingRenderer();
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(e) = new Position { X = 1f, Y = 1f };
-        w.Components<Rotation>().GetOrAdd(e) = new Rotation { Radians = MathF.PI / 4f };
-        w.Components<Scale>().GetOrAdd(e) = new Scale { X = 2f, Y = 2f };
+        w.Components<Transform>().GetOrAdd(e) = new Transform
+        {
+            LocalPosition = new Vector2D<float>(1f, 1f),
+            WorldPosition = new Vector2D<float>(1f, 1f),
+            LocalRotationRadians = MathF.PI / 4f,
+            WorldRotationRadians = MathF.PI / 4f,
+            LocalScale = new Vector2D<float>(2f, 2f),
+            WorldScale = new Vector2D<float>(2f, 2f)
+        };
         ref var spr = ref w.Components<Sprite>().GetOrAdd(e);
         spr = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(5f, 5f));
         spr.Visible = false;
 
-        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite>()), 0f, ParOpts());
+        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0f, ParOpts());
         Assert.Empty(r.Sprites);
 
         spr.Visible = true;
         r.Sprites.Clear();
-        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite>()), 0f, ParOpts());
+        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0f, ParOpts());
         Assert.Single(r.Sprites);
         Assert.NotEqual(0f, r.Sprites[0].RotationRadians);
     }
@@ -123,7 +132,7 @@ public sealed class SceneCoverageFillTests
         var h = Host(r);
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(e) = new Position();
+        w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
         w.Components<ParticleEmitter>().GetOrAdd(e) = new ParticleEmitter { Active = false, MaxParticles = 2 };
 
         new ParticleSimulationSystem(h).OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.1f, ParOpts());
@@ -137,7 +146,7 @@ public sealed class SceneCoverageFillTests
         var h = Host(r, pt: pt);
         var w = new World();
         var emitter = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(emitter) = new Position();
+        w.Components<Transform>().GetOrAdd(emitter) = Transform.Identity;
         w.Components<ParticleEmitter>().GetOrAdd(emitter) = new ParticleEmitter
         {
             Active = true,
@@ -169,7 +178,7 @@ public sealed class SceneCoverageFillTests
         w.Components<ParticleEmitter>().GetOrAdd(noPos) = new ParticleEmitter { Active = false, MaxParticles = 2 };
 
         var emptyBucket = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(emptyBucket) = new Position();
+        w.Components<Transform>().GetOrAdd(emptyBucket) = Transform.Identity;
         w.Components<ParticleEmitter>().GetOrAdd(emptyBucket) = new ParticleEmitter
         {
             Active = true,
@@ -213,7 +222,7 @@ public sealed class SceneCoverageFillTests
         var h = Host(r, pt: pt);
         var w = new World();
         var emitter = w.CreateEntity();
-        w.Components<Position>().GetOrAdd(emitter) = new Position();
+        w.Components<Transform>().GetOrAdd(emitter) = Transform.Identity;
         w.Components<ParticleEmitter>().GetOrAdd(emitter) = new ParticleEmitter
         {
             Active = true,
@@ -319,8 +328,8 @@ public sealed class SceneCoverageFillTests
         tb.Parent = a;
 
         new TransformHierarchySystem().OnParallelEarlyUpdate(w, w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
-        Assert.True(w.Components<Position>().Contains(a));
-        Assert.True(w.Components<Position>().Contains(b));
+        Assert.True(w.Components<Transform>().Contains(a));
+        Assert.True(w.Components<Transform>().Contains(b));
     }
 
     [Fact]
@@ -356,6 +365,47 @@ public sealed class SceneCoverageFillTests
         var right = ctor.Invoke(new object[] { b, a });
 
         Assert.True(left.Equals(right));
+    }
+
+    [Fact]
+    public void TriggerSystem_hierarchy_skip_and_private_hierarchy_branches_are_exercised()
+    {
+        var world = new World();
+        var parent = world.CreateEntity();
+        world.Components<Transform>().GetOrAdd(parent) = Transform.Identity;
+        world.Components<Trigger>().GetOrAdd(parent) = new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 1f
+        };
+
+        var child = world.CreateEntity();
+        world.Components<Transform>().GetOrAdd(child) = new Transform
+        {
+            Parent = parent,
+            LocalScale = new Vector2D<float>(1f, 1f),
+            WorldScale = new Vector2D<float>(1f, 1f)
+        };
+        world.Components<Trigger>().GetOrAdd(child) = new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 1f
+        };
+
+        new TriggerSystem().OnParallelFixedUpdate(world, world.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+
+        var isInHierarchy = typeof(TriggerSystem).GetMethod(
+            "IsInHierarchy",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(isInHierarchy);
+        var transformStore = world.Components<Transform>();
+        var noTransform = world.CreateEntity();
+        var resultNoTransform = (bool)isInHierarchy!.Invoke(null, new object[] { world, transformStore, noTransform, parent })!;
+        Assert.False(resultNoTransform);
+        var resultChildAncestor = (bool)isInHierarchy.Invoke(null, new object[] { world, transformStore, child, parent })!;
+        Assert.True(resultChildAncestor);
     }
 
     /// <summary>

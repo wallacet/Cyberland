@@ -58,16 +58,31 @@ public sealed class LightingSystem : IParallelSystem, IParallelLateUpdate
         if (_pointChunks.Count == 0)
             return;
 
+        var pointSources = world.Components<PointLightSource>();
+        var transforms = world.Components<Transform>();
+
         Parallel.For(0, _pointChunks.Count, parallelOptions, idx =>
         {
             var chunk = _pointChunks[idx];
-            var cols = chunk.Column<PointLightSource>(0);
+            var entities = chunk.Entities;
             for (var i = 0; i < chunk.Count; i++)
             {
-                ref readonly var s = ref cols[i];
+                var entity = entities[i];
+                ref readonly var s = ref pointSources.Get(entity);
                 if (!s.Active)
                     continue;
-                r.SubmitPointLight(in s.Light);
+                var transform = transforms.Get(entity);
+                var radiusScale = MathF.Max(MathF.Abs(transform.WorldScale.X), MathF.Abs(transform.WorldScale.Y));
+                var payload = new PointLight
+                {
+                    PositionWorld = transform.WorldPosition,
+                    Radius = s.Radius * radiusScale,
+                    Color = s.Color,
+                    Intensity = s.Intensity,
+                    FalloffExponent = s.FalloffExponent,
+                    CastsShadow = s.CastsShadow
+                };
+                r.SubmitPointLight(in payload);
             }
         });
     }

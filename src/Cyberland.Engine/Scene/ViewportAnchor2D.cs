@@ -1,11 +1,11 @@
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
-/// Declarative placement of an entity's <see cref="Position"/> relative to the swapchain rectangle, optionally syncing a fullscreen <see cref="Sprite"/>.
+/// Declarative placement of an entity's <see cref="Transform"/> relative to the swapchain rectangle, optionally syncing a fullscreen <see cref="Sprite"/>.
 /// </summary>
 /// <remarks>
-/// Pair <see cref="ViewportContentSpace.ScreenPixels"/> with <see cref="BitmapText"/> using <see cref="CoordinateSpace.ScreenSpace"/>.
-/// Use <see cref="ViewportContentSpace.WorldPixels"/> for world sprites (backgrounds, strips) drawn by <see cref="Systems.SpriteRenderSystem"/>.
+/// Pair <see cref="CoordinateSpace.ScreenSpace"/> with <see cref="BitmapText"/> for HUD rows.
+/// Use <see cref="CoordinateSpace.WorldSpace"/> for world sprites (backgrounds, strips) drawn by <see cref="Systems.SpriteRenderSystem"/>.
 /// Applied each frame by <see cref="Systems.ViewportAnchorSystem"/>.
 /// </remarks>
 public struct ViewportAnchor2D

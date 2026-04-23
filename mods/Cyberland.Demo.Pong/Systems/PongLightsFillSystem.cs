@@ -65,17 +65,17 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
 
         ref var amb = ref world.Components<AmbientLightSource>().Get(_ambient);
         amb.Active = true;
-        amb.Light = new AmbientLight { Color = new Vector3D<float>(0.2f, 0.23f, 0.3f), Intensity = 0.12f };
+        amb.Color = new Vector3D<float>(0.2f, 0.23f, 0.3f);
+        amb.Intensity = 0.12f;
 
+        ref var dirTransform = ref world.Components<Transform>().Get(_directional);
+        dirTransform.LocalRotationRadians = MathF.Atan2(-0.6f, 0.36f);
+        dirTransform.WorldRotationRadians = dirTransform.LocalRotationRadians;
         ref var dir = ref world.Components<DirectionalLightSource>().Get(_directional);
         dir.Active = true;
-        dir.Light = new DirectionalLight
-        {
-            DirectionWorld = new Vector2D<float>(0.36f, -0.6f),
-            Color = new Vector3D<float>(0.52f, 0.5f, 0.46f),
-            Intensity = 0.19f,
-            CastsShadow = false
-        };
+        dir.Color = new Vector3D<float>(0.52f, 0.5f, 0.46f);
+        dir.Intensity = 0.19f;
+        dir.CastsShadow = false;
 
         var spotPos = new Vector2D<float>(st.ArenaMinX + w * 0.04f, st.ArenaMinY + h * 0.08f);
         var dx = center.X - spotPos.X;
@@ -83,45 +83,43 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
         var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(1f, 0f);
 
+        ref var spotTransform = ref world.Components<Transform>().Get(_spot);
+        spotTransform.LocalPosition = spotPos;
+        spotTransform.WorldPosition = spotPos;
+        spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
+        spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
         ref var sp = ref world.Components<SpotLightSource>().Get(_spot);
         sp.Active = true;
-        sp.Light = new SpotLight
-        {
-            PositionWorld = spotPos,
-            DirectionWorld = dirVec,
-            Radius = w * 0.55f,
-            InnerConeRadians = MathF.PI / 4f,
-            OuterConeRadians = MathF.PI / 2.2f,
-            Color = new Vector3D<float>(0.38f, 0.58f, 1f),
-            Intensity = 0.35f,
-            CastsShadow = false
-        };
+        sp.Radius = w * 0.55f;
+        sp.InnerConeRadians = MathF.PI / 4f;
+        sp.OuterConeRadians = MathF.PI / 2.2f;
+        sp.Color = new Vector3D<float>(0.38f, 0.58f, 1f);
+        sp.Intensity = 0.35f;
+        sp.CastsShadow = false;
 
         var ballPos = st.Phase == Phase.Playing ? st.BallPos : center;
         var ballIntensity = st.Phase == Phase.Playing ? 0.52f : 0.28f;
+        ref var ballTransform = ref world.Components<Transform>().Get(_ballPoint);
+        ballTransform.LocalPosition = ballPos;
+        ballTransform.WorldPosition = ballPos;
         ref var bp = ref world.Components<PointLightSource>().Get(_ballPoint);
         bp.Active = true;
-        bp.Light = new PointLight
-        {
-            PositionWorld = ballPos,
-            Radius = w * 0.32f,
-            Color = new Vector3D<float>(0.9f, 0.95f, 1f),
-            Intensity = ballIntensity,
-            FalloffExponent = 2f,
-            CastsShadow = false
-        };
+        bp.Radius = w * 0.32f;
+        bp.Color = new Vector3D<float>(0.9f, 0.95f, 1f);
+        bp.Intensity = ballIntensity;
+        bp.FalloffExponent = 2f;
+        bp.CastsShadow = false;
 
         var leftAccentY = st.Phase == Phase.Playing ? st.LeftPaddleY : arenaCy;
+        ref var leftTransform = ref world.Components<Transform>().Get(_leftAccentPoint);
+        leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, leftAccentY);
+        leftTransform.WorldPosition = leftTransform.LocalPosition;
         ref var lp = ref world.Components<PointLightSource>().Get(_leftAccentPoint);
         lp.Active = true;
-        lp.Light = new PointLight
-        {
-            PositionWorld = new Vector2D<float>(st.ArenaMinX, leftAccentY),
-            Radius = w * 0.38f,
-            Color = new Vector3D<float>(0.25f, 0.75f, 1f),
-            Intensity = st.Phase == Phase.Playing ? 0.34f : 0.2f,
-            FalloffExponent = 2.1f,
-            CastsShadow = false
-        };
+        lp.Radius = w * 0.38f;
+        lp.Color = new Vector3D<float>(0.25f, 0.75f, 1f);
+        lp.Intensity = st.Phase == Phase.Playing ? 0.34f : 0.2f;
+        lp.FalloffExponent = 2.1f;
+        lp.CastsShadow = false;
     }
 }

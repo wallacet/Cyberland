@@ -32,9 +32,9 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
         if (!world.Components<TriggerEvents>().TryGet(_ballEntity, out var triggerEvents) || triggerEvents.Events is null)
             return;
 
-        ref var ballPos = ref world.Components<Position>().Get(_ballEntity);
+        ref var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
         ref var ballVel = ref world.Components<Velocity>().Get(_ballEntity);
-        ref var paddlePos = ref world.Components<Position>().Get(_paddleEntity);
+        ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
         ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
         var brickStateStore = world.Components<BrickState>();
         var brickCellStore = world.Components<Cell>();
@@ -47,13 +47,14 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
 
             if (ev.Other == _paddleEntity && ballVel.Value.Y < 0f)
             {
-                ballPos.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
+                ballTransform.LocalPosition.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
                 ballVel.Value.Y = MathF.Abs(ballVel.Value.Y);
-                var off = (ballPos.X - paddlePos.X) / paddleBody.HalfWidth;
+                var off = (ballTransform.LocalPosition.X - paddleTransform.WorldPosition.X) / paddleBody.HalfWidth;
                 ballVel.Value.X += off * Constants.PaddleEnglish;
                 var len = MathF.Sqrt(ballVel.Value.X * ballVel.Value.X + ballVel.Value.Y * ballVel.Value.Y);
                 if (len > 1e-3f)
                     ballVel.Value *= Constants.BallSpeed / len;
+                ballTransform.WorldPosition = ballTransform.LocalPosition;
                 continue;
             }
 

@@ -12,7 +12,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Sequential late pass: draws entities that have both <see cref="BitmapText"/> and <see cref="Position"/> via <see cref="TextRenderer"/>.
+/// Sequential late pass: draws entities that have both <see cref="BitmapText"/> and <see cref="Transform"/> via <see cref="TextRenderer"/>.
 /// </summary>
 /// <remarks>
 /// Runs after <see cref="TextStagingSystem"/> and mod systems update labels; register order places this after <see cref="SpriteRenderSystem"/> so typical HUD sort keys stack above world sprites.
@@ -28,13 +28,13 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
     private readonly GameHostServices _host;
     private bool _haveColumnMap;
     private int _colBitmapText;
-    private int _colPosition;
+    private int _colTransform;
 
     /// <summary>Per-entity cached glyph quads; keyed by <see cref="EntityId.Raw"/>.</summary>
     private readonly Dictionary<uint, CachedGlyphRow> _glyphRowCache = new();
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BitmapText, Position>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BitmapText, Transform>();
 
     /// <param name="host">Uses <see cref="GameHostServices.Renderer"/>, <see cref="GameHostServices.Fonts"/>, <see cref="GameHostServices.TextGlyphCache"/>, and <see cref="GameHostServices.LocalizedContent"/>.</param>
     public TextRenderSystem(GameHostServices host) =>
@@ -66,14 +66,14 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         foreach (var chunk in query)
         {
             var texts = chunk.Column<BitmapText>(_colBitmapText);
-            var positions = chunk.Column<Position>(_colPosition);
+            var transforms = chunk.Column<Transform>(_colTransform);
             var entities = chunk.Entities;
             for (var i = 0; i < chunk.Count; i++)
             {
                 ref var bt = ref texts[i];
-                ref readonly var pos = ref positions[i];
+                ref readonly var transform = ref transforms[i];
                 var entity = entities[i];
-                RenderBitmapTextRow(entity, ref bt, in pos, r, fonts, textGlyphCache, loc, fb);
+                RenderBitmapTextRow(entity, ref bt, in transform, r, fonts, textGlyphCache, loc, fb);
             }
         }
 
@@ -83,7 +83,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
     private void RenderBitmapTextRow(
         EntityId entity,
         ref BitmapText bt,
-        ref readonly Position pos,
+        ref readonly Transform transform,
         IRenderer renderer,
         FontLibrary fonts,
         TextGlyphCache glyphCache,
@@ -128,13 +128,13 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         int fbH;
         if (bt.CoordinateSpace == CoordinateSpace.WorldSpace)
         {
-            baselineWorld = pos.AsVector();
+            baselineWorld = transform.WorldPosition;
             fbW = 0;
             fbH = 0;
         }
         else
         {
-            baselineWorld = WorldScreenSpace.ScreenPixelToWorldCenter(pos.AsVector(), framebufferSize);
+            baselineWorld = WorldScreenSpace.ScreenPixelToWorldCenter(transform.WorldPosition, framebufferSize);
             fbW = framebufferSize.X;
             fbH = framebufferSize.Y;
         }
@@ -162,7 +162,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
             }
             else
             {
-                var screen = pos.AsVector();
+                var screen = transform.WorldPosition;
                 if (bt.IsLocalizationKey)
                 {
                     TextRenderer.DrawLocalizedScreen(renderer, fonts, glyphCache, localization!, in bt.Style, bt.Content,
@@ -227,7 +227,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
     private void EnsureColumnMap(World world, SystemQuerySpec spec)
     {
         _colBitmapText = world.GetQueryColumnIndex<BitmapText>(spec);
-        _colPosition = world.GetQueryColumnIndex<Position>(spec);
+        _colTransform = world.GetQueryColumnIndex<Transform>(spec);
         _haveColumnMap = true;
     }
 

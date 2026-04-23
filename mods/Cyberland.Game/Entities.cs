@@ -1,6 +1,5 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Scene;
-using Cyberland.Engine.Rendering;
 
 /// <summary>
 /// Helper methods to create entities with common components.
@@ -27,7 +26,7 @@ public static class Entities
     public static EntityId CreateEmpty(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
         return entity;
     }
 
@@ -37,7 +36,7 @@ public static class Entities
     public static EntityId CreateSprite(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
         world.Components<Sprite>().GetOrAdd(entity);
         return entity;
     }
@@ -48,41 +47,41 @@ public static class Entities
     public static EntityId CreateText(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
         world.Components<BitmapText>().GetOrAdd(entity);
         return entity;
     }
 
     /// <summary>
-    /// Creates a point light entity with a transform and point light component.
+    /// Creates a point light entity with a transform and point-light source component.
     /// </summary>
     public static EntityId CreatePointLight(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity);
-        world.Components<PointLight>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
+        world.Components<PointLightSource>().GetOrAdd(entity);
         return entity;
     }
 
     /// <summary>
-    /// Creates a spot light entity with a transform and spot light component.
+    /// Creates a spot light entity with a transform and spot-light source component.
     /// </summary>
     public static EntityId CreateSpotLight(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity);
-        world.Components<SpotLight>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
+        world.Components<SpotLightSource>().GetOrAdd(entity);
         return entity;
     }
 
     /// <summary>
-    /// Creates a directional light entity with a transform and directional light component.
+    /// Creates a directional light entity with a transform and directional-light source component.
     /// </summary>
     public static EntityId CreateDirectionalLight(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity);
-        world.Components<DirectionalLight>().GetOrAdd(entity);
+        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
+        world.Components<DirectionalLightSource>().GetOrAdd(entity);
         return entity;
     }
 

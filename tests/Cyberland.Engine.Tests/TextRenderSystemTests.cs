@@ -19,7 +19,7 @@ public sealed class TextRenderSystemTests
         var host = new GameHostServices(new KeyBindingStore()) { Renderer = null, LocalizedContent = null };
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e);
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
         ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
         bt.Visible = true;
         bt.Content = "x";
@@ -27,7 +27,7 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class TextRenderSystemTests
 
         var world = new World();
         var e0 = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e0);
+        world.Components<Transform>().GetOrAdd(e0) = Transform.Identity;
         ref var b0 = ref world.Components<BitmapText>().GetOrAdd(e0);
         b0.Visible = false;
         b0.Content = "ok";
@@ -54,7 +54,7 @@ public sealed class TextRenderSystemTests
         b0.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
         var e1 = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e1);
+        world.Components<Transform>().GetOrAdd(e1) = Transform.Identity;
         ref var b1 = ref world.Components<BitmapText>().GetOrAdd(e1);
         b1.Visible = true;
         b1.Content = "";
@@ -63,7 +63,7 @@ public sealed class TextRenderSystemTests
         b1.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
         var e2 = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e2);
+        world.Components<Transform>().GetOrAdd(e2) = Transform.Identity;
         ref var b2 = ref world.Components<BitmapText>().GetOrAdd(e2);
         b2.Visible = true;
         b2.Content = "ok";
@@ -72,7 +72,7 @@ public sealed class TextRenderSystemTests
         b2.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
         var e3 = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e3);
+        world.Components<Transform>().GetOrAdd(e3) = Transform.Identity;
         ref var b3 = ref world.Components<BitmapText>().GetOrAdd(e3);
         b3.Visible = true;
         b3.Content = "ok";
@@ -80,11 +80,11 @@ public sealed class TextRenderSystemTests
         b3.CoordinateSpace = CoordinateSpace.ScreenSpace;
         b3.Style = b2.Style;
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
         Assert.Empty(r.Sprites);
 
         host.LocalizedContent = lc;
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -99,37 +99,35 @@ public sealed class TextRenderSystemTests
 
         var world = new World();
         var ew = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(ew);
+        world.Components<Transform>().GetOrAdd(ew) = Transform.Identity;
         ref var btw = ref world.Components<BitmapText>().GetOrAdd(ew);
         btw.Visible = true;
         btw.Content = "a";
         btw.IsLocalizationKey = true;
         btw.CoordinateSpace = CoordinateSpace.WorldSpace;
         btw.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
-        ref var pw = ref world.Components<Position>().Get(ew);
-        pw.X = 40f;
-        pw.Y = 50f;
+        ref var tw = ref world.Components<Transform>().Get(ew);
+        tw.WorldPosition = new Vector2D<float>(40f, 50f);
 
         r.Sprites.Clear();
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
         var nWorld = r.Sprites.Count;
         Assert.True(nWorld > 0);
 
         r.Sprites.Clear();
         btw.Visible = false;
         var es = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(es);
+        world.Components<Transform>().GetOrAdd(es) = Transform.Identity;
         ref var bts = ref world.Components<BitmapText>().GetOrAdd(es);
         bts.Visible = true;
         bts.Content = "a";
         bts.IsLocalizationKey = true;
         bts.CoordinateSpace = CoordinateSpace.ScreenSpace;
         bts.Style = btw.Style;
-        ref var ps = ref world.Components<Position>().Get(es);
-        ps.X = 40f;
-        ps.Y = r.SwapchainPixelSize.Y - 50f;
+        ref var ts = ref world.Components<Transform>().Get(es);
+        ts.WorldPosition = new Vector2D<float>(40f, r.SwapchainPixelSize.Y - 50f);
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
         Assert.Equal(nWorld, r.Sprites.Count);
     }
 
@@ -141,37 +139,35 @@ public sealed class TextRenderSystemTests
 
         var world = new World();
         var ew = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(ew);
+        world.Components<Transform>().GetOrAdd(ew) = Transform.Identity;
         ref var bw = ref world.Components<BitmapText>().GetOrAdd(ew);
         bw.Visible = true;
         bw.Content = "Hi";
         bw.IsLocalizationKey = false;
         bw.CoordinateSpace = CoordinateSpace.WorldSpace;
         bw.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
-        ref var pw = ref world.Components<Position>().Get(ew);
-        pw.X = 10f;
-        pw.Y = 20f;
+        ref var tw2 = ref world.Components<Transform>().Get(ew);
+        tw2.WorldPosition = new Vector2D<float>(10f, 20f);
 
         r.Sprites.Clear();
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
         var nLit = r.Sprites.Count;
         Assert.True(nLit > 0);
 
         r.Sprites.Clear();
         bw.Visible = false;
         var es = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(es);
+        world.Components<Transform>().GetOrAdd(es) = Transform.Identity;
         ref var bs = ref world.Components<BitmapText>().GetOrAdd(es);
         bs.Visible = true;
         bs.Content = "Hi";
         bs.IsLocalizationKey = false;
         bs.CoordinateSpace = CoordinateSpace.ScreenSpace;
         bs.Style = bw.Style;
-        ref var ps = ref world.Components<Position>().Get(es);
-        ps.X = 10f;
-        ps.Y = 20f;
+        ref var ts2 = ref world.Components<Transform>().Get(es);
+        ts2.WorldPosition = new Vector2D<float>(10f, 20f);
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
         Assert.Equal(nLit, r.Sprites.Count);
     }
 
@@ -185,7 +181,7 @@ public sealed class TextRenderSystemTests
         var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = lc };
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e);
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
         ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
         bt.Visible = true;
         bt.Content = "empty";
@@ -193,7 +189,7 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
         Assert.Empty(r.Sprites);
     }
 
@@ -208,7 +204,7 @@ public sealed class TextRenderSystemTests
         var world = new World();
 
         var e0 = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e0);
+        world.Components<Transform>().GetOrAdd(e0) = Transform.Identity;
         ref var b0 = ref world.Components<BitmapText>().GetOrAdd(e0);
         b0.Visible = true;
         b0.Content = "Hi";
@@ -217,7 +213,7 @@ public sealed class TextRenderSystemTests
         b0.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
 
         var e1 = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e1);
+        world.Components<Transform>().GetOrAdd(e1) = Transform.Identity;
         ref var b1 = ref world.Components<BitmapText>().GetOrAdd(e1);
         b1.Visible = true;
         b1.Content = "k";
@@ -226,31 +222,29 @@ public sealed class TextRenderSystemTests
         b1.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Strikethrough: true);
 
         var e2 = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e2);
+        world.Components<Transform>().GetOrAdd(e2) = Transform.Identity;
         ref var b2 = ref world.Components<BitmapText>().GetOrAdd(e2);
         b2.Visible = true;
         b2.Content = "Lo";
         b2.IsLocalizationKey = false;
         b2.CoordinateSpace = CoordinateSpace.ScreenSpace;
         b2.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
-        ref var p2 = ref world.Components<Position>().Get(e2);
-        p2.X = 4f;
-        p2.Y = 20f;
+        ref var t2 = ref world.Components<Transform>().Get(e2);
+        t2.WorldPosition = new Vector2D<float>(4f, 20f);
 
         var e3 = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e3);
+        world.Components<Transform>().GetOrAdd(e3) = Transform.Identity;
         ref var b3 = ref world.Components<BitmapText>().GetOrAdd(e3);
         b3.Visible = true;
         b3.Content = "k";
         b3.IsLocalizationKey = true;
         b3.CoordinateSpace = CoordinateSpace.ScreenSpace;
         b3.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Strikethrough: true);
-        ref var p3 = ref world.Components<Position>().Get(e3);
-        p3.X = 40f;
-        p3.Y = 50f;
+        ref var t3 = ref world.Components<Transform>().Get(e3);
+        t3.WorldPosition = new Vector2D<float>(40f, 50f);
 
         r.Sprites.Clear();
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>()), 0.016f);
+        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -262,18 +256,17 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e);
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
         ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
         bt.Visible = true;
         bt.Content = "Cache";
         bt.IsLocalizationKey = false;
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
-        ref var pos = ref world.Components<Position>().Get(e);
-        pos.X = 1f;
-        pos.Y = 2f;
+        ref var transform = ref world.Components<Transform>().Get(e);
+        transform.WorldPosition = new Vector2D<float>(1f, 2f);
 
-        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>());
+        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>());
         sys.OnLateUpdate(world, q, 0.016f);
         var nFirst = r.Sprites.Count;
         Assert.True(nFirst > 0);
@@ -290,7 +283,7 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e);
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
         ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
         bt.Visible = true;
         bt.Content = "X";
@@ -298,7 +291,7 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>());
+        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>());
         sys.OnLateUpdate(world, q, 0.016f);
         world.DestroyEntity(e);
         sys.OnLateUpdate(world, q, 0.016f);
@@ -312,7 +305,7 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e);
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
         ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
         bt.Visible = true;
         bt.Content = "Y";
@@ -320,7 +313,7 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>());
+        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>());
         sys.OnLateUpdate(world, q, 0.016f);
         host.Renderer = null;
         sys.OnLateUpdate(world, q, 0.016f);
@@ -334,7 +327,7 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Position>().GetOrAdd(e);
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
         ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
         bt.Visible = true;
         bt.Content = "A";
@@ -342,7 +335,7 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Position>());
+        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>());
         sys.OnLateUpdate(world, q, 0.016f);
         bt.Content = "AB";
         r.Sprites.Clear();

@@ -36,7 +36,7 @@ public sealed class Mod : IMod
         static EntityId Sprite(World world)
         {
             var e = world.CreateEntity();
-            world.Components<Position>().GetOrAdd(e);
+            world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
             world.Components<Sprite>().GetOrAdd(e);
             return e;
         }
@@ -84,7 +84,7 @@ public sealed class Mod : IMod
         static EntityId HudText(World world, float sortKey)
         {
             var e = world.CreateEntity();
-            world.Components<Position>().GetOrAdd(e);
+            world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
             ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
             bt.Visible = false;
             bt.Content = " ";
@@ -105,15 +105,55 @@ public sealed class Mod : IMod
             HudText(w, 456f));
 
         var amb = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource { Active = true, Light = default };
+        w.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.22f, 0.24f, 0.32f),
+            Intensity = 0.14f
+        };
         var dirL = w.CreateEntity();
-        w.Components<DirectionalLightSource>().GetOrAdd(dirL) = new DirectionalLightSource { Active = true, Light = default };
+        w.Components<Transform>().GetOrAdd(dirL) = Transform.Identity;
+        w.Components<DirectionalLightSource>().GetOrAdd(dirL) = new DirectionalLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.55f, 0.52f, 0.48f),
+            Intensity = 0.22f,
+            CastsShadow = false
+        };
         var spotE = w.CreateEntity();
-        w.Components<SpotLightSource>().GetOrAdd(spotE) = new SpotLightSource { Active = true, Light = default };
+        w.Components<Transform>().GetOrAdd(spotE) = Transform.Identity;
+        w.Components<SpotLightSource>().GetOrAdd(spotE) = new SpotLightSource
+        {
+            Active = true,
+            Radius = 560f,
+            InnerConeRadians = MathF.PI / 4f,
+            OuterConeRadians = MathF.PI / 2.2f,
+            Color = new Vector3D<float>(0.35f, 0.55f, 0.95f),
+            Intensity = 0.38f,
+            CastsShadow = false
+        };
         var paddlePt = w.CreateEntity();
-        w.Components<PointLightSource>().GetOrAdd(paddlePt) = new PointLightSource { Active = true, Light = default };
+        w.Components<Transform>().GetOrAdd(paddlePt) = Transform.Identity;
+        w.Components<PointLightSource>().GetOrAdd(paddlePt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 280f,
+            Color = new Vector3D<float>(1f, 0.55f, 0.28f),
+            Intensity = 0.32f,
+            FalloffExponent = 2.2f,
+            CastsShadow = false
+        };
         var ballPt = w.CreateEntity();
-        w.Components<PointLightSource>().GetOrAdd(ballPt) = new PointLightSource { Active = true, Light = default };
+        w.Components<Transform>().GetOrAdd(ballPt) = Transform.Identity;
+        w.Components<PointLightSource>().GetOrAdd(ballPt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 140f,
+            Color = new Vector3D<float>(0.85f, 0.95f, 1f),
+            Intensity = 0.55f,
+            FalloffExponent = 2f,
+            CastsShadow = false
+        };
 
         var host = context.Host;
         context.RegisterSequential("cyberland.demo.brick/input", new InputSystem(host, stateEntity, controlEntity));

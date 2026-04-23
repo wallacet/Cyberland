@@ -29,7 +29,7 @@ public sealed class SceneSetupSystem : ISystem
 
         var player = world.CreateEntity();
         world.Components<PlayerTag>().GetOrAdd(player);
-        world.Components<Position>().GetOrAdd(player);
+        world.Components<Transform>().GetOrAdd(player) = Transform.Identity;
         world.Components<Velocity>().GetOrAdd(player);
         ref var playerSprite = ref world.Components<Sprite>().GetOrAdd(player);
         playerSprite = Sprite.DefaultWhiteUnlit(white, defaultNormal, new Vector2D<float>(Constants.SpriteHalfExtent, Constants.SpriteHalfExtent));
@@ -39,7 +39,7 @@ public sealed class SceneSetupSystem : ISystem
 
         var background = world.CreateEntity();
         world.Components<BackgroundTag>().GetOrAdd(background);
-        world.Components<Position>().GetOrAdd(background);
+        world.Components<Transform>().GetOrAdd(background) = Transform.Identity;
         ref var backgroundSprite = ref world.Components<Sprite>().GetOrAdd(background);
         backgroundSprite.Layer = (int)SpriteLayer.Background;
         backgroundSprite.AlbedoTextureId = white;
@@ -59,7 +59,7 @@ public sealed class SceneSetupSystem : ISystem
 
         var neonStrip = world.CreateEntity();
         world.Components<NeonStripTag>().GetOrAdd(neonStrip);
-        world.Components<Position>().GetOrAdd(neonStrip);
+        world.Components<Transform>().GetOrAdd(neonStrip) = Transform.Identity;
         ref var neonSprite = ref world.Components<Sprite>().GetOrAdd(neonStrip);
         neonSprite.HalfExtents = new Vector2D<float>(36f, 140f);
         neonSprite.Layer = (int)SpriteLayer.World;
@@ -82,7 +82,7 @@ public sealed class SceneSetupSystem : ISystem
 
         var hudTitle = world.CreateEntity();
         world.Components<HudTitleTag>().GetOrAdd(hudTitle);
-        world.Components<Position>().GetOrAdd(hudTitle);
+        world.Components<Transform>().GetOrAdd(hudTitle) = Transform.Identity;
         ref var titleText = ref world.Components<BitmapText>().GetOrAdd(hudTitle);
         titleText.Visible = true;
         titleText.IsLocalizationKey = true;
@@ -102,7 +102,7 @@ public sealed class SceneSetupSystem : ISystem
 
         var hudHint = world.CreateEntity();
         world.Components<HudHintTag>().GetOrAdd(hudHint);
-        world.Components<Position>().GetOrAdd(hudHint);
+        world.Components<Transform>().GetOrAdd(hudHint) = Transform.Identity;
         ref var hintText = ref world.Components<BitmapText>().GetOrAdd(hudHint);
         hintText.Visible = true;
         hintText.IsLocalizationKey = true;
@@ -121,21 +121,61 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var eAmb = world.CreateEntity();
-        world.Components<AmbientLightSource>().GetOrAdd(eAmb) = new AmbientLightSource { Active = true, Light = default };
+        world.Components<AmbientLightSource>().GetOrAdd(eAmb) = new AmbientLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.2f, 0.23f, 0.32f),
+            Intensity = 0.14f
+        };
 
         var eDir = world.CreateEntity();
-        world.Components<DirectionalLightSource>().GetOrAdd(eDir) = new DirectionalLightSource { Active = true, Light = default };
+        world.Components<Transform>().GetOrAdd(eDir) = Transform.Identity;
+        world.Components<DirectionalLightSource>().GetOrAdd(eDir) = new DirectionalLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.6f, 0.58f, 0.55f),
+            Intensity = 0.2f,
+            CastsShadow = false
+        };
 
         var eSpot = world.CreateEntity();
-        world.Components<SpotLightSource>().GetOrAdd(eSpot) = new SpotLightSource { Active = true, Light = default };
+        world.Components<Transform>().GetOrAdd(eSpot) = Transform.Identity;
+        world.Components<SpotLightSource>().GetOrAdd(eSpot) = new SpotLightSource
+        {
+            Active = true,
+            Radius = 540f,
+            InnerConeRadians = MathF.PI / 5f,
+            OuterConeRadians = MathF.PI / 2.3f,
+            Color = new Vector3D<float>(0.35f, 0.58f, 1f),
+            Intensity = 0.4f,
+            CastsShadow = false
+        };
 
         var eWarm = world.CreateEntity();
         world.Components<HdrWarmPointTag>().GetOrAdd(eWarm);
-        world.Components<PointLightSource>().GetOrAdd(eWarm) = new PointLightSource { Active = true, Light = default };
+        world.Components<Transform>().GetOrAdd(eWarm) = Transform.Identity;
+        world.Components<PointLightSource>().GetOrAdd(eWarm) = new PointLightSource
+        {
+            Active = true,
+            Radius = 420f,
+            Color = new Vector3D<float>(0.95f, 0.52f, 0.25f),
+            Intensity = 0.28f,
+            FalloffExponent = 2.2f,
+            CastsShadow = false
+        };
 
         var ePlayerPt = world.CreateEntity();
         world.Components<HdrPlayerPointTag>().GetOrAdd(ePlayerPt);
-        world.Components<PointLightSource>().GetOrAdd(ePlayerPt) = new PointLightSource { Active = true, Light = default };
+        world.Components<Transform>().GetOrAdd(ePlayerPt) = Transform.Identity;
+        world.Components<PointLightSource>().GetOrAdd(ePlayerPt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 180f,
+            Color = new Vector3D<float>(0.35f, 0.95f, 0.55f),
+            Intensity = 1.2f,
+            FalloffExponent = 2.25f,
+            CastsShadow = false
+        };
 
         var eBloom = world.CreateEntity();
         world.Components<HdrBloomVolumeTag>().GetOrAdd(eBloom);

@@ -4,12 +4,12 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
-/// Bitmap label drawn by <see cref="Systems.TextStagingSystem"/> then <see cref="Systems.TextRenderSystem"/>; pair with <see cref="Position"/> for baseline-left.
+/// Bitmap label drawn by <see cref="Systems.TextStagingSystem"/> then <see cref="Systems.TextRenderSystem"/>; pair with <see cref="Transform"/> for baseline-left.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Use <see cref="CoordinateSpace.WorldSpace"/> for diegetic labels in the playfield; use <see cref="CoordinateSpace.ScreenSpace"/> for HUD chrome.
-/// Screen-space rows often pair with <see cref="ViewportAnchor2D"/> so <see cref="Position"/> tracks resize.
+/// Screen-space rows often pair with <see cref="ViewportAnchor2D"/> so <see cref="Transform.WorldPosition"/> tracks resize.
 /// </para>
 /// <para>
 /// Recommended <see cref="SortKey"/> bands: lower values for world text, higher (e.g. 400+) for UI so HUD stacks above gameplay.
@@ -32,6 +32,6 @@ public struct BitmapText
     /// <summary>Tie-break for draw order among UI text (passed to <see cref="TextRenderer"/>).</summary>
     public float SortKey;
 
-    /// <summary>Whether <see cref="Position"/> is world (+Y up) or screen pixels (+Y down).</summary>
+    /// <summary>Whether <see cref="Transform.WorldPosition"/> is world (+Y up) or screen pixels (+Y down).</summary>
     public CoordinateSpace CoordinateSpace;
 }

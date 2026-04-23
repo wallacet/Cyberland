@@ -42,8 +42,8 @@ public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
         var frameBuffer = renderer.SwapchainPixelSize;
 
         var player = archetype.RequireSingleEntityWith<PlayerTag>("player");
-        ref readonly var playerPosition = ref world.Components<Position>().Get(player);
-        var t = frameBuffer.X > 0 ? playerPosition.X / frameBuffer.X : 0f;
+        ref readonly var playerTransform = ref world.Components<Transform>().Get(player);
+        var t = frameBuffer.X > 0 ? playerTransform.WorldPosition.X / frameBuffer.X : 0f;
         t = Math.Clamp(t, 0f, 1f);
         var bloomGain = 2.35f - 1.85f * t;
 

@@ -16,7 +16,7 @@ internal static class DeferredSubmissionQueries
     public static void SubmitBestAmbientLight(World world, IRenderer r)
     {
         EntityId bestId = default;
-        AmbientLight best = default;
+        AmbientLightSource best = default;
         var have = false;
         foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()))
         {
@@ -31,75 +31,113 @@ internal static class DeferredSubmissionQueries
                 if (!have || e.Raw > bestId.Raw)
                 {
                     bestId = e;
-                    best = row.Light;
+                    best = row;
                     have = true;
                 }
             }
         }
 
         if (have)
-            r.SubmitAmbientLight(in best);
+        {
+            var payload = new AmbientLight
+            {
+                Color = best.Color,
+                Intensity = best.Intensity
+            };
+            r.SubmitAmbientLight(in payload);
+        }
     }
 
     public static void SubmitBestDirectionalLight(World world, IRenderer r)
     {
         EntityId bestId = default;
-        DirectionalLight best = default;
+        DirectionalLightSource best = default;
+        Transform bestTransform = default;
         var have = false;
-        foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<DirectionalLightSource>()))
+        var directionalSources = world.Components<DirectionalLightSource>();
+        var transforms = world.Components<Transform>();
+        foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()))
         {
             var ents = chunk.Entities;
-            var col = chunk.Column<DirectionalLightSource>(0);
             for (var i = 0; i < chunk.Count; i++)
             {
-                ref readonly var row = ref col[i];
+                var entity = ents[i];
+                ref readonly var row = ref directionalSources.Get(entity);
                 if (!row.Active)
                     continue;
-                var e = ents[i];
-                if (!have || e.Raw > bestId.Raw)
+                if (!have || entity.Raw > bestId.Raw)
                 {
-                    bestId = e;
-                    best = row.Light;
+                    bestId = entity;
+                    best = row;
+                    bestTransform = transforms.Get(entity);
                     have = true;
                 }
             }
         }
 
         if (have)
-            r.SubmitDirectionalLight(in best);
+        {
+            var dir = DirectionFromWorldRotation(bestTransform.WorldRotationRadians);
+            var payload = new DirectionalLight
+            {
+                DirectionWorld = dir,
+                Color = best.Color,
+                Intensity = best.Intensity,
+                CastsShadow = best.CastsShadow
+            };
+            r.SubmitDirectionalLight(in payload);
+        }
     }
 
     public static void SubmitBestSpotLight(World world, IRenderer r)
     {
         EntityId bestId = default;
-        SpotLight best = default;
+        SpotLightSource best = default;
+        Transform bestTransform = default;
         var have = false;
-        foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<SpotLightSource>()))
+        var spotSources = world.Components<SpotLightSource>();
+        var transforms = world.Components<Transform>();
+        foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()))
         {
             var ents = chunk.Entities;
-            var col = chunk.Column<SpotLightSource>(0);
             for (var i = 0; i < chunk.Count; i++)
             {
-                ref readonly var row = ref col[i];
+                var entity = ents[i];
+                ref readonly var row = ref spotSources.Get(entity);
                 if (!row.Active)
                     continue;
-                var e = ents[i];
-                if (!have || e.Raw > bestId.Raw)
+                if (!have || entity.Raw > bestId.Raw)
                 {
-                    bestId = e;
-                    best = row.Light;
+                    bestId = entity;
+                    best = row;
+                    bestTransform = transforms.Get(entity);
                     have = true;
                 }
             }
         }
 
         if (have)
-            r.SubmitSpotLight(in best);
+        {
+            var dir = DirectionFromWorldRotation(bestTransform.WorldRotationRadians);
+            var radiusScale = MaxAbsScale(bestTransform.WorldScale);
+            var payload = new SpotLight
+            {
+                PositionWorld = bestTransform.WorldPosition,
+                DirectionWorld = dir,
+                Radius = best.Radius * radiusScale,
+                InnerConeRadians = best.InnerConeRadians,
+                OuterConeRadians = best.OuterConeRadians,
+                Color = best.Color,
+                Intensity = best.Intensity,
+                CastsShadow = best.CastsShadow
+            };
+            r.SubmitSpotLight(in payload);
+        }
     }
 
     public static void CollectPointLightChunks(World world, List<MultiComponentChunkView> into)
     {
-        foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<PointLightSource>()))
+        foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()))
             into.Add(chunk);
     }
 
@@ -108,4 +146,10 @@ internal static class DeferredSubmissionQueries
         foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<PostProcessVolumeSource>()))
             into.Add(chunk);
     }
+
+    private static float MaxAbsScale(in Silk.NET.Maths.Vector2D<float> scale) =>
+        MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y));
+
+    private static Silk.NET.Maths.Vector2D<float> DirectionFromWorldRotation(float radians) =>
+        new(MathF.Cos(radians), MathF.Sin(radians));
 }

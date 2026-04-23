@@ -30,29 +30,29 @@ public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
         if (game.Phase != Phase.Playing || game.BallDocked)
             return;
 
-        ref var ballPos = ref world.Components<Position>().Get(_ballEntity);
+        ref var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
         ref var ballVel = ref world.Components<Velocity>().Get(_ballEntity);
-        ballPos.X += ballVel.Value.X * fixedDeltaSeconds;
-        ballPos.Y += ballVel.Value.Y * fixedDeltaSeconds;
+        ballTransform.LocalPosition.X += ballVel.Value.X * fixedDeltaSeconds;
+        ballTransform.LocalPosition.Y += ballVel.Value.Y * fixedDeltaSeconds;
 
-        if (ballPos.X - Constants.BallR < game.ArenaMinX)
+        if (ballTransform.LocalPosition.X - Constants.BallR < game.ArenaMinX)
         {
-            ballPos.X = game.ArenaMinX + Constants.BallR;
+            ballTransform.LocalPosition.X = game.ArenaMinX + Constants.BallR;
             ballVel.Value.X *= -1f;
         }
-        else if (ballPos.X + Constants.BallR > game.ArenaMaxX)
+        else if (ballTransform.LocalPosition.X + Constants.BallR > game.ArenaMaxX)
         {
-            ballPos.X = game.ArenaMaxX - Constants.BallR;
+            ballTransform.LocalPosition.X = game.ArenaMaxX - Constants.BallR;
             ballVel.Value.X *= -1f;
         }
 
-        if (ballPos.Y + Constants.BallR > game.ArenaMaxY)
+        if (ballTransform.LocalPosition.Y + Constants.BallR > game.ArenaMaxY)
         {
-            ballPos.Y = game.ArenaMaxY - Constants.BallR;
+            ballTransform.LocalPosition.Y = game.ArenaMaxY - Constants.BallR;
             ballVel.Value.Y *= -1f;
         }
 
-        if (ballPos.Y >= game.ArenaMinY - Constants.BallFallSafetyBand)
+        if (ballTransform.LocalPosition.Y >= game.ArenaMinY - Constants.BallFallSafetyBand)
             return;
 
         game.Lives--;
@@ -67,10 +67,11 @@ public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
         }
 
         game.BallDocked = true;
-        ref var paddlePos = ref world.Components<Position>().Get(_paddleEntity);
+        ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
         ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
-        ballPos.X = paddlePos.X;
-        ballPos.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
+        ballTransform.LocalPosition.X = paddleTransform.WorldPosition.X;
+        ballTransform.LocalPosition.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
         ballVel.Value = default;
+        ballTransform.WorldPosition = ballTransform.LocalPosition;
     }
 }

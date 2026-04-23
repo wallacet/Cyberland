@@ -33,15 +33,16 @@ public sealed class BallLaunchSystem : ISystem, IFixedUpdate
             return;
 
         ref var control = ref world.Components<Control>().Get(_controlEntity);
-        ref var paddlePos = ref world.Components<Position>().Get(_paddleEntity);
+        ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
         ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
-        ref var ballPos = ref world.Components<Position>().Get(_ballEntity);
+        ref var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
         ref var ballVel = ref world.Components<Velocity>().Get(_ballEntity);
 
         if (game.BallDocked)
         {
-            ballPos.X = paddlePos.X;
-            ballPos.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
+            ballTransform.LocalPosition.X = paddleTransform.WorldPosition.X;
+            ballTransform.LocalPosition.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
+            ballTransform.WorldPosition = ballTransform.LocalPosition;
         }
 
         if (!game.BallDocked || !control.LaunchBall)

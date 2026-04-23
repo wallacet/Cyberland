@@ -9,7 +9,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Resolves <see cref="Transform"/> hierarchies into world <see cref="Position"/>, <see cref="Rotation"/>, <see cref="Scale"/>.
+/// Resolves <see cref="Transform"/> hierarchies into world transform cache fields.
 /// Forest roots are solved in parallel (disjoint subtrees); cycle leftovers are resolved sequentially.
 /// </summary>
 public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUpdate
@@ -58,9 +58,6 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
         _processed.Clear();
 
         var tfStore = world.Components<Transform>();
-        var posStore = world.Components<Position>();
-        var rotStore = world.Components<Rotation>();
-        var scaleStore = world.Components<Scale>();
         foreach (var view in query)
         {
             var ents = view.Entities;
@@ -127,7 +124,7 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
                 localW.Clear();
                 var subOrder = BuildSubtreeBfsOrder(root);
                 foreach (var eid in subOrder)
-                    SolveOne(world, tfStore, posStore, rotStore, scaleStore, eid, localW, _processed);
+                    SolveOne(world, tfStore, eid, localW, _processed);
             });
         }
 
@@ -137,7 +134,7 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
                 continue;
 
             // Same parent resolution as parallel SolveOne, using the shared world matrix map built for this frame.
-            SolveOne(world, tfStore, posStore, rotStore, scaleStore, id, _world, _processed);
+            SolveOne(world, tfStore, id, _world, _processed);
         }
     }
 
@@ -165,9 +162,6 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
     private void SolveOne(
         World world,
         ComponentStore<Transform> tfStore,
-        ComponentStore<Position> posStore,
-        ComponentStore<Rotation> rotStore,
-        ComponentStore<Scale> scaleStore,
         EntityId id,
         Dictionary<EntityId, Matrix3x2> localW,
         ConcurrentDictionary<EntityId, byte> processed)
@@ -181,33 +175,16 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
         else if (localW.TryGetValue(p, out var pm))
             parentM = pm;
         else
-            parentM = StaticBasisMatrix(posStore, rotStore, scaleStore, p);
+            parentM = TransformMath.LocalMatrix(in tfStore.Get(p));
 
         var wM = TransformMath.Compose(parentM, local);
         localW[id] = wM;
         TransformMath.DecomposeToPRS(wM, out var pos, out var rad, out var sc);
-
-        ref var wp = ref posStore.GetOrAdd(id);
-        wp.X = pos.X;
-        wp.Y = pos.Y;
-        ref var wr = ref rotStore.GetOrAdd(id);
-        wr.Radians = rad;
-        ref var ws = ref scaleStore.GetOrAdd(id);
-        ws.X = sc.X;
-        ws.Y = sc.Y;
+        ref var resolved = ref tfStore.Get(id);
+        resolved.WorldPosition = pos;
+        resolved.WorldRotationRadians = rad;
+        resolved.WorldScale = sc;
 
         processed.TryAdd(id, 0);
-    }
-
-    private static Matrix3x2 StaticBasisMatrix(
-        ComponentStore<Position> posStore,
-        ComponentStore<Rotation> rotStore,
-        ComponentStore<Scale> scaleStore,
-        EntityId id)
-    {
-        var pos = posStore.TryGet(id, out var p) ? p : default;
-        var rot = rotStore.TryGet(id, out var r) ? r.Radians : 0f;
-        var sc = scaleStore.TryGet(id, out var s) ? s : Scale.One;
-        return TransformMath.MatrixFromPositionRotationScale(pos.AsVector(), rot, sc.AsVector());
     }
 }
