@@ -21,6 +21,7 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
     private readonly EntityId _spot;
     private readonly EntityId _headPoint;
     private readonly EntityId _foodPoint;
+    private World _world;
 
     /// <summary>Creates the system.</summary>
     public SnakeLightsFillSystem(GameHostServices host, EntityId sessionEntity, EntityId ambient, EntityId directional,
@@ -38,7 +39,7 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll archetype)
     {
-        _ = world;
+        _world = world;
         _ = archetype;
         if (_host.Renderer is null)
         {
@@ -49,10 +50,11 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
     }
 
     /// <inheritdoc />
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
+        var world = _world;
         var r = _host.Renderer;
         if (r is null)
             return;

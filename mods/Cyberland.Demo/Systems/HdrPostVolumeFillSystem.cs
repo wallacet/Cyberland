@@ -16,6 +16,7 @@ public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
     private readonly GameHostServices _host;
     private EntityId _volumeEntity;
     private bool _resolved;
+    private World _world;
 
     /// <summary>Creates the system.</summary>
     public HdrPostVolumeFillSystem(GameHostServices host) => _host = host;
@@ -23,6 +24,7 @@ public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll archetype)
     {
+        _world = world;
         _ = archetype;
         _ = _host.Renderer
             ?? throw new InvalidOperationException("cyberland.demo/hdr-post-volume requires Host.Renderer during OnStart.");
@@ -32,12 +34,13 @@ public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
     }
 
     /// <inheritdoc />
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = deltaSeconds;
         if (!_resolved)
             return;
 
+        var world = _world;
         var renderer = _host.Renderer!;
         var frameBuffer = renderer.SwapchainPixelSize;
 
@@ -47,12 +50,18 @@ public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
         t = Math.Clamp(t, 0f, 1f);
         var bloomGain = 2.35f - 1.85f * t;
 
+        var cx = frameBuffer.X * 0.5f;
+        var cy = frameBuffer.Y * 0.5f;
+        ref var tf = ref world.Components<Transform>().Get(_volumeEntity);
+        tf.LocalPosition = new Vector2D<float>(cx, cy);
+        tf.LocalRotationRadians = 0f;
+        tf.LocalScale = new Vector2D<float>(1f, 1f);
+
         ref var vol = ref world.Components<PostProcessVolumeSource>().Get(_volumeEntity);
         vol.Active = true;
         vol.Volume = new PostProcessVolume
         {
-            MinWorld = new Vector2D<float>(0f, 0f),
-            MaxWorld = new Vector2D<float>(frameBuffer.X, frameBuffer.Y),
+            HalfExtentsLocal = new Vector2D<float>(cx, cy),
             Priority = 1,
             Overrides = new PostProcessOverrides
             {

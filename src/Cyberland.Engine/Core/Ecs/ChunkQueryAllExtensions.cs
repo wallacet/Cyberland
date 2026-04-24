@@ -14,7 +14,7 @@ public static class ChunkQueryAllExtensions
     /// <typeparam name="TComponent">One of the components in the query spec (used only for error text and compile-time clarity).</typeparam>
     /// <exception cref="InvalidOperationException">Zero matching entities or more than one.</exception>
     public static EntityId RequireSingleEntityWith<TComponent>(this ChunkQueryAll query, string label)
-        where TComponent : struct
+        where TComponent : struct, IComponent
     {
         EntityId? found = null;
         var typeName = typeof(TComponent).Name;
@@ -43,7 +43,7 @@ public static class ChunkQueryAllExtensions
     /// <typeparam name="TComponent">One of the components in the query spec.</typeparam>
     /// <returns>True if exactly one entity exists in the query.</returns>
     public static bool TryGetSingleEntityWith<TComponent>(this ChunkQueryAll query, out EntityId entityId)
-        where TComponent : struct
+        where TComponent : struct, IComponent
     {
         entityId = default;
         EntityId? found = null;

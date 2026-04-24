@@ -6,6 +6,7 @@ using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
+using TextureId = System.UInt32;
 
 namespace Cyberland.Demo.BrickBreaker;
 
@@ -41,6 +42,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     private string _scoreText = "0";
     private string _fpsText = "FPS —";
     private float _fpsSmoothed;
+    private World _world;
 
     public VisualSyncSystem(GameHostServices host, EntityId stateEntity, EntityId background, EntityId paddle, EntityId ball, EntityId titleUi, EntityId gameOverPanel, EntityId gameOverBar, EntityId[] lives, EntityId[,] cells, HudTextIds texts)
     {
@@ -65,6 +67,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
+        _world = world;
         _ = archetype;
         var renderer = _host.Renderer;
         if (renderer is null)
@@ -80,9 +83,10 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         InitializeStaticVisualState(sprites, renderer.WhiteTextureId, renderer.DefaultNormalTextureId);
     }
 
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
+        var world = _world;
         var r = _host.Renderer!;
         var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         if (frameSeconds > 1e-6f)
@@ -137,7 +141,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         SyncHudText(transforms, textStore, fb, in s);
     }
 
-    private void InitializeStaticVisualState(ComponentStore<Sprite> sprites, int white, int normal)
+    private void InitializeStaticVisualState(ComponentStore<Sprite> sprites, TextureId white, TextureId normal)
     {
         ref var bgSpr = ref sprites.Get(_background);
         bgSpr.Visible = true;

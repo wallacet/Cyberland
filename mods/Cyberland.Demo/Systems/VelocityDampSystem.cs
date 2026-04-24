@@ -19,7 +19,7 @@ public sealed class VelocityDampSystem : IParallelSystem, IParallelFixedUpdate
     // Reused across ticks to avoid list allocation churn in the fixed-step loop.
     private readonly List<MultiComponentChunkView> _chunks = new();
 
-    public void OnParallelFixedUpdate(World world, ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
         var factor = MathF.Pow(0.999f, fixedDeltaSeconds * 60f);
         _chunks.Clear();

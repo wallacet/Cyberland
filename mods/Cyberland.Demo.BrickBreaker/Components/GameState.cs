@@ -1,9 +1,11 @@
+using Cyberland.Engine.Core.Ecs;
+
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
 /// ECS singleton state for one BrickBreaker match.
 /// </summary>
-public struct GameState
+public struct GameState : IComponent
 {
     public Phase Phase;
     public int Lives;

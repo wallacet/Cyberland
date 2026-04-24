@@ -43,7 +43,7 @@ public sealed class World
     /// <summary>
     /// Facade for adding, reading, and removing component type <typeparamref name="T"/> on entities.
     /// </summary>
-    public ComponentStore<T> Components<T>() where T : struct
+    public ComponentStore<T> Components<T>() where T : struct, IComponent
     {
         if (!_componentFacades.TryGetValue(typeof(T), out var fac))
         {
@@ -57,14 +57,14 @@ public sealed class World
     /// <summary>
     /// All chunks that store <typeparamref name="T"/> (each chunk yields contiguous spans for SIMD-friendly work).
     /// </summary>
-    public ChunkQuery<T> QueryChunks<T>() where T : struct => new(_ecs);
+    public ChunkQuery<T> QueryChunks<T>() where T : struct, IComponent => new(_ecs);
 
     /// <summary>
     /// Chunks that contain both <typeparamref name="T0"/> and <typeparamref name="T1"/>.
     /// </summary>
     public ChunkQuery2<T0, T1> QueryChunks<T0, T1>()
-        where T0 : struct
-        where T1 : struct => new(_ecs);
+        where T0 : struct, IComponent
+        where T1 : struct, IComponent => new(_ecs);
 
     /// <summary>
     /// Chunks matching the scheduler query spec (all listed components required). Prefer scheduler-passed <see cref="ChunkQueryAll"/>
@@ -73,10 +73,10 @@ public sealed class World
     public ChunkQueryAll QueryChunks(SystemQuerySpec spec) => new(_ecs, spec);
 
     /// <summary>
-    /// Zero-based column index for <typeparamref name="T"/> in <see cref="MultiComponentChunkView.Column{T}"/> for <paramref name="spec"/>
+    /// Zero-based column index for <typeparamref name="T"/> in <see cref="MultiComponentChunkView.Column{T}(int)"/> for <paramref name="spec"/>
     /// (sorted runtime component ids).
     /// </summary>
-    public int GetQueryColumnIndex<T>(SystemQuerySpec spec) where T : struct
+    public int GetQueryColumnIndex<T>(SystemQuerySpec spec) where T : struct, IComponent
     {
         if (Array.IndexOf(spec.Types, typeof(T)) < 0)
             throw new ArgumentException($"{typeof(T).FullName} is not part of this query spec.", nameof(spec));
@@ -87,21 +87,27 @@ public sealed class World
         return idx;
     }
 
-    internal ref T RefGetOrAdd<T>(EntityId entity) where T : struct =>
-        ref _ecs.GetOrAddComponent(entity, new T());
+    internal ref T RefGetOrAdd<T>(EntityId entity) where T : struct, IComponent
+    {
+        RequiresComponentEnforcer.EnsureDependencies<T>(this, entity);
+        return ref _ecs.GetOrAddComponent(entity, new T());
+    }
 
-    internal ref T RefGetOrAdd<T>(EntityId entity, T initial) where T : struct =>
-        ref _ecs.GetOrAddComponent(entity, initial);
+    internal ref T RefGetOrAdd<T>(EntityId entity, T initial) where T : struct, IComponent
+    {
+        RequiresComponentEnforcer.EnsureDependencies<T>(this, entity);
+        return ref _ecs.GetOrAddComponent(entity, initial);
+    }
 
-    internal bool TryGetComponent<T>(EntityId entity, out T value) where T : struct =>
+    internal bool TryGetComponent<T>(EntityId entity, out T value) where T : struct, IComponent =>
         _ecs.TryGetComponent<T>(entity, out value);
 
-    internal ref T RefGet<T>(EntityId entity) where T : struct => ref _ecs.GetComponent<T>(entity);
+    internal ref T RefGet<T>(EntityId entity) where T : struct, IComponent => ref _ecs.GetComponent<T>(entity);
 
-    internal void RemoveComponent<T>(EntityId entity) where T : struct =>
+    internal void RemoveComponent<T>(EntityId entity) where T : struct, IComponent =>
         _ecs.RemoveComponent<T>(entity);
 
-    internal bool HasComponent<T>(EntityId entity) where T : struct =>
+    internal bool HasComponent<T>(EntityId entity) where T : struct, IComponent =>
         _ecs.HasComponent<T>(entity);
 
     internal void GrowRecordsForIndexForTests(int index) => _ecs.GrowRecordsForIndex(index);

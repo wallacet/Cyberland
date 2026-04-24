@@ -133,13 +133,11 @@ public struct AmbientLight
     public float Intensity;
 }
 
-/// <summary>Axis-aligned rectangle in world space selecting post overrides (higher <see cref="Priority"/> wins on overlap).</summary>
+/// <summary>Post-volume authoring data; world placement comes from the owning entity <c>Transform</c>.</summary>
 public struct PostProcessVolume
 {
-    /// <summary>Bottom-left corner (+Y up world).</summary>
-    public Vector2D<float> MinWorld;
-    /// <summary>Top-right corner.</summary>
-    public Vector2D<float> MaxWorld;
+    /// <summary>Half-width / half-height in local volume space before world transform scale.</summary>
+    public Vector2D<float> HalfExtentsLocal;
     /// <summary>Larger values override lower on intersections.</summary>
     public int Priority;
     /// <summary>Optional per-field overrides merged when the camera/player is inside the volume.</summary>

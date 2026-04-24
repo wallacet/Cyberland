@@ -72,6 +72,14 @@ public sealed unsafe partial class VulkanRenderer
     /// <summary>Persistent host mapping for <see cref="_pointLightSsbo"/>; unmapped on teardown.</summary>
     private void* _pointLightSsboMapped;
 
+    private VkBuffer _directionalLightSsbo = default;
+    private DeviceMemory _directionalLightSsboMemory = default;
+    private void* _directionalLightSsboMapped;
+
+    private VkBuffer _spotLightSsbo = default;
+    private DeviceMemory _spotLightSsboMemory = default;
+    private void* _spotLightSsboMapped;
+
     private Image _imgBloom0 = default;
     private DeviceMemory _memBloom0 = default;
     private ImageView _viewBloom0 = default;
@@ -236,17 +244,16 @@ public sealed unsafe partial class VulkanRenderer
         public float FineBlend;
     }
 
+    /// <summary>
+    /// Fullscreen deferred base pass: summed ambient and light counts. Per-light data is in SSBOs
+    /// (<see cref="_directionalLightSsbo"/>, <see cref="_spotLightSsbo"/>).
+    /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct LightingUbo
     {
+        /// <summary>Linear RGB in <c>XYZ</c>, combined intensity in <c>W</c> (sum of active ambients on CPU).</summary>
         public Vector4D<float> Ambient;
-        public Vector4D<float> DirectionalDirIntensity;
-        public Vector4D<float> DirectionalColor;
-        public Vector4D<float> PointPosRadius;
-        public Vector4D<float> PointColorIntensity;
-        public Vector4D<float> PointFalloff;
-        public Vector4D<float> SpotPosRadius;
-        public Vector4D<float> SpotDirCosOuter;
-        public Vector4D<float> SpotColorIntensity;
+        /// <summary><c>X</c> = directional count, <c>Y</c> = spot count (clamped to max), <c>ZW</c> unused.</summary>
+        public Vector4D<float> Counts;
     }
 }

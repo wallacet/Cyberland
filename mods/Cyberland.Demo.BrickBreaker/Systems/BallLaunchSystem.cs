@@ -15,6 +15,7 @@ public sealed class BallLaunchSystem : ISystem, IFixedUpdate
     private readonly EntityId _controlEntity;
     private readonly EntityId _paddleEntity;
     private readonly EntityId _ballEntity;
+    private World _world;
 
     public BallLaunchSystem(EntityId stateEntity, EntityId controlEntity, EntityId paddleEntity, EntityId ballEntity)
     {
@@ -24,10 +25,17 @@ public sealed class BallLaunchSystem : ISystem, IFixedUpdate
         _ballEntity = ballEntity;
     }
 
-    public void OnFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds)
+    public void OnStart(World world, ChunkQueryAll archetype)
+    {
+        _world = world;
+        _ = archetype;
+    }
+
+    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
         _ = fixedDeltaSeconds;
+        var world = _world;
         ref var game = ref world.Components<GameState>().Get(_stateEntity);
         if (game.Phase != Phase.Playing)
             return;

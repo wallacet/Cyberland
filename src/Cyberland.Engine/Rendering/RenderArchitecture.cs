@@ -3,6 +3,14 @@ using Silk.NET.Vulkan;
 
 namespace Cyberland.Engine.Rendering;
 
+internal struct PostProcessVolumeSubmission
+{
+    public PostProcessVolume Volume;
+    public Vector2D<float> WorldPosition;
+    public float WorldRotationRadians;
+    public Vector2D<float> WorldScale;
+}
+
 internal readonly struct FramePlan
 {
     public readonly SpriteDrawRequest[] Sprites;
@@ -16,7 +24,7 @@ internal readonly struct FramePlan
     public readonly int DirectionalLightCount;
     public readonly AmbientLight[] AmbientLights;
     public readonly int AmbientLightCount;
-    public readonly PostProcessVolume[] Volumes;
+    public readonly PostProcessVolumeSubmission[] Volumes;
     public readonly int VolumeCount;
     public readonly GlobalPostProcessSettings GlobalPost;
     public readonly GlobalPostProcessSettings ResolvedPost;
@@ -36,7 +44,7 @@ internal readonly struct FramePlan
         int directionalLightCount,
         AmbientLight[] ambientLights,
         int ambientLightCount,
-        PostProcessVolume[] volumes,
+        PostProcessVolumeSubmission[] volumes,
         int volumeCount,
         in GlobalPostProcessSettings globalPost,
         in GlobalPostProcessSettings resolvedPost,

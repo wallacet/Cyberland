@@ -58,21 +58,21 @@ public sealed class EcsTests
         Assert.False(r.IsAlive(EntityId.FromParts(50_000u, 0)));
     }
 
-    private struct CmpA
+    private struct CmpA : IComponent
     {
         public int V;
     }
 
-    private struct CmpB
+    private struct CmpB : IComponent
     {
         public float X;
     }
 
-    private struct CmpC
+    private struct CmpC : IComponent
     {
     }
 
-    private struct CmpWithFieldInitializer
+    private struct CmpWithFieldInitializer : IComponent
     {
         public int V = 42;
 

@@ -65,11 +65,25 @@ public sealed unsafe partial class VulkanRenderer
         };
         VulkanGraphicsPipelineHelpers.CreateDescriptorSetLayoutOrThrow(_vk!, _device, em, out _dslEmissiveScene, "dsl emissive scene failed.");
 
-        Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[1];
+        Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[3];
         light[0] = new DescriptorSetLayoutBinding
         {
             Binding = 0,
             DescriptorType = DescriptorType.UniformBuffer,
+            DescriptorCount = 1,
+            StageFlags = ShaderStageFlags.FragmentBit
+        };
+        light[1] = new DescriptorSetLayoutBinding
+        {
+            Binding = 1,
+            DescriptorType = DescriptorType.StorageBuffer,
+            DescriptorCount = 1,
+            StageFlags = ShaderStageFlags.FragmentBit
+        };
+        light[2] = new DescriptorSetLayoutBinding
+        {
+            Binding = 2,
+            DescriptorType = DescriptorType.StorageBuffer,
             DescriptorCount = 1,
             StageFlags = ShaderStageFlags.FragmentBit
         };
@@ -106,7 +120,7 @@ public sealed unsafe partial class VulkanRenderer
 
         DescriptorPoolSize ps1 = new() { Type = DescriptorType.CombinedImageSampler, DescriptorCount = 640 };
         DescriptorPoolSize ps2 = new() { Type = DescriptorType.UniformBuffer, DescriptorCount = 40 };
-        DescriptorPoolSize ps3 = new() { Type = DescriptorType.StorageBuffer, DescriptorCount = 8 };
+        DescriptorPoolSize ps3 = new() { Type = DescriptorType.StorageBuffer, DescriptorCount = 12 };
         var poolSizes = stackalloc DescriptorPoolSize[3];
         poolSizes[0] = ps1;
         poolSizes[1] = ps2;
@@ -298,6 +312,28 @@ public sealed unsafe partial class VulkanRenderer
         if (_vk!.MapMemory(_device, _pointLightSsboMemory, 0, bytes, 0, &p) != Result.Success)
             throw new GraphicsInitializationException("map point ssbo (persistent)");
         _pointLightSsboMapped = p;
+    }
+
+    private void EnsureDirectionalSpotLightSsbs()
+    {
+        if (_directionalLightSsbo.Handle == default)
+        {
+            var dBytes = (ulong)(DeferredRenderingConstants.MaxDirectionalLights * 2 * sizeof(Vector4D<float>));
+            CreateHostVisibleBuffer(dBytes, BufferUsageFlags.StorageBufferBit, out _directionalLightSsbo, out _directionalLightSsboMemory);
+            void* p;
+            if (_vk!.MapMemory(_device, _directionalLightSsboMemory, 0, dBytes, 0, &p) != Result.Success)
+                throw new GraphicsInitializationException("map directional light ssbo (persistent)");
+            _directionalLightSsboMapped = p;
+        }
+        if (_spotLightSsbo.Handle == default)
+        {
+            var sBytes = (ulong)(DeferredRenderingConstants.MaxSpotLights * 3 * sizeof(Vector4D<float>));
+            CreateHostVisibleBuffer(sBytes, BufferUsageFlags.StorageBufferBit, out _spotLightSsbo, out _spotLightSsboMemory);
+            void* p;
+            if (_vk!.MapMemory(_device, _spotLightSsboMemory, 0, sBytes, 0, &p) != Result.Success)
+                throw new GraphicsInitializationException("map spot light ssbo (persistent)");
+            _spotLightSsboMapped = p;
+        }
     }
 
     private void AllocateDeferredDescriptorSets()

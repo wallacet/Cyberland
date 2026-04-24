@@ -16,6 +16,7 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag>();
 
     private readonly GameHostServices _host;
+    private World _world;
     private EntityId _player;
 
     /// <summary>False until <see cref="OnStart"/> places the player.</summary>
@@ -28,6 +29,7 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
+        _world = world;
         _ = archetype;
         var r = _host.Renderer
                 ?? throw new InvalidOperationException("cyberland.demo/integrate requires Host.Renderer during OnStart.");
@@ -41,12 +43,13 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
         _initialized = true;
     }
 
-    public void OnFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds)
+    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
         if (!_initialized)
             return;
 
+        var world = _world;
         var r = _host.Renderer!;
         var fb = r.SwapchainPixelSize;
         ref var transform = ref world.Components<Transform>().Get(_player);

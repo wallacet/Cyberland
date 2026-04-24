@@ -43,7 +43,7 @@ public sealed unsafe partial class VulkanRenderer
             SpotLight[] spotLights = [];
             DirectionalLight[] directionalLights = [];
             AmbientLight[] ambientLights = [];
-            PostProcessVolume[] volumes = [];
+            PostProcessVolumeSubmission[] volumes = [];
             GlobalPostProcessSettings globalPost;
             lock (_r._recordLock)
             {

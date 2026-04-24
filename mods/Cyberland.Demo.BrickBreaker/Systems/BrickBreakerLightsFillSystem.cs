@@ -22,6 +22,7 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
     private readonly EntityId _spot;
     private readonly EntityId _paddlePoint;
     private readonly EntityId _ballPoint;
+    private World _world;
 
     /// <summary>Creates the system.</summary>
     public BrickBreakerLightsFillSystem(GameHostServices host, EntityId stateEntity, EntityId paddleEntity, EntityId ballEntity,
@@ -41,7 +42,7 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll archetype)
     {
-        _ = world;
+        _world = world;
         _ = archetype;
         if (_host.Renderer is null)
         {
@@ -52,10 +53,11 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
     }
 
     /// <inheritdoc />
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
+        var world = _world;
         var r = _host.Renderer!;
         var fb = r.SwapchainPixelSize;
         var w = fb.X;

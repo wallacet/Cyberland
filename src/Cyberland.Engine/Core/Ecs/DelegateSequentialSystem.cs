@@ -7,9 +7,9 @@ namespace Cyberland.Engine.Core.Ecs;
 public sealed class DelegateSequentialSystem : ISystem, IEarlyUpdate, IFixedUpdate, ILateUpdate
 {
     private readonly SystemQuerySpec _querySpec;
-    private readonly Action<World, ChunkQueryAll, float>? _onEarlyUpdate;
-    private readonly Action<World, ChunkQueryAll, float>? _onFixedUpdate;
-    private readonly Action<World, ChunkQueryAll, float>? _onLateUpdate;
+    private readonly Action<ChunkQueryAll, float>? _onEarlyUpdate;
+    private readonly Action<ChunkQueryAll, float>? _onFixedUpdate;
+    private readonly Action<ChunkQueryAll, float>? _onLateUpdate;
     private readonly Action<World, ChunkQueryAll>? _onStart;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
@@ -17,9 +17,9 @@ public sealed class DelegateSequentialSystem : ISystem, IEarlyUpdate, IFixedUpda
 
     /// <summary>Delegates only; uses <see cref="SystemQuerySpec.Empty"/>.</summary>
     public DelegateSequentialSystem(
-        Action<World, ChunkQueryAll, float>? onEarlyUpdate = null,
-        Action<World, ChunkQueryAll, float>? onFixedUpdate = null,
-        Action<World, ChunkQueryAll, float>? onLateUpdate = null,
+        Action<ChunkQueryAll, float>? onEarlyUpdate = null,
+        Action<ChunkQueryAll, float>? onFixedUpdate = null,
+        Action<ChunkQueryAll, float>? onLateUpdate = null,
         Action<World, ChunkQueryAll>? onStart = null)
         : this(SystemQuerySpec.Empty, onEarlyUpdate, onFixedUpdate, onLateUpdate, onStart)
     {
@@ -33,9 +33,9 @@ public sealed class DelegateSequentialSystem : ISystem, IEarlyUpdate, IFixedUpda
     /// <param name="onStart">Optional one-time setup (see <see cref="ISystem.OnStart"/>).</param>
     public DelegateSequentialSystem(
         SystemQuerySpec querySpec,
-        Action<World, ChunkQueryAll, float>? onEarlyUpdate = null,
-        Action<World, ChunkQueryAll, float>? onFixedUpdate = null,
-        Action<World, ChunkQueryAll, float>? onLateUpdate = null,
+        Action<ChunkQueryAll, float>? onEarlyUpdate = null,
+        Action<ChunkQueryAll, float>? onFixedUpdate = null,
+        Action<ChunkQueryAll, float>? onLateUpdate = null,
         Action<World, ChunkQueryAll>? onStart = null)
     {
         _querySpec = querySpec;
@@ -52,14 +52,14 @@ public sealed class DelegateSequentialSystem : ISystem, IEarlyUpdate, IFixedUpda
     public void OnStart(World world, ChunkQueryAll query) => _onStart?.Invoke(world, query);
 
     /// <inheritdoc />
-    public void OnEarlyUpdate(World world, ChunkQueryAll query, float deltaSeconds) =>
-        _onEarlyUpdate?.Invoke(world, query, deltaSeconds);
+    public void OnEarlyUpdate(ChunkQueryAll query, float deltaSeconds) =>
+        _onEarlyUpdate?.Invoke(query, deltaSeconds);
 
     /// <inheritdoc />
-    public void OnFixedUpdate(World world, ChunkQueryAll query, float fixedDeltaSeconds) =>
-        _onFixedUpdate?.Invoke(world, query, fixedDeltaSeconds);
+    public void OnFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds) =>
+        _onFixedUpdate?.Invoke(query, fixedDeltaSeconds);
 
     /// <inheritdoc />
-    public void OnLateUpdate(World world, ChunkQueryAll query, float deltaSeconds) =>
-        _onLateUpdate?.Invoke(world, query, deltaSeconds);
+    public void OnLateUpdate(ChunkQueryAll query, float deltaSeconds) =>
+        _onLateUpdate?.Invoke(query, deltaSeconds);
 }

@@ -31,6 +31,7 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     private int _cachedCpuPoints = int.MinValue;
     private string _cachedPlayerPointsText = "0";
     private string _cachedCpuPointsText = "0";
+    private World _world;
 
     public VisualSyncSystem(GameHostServices host, EntityId session, VisualIds visuals, HudTextIds texts)
     {
@@ -42,6 +43,7 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
+        _world = world;
         _ = archetype;
         var renderer = _host.Renderer;
         if (renderer is null)
@@ -54,10 +56,11 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         ConfigureTextRowsOnStart(world);
     }
 
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
+        var world = _world;
         var r = _host.Renderer!;
         ref readonly var st = ref world.Components<State>().Get(_session);
         var fb = r.SwapchainPixelSize;

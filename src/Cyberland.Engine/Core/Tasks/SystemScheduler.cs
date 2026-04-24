@@ -121,13 +121,13 @@ public sealed class SystemScheduler
             Enabled = enabled,
             Started = false,
             Early = system is IEarlyUpdate early
-                ? (world, deltaSeconds) => early.OnEarlyUpdate(world, world.QueryChunks(query), deltaSeconds)
+                ? (world, deltaSeconds) => early.OnEarlyUpdate(world.QueryChunks(query), deltaSeconds)
                 : null,
             Fixed = system is IFixedUpdate fixedUpdate
-                ? (world, fixedDeltaSeconds) => fixedUpdate.OnFixedUpdate(world, world.QueryChunks(query), fixedDeltaSeconds)
+                ? (world, fixedDeltaSeconds) => fixedUpdate.OnFixedUpdate(world.QueryChunks(query), fixedDeltaSeconds)
                 : null,
             Late = system is ILateUpdate late
-                ? (world, deltaSeconds) => late.OnLateUpdate(world, world.QueryChunks(query), deltaSeconds)
+                ? (world, deltaSeconds) => late.OnLateUpdate(world.QueryChunks(query), deltaSeconds)
                 : null,
         });
     }
@@ -150,13 +150,13 @@ public sealed class SystemScheduler
             Enabled = enabled,
             Started = false,
             ParallelEarly = system is IParallelEarlyUpdate early
-                ? (world, deltaSeconds, parallelOptions) => early.OnParallelEarlyUpdate(world, world.QueryChunks(query), deltaSeconds, parallelOptions)
+                ? (world, deltaSeconds, parallelOptions) => early.OnParallelEarlyUpdate(world.QueryChunks(query), deltaSeconds, parallelOptions)
                 : null,
             ParallelFixed = system is IParallelFixedUpdate fixedUpdate
-                ? (world, fixedDeltaSeconds, parallelOptions) => fixedUpdate.OnParallelFixedUpdate(world, world.QueryChunks(query), fixedDeltaSeconds, parallelOptions)
+                ? (world, fixedDeltaSeconds, parallelOptions) => fixedUpdate.OnParallelFixedUpdate(world.QueryChunks(query), fixedDeltaSeconds, parallelOptions)
                 : null,
             ParallelLate = system is IParallelLateUpdate late
-                ? (world, deltaSeconds, parallelOptions) => late.OnParallelLateUpdate(world, world.QueryChunks(query), deltaSeconds, parallelOptions)
+                ? (world, deltaSeconds, parallelOptions) => late.OnParallelLateUpdate(world.QueryChunks(query), deltaSeconds, parallelOptions)
                 : null,
         });
     }
@@ -217,13 +217,13 @@ public sealed class SystemScheduler
     /// <see cref="Hosting.GameHostServices.FixedAccumulatorSeconds"/> is updated <strong>before</strong> late phase, allowing
     /// <see cref="ILateUpdate"/> to extrapolate visuals with the current frame remainder (not the previous frame).
     /// </remarks>
-    /// <param name="world">ECS world passed to each system.</param>
+    /// <param name="world">ECS world: used to build <see cref="ChunkQueryAll"/> and passed only to <see cref="ISystem.OnStart"/> / <see cref="IParallelSystem.OnStart"/>.</param>
     /// <param name="deltaSeconds">Real elapsed frame time in seconds (variable).</param>
     public void RunFrame(World world, float deltaSeconds) =>
         RunFrame(world, deltaSeconds, syncFixedAccumulatorBeforeLate: null);
 
     /// <summary>Same phases as <see cref="RunFrame(World, float)"/>, plus an optional hook after the fixed loop.</summary>
-    /// <param name="world">ECS world passed to each system.</param>
+    /// <param name="world">ECS world: used to build <see cref="ChunkQueryAll"/> and passed only to <see cref="ISystem.OnStart"/> / <see cref="IParallelSystem.OnStart"/>.</param>
     /// <param name="deltaSeconds">Real elapsed frame time in seconds (variable).</param>
     /// <param name="syncFixedAccumulatorBeforeLate">
     /// Invoked once per frame after fixed substeps with the current <see cref="FixedAccumulator"/> (before <see cref="AfterFixedUpdate"/> and late phase).

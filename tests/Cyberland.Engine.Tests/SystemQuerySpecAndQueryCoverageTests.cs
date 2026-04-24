@@ -79,7 +79,25 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
         Assert.Contains("Sprite", ex.Message, StringComparison.Ordinal);
     }
 
-    private struct UniqueUnregisteredStruct { }
+    [Fact]
+    public void ChunkColumn_generic_throws_when_component_not_in_query()
+    {
+        var world = new World();
+        var e = world.CreateEntity();
+        world.Components<Transform>().GetOrAdd(e);
+        var spec = SystemQuerySpec.All<Transform>();
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+        {
+            foreach (var chunk in world.QueryChunks(spec))
+                _ = chunk.Column<Sprite>();
+        });
+        Assert.Contains("Sprite", ex.Message, StringComparison.Ordinal);
+    }
+
+    private struct UniqueUnregisteredStruct : IComponent
+    {
+    }
 
     [Fact]
     public void ComponentRegistry_GetOrRegister_Type_uses_reflection_path_and_rejects_classes()
@@ -90,6 +108,18 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
 
         var id = reg.GetOrRegister(typeof(UniqueUnregisteredStruct));
         Assert.Equal(reg.GetOrRegister<UniqueUnregisteredStruct>(), id);
+    }
+
+    private struct StructWithoutIComponentMarker
+    {
+    }
+
+    [Fact]
+    public void ComponentRegistry_GetOrRegister_Type_rejects_structs_not_marked_IComponent()
+    {
+        var reg = new ComponentRegistry();
+        var ex = Assert.Throws<ArgumentException>(() => reg.GetOrRegister(typeof(StructWithoutIComponentMarker)));
+        Assert.Contains(nameof(IComponent), ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -153,13 +183,34 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     }
 
     [Fact]
+    public void SystemQuerySpec_All_quadruple_sorts_and_queries()
+    {
+        var world = new World();
+        var e = world.CreateEntity();
+        world.Components<BitmapText>().GetOrAdd(e);
+
+        var spec = SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();
+        var n = 0;
+        foreach (var chunk in world.QueryChunks(spec))
+        {
+            n += chunk.Count;
+            _ = chunk.Column<BitmapText>();
+            _ = chunk.Column<Transform>();
+            _ = chunk.Column<TextBuildFingerprint>();
+            _ = chunk.Column<TextSpriteCache>();
+        }
+
+        Assert.Equal(1, n);
+    }
+
+    [Fact]
     public void TextRenderSystem_OnStart_initializes_column_map()
     {
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var host = new GameHostServices(new KeyBindingStore()) { Renderer = new RecordingRenderer() };
         var world = new World();
         var sys = new TextRenderSystem(host);
-        var spec = SystemQuerySpec.All<BitmapText, Transform>();
+        var spec = SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();
         sys.OnStart(world, world.QueryChunks(spec));
-        sys.OnLateUpdate(world, world.QueryChunks(spec), 0.016f);
+        sys.OnLateUpdate(world.QueryChunks(spec), 0.016f);
     }
 }

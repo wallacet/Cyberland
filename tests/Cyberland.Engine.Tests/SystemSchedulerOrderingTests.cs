@@ -22,7 +22,7 @@ public sealed class SystemSchedulerOrderingTests
     {
         public required List<string> Order { get; init; }
         public required string Name { get; init; }
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
         {
             _ = archetype;
             _ = deltaSeconds;
@@ -34,7 +34,7 @@ public sealed class SystemSchedulerOrderingTests
     private sealed class LateAfterA : ISystem, ILateUpdate
     {
         public required List<string> Order { get; init; }
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
         {
             _ = archetype;
             _ = deltaSeconds;
@@ -59,7 +59,7 @@ public sealed class SystemSchedulerOrderingTests
     private sealed class ModLate : ISystem, ILateUpdate
     {
         public required List<string> Order { get; init; }
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
         {
             _ = archetype;
             _ = deltaSeconds;
@@ -82,7 +82,7 @@ public sealed class SystemSchedulerOrderingTests
     private sealed class LateBeforeB : ISystem, ILateUpdate
     {
         public required List<string> Order { get; init; }
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
         {
             _ = archetype;
             _ = deltaSeconds;
@@ -104,13 +104,13 @@ public sealed class SystemSchedulerOrderingTests
     [RunAfter("cycle/b")]
     private sealed class CycleA : ISystem, ILateUpdate
     {
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds) { }
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) { }
     }
 
     [RunAfter("cycle/a")]
     private sealed class CycleB : ISystem, ILateUpdate
     {
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds) { }
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) { }
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class SystemSchedulerOrderingTests
     [RunAfter("orphan/missing")]
     private sealed class OrphanRef : ISystem, ILateUpdate
     {
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds) { }
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) { }
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class SystemSchedulerOrderingTests
     private sealed class DeferAfterA : ISystem, ILateUpdate
     {
         public required List<string> Order { get; init; }
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
         {
             _ = archetype;
             _ = deltaSeconds;
@@ -182,12 +182,12 @@ public sealed class SystemSchedulerOrderingTests
     [RunAfter("rep/a")]
     private sealed class V1 : ISystem, ILateUpdate
     {
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds) { }
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) { }
     }
 
     private sealed class V2 : ISystem, ILateUpdate
     {
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds) { }
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) { }
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public sealed class SystemSchedulerOrderingTests
     {
         public required List<string> Order { get; init; }
         public required string Name { get; init; }
-        public void OnParallelLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions) =>
+        public void OnParallelLateUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions) =>
             Order.Add(Name);
     }
 
@@ -212,7 +212,7 @@ public sealed class SystemSchedulerOrderingTests
     private sealed class ParAfterA : IParallelSystem, IParallelLateUpdate
     {
         public required List<string> Order { get; init; }
-        public void OnParallelLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions) =>
+        public void OnParallelLateUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions) =>
             Order.Add("b");
     }
 
@@ -232,7 +232,7 @@ public sealed class SystemSchedulerOrderingTests
     private sealed class MultiAfter : ISystem, ILateUpdate
     {
         public required List<string> Order { get; init; }
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
         {
             _ = archetype;
             _ = deltaSeconds;
@@ -263,7 +263,7 @@ public sealed class SystemSchedulerOrderingTests
     [RunBefore("orphanBefore/nope")]
     private sealed class OrphanBefore : ISystem, ILateUpdate
     {
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds) { }
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) { }
     }
 
     /* Two identical RunAfter attributes produce duplicate edges; scheduler dedupes via continue. */
@@ -271,7 +271,7 @@ public sealed class SystemSchedulerOrderingTests
     [RunAfter("dupEdge/a")]
     private sealed class DupRunAfter : ISystem, ILateUpdate
     {
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds) { }
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) { }
     }
 
     [Fact]
@@ -286,7 +286,7 @@ public sealed class SystemSchedulerOrderingTests
     [RunBefore("rbf/b")]
     private sealed class RunBeforeNeedsB : ISystem, ILateUpdate
     {
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds) { }
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) { }
     }
 
     [Fact]

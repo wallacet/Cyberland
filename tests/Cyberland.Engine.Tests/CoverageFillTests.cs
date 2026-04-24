@@ -14,7 +14,7 @@ namespace Cyberland.Engine.Tests;
 
 public sealed class CoverageFillTests
 {
-    private struct Cmp
+    private struct Cmp : IComponent
     {
         public int V;
     }

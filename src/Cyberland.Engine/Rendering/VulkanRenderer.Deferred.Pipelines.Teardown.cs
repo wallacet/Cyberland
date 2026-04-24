@@ -33,6 +33,7 @@ public sealed unsafe partial class VulkanRenderer
         DestroyDsl2(ref _dslTexture);
         DestroyLightingBuffer();
         DestroyPointLightSsboResources();
+        DestroyDirectionalSpotLightSsboResources();
 
         VulkanGraphicsPipelineHelpers.DestroySamplerIfValid(_vk, _device, ref _samplerLinear);
 
@@ -96,6 +97,40 @@ public sealed unsafe partial class VulkanRenderer
         {
             _vk!.FreeMemory(_device, _pointLightSsboMemory, null);
             _pointLightSsboMemory = default;
+        }
+    }
+
+    private void DestroyDirectionalSpotLightSsboResources()
+    {
+        if (_directionalLightSsboMemory.Handle != default && _directionalLightSsboMapped != null)
+        {
+            _vk!.UnmapMemory(_device, _directionalLightSsboMemory);
+            _directionalLightSsboMapped = null;
+        }
+        if (_directionalLightSsbo.Handle != default)
+        {
+            _vk!.DestroyBuffer(_device, _directionalLightSsbo, null);
+            _directionalLightSsbo = default;
+        }
+        if (_directionalLightSsboMemory.Handle != default)
+        {
+            _vk!.FreeMemory(_device, _directionalLightSsboMemory, null);
+            _directionalLightSsboMemory = default;
+        }
+        if (_spotLightSsboMemory.Handle != default && _spotLightSsboMapped != null)
+        {
+            _vk!.UnmapMemory(_device, _spotLightSsboMemory);
+            _spotLightSsboMapped = null;
+        }
+        if (_spotLightSsbo.Handle != default)
+        {
+            _vk!.DestroyBuffer(_device, _spotLightSsbo, null);
+            _spotLightSsbo = default;
+        }
+        if (_spotLightSsboMemory.Handle != default)
+        {
+            _vk!.FreeMemory(_device, _spotLightSsboMemory, null);
+            _spotLightSsboMemory = default;
         }
     }
 

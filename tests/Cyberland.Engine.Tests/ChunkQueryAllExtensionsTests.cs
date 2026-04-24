@@ -68,7 +68,7 @@ public sealed class ChunkQueryAllExtensionsTests
         Assert.Equal(e, id);
     }
 
-    private struct PlayerTag
+    private struct PlayerTag : IComponent
     {
     }
 }

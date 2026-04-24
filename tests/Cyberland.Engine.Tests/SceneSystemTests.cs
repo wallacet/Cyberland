@@ -1,3 +1,4 @@
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
@@ -14,12 +15,23 @@ public sealed class SceneSystemTests
     private static ParallelOptions ParOpts() => new ParallelismSettings().CreateParallelOptions();
     private static ParallelOptions SingleThreadOpts() => new() { MaxDegreeOfParallelism = 1 };
 
-    private static GameHostServices Host(IRenderer r, TilemapDataStore? tm = null, ParticleStore? pt = null)
+    /// <summary>Invokes <see cref="ISystem.OnStart"/> / <see cref="IParallelSystem.OnStart"/> so phase tests can use cached <see cref="World"/> the same way <see cref="SystemScheduler"/> does.</summary>
+    private static void StartEcs(IEcsQuerySource system, World w)
+    {
+        var q = w.QueryChunks(system.QuerySpec);
+        switch (system)
+        {
+            case ISystem s: s.OnStart(w, q); break;
+            case IParallelSystem p: p.OnStart(w, q); break;
+            default: throw new InvalidOperationException();
+        }
+    }
+
+    private static GameHostServices Host(IRenderer r, TilemapDataStore? tm = null)
     {
         var kb = new KeyBindingStore();
         var h = new GameHostServices(kb) { Renderer = r };
         h.Tilemaps = tm ?? new TilemapDataStore();
-        h.Particles = pt ?? new ParticleStore();
         return h;
     }
 
@@ -70,7 +82,9 @@ public sealed class SceneSystemTests
         tc.LocalPosition = new Vector2D<float>(2f, 1f);
         tc.Parent = root;
 
-        new TransformHierarchySystem().OnParallelEarlyUpdate(w, w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+        var ths0 = new TransformHierarchySystem();
+        StartEcs(ths0, w);
+        ths0.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
         var childTransform = w.Components<Transform>().Get(child);
         Assert.Equal(2f, childTransform.WorldPosition.X, 3);
         Assert.Equal(1f, childTransform.WorldPosition.Y, 3);
@@ -91,7 +105,9 @@ public sealed class SceneSystemTests
         tc.LocalPosition = new Vector2D<float>(3f, 4f);
         tc.Parent = parent;
 
-        new TransformHierarchySystem().OnParallelEarlyUpdate(w, w.QueryChunks(SystemQuerySpec.All<Transform>()), 0.016f, ParOpts());
+        var ths1 = new TransformHierarchySystem();
+        StartEcs(ths1, w);
+        ths1.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0.016f, ParOpts());
 
         var childTransform = w.Components<Transform>().Get(child);
         Assert.Equal(13f, childTransform.WorldPosition.X, 3);
@@ -110,8 +126,9 @@ public sealed class SceneSystemTests
         tc.Parent = parent;
 
         var sys = new TransformHierarchySystem();
-        sys.OnParallelEarlyUpdate(w, w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
-        sys.OnParallelEarlyUpdate(w, w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+        StartEcs(sys, w);
+        sys.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+        sys.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
     }
 
     [Fact]
@@ -124,8 +141,10 @@ public sealed class SceneSystemTests
         w.Components<Transform>().GetOrAdd(e) = new Transform { LocalPosition = new Vector2D<float>(1f, 2f), WorldPosition = new Vector2D<float>(1f, 2f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
         w.Components<Sprite>().GetOrAdd(e) = Sprite.DefaultWhiteUnlit(0, 0, new Vector2D<float>(1f, 1f));
 
-        new SpriteRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0f, ParOpts());
-        // No throw; early exit when host has no renderer (e.g. headless or pre-init).
+        var sr0 = new SpriteRenderSystem(h);
+        StartEcs(sr0, w);
+        Assert.Throws<AggregateException>(() =>
+            sr0.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0f, ParOpts()));
     }
 
     [Fact]
@@ -139,21 +158,26 @@ public sealed class SceneSystemTests
         spr = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(4f, 4f));
         spr.Visible = true;
 
-        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0.016f, ParOpts());
+        var sr1 = new SpriteRenderSystem(Host(r));
+        StartEcs(sr1, w);
+        sr1.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0.016f, ParOpts());
         Assert.Single(r.Sprites);
         Assert.Equal(1f, r.Sprites[0].CenterWorld.X);
     }
 
     [Fact]
-    public void SpriteRenderSystem_skips_without_Transform_query_rows()
+    public void SpriteRenderSystem_adding_sprite_ensures_transform_and_submits()
     {
         var r = new RecordingRenderer();
         var w = new World();
         var e = w.CreateEntity();
         w.Components<Sprite>().GetOrAdd(e) = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(1f, 1f));
+        Assert.True(w.Components<Transform>().Contains(e));
 
-        new SpriteRenderSystem(Host(r)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0.016f, ParOpts());
-        Assert.Empty(r.Sprites);
+        var sr2 = new SpriteRenderSystem(Host(r));
+        StartEcs(sr2, w);
+        sr2.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0.016f, ParOpts());
+        Assert.Single(r.Sprites);
     }
 
     [Fact]
@@ -161,7 +185,9 @@ public sealed class SceneSystemTests
     {
         var w = new World();
         var opts = new ParallelismSettings().CreateParallelOptions();
-        new SpriteAnimationSystem().OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<SpriteAnimation>()), 0.1f, opts);
+        var san = new SpriteAnimationSystem();
+        StartEcs(san, w);
+        san.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpriteAnimation, Sprite>()), 0.1f, opts);
     }
 
     [Fact]
@@ -181,7 +207,9 @@ public sealed class SceneSystemTests
         };
 
         var opts = new ParallelismSettings().CreateParallelOptions();
-        new SpriteAnimationSystem().OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<SpriteAnimation>()), 0.6f, opts);
+        var sa = new SpriteAnimationSystem();
+        StartEcs(sa, w);
+        sa.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpriteAnimation, Sprite>()), 0.6f, opts);
         var outSpr = w.Components<Sprite>().Get(e);
         Assert.True(outSpr.UvRect.Z > outSpr.UvRect.X);
     }
@@ -194,19 +222,29 @@ public sealed class SceneSystemTests
         var w = new World();
         var map = w.CreateEntity();
         tm.Register(map, new[] { 1, 0 }, 1, 2);
+        var fb = r.SwapchainPixelSize;
+        var cornerWorld = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
+        w.Components<Transform>().GetOrAdd(map) = new Transform
+        {
+            LocalPosition = cornerWorld,
+            LocalRotationRadians = 0f,
+            LocalScale = new Vector2D<float>(1f, 1f),
+            WorldPosition = cornerWorld,
+            WorldRotationRadians = 0f,
+            WorldScale = new Vector2D<float>(1f, 1f)
+        };
         w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
         {
             TileWidth = 16f,
             TileHeight = 16f,
-            OriginX = 0f,
-            OriginY = 0f,
             AtlasAlbedoTextureId = 2,
             Layer = 0,
             SortKey = 0f,
             NonEmptyTileMinIndex = 1
         };
 
-        new TilemapRenderSystem(Host(r, tm)).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<Tilemap>()), 0f, ParOpts());
+        var tmSpec = SystemQuerySpec.All<Tilemap, Transform>();
+        new TilemapRenderSystem(Host(r, tm)).OnParallelLateUpdate(w.QueryChunks(tmSpec), 0f, ParOpts());
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -214,8 +252,7 @@ public sealed class SceneSystemTests
     public void ParticleSimulation_and_render_round_trip()
     {
         var r = new RecordingRenderer();
-        var pt = new ParticleStore();
-        var h = Host(r, pt: pt);
+        var h = Host(r);
         var w = new World();
         var emitter = w.CreateEntity();
         w.Components<Transform>().GetOrAdd(emitter) = new Transform { LocalPosition = new Vector2D<float>(100f, 100f), WorldPosition = new Vector2D<float>(100f, 100f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
@@ -233,9 +270,12 @@ public sealed class SceneSystemTests
             HalfExtent = 4f
         };
 
-        var sim = new ParticleSimulationSystem(h);
-        sim.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.5f, ParOpts());
-        new ParticleRenderSystem(h).OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
+        var sim = new ParticleSimulationSystem();
+        StartEcs(sim, w);
+        sim.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.5f, ParOpts());
+        var pr = new ParticleRenderSystem(h);
+        StartEcs(pr, w);
+        pr.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -273,18 +313,19 @@ public sealed class SceneSystemTests
         });
 
         var sys = new TriggerSystem();
-        sys.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        StartEcs(sys, w);
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.Contains((b.Raw, TriggerEventKind.OnTriggerEnter), EventSet(w, a));
         Assert.Contains((a.Raw, TriggerEventKind.OnTriggerEnter), EventSet(w, b));
 
-        sys.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.Contains((b.Raw, TriggerEventKind.OnTriggerStay), EventSet(w, a));
         Assert.Contains((a.Raw, TriggerEventKind.OnTriggerStay), EventSet(w, b));
 
         ref var tb = ref w.Components<Transform>().Get(b);
         tb.LocalPosition.X = 20f;
         tb.WorldPosition.X = 20f;
-        sys.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.Contains((b.Raw, TriggerEventKind.OnTriggerExit), EventSet(w, a));
         Assert.Contains((a.Raw, TriggerEventKind.OnTriggerExit), EventSet(w, b));
     }
@@ -308,7 +349,9 @@ public sealed class SceneSystemTests
         // Parent needs a Transform so child ancestry walk has a valid link target.
         w.Components<Transform>().GetOrAdd(parent) = Transform.Identity;
 
-        new TriggerSystem().OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        var trH = new TriggerSystem();
+        StartEcs(trH, w);
+        trH.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.NotNull(EventSet(w, parent));
         Assert.NotNull(EventSet(w, child));
     }
@@ -335,7 +378,9 @@ public sealed class SceneSystemTests
             HalfExtents = new Vector2D<float>(1f, 1f)
         }, rotation: MathF.PI / 4f);
 
-        new TriggerSystem().OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        var trS = new TriggerSystem();
+        StartEcs(trS, w);
+        trS.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         var pointEvents = EventSet(w, point);
         Assert.Contains((circle.Raw, TriggerEventKind.OnTriggerEnter), pointEvents);
         Assert.Contains((rect.Raw, TriggerEventKind.OnTriggerEnter), pointEvents);
@@ -358,7 +403,9 @@ public sealed class SceneSystemTests
             Radius = 2f
         });
 
-        new TriggerSystem().OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        var trD = new TriggerSystem();
+        StartEcs(trD, w);
+        trD.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.Empty(EventSet(w, enabled));
         Assert.Empty(EventSet(w, disabled));
     }
@@ -392,8 +439,10 @@ public sealed class SceneSystemTests
 
         var parallelSys = new TriggerSystem();
         var singleSys = new TriggerSystem();
-        parallelSys.OnParallelFixedUpdate(parallelWorld, parallelWorld.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
-        singleSys.OnParallelFixedUpdate(singleWorld, singleWorld.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, SingleThreadOpts());
+        StartEcs(parallelSys, parallelWorld);
+        StartEcs(singleSys, singleWorld);
+        parallelSys.OnParallelFixedUpdate(parallelWorld.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        singleSys.OnParallelFixedUpdate(singleWorld.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, SingleThreadOpts());
 
         foreach (var chunk in parallelWorld.QueryChunks(SystemQuerySpec.All<Trigger>()))
         {
@@ -424,12 +473,13 @@ public sealed class SceneSystemTests
         });
 
         var sys = new TriggerSystem();
-        sys.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        StartEcs(sys, w);
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.NotEmpty(EventSet(w, a));
 
         w.Components<Trigger>().Remove(a);
         w.Components<Trigger>().Remove(b);
-        sys.OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
     }
 
     [Fact]
@@ -444,7 +494,9 @@ public sealed class SceneSystemTests
             Radius = 10f
         };
 
-        new TriggerSystem().OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        var trP = new TriggerSystem();
+        StartEcs(trP, w);
+        trP.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.False(w.Components<TriggerEvents>().Contains(id));
     }
 
@@ -458,7 +510,9 @@ public sealed class SceneSystemTests
             Shape = TriggerShapeKind.Point
         });
 
-        new TriggerSystem().OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        var trF = new TriggerSystem();
+        StartEcs(trF, w);
+        trF.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
     }
 
     [Fact]
@@ -501,7 +555,9 @@ public sealed class SceneSystemTests
             Radius = 1f
         });
 
-        new TriggerSystem().OnParallelFixedUpdate(w, w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        var trHi = new TriggerSystem();
+        StartEcs(trHi, w);
+        trHi.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.NotNull(EventSet(w, missingParent));
         Assert.NotNull(EventSet(w, chainChild));
         Assert.NotNull(EventSet(w, unrelated));

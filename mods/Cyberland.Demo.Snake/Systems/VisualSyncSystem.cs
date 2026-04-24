@@ -6,6 +6,7 @@ using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
+using TextureId = System.UInt32;
 
 namespace Cyberland.Demo.Snake;
 
@@ -26,6 +27,8 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     private static readonly TextStyle ScoreStyle = new(BuiltinFonts.Mono, 18f, new Vector4D<float>(0.95f, 1f, 0.85f, 1f));
     private static readonly TextStyle GameOverStyle = new(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.45f, 0.35f, 1f), Italic: true, Underline: true);
 
+    private World _world;
+
     public VisualSyncSystem(GameHostServices host, EntityId sessionEntity, EntityId visualsEntity)
     {
         _host = host;
@@ -34,6 +37,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     }
     public void OnStart(World world, ChunkQueryAll archetype)
     {
+        _world = world;
         _ = archetype;
         var renderer = _host.Renderer;
         if (renderer is null)
@@ -101,10 +105,11 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         InitializeText(world, visuals.TxtPlaying);
         InitializeText(world, visuals.TxtScore);
     }
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
+        var world = _world;
         var renderer = _host.Renderer;
         if (renderer is null) return;
         ref var session = ref world.Components<Session>().Get(_sessionEntity);
@@ -171,7 +176,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
 
         SetHudText(world, visuals, fb, session);
     }
-    private static void InitializeSprite(World world, EntityId entity, int whiteTextureId, int normalTextureId)
+    private static void InitializeSprite(World world, EntityId entity, TextureId whiteTextureId, TextureId normalTextureId)
     {
         world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
         ref var sprite = ref world.Components<Sprite>().GetOrAdd(entity);

@@ -1,5 +1,4 @@
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Silk.NET.Maths;
 
@@ -11,6 +10,7 @@ namespace Cyberland.Engine.Scene.Systems;
 public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
+    private World _world;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ViewportAnchor2D, Transform>();
@@ -21,35 +21,27 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll archetype)
     {
-        _ = world;
+        _world = world;
         _ = archetype;
-        if (_host.Renderer is null)
-        {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Engine.ViewportAnchorSystem",
-                "Host.Renderer was null during OnStart.");
-            throw new InvalidOperationException("ViewportAnchorSystem requires Host.Renderer during OnStart.");
-        }
     }
 
     /// <inheritdoc />
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = deltaSeconds;
-        var renderer = _host.Renderer;
-        if (renderer is null)
-            return;
+        var world = _world;
+        var renderer = _host.Renderer!;
 
         var fb = renderer.SwapchainPixelSize;
         if (fb.X <= 0 || fb.Y <= 0)
             return;
 
         var sprites = world.Components<Sprite>();
-
         foreach (var chunk in archetype)
         {
             var ents = chunk.Entities;
-            var anchors = chunk.Column<ViewportAnchor2D>(0);
-            var transforms = chunk.Column<Transform>(1);
+            var anchors = chunk.Column<ViewportAnchor2D>();
+            var transforms = chunk.Column<Transform>();
             for (var i = 0; i < chunk.Count; i++)
             {
                 ref readonly var a = ref anchors[i];

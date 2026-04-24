@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
@@ -13,37 +12,31 @@ namespace Cyberland.Engine.Scene.Systems;
 public sealed class SpriteAnimationSystem : IParallelSystem, IParallelLateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<SpriteAnimation>();
-
-    private readonly List<MultiComponentChunkView> _chunks = new();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<SpriteAnimation, Sprite>();
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnStart(World world, ChunkQueryAll query)
     {
-        _chunks.Clear();
+        _ = world;
+        _ = query;
+    }
+
+    /// <inheritdoc />
+    public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+    {
         foreach (var chunk in query)
-            _chunks.Add(chunk);
-
-        if (_chunks.Count == 0)
-            return;
-
-        var spriteStore = world.Components<Sprite>();
-        Parallel.For(0, _chunks.Count, parallelOptions, idx =>
         {
-            var chunk = _chunks[idx];
-            var anims = chunk.Column<SpriteAnimation>(0);
-            var entities = chunk.Entities;
-            for (var i = 0; i < chunk.Count; i++)
+            Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                ref var a = ref anims[i];
+                ref var a = ref chunk.Column<SpriteAnimation>()[i];
                 if (a.FrameCount <= 0 || a.SecondsPerFrame <= 0f || a.AtlasColumns <= 0)
-                    continue;
+                    return;
 
                 a.ElapsedSeconds += deltaSeconds;
-                ref var spr = ref spriteStore.GetOrAdd(entities[i]);
+                ref var spr = ref chunk.Column<Sprite>()[i];
                 SpriteAnimationMath.Apply(ref a, ref spr);
-            }
-        });
+            });
+        }
     }
 }
 

@@ -20,6 +20,7 @@ Code should be easy to follow for someone new to the file: **clear names first**
 - Use consistent naming for game concepts (systems, resources, entities) once chosen.
 - Avoid clever one-liners when a straightforward form is clearer; optimize only when measured or clearly on a hot path.
 - Do not register **`ISystem` / `IParallelSystem`** implementations that only repeat one-shot setup every frame — see **cyberland-ecs-one-shot**.
+- For **`World`** / **`Components<>`** usage in phase updates, follow **cyberland-ecs-world-access** (cache **`World` in `OnStart`** when needed; avoid casual hot-path access).
 
 ## Examples
 

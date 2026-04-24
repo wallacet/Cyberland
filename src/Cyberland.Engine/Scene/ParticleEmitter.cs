@@ -1,11 +1,18 @@
+using Cyberland.Engine.Core.Ecs;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
-/// Authoring fields for a simple CPU particle stream; <see cref="Systems.ParticleSimulationSystem"/> integrates positions into <see cref="ParticleStore"/>.
+/// Authoring and runtime fields for a simple CPU particle stream; <see cref="Systems.ParticleSimulationSystem"/> integrates
+/// SoA particle state in-place and <see cref="Systems.ParticleRenderSystem"/> draws it.
 /// </summary>
-public struct ParticleEmitter
+/// <remarks>
+/// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures <see cref="Transform"/> exists
+/// (see <see cref="RequiresComponentAttribute{TRequired}"/>).
+/// </remarks>
+[RequiresComponent<Transform>]
+public struct ParticleEmitter : IComponent
 {
     /// <summary>Time bank toward the next spawn.</summary>
     public float SpawnAccumulator;
@@ -29,4 +36,17 @@ public struct ParticleEmitter
     public float HalfExtent;
     /// <summary>When false, spawning stops (existing particles can still age out).</summary>
     public bool Active;
+
+    /// <summary>World X positions for live particles (indices [0, <see cref="RuntimeCount"/>)).</summary>
+    public float[] RuntimePx;
+    /// <summary>World Y positions for live particles.</summary>
+    public float[] RuntimePy;
+    /// <summary>Velocity X for live particles.</summary>
+    public float[] RuntimeVx;
+    /// <summary>Velocity Y for live particles.</summary>
+    public float[] RuntimeVy;
+    /// <summary>Seconds of remaining life for live particles.</summary>
+    public float[] RuntimeLife;
+    /// <summary>Live particle count in runtime SoA arrays.</summary>
+    public int RuntimeCount;
 }

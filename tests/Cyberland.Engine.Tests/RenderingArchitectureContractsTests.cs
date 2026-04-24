@@ -14,7 +14,7 @@ public sealed class RenderingArchitectureContractsTests
         var spotLights = new[] { new SpotLight() };
         var directionalLights = new[] { new DirectionalLight() };
         var ambientLights = new[] { new AmbientLight() };
-        var volumes = new[] { new PostProcessVolume() };
+        var volumes = new[] { new PostProcessVolumeSubmission() };
         var global = new GlobalPostProcessSettings { BloomEnabled = true, BloomRadius = 1.2f, BloomGain = 0.25f, Exposure = 1.2f, Saturation = 0.9f };
         var resolved = new GlobalPostProcessSettings { BloomEnabled = false, BloomRadius = 0.8f, BloomGain = 0f, Exposure = 0.75f, Saturation = 1.1f };
         var sortIndices = new[] { 0 };

@@ -36,10 +36,20 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
     private readonly ThreadLocal<Dictionary<EntityId, Matrix3x2>> _localWorldTls =
         new(() => new Dictionary<EntityId, Matrix3x2>(64));
 
+    private World _ecsWorld;
+
     /// <inheritdoc />
-    public void OnParallelEarlyUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnStart(World world, ChunkQueryAll query)
+    {
+        _ecsWorld = world;
+        _ = query;
+    }
+
+    /// <inheritdoc />
+    public void OnParallelEarlyUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
+        var world = _ecsWorld;
         // Return last frame's adjacency lists to the pool before rebuilding (avoids per-parent List alloc when stable).
         foreach (var kv in _children)
         {

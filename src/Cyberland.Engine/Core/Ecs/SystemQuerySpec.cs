@@ -18,21 +18,29 @@ public readonly struct SystemQuerySpec : IEquatable<SystemQuerySpec>
     public static SystemQuerySpec Empty => new(Array.Empty<Type>());
 
     /// <summary>Entities that have <typeparamref name="T"/>.</summary>
-    public static SystemQuerySpec All<T>() where T : struct =>
+    public static SystemQuerySpec All<T>() where T : struct, IComponent =>
         new(new[] { typeof(T) });
 
     /// <summary>Entities that have both <typeparamref name="T0"/> and <typeparamref name="T1"/>.</summary>
     public static SystemQuerySpec All<T0, T1>()
-        where T0 : struct
-        where T1 : struct =>
+        where T0 : struct, IComponent
+        where T1 : struct, IComponent =>
         new(SortUnique(typeof(T0), typeof(T1)));
 
     /// <summary>Entities that have <typeparamref name="T0"/>, <typeparamref name="T1"/>, and <typeparamref name="T2"/>.</summary>
     public static SystemQuerySpec All<T0, T1, T2>()
-        where T0 : struct
-        where T1 : struct
-        where T2 : struct =>
+        where T0 : struct, IComponent
+        where T1 : struct, IComponent
+        where T2 : struct, IComponent =>
         new(SortUnique(typeof(T0), typeof(T1), typeof(T2)));
+
+    /// <summary>Entities that have <typeparamref name="T0"/>, <typeparamref name="T1"/>, <typeparamref name="T2"/>, and <typeparamref name="T3"/>.</summary>
+    public static SystemQuerySpec All<T0, T1, T2, T3>()
+        where T0 : struct, IComponent
+        where T1 : struct, IComponent
+        where T2 : struct, IComponent
+        where T3 : struct, IComponent =>
+        new(SortUnique(typeof(T0), typeof(T1), typeof(T2), typeof(T3)));
 
     private static Type[] SortUnique(params Type[] types)
     {
@@ -65,10 +73,10 @@ public readonly struct SystemQuerySpec : IEquatable<SystemQuerySpec>
     }
 
     /// <summary>
-    /// Column index for <typeparamref name="T"/> in <see cref="MultiComponentChunkView.Column{T}"/> for this spec
+    /// Column index for <typeparamref name="T"/> in <see cref="MultiComponentChunkView.Column{T}(int)"/> for this spec
     /// (matches sorted runtime component ids).
     /// </summary>
-    public int GetColumnIndex<T>(World world) where T : struct =>
+    public int GetColumnIndex<T>(World world) where T : struct, IComponent =>
         world.GetQueryColumnIndex<T>(this);
 
     internal ComponentId[] ResolveSortedComponentIds(ComponentRegistry registry)

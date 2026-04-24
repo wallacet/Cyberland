@@ -86,8 +86,8 @@ public interface IRenderer
     /// <summary>Queues ambient fill (typically one per frame).</summary>
     void SubmitAmbientLight(in AmbientLight light);
 
-    /// <summary>Axis-aligned volume in world space (bottom-left +Y up) affecting post settings.</summary>
-    void SubmitPostProcessVolume(in PostProcessVolume volume);
+    /// <summary>Queues one post-process volume plus world transform snapshot for overlap/merge.</summary>
+    void SubmitPostProcessVolume(in PostProcessVolume volume, Vector2D<float> worldPosition, float worldRotationRadians, Vector2D<float> worldScale);
 
     /// <summary>Global post-process toggles and parameters. Persists until the next call (not reset each frame).</summary>
     void SetGlobalPostProcess(in GlobalPostProcessSettings settings);

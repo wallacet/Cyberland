@@ -1,3 +1,4 @@
+using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Rendering;
 using Silk.NET.Maths;
 
@@ -7,7 +8,12 @@ namespace Cyberland.Engine.Scene;
 /// Drawable sprite payload; world pose comes from <see cref="Transform"/> world cache fields (world space, +Y up).
 /// Submitted by the stock <see cref="Systems.SpriteRenderSystem"/>; prefer adding components over calling <see cref="Rendering.IRenderer.SubmitSprite"/> from mod code.
 /// </summary>
-public struct Sprite
+/// <remarks>
+/// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures <see cref="Transform"/> exists
+/// (see <see cref="RequiresComponentAttribute{TRequired}"/>).
+/// </remarks>
+[RequiresComponent<Transform>]
+public struct Sprite : IComponent
 {
     /// <summary>Half-size in world units (rectangle from center).</summary>
     public Vector2D<float> HalfExtents;

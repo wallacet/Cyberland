@@ -50,7 +50,7 @@ public sealed class SceneSetupSystem : ISystem
         world.Components<ViewportAnchor2D>().GetOrAdd(background) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = ViewportContentSpace.WorldPixels,
+            ContentSpace = CoordinateSpace.WorldSpace,
             Anchor = ViewportAnchorPreset.Center,
             OffsetX = 0f,
             OffsetY = 0f,
@@ -73,7 +73,7 @@ public sealed class SceneSetupSystem : ISystem
         world.Components<ViewportAnchor2D>().GetOrAdd(neonStrip) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = ViewportContentSpace.WorldPixels,
+            ContentSpace = CoordinateSpace.WorldSpace,
             Anchor = ViewportAnchorPreset.LeftCenter,
             OffsetX = 110f,
             OffsetY = 0f,
@@ -93,7 +93,7 @@ public sealed class SceneSetupSystem : ISystem
         world.Components<ViewportAnchor2D>().GetOrAdd(hudTitle) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = ViewportContentSpace.ScreenPixels,
+            ContentSpace = CoordinateSpace.ScreenSpace,
             Anchor = ViewportAnchorPreset.BottomLeft,
             OffsetX = 24f,
             OffsetY = 36f,
@@ -113,7 +113,7 @@ public sealed class SceneSetupSystem : ISystem
         world.Components<ViewportAnchor2D>().GetOrAdd(hudHint) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = ViewportContentSpace.ScreenPixels,
+            ContentSpace = CoordinateSpace.ScreenSpace,
             Anchor = ViewportAnchorPreset.TopLeft,
             OffsetX = 24f,
             OffsetY = 48f,
@@ -179,7 +179,28 @@ public sealed class SceneSetupSystem : ISystem
 
         var eBloom = world.CreateEntity();
         world.Components<HdrBloomVolumeTag>().GetOrAdd(eBloom);
-        world.Components<PostProcessVolumeSource>().GetOrAdd(eBloom) = new PostProcessVolumeSource { Active = true, Volume = default };
+        var fb = renderer.SwapchainPixelSize;
+        var hx = fb.X * 0.5f;
+        var hy = fb.Y * 0.5f;
+        world.Components<Transform>().GetOrAdd(eBloom) = new Transform
+        {
+            LocalPosition = new Vector2D<float>(hx, hy),
+            LocalRotationRadians = 0f,
+            LocalScale = new Vector2D<float>(1f, 1f),
+            WorldPosition = new Vector2D<float>(hx, hy),
+            WorldRotationRadians = 0f,
+            WorldScale = new Vector2D<float>(1f, 1f)
+        };
+        world.Components<PostProcessVolumeSource>().GetOrAdd(eBloom) = new PostProcessVolumeSource
+        {
+            Active = true,
+            Volume = new PostProcessVolume
+            {
+                HalfExtentsLocal = new Vector2D<float>(hx, hy),
+                Priority = 0,
+                Overrides = default
+            }
+        };
 
         renderer.SetGlobalPostProcess(new GlobalPostProcessSettings
         {

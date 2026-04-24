@@ -15,13 +15,20 @@ public sealed class WinLoseSystem : IParallelSystem, IParallelFixedUpdate
 
     private readonly EntityId _stateEntity;
     private readonly List<MultiComponentChunkView> _chunks = new();
+    private ComponentStore<GameState> _game = default!;
 
     public WinLoseSystem(EntityId stateEntity) => _stateEntity = stateEntity;
 
-    public void OnParallelFixedUpdate(World world, ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+    public void OnStart(World world, ChunkQueryAll query)
+    {
+        _game = world.Components<GameState>();
+        _ = query;
+    }
+
+    public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
         _ = fixedDeltaSeconds;
-        ref var game = ref world.Components<GameState>().Get(_stateEntity);
+        ref var game = ref _game.Get(_stateEntity);
         if (game.Phase != Phase.Playing)
             return;
 

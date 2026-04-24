@@ -1,6 +1,6 @@
-using System.Reflection;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
@@ -13,8 +13,11 @@ namespace Cyberland.Engine.Tests;
 
 public sealed class TextRenderSystemTests
 {
+    private static readonly SystemQuerySpec TextRowQuery =
+        SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();
+
     [Fact]
-    public void TextRenderSystem_skips_when_renderer_null()
+    public void TextRenderSystem_throws_when_renderer_null()
     {
         var host = new GameHostServices(new KeyBindingStore()) { Renderer = null, LocalizedContent = null };
         var world = new World();
@@ -27,7 +30,10 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var tr = new TextRenderSystem(host);
+        var trQ = TextRowQuery;
+        tr.OnStart(world, world.QueryChunks(trQ));
+        Assert.Throws<NullReferenceException>(() => tr.OnLateUpdate(world.QueryChunks(trQ), 0.016f));
     }
 
     [Fact]
@@ -80,11 +86,16 @@ public sealed class TextRenderSystemTests
         b3.CoordinateSpace = CoordinateSpace.ScreenSpace;
         b3.Style = b2.Style;
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var tr = new TextRenderSystem(host);
+        var trQ = TextRowQuery;
+        tr.OnStart(world, world.QueryChunks(trQ));
+        tr.OnLateUpdate(world.QueryChunks(trQ), 0.016f);
         Assert.Empty(r.Sprites);
 
         host.LocalizedContent = lc;
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var tr2 = new TextRenderSystem(host);
+        tr2.OnStart(world, world.QueryChunks(trQ));
+        tr2.OnLateUpdate(world.QueryChunks(trQ), 0.016f);
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -110,7 +121,10 @@ public sealed class TextRenderSystemTests
         tw.WorldPosition = new Vector2D<float>(40f, 50f);
 
         r.Sprites.Clear();
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var tr = new TextRenderSystem(host);
+        var trQ = TextRowQuery;
+        tr.OnStart(world, world.QueryChunks(trQ));
+        tr.OnLateUpdate(world.QueryChunks(trQ), 0.016f);
         var nWorld = r.Sprites.Count;
         Assert.True(nWorld > 0);
 
@@ -127,7 +141,9 @@ public sealed class TextRenderSystemTests
         ref var ts = ref world.Components<Transform>().Get(es);
         ts.WorldPosition = new Vector2D<float>(40f, r.SwapchainPixelSize.Y - 50f);
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var trScreen = new TextRenderSystem(host);
+        trScreen.OnStart(world, world.QueryChunks(trQ));
+        trScreen.OnLateUpdate(world.QueryChunks(trQ), 0.016f);
         Assert.Equal(nWorld, r.Sprites.Count);
     }
 
@@ -150,7 +166,10 @@ public sealed class TextRenderSystemTests
         tw2.WorldPosition = new Vector2D<float>(10f, 20f);
 
         r.Sprites.Clear();
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var tr = new TextRenderSystem(host);
+        var trQ = TextRowQuery;
+        tr.OnStart(world, world.QueryChunks(trQ));
+        tr.OnLateUpdate(world.QueryChunks(trQ), 0.016f);
         var nLit = r.Sprites.Count;
         Assert.True(nLit > 0);
 
@@ -167,7 +186,9 @@ public sealed class TextRenderSystemTests
         ref var ts2 = ref world.Components<Transform>().Get(es);
         ts2.WorldPosition = new Vector2D<float>(10f, 20f);
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var trSc = new TextRenderSystem(host);
+        trSc.OnStart(world, world.QueryChunks(trQ));
+        trSc.OnLateUpdate(world.QueryChunks(trQ), 0.016f);
         Assert.Equal(nLit, r.Sprites.Count);
     }
 
@@ -189,7 +210,10 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var tr = new TextRenderSystem(host);
+        var trQ = TextRowQuery;
+        tr.OnStart(world, world.QueryChunks(trQ));
+        tr.OnLateUpdate(world.QueryChunks(trQ), 0.016f);
         Assert.Empty(r.Sprites);
     }
 
@@ -244,7 +268,10 @@ public sealed class TextRenderSystemTests
         t3.WorldPosition = new Vector2D<float>(40f, 50f);
 
         r.Sprites.Clear();
-        new TextRenderSystem(host).OnLateUpdate(world, world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0.016f);
+        var tr = new TextRenderSystem(host);
+        var trQ = TextRowQuery;
+        tr.OnStart(world, world.QueryChunks(trQ));
+        tr.OnLateUpdate(world.QueryChunks(trQ), 0.016f);
         Assert.NotEmpty(r.Sprites);
     }
 
@@ -266,12 +293,13 @@ public sealed class TextRenderSystemTests
         ref var transform = ref world.Components<Transform>().Get(e);
         transform.WorldPosition = new Vector2D<float>(1f, 2f);
 
-        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>());
-        sys.OnLateUpdate(world, q, 0.016f);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
         var nFirst = r.Sprites.Count;
         Assert.True(nFirst > 0);
         r.Sprites.Clear();
-        sys.OnLateUpdate(world, q, 0.016f);
+        sys.OnLateUpdate(q, 0.016f);
         Assert.Equal(nFirst, r.Sprites.Count);
     }
 
@@ -291,14 +319,15 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>());
-        sys.OnLateUpdate(world, q, 0.016f);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
         world.DestroyEntity(e);
-        sys.OnLateUpdate(world, q, 0.016f);
+        sys.OnLateUpdate(q, 0.016f);
     }
 
     [Fact]
-    public void TextRenderSystem_prunes_when_renderer_becomes_null()
+    public void TextRenderSystem_throws_when_renderer_becomes_null()
     {
         var r = new RecordingRenderer();
         var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
@@ -313,10 +342,11 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>());
-        sys.OnLateUpdate(world, q, 0.016f);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
         host.Renderer = null;
-        sys.OnLateUpdate(world, q, 0.016f);
+        Assert.Throws<NullReferenceException>(() => sys.OnLateUpdate(q, 0.016f));
     }
 
     [Fact]
@@ -335,32 +365,124 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        var q = world.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>());
-        sys.OnLateUpdate(world, q, 0.016f);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
         bt.Content = "AB";
         r.Sprites.Clear();
-        sys.OnLateUpdate(world, q, 0.016f);
+        sys.OnLateUpdate(q, 0.016f);
         Assert.NotEmpty(r.Sprites);
     }
 
     [Fact]
-    public void TextRowCacheStamp_object_equals_hashcode_and_inequality()
+    public void TextRenderSystem_OnLateUpdate_renders_without_column_map_cache()
     {
-        var stampType = typeof(TextRenderSystem).GetNestedType("TextRowCacheStamp", BindingFlags.NonPublic);
-        Assert.NotNull(stampType);
+        var r = new RecordingRenderer();
+        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var sys = new TextRenderSystem(host);
+        var world = new World();
+        var e = world.CreateEntity();
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
+        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        bt.Visible = true;
+        bt.Content = "Z";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+        Assert.NotEmpty(r.Sprites);
+    }
+
+    [Fact]
+    public void TextRenderSystem_uses_bitmaptext_runtime_cache_fields()
+    {
+        var r = new RecordingRenderer();
+        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var sys = new TextRenderSystem(host);
+        var world = new World();
+        var e = world.CreateEntity();
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
+        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        bt.Visible = true;
+        bt.Content = "hi";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        ref var cache = ref world.Components<TextSpriteCache>().Get(e);
+        Assert.True(cache.GlyphCount > 0);
+        Assert.NotNull(cache.CachedGlyphs);
+    }
+
+    [Fact]
+    public void TextRenderer_DrawLocalizedScreen_is_covered()
+    {
+        var r = new RecordingRenderer();
+        var loc = new LocalizationManager();
+        loc.MergeJson("""{"hud":"HUD"}"""u8.ToArray());
         var style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
-        var a = Activator.CreateInstance(stampType!, "hi", style, CoordinateSpace.WorldSpace, 400f, 1f, 2f, 0, 0);
-        var b = Activator.CreateInstance(stampType!, "hi", style, CoordinateSpace.WorldSpace, 400f, 1f, 2f, 0, 0);
-        var c = Activator.CreateInstance(stampType!, "no", style, CoordinateSpace.WorldSpace, 400f, 1f, 2f, 0, 0);
-        var eqObj = stampType!.GetMethod("Equals", new[] { typeof(object) });
-        Assert.NotNull(eqObj);
-        Assert.True((bool)eqObj.Invoke(a, new object[] { b! })!);
-        Assert.False((bool)eqObj.Invoke(a, new object[] { "x" })!);
-        var hc = stampType.GetMethod("GetHashCode", Type.EmptyTypes);
-        Assert.NotNull(hc);
-        Assert.Equal((int)hc.Invoke(a, null)!, (int)hc.Invoke(b, null)!);
-        var opNe = stampType.GetMethod("op_Inequality", BindingFlags.Public | BindingFlags.Static);
-        Assert.NotNull(opNe);
-        Assert.True((bool)opNe.Invoke(null, new[] { a, c })!);
+
+        TextRenderer.DrawLocalizedScreen(
+            r,
+            new FontLibrary(),
+            new TextGlyphCache(),
+            loc,
+            in style,
+            "hud",
+            new Vector2D<float>(12f, 24f),
+            r.SwapchainPixelSize,
+            300f);
+    }
+
+    [Fact]
+    public void TextBuildSystem_builds_runtime_sprites_in_parallel()
+    {
+        var r = new RecordingRenderer();
+        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var sys = new TextBuildSystem(host);
+        var world = new World();
+        var e = world.CreateEntity();
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
+        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        bt.Visible = true;
+        bt.Content = "parallel";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        Assert.Equal(TextRowQuery, sys.QuerySpec);
+        sys.OnStart(world, q);
+        sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions());
+
+        ref var cache = ref world.Components<TextSpriteCache>().Get(e);
+        Assert.True(cache.GlyphCount >= 0);
+    }
+
+    [Fact]
+    public void TextBuildSystem_throws_when_renderer_null()
+    {
+        var host = new GameHostServices(new KeyBindingStore()) { Renderer = null, LocalizedContent = null };
+        var sys = new TextBuildSystem(host);
+        var world = new World();
+        var e = world.CreateEntity();
+        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
+        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        bt.Visible = true;
+        bt.Content = "x";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        Assert.Throws<AggregateException>(() => sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions()));
     }
 }

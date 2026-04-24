@@ -11,7 +11,7 @@ namespace Cyberland.Engine.Scene;
 /// fields (<see cref="WorldPosition"/>, <see cref="WorldRotationRadians"/>, <see cref="WorldScale"/>). Gameplay and render
 /// systems should read those world fields instead of keeping separate position/rotation/scale components.
 /// </remarks>
-public struct Transform
+public struct Transform : IComponent
 {
     /// <summary>Translation of this node in its parent’s space (or world if root).</summary>
     public Vector2D<float> LocalPosition;

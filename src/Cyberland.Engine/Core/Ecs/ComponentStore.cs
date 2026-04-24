@@ -4,7 +4,7 @@ namespace Cyberland.Engine.Core.Ecs;
 /// Typed accessor for component struct <typeparamref name="T"/> on entities: add/remove and get <c>ref</c> to stored values.
 /// Bulk iteration over many entities uses <see cref="World.QueryChunks{T}"/> instead.
 /// </summary>
-public sealed class ComponentStore<T> : IComponentStore where T : struct
+public sealed class ComponentStore<T> : IComponentStore where T : struct, IComponent
 {
     private readonly World _world;
 

@@ -136,7 +136,7 @@ internal sealed class ArchetypeWorld
         rec.ArchetypeIndex = EntityRecord.NoArchetype;
     }
 
-    public ref T GetOrAddComponent<T>(EntityId entity, T initial) where T : struct
+    public ref T GetOrAddComponent<T>(EntityId entity, T initial) where T : struct, IComponent
     {
         ref var rec = ref GetRecordRef(entity);
         var tid = Registry.GetOrRegister<T>();
@@ -160,7 +160,7 @@ internal sealed class ArchetypeWorld
         return ref ((Column<T>)nc.Columns[newCol]).At(rec.Row);
     }
 
-    private ref T AddFirstComponent<T>(ref EntityRecord rec, EntityId entity, uint tid, T initial) where T : struct
+    private ref T AddFirstComponent<T>(ref EntityRecord rec, EntityId entity, uint tid, T initial) where T : struct, IComponent
     {
         var sig = new[] { tid };
         var (arch, archIdx) = GetOrCreateArchetype(sig);
@@ -179,7 +179,7 @@ internal sealed class ArchetypeWorld
     }
 
     private void MigrateToSignature<T>(ref EntityRecord rec, EntityId entity, Archetype oldArch, uint[] newSig,
-        uint addedTid, T addedInitial) where T : struct
+        uint addedTid, T addedInitial) where T : struct, IComponent
     {
         var oldChunk = oldArch.Chunks[rec.ChunkIndex];
         var oldRow = rec.Row;
@@ -219,7 +219,7 @@ internal sealed class ArchetypeWorld
         }
     }
 
-    public void RemoveComponent<T>(EntityId entity) where T : struct
+    public void RemoveComponent<T>(EntityId entity) where T : struct, IComponent
     {
         ref var rec = ref GetRecordRef(entity);
         if (!rec.HasLayout)
@@ -253,7 +253,7 @@ internal sealed class ArchetypeWorld
         rec.Row = destRow;
     }
 
-    public bool TryGetComponent<T>(EntityId entity, out T value) where T : struct
+    public bool TryGetComponent<T>(EntityId entity, out T value) where T : struct, IComponent
     {
         value = default;
         if ((int)entity.Index >= _records.Length)
@@ -273,7 +273,7 @@ internal sealed class ArchetypeWorld
         return true;
     }
 
-    public ref T GetComponent<T>(EntityId entity) where T : struct
+    public ref T GetComponent<T>(EntityId entity) where T : struct, IComponent
     {
         ref var rec = ref GetRecordRef(entity);
         if (!rec.HasLayout)
@@ -286,7 +286,7 @@ internal sealed class ArchetypeWorld
         return ref ((Column<T>)chunk.Columns[colIdx]).At(rec.Row);
     }
 
-    public bool HasComponent<T>(EntityId entity) where T : struct
+    public bool HasComponent<T>(EntityId entity) where T : struct, IComponent
     {
         if ((int)entity.Index >= _records.Length)
             return false;

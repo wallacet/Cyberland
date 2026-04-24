@@ -14,7 +14,7 @@ internal sealed class ComponentRegistry
     private readonly Dictionary<ComponentId, Func<int, ColumnBase>> _columnFactories = new();
     private uint _nextId;
 
-    public ComponentId GetOrRegister<T>() where T : struct
+    public ComponentId GetOrRegister<T>() where T : struct, IComponent
     {
         var type = typeof(T);
         if (_byType.TryGetValue(type, out var id))
@@ -35,6 +35,8 @@ internal sealed class ComponentRegistry
         ArgumentNullException.ThrowIfNull(type);
         if (!type.IsValueType)
             throw new ArgumentException("Component type must be a struct.", nameof(type));
+        if (!typeof(IComponent).IsAssignableFrom(type))
+            throw new ArgumentException($"{type.FullName} must implement {nameof(IComponent)}.", nameof(type));
         if (_byType.TryGetValue(type, out var id))
             return id;
 

@@ -1,10 +1,13 @@
+using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Rendering.Text;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
-/// Bitmap label drawn by <see cref="Systems.TextStagingSystem"/> then <see cref="Systems.TextRenderSystem"/>; pair with <see cref="Transform"/> for baseline-left.
+/// Bitmap label processed by staged text systems (<see cref="Systems.TextStagingSystem"/>,
+/// <see cref="Systems.TextBuildSystem"/>, and <see cref="Systems.TextRenderSystem"/>); pair with
+/// <see cref="Transform"/> for baseline-left.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -14,8 +17,16 @@ namespace Cyberland.Engine.Scene;
 /// <para>
 /// Recommended <see cref="SortKey"/> bands: lower values for world text, higher (e.g. 400+) for UI so HUD stacks above gameplay.
 /// </para>
+/// <para>
+/// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures
+/// <see cref="Transform"/>, <see cref="TextBuildFingerprint"/>, and <see cref="TextSpriteCache"/> exist on the same entity
+/// (see <see cref="RequiresComponentAttribute{TRequired}"/>).
+/// </para>
 /// </remarks>
-public struct BitmapText
+[RequiresComponent<Transform>]
+[RequiresComponent<TextBuildFingerprint>]
+[RequiresComponent<TextSpriteCache>]
+public struct BitmapText : IComponent
 {
     /// <summary>When false, the text pass skips this row.</summary>
     public bool Visible;

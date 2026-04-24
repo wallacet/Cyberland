@@ -1,3 +1,4 @@
+using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 
 namespace Cyberland.Engine.Rendering;
@@ -112,6 +113,7 @@ public sealed unsafe partial class VulkanRenderer
         public void AllocateLightingDescriptorSet()
         {
             _r.CreateLightingBuffer();
+            _r.EnsureDirectionalSpotLightSsbs();
             fixed (DescriptorSetLayout* dslL = &_r._dslLighting)
             {
                 DescriptorSetAllocateInfo ai = new()
@@ -310,27 +312,58 @@ public sealed unsafe partial class VulkanRenderer
 
         public void UpdateLightingDescriptorSet()
         {
-            if (_r._vk is null || _r._dsLighting.Handle == default || _r._lightingBuffer.Handle == default)
+            if (_r._vk is null || _r._dsLighting.Handle == default || _r._lightingBuffer.Handle == default
+                || _r._directionalLightSsbo.Handle == default || _r._spotLightSsbo.Handle == default)
                 return;
 
-            DescriptorBufferInfo bi = new()
+            DescriptorBufferInfo bi0 = new()
             {
                 Buffer = _r._lightingBuffer,
                 Offset = 0,
                 Range = (ulong)sizeof(LightingUbo)
             };
+            DescriptorBufferInfo bi1 = new()
+            {
+                Buffer = _r._directionalLightSsbo,
+                Offset = 0,
+                Range = (ulong)(DeferredRenderingConstants.MaxDirectionalLights * 2 * sizeof(Vector4D<float>))
+            };
+            DescriptorBufferInfo bi2 = new()
+            {
+                Buffer = _r._spotLightSsbo,
+                Offset = 0,
+                Range = (ulong)(DeferredRenderingConstants.MaxSpotLights * 3 * sizeof(Vector4D<float>))
+            };
 
-            WriteDescriptorSet w = new()
+            var writes = stackalloc WriteDescriptorSet[3];
+            writes[0] = new WriteDescriptorSet
             {
                 SType = StructureType.WriteDescriptorSet,
                 DstSet = _r._dsLighting,
                 DstBinding = 0,
                 DescriptorCount = 1,
                 DescriptorType = DescriptorType.UniformBuffer,
-                PBufferInfo = &bi
+                PBufferInfo = &bi0
             };
-
-            _r._vk!.UpdateDescriptorSets(_r._device, 1, &w, 0, null);
+            writes[1] = new WriteDescriptorSet
+            {
+                SType = StructureType.WriteDescriptorSet,
+                DstSet = _r._dsLighting,
+                DstBinding = 1,
+                DescriptorCount = 1,
+                DescriptorType = DescriptorType.StorageBuffer,
+                PBufferInfo = &bi1
+            };
+            writes[2] = new WriteDescriptorSet
+            {
+                SType = StructureType.WriteDescriptorSet,
+                DstSet = _r._dsLighting,
+                DstBinding = 2,
+                DescriptorCount = 1,
+                DescriptorType = DescriptorType.StorageBuffer,
+                PBufferInfo = &bi2
+            };
+            _r._vk!.UpdateDescriptorSets(_r._device, 3, writes, 0, null);
         }
     }
 }

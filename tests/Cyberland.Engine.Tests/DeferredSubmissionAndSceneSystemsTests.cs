@@ -1,3 +1,4 @@
+using System.Reflection;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Diagnostics;
@@ -10,7 +11,7 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Tests;
 
-/// <summary>Coverage for <see cref="DeferredSubmissionQueries"/> (via public systems), viewport anchors, and text staging.</summary>
+/// <summary>Coverage for light submit/merge paths (via <see cref="Scene.Systems"/>), viewport anchors, and text staging.</summary>
 [Collection("EngineDiagnostics")]
 public sealed class DeferredSubmissionAndSceneSystemsTests
 {
@@ -22,95 +23,91 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     public void Engine_submit_systems_expose_expected_query_specs()
     {
         var r = new RecordingRenderer();
-        Assert.Equal(SystemQuerySpec.Empty, new LightingSystem(Host(r)).QuerySpec);
-        Assert.Equal(SystemQuerySpec.Empty, new PostProcessVolumeSystem(Host(r)).QuerySpec);
-        Assert.Equal(SystemQuerySpec.All<ViewportAnchor2D, Transform>(), new ViewportAnchorSystem(Host(r)).QuerySpec);
-        Assert.Equal(SystemQuerySpec.All<BitmapText, Transform>(), new TextStagingSystem(Host(r)).QuerySpec);
+        var h = Host(r);
+        Assert.Equal(SystemQuerySpec.All<AmbientLightSource>(), new AmbientLightSystem(h).QuerySpec);
+        Assert.Equal(SystemQuerySpec.All<DirectionalLightSource, Transform>(), new DirectionalLightSystem(h).QuerySpec);
+        Assert.Equal(SystemQuerySpec.All<SpotLightSource, Transform>(), new SpotLightSystem(h).QuerySpec);
+        Assert.Equal(SystemQuerySpec.All<PointLightSource, Transform>(), new PointLightSystem(h).QuerySpec);
+        Assert.Equal(SystemQuerySpec.All<PostProcessVolumeSource, Transform>(), new PostProcessVolumeSystem(h).QuerySpec);
+        Assert.Equal(SystemQuerySpec.All<ViewportAnchor2D, Transform>(), new ViewportAnchorSystem(h).QuerySpec);
+        Assert.Equal(SystemQuerySpec.All<BitmapText, Transform>(), new TextStagingSystem(h).QuerySpec);
+        var textRow = SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();
+        Assert.Equal(textRow, new TextBuildSystem(h).QuerySpec);
+        Assert.Equal(textRow, new TextRenderSystem(h).QuerySpec);
     }
 
     [Fact]
-    public void LightingSystem_OnStart_requires_renderer()
+    public void PointLightSystem_OnStart_allows_null_renderer()
     {
         var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
-        var sys = new LightingSystem(h);
+        var sys = new PointLightSystem(h);
         var w = new World();
-        var prev = EngineDiagnostics.SinkOverride;
-        EngineDiagnostics.SinkOverride = new RecordingDiagSink();
-        try
-        {
-            Assert.Throws<InvalidOperationException>(() => sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty)));
-        }
-        finally
-        {
-            EngineDiagnostics.SinkOverride = prev;
-        }
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
     }
 
     [Fact]
-    public void PostProcessVolumeSystem_OnStart_requires_renderer()
+    public void AmbientLightSystem_OnStart_allows_null_renderer()
+    {
+        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var sys = new AmbientLightSystem(h);
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
+    }
+
+    [Fact]
+    public void DirectionalLightSystem_OnStart_allows_null_renderer()
+    {
+        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var sys = new DirectionalLightSystem(h);
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
+    }
+
+    [Fact]
+    public void SpotLightSystem_OnStart_allows_null_renderer()
+    {
+        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var sys = new SpotLightSystem(h);
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+    }
+
+    [Fact]
+    public void PostProcessVolumeSystem_OnStart_allows_null_renderer()
     {
         var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
         var sys = new PostProcessVolumeSystem(h);
         var w = new World();
-        var prev = EngineDiagnostics.SinkOverride;
-        EngineDiagnostics.SinkOverride = new RecordingDiagSink();
-        try
-        {
-            Assert.Throws<InvalidOperationException>(() => sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty)));
-        }
-        finally
-        {
-            EngineDiagnostics.SinkOverride = prev;
-        }
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PostProcessVolumeSource, Transform>()));
     }
 
     [Fact]
-    public void ViewportAnchorSystem_OnStart_requires_renderer()
+    public void ViewportAnchorSystem_OnStart_allows_null_renderer()
     {
         var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
         var sys = new ViewportAnchorSystem(h);
         var w = new World();
-        var prev = EngineDiagnostics.SinkOverride;
-        EngineDiagnostics.SinkOverride = new RecordingDiagSink();
-        try
-        {
-            Assert.Throws<InvalidOperationException>(() =>
-                sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>())));
-        }
-        finally
-        {
-            EngineDiagnostics.SinkOverride = prev;
-        }
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()));
     }
 
     [Fact]
-    public void LightingSystem_skips_point_pass_when_no_point_sources()
+    public void PointLightSystem_skips_points_when_no_sources_in_query()
     {
         var r = new RecordingRenderer();
-        var sys = new LightingSystem(Host(r));
+        var pl = new PointLightSystem(Host(r));
         var w = new World();
-        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty));
-
-        var amb = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource
-        {
-            Active = true,
-            Color = new Vector3D<float>(1f, 1f, 1f),
-            Intensity = 0.2f
-        };
-
-        sys.OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.Empty), 0f, ParOpts());
-        Assert.Single(r.AmbientLights);
+        pl.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
+        pl.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()), 0f, ParOpts());
         Assert.Empty(r.PointLights);
     }
 
     [Fact]
-    public void LightingSystem_skips_inactive_singleton_rows_before_best()
+    public void AmbientLightSystem_submits_active_and_skips_inactive()
     {
         var r = new RecordingRenderer();
-        var sys = new LightingSystem(Host(r));
+        var ambSys = new AmbientLightSystem(Host(r));
         var w = new World();
-        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty));
+        ambSys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
 
         var ambOff = w.CreateEntity();
         w.Components<AmbientLightSource>().GetOrAdd(ambOff) = new AmbientLightSource
@@ -154,7 +151,13 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             Intensity = 1f
         };
 
-        sys.OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.Empty), 0f, ParOpts());
+        var dirSys = new DirectionalLightSystem(Host(r));
+        dirSys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
+        var spotSys = new SpotLightSystem(Host(r));
+        spotSys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+        ambSys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()), 0f, ParOpts());
+        dirSys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()), 0f, ParOpts());
+        spotSys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()), 0f, ParOpts());
         Assert.Equal(0.8f, r.AmbientLights[0].Color.Y);
         Assert.Single(r.DirectionalLights);
         Assert.Single(r.SpotLights);
@@ -166,38 +169,49 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var r = new RecordingRenderer();
         var sys = new PostProcessVolumeSystem(Host(r));
         var w = new World();
-        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty));
-        sys.OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.Empty), 0f, ParOpts());
+        var vSpec = SystemQuerySpec.All<PostProcessVolumeSource, Transform>();
+        sys.OnStart(w, w.QueryChunks(vSpec));
+        sys.OnParallelLateUpdate(w.QueryChunks(vSpec), 0f, ParOpts());
         Assert.Empty(r.Volumes);
     }
 
     [Fact]
-    public void TextStagingSystem_maps_columns_when_OnLateUpdate_runs_before_OnStart()
+    public void TextStagingSystem_maps_columns_on_late_update()
     {
         var r = new RecordingRenderer();
         var h = Host(r);
         var sys = new TextStagingSystem(h);
         var w = new World();
+        var spec = SystemQuerySpec.All<BitmapText, Transform>();
+        var q0 = w.QueryChunks(spec);
+        sys.OnStart(w, q0);
         var e = w.CreateEntity();
         w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
         w.Components<BitmapText>().GetOrAdd(e) = new BitmapText { Visible = false, Content = "ok" };
 
-        sys.OnLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
+        sys.OnLateUpdate(w.QueryChunks(spec), 0f);
 
         var e2 = w.CreateEntity();
         w.Components<Transform>().GetOrAdd(e2) = Transform.Identity;
         w.Components<BitmapText>().GetOrAdd(e2) = new BitmapText { Visible = true, Content = "visible with content skips warning branch" };
 
-        sys.OnLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
+        sys.OnLateUpdate(w.QueryChunks(spec), 0f);
     }
 
     [Fact]
-    public void LightingSystem_submits_best_singleton_lights_and_parallel_points()
+    public void Light_submitters_submit_independent_bands_and_parallel_points()
     {
         var r = new RecordingRenderer();
-        var sys = new LightingSystem(Host(r));
+        var h = Host(r);
+        var ambS = new AmbientLightSystem(h);
+        var dirS = new DirectionalLightSystem(h);
+        var spotS = new SpotLightSystem(h);
+        var pointS = new PointLightSystem(h);
         var w = new World();
-        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty));
+        ambS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
+        dirS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
+        spotS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+        pointS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
 
         var ambLow = w.CreateEntity();
         w.Components<AmbientLightSource>().GetOrAdd(ambLow) = new AmbientLightSource
@@ -255,10 +269,13 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             FalloffExponent = 2f
         };
 
-        sys.OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.Empty), 0.016f, ParOpts());
+        var ptSpec = SystemQuerySpec.All<PointLightSource, Transform>();
+        ambS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()), 0.016f, ParOpts());
+        dirS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()), 0.016f, ParOpts());
+        spotS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()), 0.016f, ParOpts());
+        pointS.OnParallelLateUpdate(w.QueryChunks(ptSpec), 0.016f, ParOpts());
 
-        Assert.Single(r.AmbientLights);
-        Assert.Equal(2f, r.AmbientLights[0].Intensity);
+        Assert.Equal(2, r.AmbientLights.Count);
         Assert.Single(r.DirectionalLights);
         Assert.Single(r.SpotLights);
         Assert.Single(r.PointLights);
@@ -266,14 +283,84 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void LightingSystem_skips_when_renderer_null_on_update()
+    public void PointLightSystem_skips_when_renderer_null_on_update()
     {
         var h = Host(new RecordingRenderer());
-        var sys = new LightingSystem(h);
+        var sys = new PointLightSystem(h);
         var w = new World();
-        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty));
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
         h.Renderer = null;
-        sys.OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.Empty), 0f, ParOpts());
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()), 0f, ParOpts());
+    }
+
+    [Fact]
+    public void AmbientLightSystem_skips_when_renderer_null_on_update()
+    {
+        var h = Host(new RecordingRenderer());
+        var sys = new AmbientLightSystem(h);
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
+        h.Renderer = null;
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()), 0f, ParOpts());
+    }
+
+    [Fact]
+    public void AmbientLightSystem_with_empty_query_returns_before_parallel()
+    {
+        var r = new RecordingRenderer();
+        var sys = new AmbientLightSystem(Host(r));
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()), 0f, ParOpts());
+        Assert.Empty(r.AmbientLights);
+    }
+
+    [Fact]
+    public void DirectionalLightSystem_skips_when_renderer_null_on_update()
+    {
+        var h = Host(new RecordingRenderer());
+        var sys = new DirectionalLightSystem(h);
+        var w = new World();
+        var dSpec = SystemQuerySpec.All<DirectionalLightSource, Transform>();
+        sys.OnStart(w, w.QueryChunks(dSpec));
+        h.Renderer = null;
+        sys.OnParallelLateUpdate(w.QueryChunks(dSpec), 0f, ParOpts());
+    }
+
+    [Fact]
+    public void DirectionalLightSystem_with_empty_query_returns_before_parallel()
+    {
+        var r = new RecordingRenderer();
+        var sys = new DirectionalLightSystem(Host(r));
+        var w = new World();
+        var dSpec = SystemQuerySpec.All<DirectionalLightSource, Transform>();
+        sys.OnStart(w, w.QueryChunks(dSpec));
+        sys.OnParallelLateUpdate(w.QueryChunks(dSpec), 0f, ParOpts());
+        Assert.Empty(r.DirectionalLights);
+    }
+
+    [Fact]
+    public void SpotLightSystem_skips_when_renderer_null_on_update()
+    {
+        var h = Host(new RecordingRenderer());
+        var sys = new SpotLightSystem(h);
+        var w = new World();
+        var sSpec = SystemQuerySpec.All<SpotLightSource, Transform>();
+        sys.OnStart(w, w.QueryChunks(sSpec));
+        h.Renderer = null;
+        sys.OnParallelLateUpdate(w.QueryChunks(sSpec), 0f, ParOpts());
+    }
+
+    [Fact]
+    public void SpotLightSystem_with_empty_query_returns_before_parallel()
+    {
+        var r = new RecordingRenderer();
+        var sys = new SpotLightSystem(Host(r));
+        var w = new World();
+        var sSpec = SystemQuerySpec.All<SpotLightSource, Transform>();
+        sys.OnStart(w, w.QueryChunks(sSpec));
+        sys.OnParallelLateUpdate(w.QueryChunks(sSpec), 0f, ParOpts());
+        Assert.Empty(r.SpotLights);
     }
 
     [Fact]
@@ -282,24 +369,38 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var r = new RecordingRenderer();
         var sys = new PostProcessVolumeSystem(Host(r));
         var w = new World();
-        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty));
+        var vSpec = SystemQuerySpec.All<PostProcessVolumeSource, Transform>();
+        sys.OnStart(w, w.QueryChunks(vSpec));
 
         var e = w.CreateEntity();
+        w.Components<Transform>().GetOrAdd(e) = new Transform
+        {
+            LocalPosition = new Vector2D<float>(5f, 5f),
+            LocalRotationRadians = 0f,
+            LocalScale = new Vector2D<float>(1f, 1f),
+            WorldPosition = new Vector2D<float>(5f, 5f),
+            WorldRotationRadians = 0f,
+            WorldScale = new Vector2D<float>(1f, 1f)
+        };
         w.Components<PostProcessVolumeSource>().GetOrAdd(e) = new PostProcessVolumeSource
         {
             Active = true,
             Volume = new PostProcessVolume
             {
-                MinWorld = new Vector2D<float>(0f, 0f),
-                MaxWorld = new Vector2D<float>(10f, 10f),
+                HalfExtentsLocal = new Vector2D<float>(5f, 5f),
                 Priority = 1,
                 Overrides = default
             }
         };
         var eInactive = w.CreateEntity();
-        w.Components<PostProcessVolumeSource>().GetOrAdd(eInactive) = new PostProcessVolumeSource { Active = false, Volume = default };
+        w.Components<Transform>().GetOrAdd(eInactive) = Transform.Identity;
+        w.Components<PostProcessVolumeSource>().GetOrAdd(eInactive) = new PostProcessVolumeSource
+        {
+            Active = false,
+            Volume = default
+        };
 
-        sys.OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.Empty), 0f, ParOpts());
+        sys.OnParallelLateUpdate(w.QueryChunks(vSpec), 0f, ParOpts());
         Assert.Single(r.Volumes);
     }
 
@@ -309,9 +410,10 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var h = Host(new RecordingRenderer());
         var sys = new PostProcessVolumeSystem(h);
         var w = new World();
-        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.Empty));
+        var vSpec = SystemQuerySpec.All<PostProcessVolumeSource, Transform>();
+        sys.OnStart(w, w.QueryChunks(vSpec));
         h.Renderer = null;
-        sys.OnParallelLateUpdate(w, w.QueryChunks(SystemQuerySpec.Empty), 0f, ParOpts());
+        sys.OnParallelLateUpdate(w.QueryChunks(vSpec), 0f, ParOpts());
     }
 
     [Fact]
@@ -391,18 +493,14 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         AddCorner(ViewportAnchorPreset.BottomLeft, 5f, 6f);
         AddCorner(ViewportAnchorPreset.BottomRight, 7f, 8f);
 
-        sys.OnLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()), 0f);
+        sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()), 0f);
 
         ref var ts = ref w.Components<Transform>().Get(screen);
         Assert.Equal(800f - 10f, ts.WorldPosition.X);
         Assert.Equal(20f, ts.WorldPosition.Y);
 
-        h.Renderer = null;
-        sys.OnLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()), 0f);
-
         r.SwapchainPixelSize = new Vector2D<int>(0, 600);
-        h.Renderer = r;
-        sys.OnLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()), 0f);
+        sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()), 0f);
     }
 
     private sealed class RecordingDiagSink : IEngineDiagnosticSink
@@ -431,8 +529,8 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
             w.Components<BitmapText>().GetOrAdd(e) = new BitmapText { Visible = true, Content = "" };
 
-            sys.OnLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
-            sys.OnLateUpdate(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
+            sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
+            sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
 
             Assert.Single(sink.Calls, c => c.Severity == EngineErrorSeverity.Warning && c.Message.Contains("empty Content", StringComparison.Ordinal));
         }
@@ -443,11 +541,26 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void TextStagingSystem_OnStart_requires_renderer()
+    public void TextStagingSystem_OnStart_allows_null_renderer()
     {
         var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
         var sys = new TextStagingSystem(h);
         var w = new World();
-        Assert.Throws<InvalidOperationException>(() => sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>())));
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()));
+    }
+
+    [Fact]
+    public void TextStagingSystem_OnLateUpdate_handles_hidden_rows()
+    {
+        var r = new RecordingRenderer();
+        var h = Host(r);
+        var sys = new TextStagingSystem(h);
+        var w = new World();
+        var spec = SystemQuerySpec.All<BitmapText, Transform>();
+        sys.OnStart(w, w.QueryChunks(spec));
+        var e = w.CreateEntity();
+        w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
+        w.Components<BitmapText>().GetOrAdd(e) = new BitmapText { Visible = false, Content = "x" };
+        sys.OnLateUpdate(w.QueryChunks(spec), 0f);
     }
 }

@@ -4,6 +4,14 @@ using TextureId = System.UInt32;
 
 namespace Cyberland.Engine.Tests;
 
+internal struct RecordedPostProcessVolume
+{
+    public PostProcessVolume Volume;
+    public Vector2D<float> WorldPosition;
+    public float WorldRotationRadians;
+    public Vector2D<float> WorldScale;
+}
+
 internal sealed class RecordingRenderer : IRenderer
 {
     private readonly object _lock = new();
@@ -19,7 +27,7 @@ internal sealed class RecordingRenderer : IRenderer
     public List<SpotLight> SpotLights { get; } = new();
     public List<DirectionalLight> DirectionalLights { get; } = new();
     public List<AmbientLight> AmbientLights { get; } = new();
-    public List<PostProcessVolume> Volumes { get; } = new();
+    public List<RecordedPostProcessVolume> Volumes { get; } = new();
     public GlobalPostProcessSettings? LastGlobal { get; private set; }
 
     /// <summary>When set, returned from <see cref="RegisterTextureRgba"/> instead of the default id (tests upload failures).</summary>
@@ -105,10 +113,16 @@ internal sealed class RecordingRenderer : IRenderer
             AmbientLights.Add(light);
     }
 
-    public void SubmitPostProcessVolume(in PostProcessVolume volume)
+    public void SubmitPostProcessVolume(in PostProcessVolume volume, Vector2D<float> worldPosition, float worldRotationRadians, Vector2D<float> worldScale)
     {
         lock (_lock)
-            Volumes.Add(volume);
+            Volumes.Add(new RecordedPostProcessVolume
+            {
+                Volume = volume,
+                WorldPosition = worldPosition,
+                WorldRotationRadians = worldRotationRadians,
+                WorldScale = worldScale
+            });
     }
 
     public void SetGlobalPostProcess(in GlobalPostProcessSettings settings)

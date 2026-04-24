@@ -17,6 +17,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
 
     private readonly GameHostServices _host;
     private readonly SystemScheduler _scheduler;
+    private World _world;
     private EntityId _player;
     private bool _initialized;
 
@@ -28,6 +29,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
+        _world = world;
         _ = archetype;
         var input = _host.Input
                     ?? throw new InvalidOperationException("cyberland.demo/input requires Host.Input during OnStart.");
@@ -38,13 +40,14 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         _initialized = true;
     }
 
-    public void OnEarlyUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
         if (!_initialized)
             return;
 
+        var world = _world;
         ref var v = ref world.Components<Velocity>().Get(_player);
         v = default;
 
@@ -57,8 +60,11 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
             return;
         }
 
-        if (kb.IsKeyPressed(Key.F9) && _scheduler.TryGetEnabled("cyberland.demo/velocity-damp", out var dampOn))
-            _scheduler.SetEnabled("cyberland.demo/velocity-damp", !dampOn);
+        if (kb.IsKeyPressed(Key.F9))
+        {
+            var id = "cyberland.demo/velocity-damp";
+            _scheduler.SetEnabled(id, !_scheduler.IsEnabled(id));
+        }
 
         float dx = 0f, dy = 0f;
         if (bindings.IsDown(kb, "move_left") || kb.IsKeyPressed(Key.Left))

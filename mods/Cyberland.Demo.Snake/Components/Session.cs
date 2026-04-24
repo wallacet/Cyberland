@@ -1,9 +1,10 @@
 using Cyberland.Engine;
+using Cyberland.Engine.Core.Ecs;
 using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Snake;
 
-public struct Session
+public struct Session : IComponent
 {
     public Phase Phase;
     public float TickAcc;

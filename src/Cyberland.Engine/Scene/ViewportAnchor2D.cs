@@ -1,3 +1,5 @@
+using Cyberland.Engine.Core.Ecs;
+
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
@@ -7,8 +9,11 @@ namespace Cyberland.Engine.Scene;
 /// Pair <see cref="CoordinateSpace.ScreenSpace"/> with <see cref="BitmapText"/> for HUD rows.
 /// Use <see cref="CoordinateSpace.WorldSpace"/> for world sprites (backgrounds, strips) drawn by <see cref="Systems.SpriteRenderSystem"/>.
 /// Applied each frame by <see cref="Systems.ViewportAnchorSystem"/>.
+/// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures <see cref="Transform"/> exists
+/// (see <see cref="RequiresComponentAttribute{TRequired}"/>).
 /// </remarks>
-public struct ViewportAnchor2D
+[RequiresComponent<Transform>]
+public struct ViewportAnchor2D : IComponent
 {
     /// <summary>When false, <see cref="Systems.ViewportAnchorSystem"/> skips the entity.</summary>
     public bool Active;

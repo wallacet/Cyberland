@@ -1,3 +1,5 @@
+using Cyberland.Engine.Core.Ecs;
+
 namespace Cyberland.Engine.Input;
 
 /// <summary>
@@ -10,7 +12,7 @@ namespace Cyberland.Engine.Input;
 /// <strong>held</strong> state — that breaks later substeps. For held movement, reset in early each frame; use this type only
 /// for edge-triggered flags.
 /// </remarks>
-public struct FrameEdgeLatch
+public struct FrameEdgeLatch : IComponent
 {
     private bool _armed;
 

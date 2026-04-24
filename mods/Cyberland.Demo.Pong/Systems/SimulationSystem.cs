@@ -17,6 +17,7 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
     private readonly GameHostServices _host;
     private readonly EntityId _session;
     private readonly VisualIds _visuals;
+    private World _world;
 
     public SimulationSystem(GameHostServices host, EntityId session, VisualIds visuals)
     {
@@ -27,6 +28,7 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
+        _world = world;
         _ = archetype;
         if (_host.Renderer is null)
         {
@@ -57,9 +59,10 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
         };
     }
 
-    public void OnFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds)
+    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
+        var world = _world;
         var fb = _host.Renderer!.SwapchainPixelSize;
         ref var st = ref world.Components<State>().Get(_session);
         ref var ctl = ref world.Components<Control>().Get(_session);

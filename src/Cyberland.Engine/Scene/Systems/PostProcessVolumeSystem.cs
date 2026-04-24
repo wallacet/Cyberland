@@ -1,8 +1,6 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 
@@ -14,53 +12,41 @@ namespace Cyberland.Engine.Scene.Systems;
 public sealed class PostProcessVolumeSystem : IParallelSystem, IParallelLateUpdate
 {
     private readonly GameHostServices _host;
-    private readonly List<MultiComponentChunkView> _chunks = new();
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PostProcessVolumeSource, Transform>();
 
     /// <summary>Creates the system.</summary>
     public PostProcessVolumeSystem(GameHostServices host) => _host = host;
 
     /// <inheritdoc />
-    public void OnStart(World world, ChunkQueryAll archetype)
+    public void OnStart(World world, ChunkQueryAll query)
     {
         _ = world;
-        _ = archetype;
-        if (_host.Renderer is null)
-        {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Engine.PostProcessVolumeSystem",
-                "Host.Renderer was null during OnStart.");
-            throw new InvalidOperationException("PostProcessVolumeSystem requires Host.Renderer during OnStart.");
-        }
+        _ = query;
     }
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
-        _ = archetype;
         _ = deltaSeconds;
-        var r = _host.Renderer;
-        if (r is null)
-            return;
+        var r = _host.Renderer!;
 
-        _chunks.Clear();
-        DeferredSubmissionQueries.CollectPostProcessVolumeChunks(world, _chunks);
-
-        if (_chunks.Count == 0)
-            return;
-
-        Parallel.For(0, _chunks.Count, parallelOptions, idx =>
+        foreach (var chunk in query)
         {
-            var chunk = _chunks[idx];
-            var col = chunk.Column<PostProcessVolumeSource>(0);
-            for (var i = 0; i < chunk.Count; i++)
+            Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                ref readonly var row = ref col[i];
+                ref readonly var row = ref chunk.Column<PostProcessVolumeSource>()[i];
                 if (!row.Active)
-                    continue;
-                r.SubmitPostProcessVolume(in row.Volume);
-            }
-        });
+                    return;
+
+                ref readonly var tf = ref chunk.Column<Transform>()[i];
+                r.SubmitPostProcessVolume(
+                    in row.Volume,
+                    tf.WorldPosition,
+                    tf.WorldRotationRadians,
+                    tf.WorldScale);
+            });
+        }
     }
 }

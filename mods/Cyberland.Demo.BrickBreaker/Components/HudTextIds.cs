@@ -10,4 +10,4 @@ public readonly record struct HudTextIds(
     EntityId HintGameOver,
     EntityId PlayingScore,
     EntityId ScoreNum,
-    EntityId Fps);
+    EntityId Fps) : IComponent;

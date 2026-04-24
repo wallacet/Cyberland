@@ -15,13 +15,14 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     private readonly GameHostServices _host;
     private readonly EntityId _session;
     private readonly SystemScheduler _scheduler;
+    private World _world;
     private IKeyboard? _keyboard;
 
     public InputSystem(GameHostServices host, EntityId session, SystemScheduler scheduler) { _host = host; _session = session; _scheduler = scheduler; }
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
-        _ = world;
+        _world = world;
         _ = archetype;
         if (_host.Renderer is null)
         {
@@ -39,10 +40,11 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         _keyboard = input.Keyboards[0];
     }
 
-    public void OnEarlyUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
+        var world = _world;
         ref var c = ref world.Components<Control>().Get(_session);
         c = default;
 

@@ -1,6 +1,5 @@
-using System.Collections.Generic;
+using System.Numerics;
 using System.Threading.Tasks;
-using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
@@ -10,61 +9,53 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Parallel pass: for each <see cref="Tilemap"/> entity, looks up grid indices in <see cref="Hosting.GameHostServices.Tilemaps"/> and issues textured quads per solid cell.
-/// Cell centers are converted to world space (<see cref="WorldScreenSpace.ScreenPixelToWorldCenter"/>) before <see cref="IRenderer.SubmitSprite"/>.
+/// Parallel pass: for each <see cref="Tilemap"/> entity with <see cref="Transform"/>, looks up grid indices in
+/// <see cref="Hosting.GameHostServices.Tilemaps"/> and issues textured quads per solid cell. Cell positions are built in
+/// local grid space (+Y down for increasing row index) and mapped through the resolved world matrix.
 /// </summary>
 public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
 {
     private static readonly Vector4D<float> OpaqueWhite = new(1f, 1f, 1f, 1f);
 
-    private readonly List<MultiComponentChunkView> _chunks = new();
     private readonly GameHostServices _host;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Tilemap>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Tilemap, Transform>();
 
     /// <param name="host">Requires both <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Tilemaps"/>.</param>
     public TilemapRenderSystem(GameHostServices host) =>
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
-        var r = _host.Renderer;
+        var r = _host.Renderer!;
         var store = _host.Tilemaps;
-        if (r is null || store is null)
+        if (store is null)
             return;
 
-        var fb = r.SwapchainPixelSize;
-
-        _chunks.Clear();
         foreach (var chunk in query)
-            _chunks.Add(chunk);
-
-        if (_chunks.Count == 0)
-            return;
-
-        Parallel.For(0, _chunks.Count, parallelOptions, idx =>
         {
-            var chunk = _chunks[idx];
-            var ents = chunk.Entities;
-            var maps = chunk.Column<Tilemap>(0);
-            for (var i = 0; i < chunk.Count; i++)
+            Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                var id = ents[i];
-                ref readonly var tm = ref maps[i];
+                var id = chunk.Entities[i];
+                ref readonly var tm = ref chunk.Column<Tilemap>()[i];
+                ref readonly var transform = ref chunk.Column<Transform>()[i];
                 if (!store.TryGet(id, out var mem, out var cols, out var rows))
-                    continue;
+                    return;
 
                 var span = mem.Span;
                 var tw = tm.TileWidth;
                 var th = tm.TileHeight;
-                var ox = tm.OriginX;
-                var oy = tm.OriginY;
                 var tid = tm.AtlasAlbedoTextureId;
                 var minI = tm.NonEmptyTileMinIndex;
                 var defaultNormal = r.DefaultNormalTextureId;
+
+                var worldM = TransformMath.MatrixFromPositionRotationScale(
+                    transform.WorldPosition,
+                    transform.WorldRotationRadians,
+                    transform.WorldScale);
 
                 for (var y = 0; y < rows; y++)
                 for (var x = 0; x < cols; x++)
@@ -73,14 +64,17 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
                     if (ti < minI)
                         continue;
 
-                    var cx = ox + (x + 0.5f) * tw;
-                    var cy = oy + (y + 0.5f) * th;
-                    var centerWorld = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(cx, cy), fb);
+                    var local = new Vector2((x + 0.5f) * tw, -((y + 0.5f) * th));
+                    var centerWorldV = Vector2.Transform(local, worldM);
+                    var centerWorld = new Vector2D<float>(centerWorldV.X, centerWorldV.Y);
+
+                    var hx = tw * 0.48f * transform.WorldScale.X;
+                    var hy = th * 0.48f * transform.WorldScale.Y;
                     var req = new SpriteDrawRequest
                     {
                         CenterWorld = centerWorld,
-                        HalfExtentsWorld = new Vector2D<float>(tw * 0.48f, th * 0.48f),
-                        RotationRadians = 0f,
+                        HalfExtentsWorld = new Vector2D<float>(hx, hy),
+                        RotationRadians = transform.WorldRotationRadians,
                         Layer = tm.Layer,
                         SortKey = tm.SortKey + x * 0.001f + y * 0.0001f,
                         AlbedoTextureId = tid,
@@ -95,7 +89,7 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
                     };
                     r.SubmitSprite(in req);
                 }
-            }
-        });
+            });
+        }
     }
 }

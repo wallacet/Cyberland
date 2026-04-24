@@ -125,7 +125,6 @@ public sealed class GameApplication : IDisposable
         _host.Renderer = _renderer;
         _host.Input = _input;
         _host.Tilemaps ??= new TilemapDataStore();
-        _host.Particles ??= new ParticleStore();
         _renderer.RequestClose = () => _window?.Close();
 
         EngineDefaultGlobalPostProcess.Apply(_renderer);
@@ -144,7 +143,7 @@ public sealed class GameApplication : IDisposable
             _scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
             _scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
             _scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
-            _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
 
             var excluded = ExcludeModsParser.TryParse(_commandLineArgs);
             IReadOnlySet<string>? excludedSet = null;
@@ -161,12 +160,16 @@ public sealed class GameApplication : IDisposable
                 excludedSet);
 
             _scheduler.RegisterSequential("cyberland.engine/viewport-layout", new ViewportAnchorSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/lighting", new LightingSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/lighting-directional", new DirectionalLightSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/lighting-spot", new SpotLightSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/lighting-point", new PointLightSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/post-process-volumes", new PostProcessVolumeSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
-            _scheduler.RegisterSequential("cyberland.engine/text-staging", new TextStagingSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem(_host));
+            _scheduler.RegisterParallel("cyberland.engine/text-build", new TextBuildSystem(_host));
             _scheduler.RegisterSequential("cyberland.engine/text-render", new TextRenderSystem(_host));
         }
         finally

@@ -1,4 +1,3 @@
-using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
@@ -57,9 +56,6 @@ public sealed class GameHostServices
     /// <summary>Optional backing store for <see cref="Cyberland.Engine.Scene.Tilemap"/> grid data used by <see cref="Cyberland.Engine.Scene.Systems.TilemapRenderSystem"/>.</summary>
     public ITilemapDataStore? Tilemaps { get; set; }
 
-    /// <summary>Optional shared particle arenas for <see cref="Cyberland.Engine.Scene.Systems.ParticleSimulationSystem"/> / <see cref="Cyberland.Engine.Scene.Systems.ParticleRenderSystem"/>.</summary>
-    public ParticleStore? Particles { get; set; }
-
     /// <summary>
     /// Wall-clock seconds between successive rendered frames (set by the host after each draw). Matches the
     /// <c>deltaSeconds</c> passed to <see cref="Core.Tasks.SystemScheduler.RunFrame(Cyberland.Engine.Core.Ecs.World, float)"/> in the stock
@@ -69,7 +65,7 @@ public sealed class GameHostServices
 
     /// <summary>
     /// Fixed-step accumulator remainder in seconds (same as <see cref="Core.Tasks.SystemScheduler.FixedAccumulator"/> after
-    /// fixed substeps). The stock host updates this <strong>before</strong> <see cref="ILateUpdate"/> each frame. Use for optional
+    /// fixed substeps). The stock host updates this <strong>before</strong> <see cref="Core.Ecs.ILateUpdate"/> each frame. Use for optional
     /// display extrapolation: e.g. <c>position + velocity * FixedAccumulatorSeconds</c>.
     /// </summary>
     public float FixedAccumulatorSeconds { get; internal set; }
@@ -79,9 +75,4 @@ public sealed class GameHostServices
     /// </summary>
     public float FixedDeltaSeconds { get; internal set; } = 1f / 60f;
 
-    /// <summary>
-    /// Cleared and refilled by <see cref="Cyberland.Engine.Scene.Systems.ParticleSimulationSystem"/> each frame (before parallel sim);
-    /// consumed by <see cref="Cyberland.Engine.Scene.Systems.ParticleRenderSystem"/> in the same frame. Host registers sim before render.
-    /// </summary>
-    public List<EntityId> ParticleEmitterIdsForFrame { get; } = new List<EntityId>(64);
 }

@@ -28,4 +28,10 @@ internal static class DeferredRenderingConstants
 
     /// <summary>Upper bound for point lights in the deferred lighting path.</summary>
     public const int MaxPointLights = 256;
+
+    /// <summary>Upper bound for directional lights in the deferred base (fullscreen) pass.</summary>
+    public const int MaxDirectionalLights = 16;
+
+    /// <summary>Upper bound for spot lights in the deferred base (fullscreen) pass.</summary>
+    public const int MaxSpotLights = 64;
 }

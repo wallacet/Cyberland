@@ -8,11 +8,12 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Parallel pass: submits billboard sprites for live particles stored in <see cref="ParticleStore"/> (pairs with <see cref="ParticleSimulationSystem"/>).
+/// Parallel pass: submits billboard sprites for live particles stored in <see cref="ParticleEmitter"/> runtime SoA arrays
+/// (pairs with <see cref="ParticleSimulationSystem"/>).
 /// </summary>
 /// <remarks>
-/// Uses <see cref="GameHostServices.ParticleEmitterIdsForFrame"/> filled by <see cref="ParticleSimulationSystem"/> in the same frame.
-/// Keep simulation registered and ordered <strong>before</strong> render (stock <see cref="GameApplication"/> order); disabling simulation while leaving render enabled can leave stale emitter ids.
+/// Keep simulation registered and ordered <strong>before</strong> render (stock <see cref="GameApplication"/> order)
+/// so each frame renders freshly integrated emitter runtime arrays.
 /// </remarks>
 public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
 {
@@ -24,58 +25,58 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ParticleEmitter, Transform>();
 
-    /// <param name="host">Requires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Particles"/>.</param>
+    /// <param name="host">Requires <see cref="Hosting.GameHostServices.Renderer"/>.</param>
     public ParticleRenderSystem(GameHostServices host) =>
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnStart(World world, ChunkQueryAll query)
+    {
+        _ = world;
+        _ = query;
+    }
+
+    /// <inheritdoc />
+    public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
-        var r = _host.Renderer;
-        var store = _host.Particles;
-        if (r is null || store is null)
-            return;
-
-        var ids = _host.ParticleEmitterIdsForFrame;
-        if (ids.Count == 0)
-            return;
-
-        var emitters = world.Components<ParticleEmitter>();
-        var transforms = world.Components<Transform>();
+        var r = _host.Renderer!;
         var defaultNormal = r.DefaultNormalTextureId;
-
-        Parallel.For(0, ids.Count, parallelOptions, i =>
+        
+        foreach (var chunk in query)
         {
-            var id = ids[i];
-            ref readonly var em = ref emitters.Get(id);
-            if (!transforms.TryGet(id, out var transform))
-                return;
-            if (!store.TryGetBucket(id, out var b) || b is null || b.Count == 0)
-                return;
-
-            var he = em.HalfExtent;
-            for (var p = 0; p < b.Count; p++)
+            Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                var req = new SpriteDrawRequest
+                ref readonly var em = ref chunk.Column<ParticleEmitter>()[i];
+                ref readonly var transform = ref chunk.Column<Transform>()[i];
+                if (em.RuntimeCount == 0)
+                    return;
+
+                var he = em.HalfExtent;
+                for (var p = 0; p < em.RuntimeCount; p++)
                 {
-                    CenterWorld = new Vector2D<float>(transform.WorldPosition.X + b.Px[p], transform.WorldPosition.Y + b.Py[p]),
-                    HalfExtentsWorld = new Vector2D<float>(he, he),
-                    RotationRadians = 0f,
-                    Layer = em.Layer,
-                    SortKey = em.SortKey + p * 0.001f,
-                    AlbedoTextureId = em.AlbedoTextureId,
-                    NormalTextureId = defaultNormal,
-                    EmissiveTextureId = TextureId.MaxValue,
-                    ColorMultiply = WhiteColor,
-                    Alpha = 1f,
-                    EmissiveTint = WhiteEmissive,
-                    EmissiveIntensity = 0.6f,
-                    DepthHint = em.SortKey,
-                    UvRect = default
-                };
-                r.SubmitSprite(in req);
-            }
-        });
+                    var req = new SpriteDrawRequest
+                    {
+                        CenterWorld = new Vector2D<float>(
+                            transform.WorldPosition.X + em.RuntimePx[p],
+                            transform.WorldPosition.Y + em.RuntimePy[p]),
+                        HalfExtentsWorld = new Vector2D<float>(he, he),
+                        RotationRadians = 0f,
+                        Layer = em.Layer,
+                        SortKey = em.SortKey + p * 0.001f,
+                        AlbedoTextureId = em.AlbedoTextureId,
+                        NormalTextureId = defaultNormal,
+                        EmissiveTextureId = TextureId.MaxValue,
+                        ColorMultiply = WhiteColor,
+                        Alpha = 1f,
+                        EmissiveTint = WhiteEmissive,
+                        EmissiveIntensity = 0.6f,
+                        DepthHint = em.SortKey,
+                        UvRect = default
+                    };
+                    r.SubmitSprite(in req);
+                }
+            });
+        }
     }
 }

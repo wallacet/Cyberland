@@ -21,6 +21,7 @@ public sealed class HdrStationaryLightsFillSystem : ISystem, ILateUpdate
     private EntityId _spot;
     private EntityId _warmPoint;
     private bool _resolved;
+    private World _world;
 
     /// <summary>Creates the system.</summary>
     public HdrStationaryLightsFillSystem(GameHostServices host) => _host = host;
@@ -28,6 +29,7 @@ public sealed class HdrStationaryLightsFillSystem : ISystem, ILateUpdate
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll archetype)
     {
+        _world = world;
         _ = archetype;
         _ = _host.Renderer
             ?? throw new InvalidOperationException("cyberland.demo/hdr-stationary-lights requires Host.Renderer during OnStart.");
@@ -44,13 +46,14 @@ public sealed class HdrStationaryLightsFillSystem : ISystem, ILateUpdate
     }
 
     /// <inheritdoc />
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
         if (!_resolved)
             return;
 
+        var world = _world;
         var r = _host.Renderer!;
         var fb = r.SwapchainPixelSize;
         var w = fb.X;

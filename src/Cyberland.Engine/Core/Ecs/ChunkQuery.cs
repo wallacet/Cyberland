@@ -4,7 +4,7 @@ namespace Cyberland.Engine.Core.Ecs;
 /// Result of <see cref="World.QueryChunks{T}"/>: use <c>foreach</c> to visit every archetype chunk that contains <typeparamref name="T"/>.
 /// </summary>
 /// <remarks>Prefer this for hot loops; <see cref="ComponentChunkView{T}"/> exposes contiguous <see cref="Span{T}"/> columns.</remarks>
-public readonly struct ChunkQuery<T> where T : struct
+public readonly struct ChunkQuery<T> where T : struct, IComponent
 {
     private readonly ArchetypeWorld _world;
 
@@ -17,7 +17,7 @@ public readonly struct ChunkQuery<T> where T : struct
 /// <summary>
 /// A single archetype chunk slice: parallel <see cref="Entities"/> ids and column <see cref="Components"/> for one component type.
 /// </summary>
-public readonly struct ComponentChunkView<T> where T : struct
+public readonly struct ComponentChunkView<T> where T : struct, IComponent
 {
     internal readonly ArchetypeChunk Chunk;
     internal readonly int ColumnIndex;
@@ -41,7 +41,7 @@ public readonly struct ComponentChunkView<T> where T : struct
 /// <summary>
 /// Struct enumerator backing <c>foreach</c> on <see cref="ChunkQuery{T}"/>; yields <see cref="ComponentChunkView{T}"/> items.
 /// </summary>
-public struct ChunkQueryEnumerator<T> where T : struct
+public struct ChunkQueryEnumerator<T> where T : struct, IComponent
 {
     private readonly ArchetypeWorld _world;
     private readonly ComponentId _tid;
@@ -105,8 +105,8 @@ public struct ChunkQueryEnumerator<T> where T : struct
 /// Foreach-able query for entities that have both <typeparamref name="T0"/> and <typeparamref name="T1"/>.
 /// </summary>
 public readonly struct ChunkQuery2<T0, T1>
-    where T0 : struct
-    where T1 : struct
+    where T0 : struct, IComponent
+    where T1 : struct, IComponent
 {
     private readonly ArchetypeWorld _world;
 
@@ -120,8 +120,8 @@ public readonly struct ChunkQuery2<T0, T1>
 /// Enumerator for <see cref="ChunkQuery2{T0,T1}"/>; skips archetypes that only have one of the two components.
 /// </summary>
 public struct ChunkQueryEnumerator2<T0, T1>
-    where T0 : struct
-    where T1 : struct
+    where T0 : struct, IComponent
+    where T1 : struct, IComponent
 {
     private readonly ArchetypeWorld _world;
     private readonly ComponentId _id0;
@@ -197,8 +197,8 @@ public struct ChunkQueryEnumerator2<T0, T1>
 /// Two SoA columns for the same chunk (matching entities by row index).
 /// </summary>
 public readonly struct ComponentChunkView2<T0, T1>
-    where T0 : struct
-    where T1 : struct
+    where T0 : struct, IComponent
+    where T1 : struct, IComponent
 {
     internal readonly ArchetypeChunk Chunk;
     internal readonly int ColumnIndex0;

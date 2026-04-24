@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
@@ -14,7 +13,6 @@ namespace Cyberland.Engine.Scene.Systems;
 /// </summary>
 public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
 {
-    private readonly List<MultiComponentChunkView> _chunks = new();
     private readonly GameHostServices _host;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
@@ -25,35 +23,27 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
         _host = host;
 
     /// <inheritdoc />
-    public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+    public void OnStart(World world, ChunkQueryAll query)
+    {
+        _ = world;
+        _ = query;
+    }
+
+    /// <inheritdoc />
+    public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
-        var r = _host.Renderer;
-        if (r is null)
-            return;
-
-        _chunks.Clear();
+        var r = _host.Renderer!;
+        
         foreach (var chunk in query)
-            _chunks.Add(chunk);
-
-        if (_chunks.Count == 0)
-            return;
-
-        var sprites = world.Components<Sprite>();
-        var transforms = world.Components<Transform>();
-
-        Parallel.For(0, _chunks.Count, parallelOptions, idx =>
         {
-            var chunk = _chunks[idx];
-            var entities = chunk.Entities;
-            for (var i = 0; i < chunk.Count; i++)
+            Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                var entity = entities[i];
-                ref readonly var spr = ref sprites.Get(entity);
+                ref readonly var spr = ref chunk.Column<Sprite>()[i];
                 if (!spr.Visible)
-                    continue;
+                    return;
 
-                ref readonly var transform = ref transforms.Get(entity);
+                ref readonly var transform = ref chunk.Column<Transform>()[i];
                 var hx = spr.HalfExtents.X * transform.WorldScale.X;
                 var hy = spr.HalfExtents.Y * transform.WorldScale.Y;
 
@@ -77,7 +67,7 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
                 };
 
                 r.SubmitSprite(in req);
-            }
-        });
+            });
+        }
     }
 }

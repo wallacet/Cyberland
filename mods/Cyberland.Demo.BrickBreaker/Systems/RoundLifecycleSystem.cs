@@ -19,6 +19,12 @@ public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
     private readonly EntityId _paddleEntity;
     private readonly EntityId _ballEntity;
     private readonly List<MultiComponentChunkView> _chunks = new();
+    private ComponentStore<Control> _control = default!;
+    private ComponentStore<GameState> _game = default!;
+    private ComponentStore<Transform> _transforms = default!;
+    private ComponentStore<PaddleBody> _paddleBodies = default!;
+    private ComponentStore<Velocity> _velocities = default!;
+    private ComponentStore<Trigger> _triggers = default!;
 
     public RoundLifecycleSystem(
         EntityId stateEntity,
@@ -32,42 +38,51 @@ public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
         _ballEntity = ballEntity;
     }
 
-    public void OnParallelFixedUpdate(World world, ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+    public void OnStart(World world, ChunkQueryAll query)
+    {
+        _control = world.Components<Control>();
+        _game = world.Components<GameState>();
+        _transforms = world.Components<Transform>();
+        _paddleBodies = world.Components<PaddleBody>();
+        _velocities = world.Components<Velocity>();
+        _triggers = world.Components<Trigger>();
+        _ = query;
+    }
+
+    public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
         _ = fixedDeltaSeconds;
-        ref var control = ref world.Components<Control>().Get(_controlEntity);
+        ref var control = ref _control.Get(_controlEntity);
         if (!control.StartRound)
             return;
 
         control.StartRound = false;
-        ref var game = ref world.Components<GameState>().Get(_stateEntity);
+        ref var game = ref _game.Get(_stateEntity);
         game.Phase = Phase.Playing;
         game.Lives = Constants.StartingLives;
         game.Score = 0;
         game.BallDocked = true;
 
-        ref var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
-        ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
+        ref var paddleTransform = ref _transforms.Get(_paddleEntity);
+        ref var paddleBody = ref _paddleBodies.Get(_paddleEntity);
         paddleTransform.LocalPosition = new Vector2D<float>(game.LayoutWidth * 0.5f, game.PaddleY);
         paddleTransform.WorldPosition = paddleTransform.LocalPosition;
         paddleBody.HalfWidth = 72f;
         paddleBody.HalfHeight = 10f;
 
-        ref var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
-        ref var ballVel = ref world.Components<Velocity>().Get(_ballEntity);
+        ref var ballTransform = ref _transforms.Get(_ballEntity);
+        ref var ballVel = ref _velocities.Get(_ballEntity);
         ballTransform.LocalPosition.X = paddleTransform.LocalPosition.X;
         ballTransform.LocalPosition.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
         ballTransform.WorldPosition = ballTransform.LocalPosition;
         ballVel.Value = default;
 
-        ref var paddleTrigger = ref world.Components<Trigger>().Get(_paddleEntity);
+        ref var paddleTrigger = ref _triggers.Get(_paddleEntity);
         paddleTrigger.Enabled = true;
         paddleTrigger.HalfExtents = new Vector2D<float>(paddleBody.HalfWidth, paddleBody.HalfHeight);
-        ref var ballTrigger = ref world.Components<Trigger>().Get(_ballEntity);
+        ref var ballTrigger = ref _triggers.Get(_ballEntity);
         ballTrigger.Enabled = true;
         ballTrigger.Radius = Constants.BallR;
-
-        var brickTrigger = world.Components<Trigger>();
         _chunks.Clear();
         foreach (var chunk in query)
             _chunks.Add(chunk);
@@ -83,7 +98,7 @@ public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
                 {
                     ref var bs = ref states[i];
                     bs.Active = true;
-                    ref var t = ref brickTrigger.Get(entities[i]);
+                    ref var t = ref _triggers.Get(entities[i]);
                     t.Enabled = true;
                 }
             });

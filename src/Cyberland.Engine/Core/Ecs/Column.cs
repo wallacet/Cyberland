@@ -16,7 +16,7 @@ internal abstract class ColumnBase
 }
 
 /// <summary>Typed SoA storage for component <typeparamref name="T"/> inside a chunk row.</summary>
-internal sealed class Column<T> : ColumnBase where T : struct
+internal sealed class Column<T> : ColumnBase where T : struct, IComponent
 {
     private T[] _data;
 

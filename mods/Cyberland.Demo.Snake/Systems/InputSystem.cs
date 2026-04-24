@@ -13,16 +13,23 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     private readonly GameHostServices _host;
     private readonly EntityId _sessionEntity;
     private readonly EntityId _controlEntity;
+    private World _world;
     public InputSystem(GameHostServices host, EntityId sessionEntity, EntityId controlEntity)
     {
         _host = host;
         _sessionEntity = sessionEntity;
         _controlEntity = controlEntity;
     }
-    public void OnEarlyUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnStart(World world, ChunkQueryAll archetype)
+    {
+        _world = world;
+        _ = archetype;
+    }
+    public void OnEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
+        var world = _world;
         ref var ctl = ref world.Components<Control>().Get(_controlEntity);
         ctl = default;
         var r = _host.Renderer;

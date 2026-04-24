@@ -13,6 +13,7 @@ public sealed class PaddleMoveSystem : ISystem, IFixedUpdate
     private readonly EntityId _stateEntity;
     private readonly EntityId _controlEntity;
     private readonly EntityId _paddleEntity;
+    private World _world;
 
     public PaddleMoveSystem(EntityId stateEntity, EntityId controlEntity, EntityId paddleEntity)
     {
@@ -21,9 +22,16 @@ public sealed class PaddleMoveSystem : ISystem, IFixedUpdate
         _paddleEntity = paddleEntity;
     }
 
-    public void OnFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds)
+    public void OnStart(World world, ChunkQueryAll archetype)
+    {
+        _world = world;
+        _ = archetype;
+    }
+
+    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
+        var world = _world;
         ref var game = ref world.Components<GameState>().Get(_stateEntity);
         if (game.Phase != Phase.Playing)
             return;

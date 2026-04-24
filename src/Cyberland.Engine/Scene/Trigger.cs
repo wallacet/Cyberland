@@ -1,3 +1,4 @@
+using Cyberland.Engine.Core.Ecs;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Scene;
@@ -9,8 +10,12 @@ namespace Cyberland.Engine.Scene;
 /// Shapes are evaluated in world space (+Y up). For <see cref="TriggerShapeKind.Rectangle"/>, the trigger uses world
 /// center from <see cref="Transform.WorldPosition"/>, orientation from <see cref="Transform.WorldRotationRadians"/>, and local half extents from
 /// <see cref="HalfExtents"/>.
+/// <para>
+/// This component intentionally does not use <see cref="RequiresComponentAttribute{TRequired}"/> for <see cref="Transform"/>:
+/// <see cref="Systems.TriggerSystem"/> skips triggers with no transform row so authoring can attach a trigger before a transform exists.
+/// </para>
 /// </remarks>
-public struct Trigger
+public struct Trigger : IComponent
 {
     /// <summary>
     /// Whether this trigger participates in overlap checks.

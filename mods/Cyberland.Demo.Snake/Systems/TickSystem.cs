@@ -14,6 +14,7 @@ public sealed class TickSystem : ISystem, IFixedUpdate
     private readonly GameHostServices _host;
     private readonly EntityId _sessionEntity;
     private readonly EntityId _controlEntity;
+    private World _world;
     public TickSystem(GameHostServices host, EntityId sessionEntity, EntityId controlEntity)
     {
         _host = host;
@@ -21,9 +22,16 @@ public sealed class TickSystem : ISystem, IFixedUpdate
         _controlEntity = controlEntity;
     }
 
-    public void OnFixedUpdate(World world, ChunkQueryAll archetype, float fixedDeltaSeconds)
+    public void OnStart(World world, ChunkQueryAll archetype)
+    {
+        _world = world;
+        _ = archetype;
+    }
+
+    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
+        var world = _world;
         var r = _host.Renderer;
         if (r is null) return;
         var fb = r.SwapchainPixelSize;

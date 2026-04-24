@@ -223,47 +223,57 @@ public sealed class RenderingHelpersTests
 
         var vols = new[]
         {
-            new PostProcessVolume
+            new PostProcessVolumeSubmission
             {
-                MinWorld = new Vector2D<float>(0, 0),
-                MaxWorld = new Vector2D<float>(10, 10),
-                Priority = 1,
-                Overrides = new PostProcessOverrides
+                Volume = new PostProcessVolume
                 {
-                    HasBloomRadius = true,
-                    BloomRadius = 1.25f,
-                    HasBloomGain = true,
-                    BloomGain = 2f,
-                    HasEmissiveToHdrGain = true,
-                    EmissiveToHdrGain = 0.8f,
-                    HasEmissiveToBloomGain = true,
-                    EmissiveToBloomGain = 1.15f,
-                    HasExposure = false,
-                    Exposure = 1f,
-                    HasSaturation = false,
-                    Saturation = 1f
-                }
+                    HalfExtentsLocal = new Vector2D<float>(5f, 5f),
+                    Priority = 1,
+                    Overrides = new PostProcessOverrides
+                    {
+                        HasBloomRadius = true,
+                        BloomRadius = 1.25f,
+                        HasBloomGain = true,
+                        BloomGain = 2f,
+                        HasEmissiveToHdrGain = true,
+                        EmissiveToHdrGain = 0.8f,
+                        HasEmissiveToBloomGain = true,
+                        EmissiveToBloomGain = 1.15f,
+                        HasExposure = false,
+                        Exposure = 1f,
+                        HasSaturation = false,
+                        Saturation = 1f
+                    }
+                },
+                WorldPosition = new Vector2D<float>(5f, 5f),
+                WorldRotationRadians = 0f,
+                WorldScale = new Vector2D<float>(1f, 1f)
             },
-            new PostProcessVolume
+            new PostProcessVolumeSubmission
             {
-                MinWorld = new Vector2D<float>(0, 0),
-                MaxWorld = new Vector2D<float>(10, 10),
-                Priority = 5,
-                Overrides = new PostProcessOverrides
+                Volume = new PostProcessVolume
                 {
-                    HasBloomRadius = true,
-                    BloomRadius = 1.5f,
-                    HasBloomGain = true,
-                    BloomGain = 3f,
-                    HasEmissiveToHdrGain = true,
-                    EmissiveToHdrGain = 0.7f,
-                    HasEmissiveToBloomGain = true,
-                    EmissiveToBloomGain = 1.25f,
-                    HasExposure = false,
-                    Exposure = 1f,
-                    HasSaturation = false,
-                    Saturation = 1f
-                }
+                    HalfExtentsLocal = new Vector2D<float>(5f, 5f),
+                    Priority = 5,
+                    Overrides = new PostProcessOverrides
+                    {
+                        HasBloomRadius = true,
+                        BloomRadius = 1.5f,
+                        HasBloomGain = true,
+                        BloomGain = 3f,
+                        HasEmissiveToHdrGain = true,
+                        EmissiveToHdrGain = 0.7f,
+                        HasEmissiveToBloomGain = true,
+                        EmissiveToBloomGain = 1.25f,
+                        HasExposure = false,
+                        Exposure = 1f,
+                        HasSaturation = false,
+                        Saturation = 1f
+                    }
+                },
+                WorldPosition = new Vector2D<float>(5f, 5f),
+                WorldRotationRadians = 0f,
+                WorldScale = new Vector2D<float>(1f, 1f)
             }
         };
 
@@ -277,20 +287,25 @@ public sealed class RenderingHelpersTests
 
         var miss = new[]
         {
-            new PostProcessVolume
+            new PostProcessVolumeSubmission
             {
-                MinWorld = new Vector2D<float>(200f, 200f),
-                MaxWorld = new Vector2D<float>(210f, 210f),
-                Priority = 99,
-                Overrides = new PostProcessOverrides
+                Volume = new PostProcessVolume
                 {
-                    HasBloomGain = true,
-                    BloomGain = 99f,
-                    HasExposure = false,
-                    Exposure = 1f,
-                    HasSaturation = false,
-                    Saturation = 1f
-                }
+                    HalfExtentsLocal = new Vector2D<float>(5f, 5f),
+                    Priority = 99,
+                    Overrides = new PostProcessOverrides
+                    {
+                        HasBloomGain = true,
+                        BloomGain = 99f,
+                        HasExposure = false,
+                        Exposure = 1f,
+                        HasSaturation = false,
+                        Saturation = 1f
+                    }
+                },
+                WorldPosition = new Vector2D<float>(205f, 205f),
+                WorldRotationRadians = 0f,
+                WorldScale = new Vector2D<float>(1f, 1f)
             }
         };
 
@@ -299,35 +314,45 @@ public sealed class RenderingHelpersTests
 
         var skipLowerPri = new[]
         {
-            new PostProcessVolume
+            new PostProcessVolumeSubmission
             {
-                MinWorld = new Vector2D<float>(0, 0),
-                MaxWorld = new Vector2D<float>(10, 10),
-                Priority = 5,
-                Overrides = new PostProcessOverrides
+                Volume = new PostProcessVolume
                 {
-                    HasBloomGain = true,
-                    BloomGain = 2f,
-                    HasExposure = true,
-                    Exposure = 0.5f,
-                    HasSaturation = true,
-                    Saturation = 0.8f
-                }
+                    HalfExtentsLocal = new Vector2D<float>(5f, 5f),
+                    Priority = 5,
+                    Overrides = new PostProcessOverrides
+                    {
+                        HasBloomGain = true,
+                        BloomGain = 2f,
+                        HasExposure = true,
+                        Exposure = 0.5f,
+                        HasSaturation = true,
+                        Saturation = 0.8f
+                    }
+                },
+                WorldPosition = new Vector2D<float>(5f, 5f),
+                WorldRotationRadians = 0f,
+                WorldScale = new Vector2D<float>(1f, 1f)
             },
-            new PostProcessVolume
+            new PostProcessVolumeSubmission
             {
-                MinWorld = new Vector2D<float>(0, 0),
-                MaxWorld = new Vector2D<float>(10, 10),
-                Priority = 1,
-                Overrides = new PostProcessOverrides
+                Volume = new PostProcessVolume
                 {
-                    HasBloomGain = true,
-                    BloomGain = 99f,
-                    HasExposure = false,
-                    Exposure = 1f,
-                    HasSaturation = false,
-                    Saturation = 1f
-                }
+                    HalfExtentsLocal = new Vector2D<float>(5f, 5f),
+                    Priority = 1,
+                    Overrides = new PostProcessOverrides
+                    {
+                        HasBloomGain = true,
+                        BloomGain = 99f,
+                        HasExposure = false,
+                        Exposure = 1f,
+                        HasSaturation = false,
+                        Saturation = 1f
+                    }
+                },
+                WorldPosition = new Vector2D<float>(5f, 5f),
+                WorldRotationRadians = 0f,
+                WorldScale = new Vector2D<float>(1f, 1f)
             }
         };
 
@@ -336,7 +361,7 @@ public sealed class RenderingHelpersTests
         Assert.Equal(0.5f, r3.Exposure);
         Assert.Equal(0.8f, r3.Saturation);
 
-        Assert.Equal(1f, PostProcessVolumeMerge.Resolve(in g, ReadOnlySpan<PostProcessVolume>.Empty, viewMin, viewMax).BloomGain);
+        Assert.Equal(1f, PostProcessVolumeMerge.Resolve(in g, ReadOnlySpan<PostProcessVolumeSubmission>.Empty, viewMin, viewMax).BloomGain);
     }
 
     [Fact]
@@ -349,5 +374,45 @@ public sealed class RenderingHelpersTests
         Assert.False(PostProcessVolumeMerge.Overlaps(
             new Vector2D<float>(0, 0), new Vector2D<float>(1, 1),
             new Vector2D<float>(2, 2), new Vector2D<float>(3, 3)));
+    }
+
+    [Fact]
+    public void PostProcessVolumeMerge_OrientedRect_cases()
+    {
+        Assert.True(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+            new Vector2D<float>(5f, 5f),
+            new Vector2D<float>(5f, 5f),
+            0f,
+            new Vector2D<float>(0f, 0f),
+            new Vector2D<float>(100f, 100f)));
+
+        Assert.False(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+            new Vector2D<float>(205f, 205f),
+            new Vector2D<float>(5f, 5f),
+            0f,
+            new Vector2D<float>(0f, 0f),
+            new Vector2D<float>(100f, 100f)));
+
+        // Narrow diamond: center on view, corners poke outside axis-aligned inscribed square but still hits view corners.
+        Assert.True(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+            new Vector2D<float>(50f, 50f),
+            new Vector2D<float>(40f, 40f),
+            MathF.PI / 4f,
+            new Vector2D<float>(0f, 0f),
+            new Vector2D<float>(100f, 100f)));
+
+        Assert.False(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+            new Vector2D<float>(5f, 5f),
+            new Vector2D<float>(0f, 3f),
+            0f,
+            new Vector2D<float>(0f, 0f),
+            new Vector2D<float>(10f, 10f)));
+
+        Assert.False(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+            new Vector2D<float>(5f, 5f),
+            new Vector2D<float>(3f, 0f),
+            0f,
+            new Vector2D<float>(0f, 0f),
+            new Vector2D<float>(10f, 10f)));
     }
 }

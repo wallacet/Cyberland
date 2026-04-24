@@ -10,4 +10,4 @@ public readonly record struct VisualIds(
     EntityId ScoreCpu,
     EntityId LeftPad,
     EntityId RightPad,
-    EntityId Ball);
+    EntityId Ball) : IComponent;

@@ -128,7 +128,7 @@ public sealed class ModdingTests
     private sealed class ModCtxSeq : ISystem, ILateUpdate
     {
         public int Calls;
-        public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+        public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
         {
             _ = archetype;
             _ = deltaSeconds;
@@ -138,7 +138,7 @@ public sealed class ModdingTests
 
     private sealed class ModCtxPar : IParallelSystem, IParallelLateUpdate
     {
-        public void OnParallelLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
+        public void OnParallelLateUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
         {
             _ = archetype;
             _ = deltaSeconds;

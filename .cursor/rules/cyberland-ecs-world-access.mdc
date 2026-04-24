@@ -1,0 +1,23 @@
+---
+description: Discourage hot-path World/Components access; prefer OnStart and chunk iteration
+globs: "**/Core/Ecs/**/*.cs,**/Scene/Systems/**/*.cs,**/mods/**/*.cs"
+alwaysApply: false
+---
+
+# Cyberland — ECS `World` in systems
+
+## What the API does
+
+- **`ISystem` / `IParallelSystem`**: **`OnStart(World, …)`** receives **`World` once** per registration lifecycle. Phase updates (**`OnEarlyUpdate`**, **`OnFixedUpdate`**, **`OnLateUpdate`**, and parallel equivalents) take a **pre-built query** (`ChunkQueryAll` or parallel chunk iterator) and timing values only—**not** `World`.
+- If a system must use **`World`** (singleton helpers, `DestroyEntity`, ad-hoc queries), **cache `World` in a field in `OnStart`**. Do not expect `World` in update methods.
+
+## Style for performance and clarity
+
+- **Prefer** iterating the **chunk columns** the scheduler already resolved for the system’s **query**—that is the intended hot path. Stock **lighting** is split into four **query-aligned** parallel submitters (`lighting-ambient`, `lighting-directional`, `lighting-spot`, `lighting-point`) for the same reason.
+- **Avoid** per-entity or per-chunk `Components<T>()` / broad **`World` lookups in phase updates** unless there is a clear, measured reason. Those paths are easy to overuse and blur “system query” vs “random access.”
+- **`IEcsQuerySource.QuerySpec`**: keep it the single source of truth for what the scheduler queries; do not re-spec ad-hoc queries that fight the same iteration unless intentional.
+
+## Related rules
+
+- **`cyberland-ecs-one-shot.mdc`** — do not repeat one-shot setup in every `OnStart` or frame.
+- **`cyberland-world-screen-space.mdc`** — “world” as coordinate space vs ECS **`World`**.

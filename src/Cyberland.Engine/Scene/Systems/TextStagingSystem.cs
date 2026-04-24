@@ -1,4 +1,5 @@
 using System.Threading;
+using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
@@ -6,45 +7,43 @@ using Cyberland.Engine.Hosting;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Validates and prepares <see cref="BitmapText"/> rows before <see cref="TextRenderSystem"/> draws them.
+/// Validates and prepares <see cref="BitmapText"/> rows before <see cref="TextBuildSystem"/> and <see cref="TextRenderSystem"/>.
 /// </summary>
 /// <remarks>
 /// Reports a diagnostic once per problematic configuration: <see cref="BitmapText.Visible"/> with null/empty
-/// <see cref="BitmapText.Content"/> (localization resolution happens later in <see cref="TextRenderSystem"/>).
+/// <see cref="BitmapText.Content"/> (localization resolution happens in <see cref="TextBuildSystem"/> / <see cref="TextRenderSystem"/>).
 /// </remarks>
-public sealed class TextStagingSystem : ISystem, ILateUpdate
+public sealed class TextStagingSystem : IParallelSystem, IParallelLateUpdate, ILateUpdate
 {
     private static int _warnedVisibleEmpty;
-
-    private readonly GameHostServices _host;
-    private bool _haveColumnMap;
-    private int _colBitmapText;
+    private static readonly ParallelOptions SequentialCompatParallelOptions = new() { MaxDegreeOfParallelism = 1 };
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BitmapText, Transform>();
 
     /// <summary>Creates the system.</summary>
-    public TextStagingSystem(GameHostServices host) => _host = host;
+    public TextStagingSystem(GameHostServices host) => _ = host;
 
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll archetype)
     {
-        _ = _host.Renderer
-            ?? throw new InvalidOperationException("TextStagingSystem requires Host.Renderer during OnStart.");
-        EnsureColumnMap(world, archetype.Spec);
+        _ = world;
+        _ = archetype;
     }
 
     /// <inheritdoc />
-    public void OnLateUpdate(World world, ChunkQueryAll archetype, float deltaSeconds)
+    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) =>
+        OnParallelLateUpdate(archetype, deltaSeconds, SequentialCompatParallelOptions);
+
+    /// <inheritdoc />
+    public void OnParallelLateUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions options)
     {
-        _ = world;
         _ = deltaSeconds;
-        if (!_haveColumnMap)
-            EnsureColumnMap(world, archetype.Spec);
+        _ = options;
 
         foreach (var chunk in archetype)
         {
-            var texts = chunk.Column<BitmapText>(_colBitmapText);
+            var texts = chunk.Column<BitmapText>();
             for (var i = 0; i < chunk.Count; i++)
             {
                 ref readonly var bt = ref texts[i];
@@ -59,11 +58,5 @@ public sealed class TextStagingSystem : ISystem, ILateUpdate
                 }
             }
         }
-    }
-
-    private void EnsureColumnMap(World world, SystemQuerySpec spec)
-    {
-        _colBitmapText = world.GetQueryColumnIndex<BitmapText>(spec);
-        _haveColumnMap = true;
     }
 }

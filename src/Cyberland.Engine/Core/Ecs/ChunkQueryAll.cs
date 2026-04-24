@@ -27,11 +27,13 @@ public readonly struct MultiComponentChunkView
 {
     internal readonly ArchetypeChunk Chunk;
     internal readonly int[] ColumnIndices;
+    internal readonly RuntimeTypeHandle[] QueryTypeHandlesBySortedId;
 
-    internal MultiComponentChunkView(ArchetypeChunk chunk, int[] columnIndices)
+    internal MultiComponentChunkView(ArchetypeChunk chunk, int[] columnIndices, RuntimeTypeHandle[] queryTypeHandlesBySortedId)
     {
         Chunk = chunk;
         ColumnIndices = columnIndices;
+        QueryTypeHandlesBySortedId = queryTypeHandlesBySortedId;
     }
 
     /// <summary>Active rows in this chunk.</summary>
@@ -41,8 +43,24 @@ public readonly struct MultiComponentChunkView
     public ReadOnlySpan<EntityId> Entities => Chunk.Entities.AsSpan(0, Chunk.Count);
 
     /// <summary>SoA column for the component at index <paramref name="componentIndexInSpec"/> (0..ColumnIndices.Length-1).</summary>
-    public Span<T> Column<T>(int componentIndexInSpec) where T : struct =>
+    public Span<T> Column<T>(int componentIndexInSpec) where T : struct, IComponent =>
         ((Column<T>)Chunk.Columns[ColumnIndices[componentIndexInSpec]]).AsSpan(Chunk.Count);
+
+    /// <summary>
+    /// SoA column for <typeparamref name="T"/> in this query.
+    /// Prefer the indexed overload in ultra-hot loops where the lookup index is already cached.
+    /// </summary>
+    public Span<T> Column<T>() where T : struct, IComponent
+    {
+        var want = typeof(T).TypeHandle;
+        for (var i = 0; i < QueryTypeHandlesBySortedId.Length; i++)
+        {
+            if (QueryTypeHandlesBySortedId[i].Equals(want))
+                return Column<T>(i);
+        }
+
+        throw new ArgumentException($"{typeof(T).FullName} is not part of this chunk query.");
+    }
 }
 
 /// <summary>Struct enumerator backing <c>foreach</c> on <see cref="ChunkQueryAll"/>.</summary>
@@ -50,6 +68,7 @@ public struct ChunkQueryEnumeratorAll
 {
     private readonly ArchetypeWorld _world;
     private readonly uint[] _sortedIds;
+    private readonly RuntimeTypeHandle[] _queryTypeHandlesBySortedId;
     private readonly List<int>? _archetypeIndices;
     private int _archetypeEnumIndex;
     private Archetype? _currentArch;
@@ -60,6 +79,16 @@ public struct ChunkQueryEnumeratorAll
     internal ChunkQueryEnumeratorAll(ArchetypeWorld world, SystemQuerySpec spec)
     {
         _world = world;
+        var sortedTypes = (Type[])spec.Types.Clone();
+        Array.Sort(sortedTypes, (a, b) =>
+        {
+            var aId = world.Registry.GetOrRegister(a);
+            var bId = world.Registry.GetOrRegister(b);
+            return aId.CompareTo(bId);
+        });
+        _queryTypeHandlesBySortedId = new RuntimeTypeHandle[sortedTypes.Length];
+        for (var i = 0; i < sortedTypes.Length; i++)
+            _queryTypeHandlesBySortedId[i] = sortedTypes[i].TypeHandle;
         _sortedIds = spec.ResolveSortedComponentIds(world.Registry);
         _archetypeIndices = _sortedIds.Length == 0
             ? new List<int>()
@@ -100,7 +129,7 @@ public struct ChunkQueryEnumeratorAll
                 if (ch.Count == 0)
                     continue;
 
-                _current = new MultiComponentChunkView(ch, cols);
+                _current = new MultiComponentChunkView(ch, cols, _queryTypeHandlesBySortedId);
                 return true;
             }
 

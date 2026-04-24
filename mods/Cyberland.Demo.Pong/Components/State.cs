@@ -1,8 +1,9 @@
+using Cyberland.Engine.Core.Ecs;
 using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Pong;
 
-public struct State
+public struct State : IComponent
 {
     public Phase Phase;
     public float Pulse;

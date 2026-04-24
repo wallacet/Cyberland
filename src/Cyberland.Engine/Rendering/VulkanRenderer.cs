@@ -88,7 +88,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private readonly List<SpotLight> _spotLightQueue = new();
     private readonly List<DirectionalLight> _directionalLightQueue = new();
     private readonly List<AmbientLight> _ambientLightQueue = new();
-    private readonly List<PostProcessVolume> _volumeQueue = new();
+    private readonly List<PostProcessVolumeSubmission> _volumeQueue = new();
 
     // Grow-only snapshots for FramePlanBuilder.Build — reused each frame to avoid List.ToArray / per-frame int[] allocs.
     private SpriteDrawRequest[]? _frameScratchSprites;
@@ -96,7 +96,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private SpotLight[]? _frameScratchSpotLights;
     private DirectionalLight[]? _frameScratchDirectionalLights;
     private AmbientLight[]? _frameScratchAmbientLights;
-    private PostProcessVolume[]? _frameScratchVolumes;
+    private PostProcessVolumeSubmission[]? _frameScratchVolumes;
     private int[]? _frameScratchSortIndices;
 
     private GlobalPostProcessSettings _globalPost = new()
@@ -218,10 +218,16 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             _ambientLightQueue.Add(light);
     }
 
-    void IRenderer.SubmitPostProcessVolume(in PostProcessVolume volume)
+    void IRenderer.SubmitPostProcessVolume(in PostProcessVolume volume, Vector2D<float> worldPosition, float worldRotationRadians, Vector2D<float> worldScale)
     {
         lock (_recordLock)
-            _volumeQueue.Add(volume);
+            _volumeQueue.Add(new PostProcessVolumeSubmission
+            {
+                Volume = volume,
+                WorldPosition = worldPosition,
+                WorldRotationRadians = worldRotationRadians,
+                WorldScale = worldScale
+            });
     }
 
     void IRenderer.SetGlobalPostProcess(in GlobalPostProcessSettings settings)

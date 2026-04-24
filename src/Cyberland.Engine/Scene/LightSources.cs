@@ -1,9 +1,13 @@
+using Cyberland.Engine.Core.Ecs;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Scene;
 
-/// <summary>ECS ambient fill; gathered by <see cref="Systems.LightingSystem"/>.</summary>
-public struct AmbientLightSource
+/// <summary>ECS ambient fill; submitted by <see cref="Systems.AmbientLightSystem"/>.</summary>
+/// <remarks>
+/// Global scene fill only; no <see cref="RequiresComponentAttribute{TRequired}"/> for <see cref="Transform"/>.
+/// </remarks>
+public struct AmbientLightSource : IComponent
 {
     /// <summary>When false, this row is ignored for submission.</summary>
     public bool Active;
@@ -15,8 +19,13 @@ public struct AmbientLightSource
     public float Intensity;
 }
 
-/// <summary>ECS directional light; gathered by <see cref="Systems.LightingSystem"/>.</summary>
-public struct DirectionalLightSource
+/// <summary>ECS directional light; submitted by <see cref="Systems.DirectionalLightSystem"/>.</summary>
+/// <remarks>
+/// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures <see cref="Transform"/> exists
+/// (see <see cref="RequiresComponentAttribute{TRequired}"/>).
+/// </remarks>
+[RequiresComponent<Transform>]
+public struct DirectionalLightSource : IComponent
 {
     /// <summary>When false, this row is ignored for submission.</summary>
     public bool Active;
@@ -31,8 +40,13 @@ public struct DirectionalLightSource
     public bool CastsShadow;
 }
 
-/// <summary>ECS spot light; gathered by <see cref="Systems.LightingSystem"/>.</summary>
-public struct SpotLightSource
+/// <summary>ECS spot light; submitted by <see cref="Systems.SpotLightSystem"/>.</summary>
+/// <remarks>
+/// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures <see cref="Transform"/> exists
+/// (see <see cref="RequiresComponentAttribute{TRequired}"/>).
+/// </remarks>
+[RequiresComponent<Transform>]
+public struct SpotLightSource : IComponent
 {
     /// <summary>When false, this row is ignored for submission.</summary>
     public bool Active;
@@ -56,8 +70,13 @@ public struct SpotLightSource
     public bool CastsShadow;
 }
 
-/// <summary>ECS point light; gathered by <see cref="Systems.LightingSystem"/>.</summary>
-public struct PointLightSource
+/// <summary>ECS point light; submitted by <see cref="Systems.PointLightSystem"/>.</summary>
+/// <remarks>
+/// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures <see cref="Transform"/> exists
+/// (see <see cref="RequiresComponentAttribute{TRequired}"/>).
+/// </remarks>
+[RequiresComponent<Transform>]
+public struct PointLightSource : IComponent
 {
     /// <summary>When false, this row is ignored for submission.</summary>
     public bool Active;

@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 
 namespace Cyberland.Engine.Rendering;
 
-// Purpose: Lighting uniform buffer and point-light SSBO upload used by deferred passes.
+// Purpose: Lighting uniform buffer and point/directional/spot SSBO upload used by deferred passes.
 
 /// <summary>Lighting buffers and UBO/SSBO updates for deferred rendering (partial).</summary>
 public sealed unsafe partial class VulkanRenderer
@@ -44,36 +44,77 @@ public sealed unsafe partial class VulkanRenderer
         if (_vk is null || _lightingBufferMapped == null)
             return;
 
-        var ambient = framePlan.AmbientLightCount > 0 ? framePlan.AmbientLights[framePlan.AmbientLightCount - 1] : default;
-        var directional = framePlan.DirectionalLightCount > 0 ? framePlan.DirectionalLights[framePlan.DirectionalLightCount - 1] : default;
-        var spot = framePlan.SpotLightCount > 0 ? framePlan.SpotLights[framePlan.SpotLightCount - 1] : default;
-        var dir = directional.DirectionWorld;
-        var dirLen = MathF.Sqrt(dir.X * dir.X + dir.Y * dir.Y);
-        if (dirLen < 1e-6f)
-            dir = new Vector2D<float>(0.25f, 0.35f);
-        else
-            dir = new Vector2D<float>(dir.X / dirLen, dir.Y / dirLen);
-        var sdir = spot.DirectionWorld;
-        var sLen = MathF.Sqrt(sdir.X * sdir.X + sdir.Y * sdir.Y);
-        if (sLen < 1e-6f)
-            sdir = new Vector2D<float>(1f, 0f);
-        else
-            sdir = new Vector2D<float>(sdir.X / sLen, sdir.Y / sLen);
+        float ar = 0f, ag = 0f, ab = 0f;
+        for (var i = 0; i < framePlan.AmbientLightCount; i++)
+        {
+            var a = framePlan.AmbientLights[i];
+            ar += a.Color.X * a.Intensity;
+            ag += a.Color.Y * a.Intensity;
+            ab += a.Color.Z * a.Intensity;
+        }
 
+        var nDir = Math.Min(framePlan.DirectionalLightCount, DeferredRenderingConstants.MaxDirectionalLights);
+        var nSpot = Math.Min(framePlan.SpotLightCount, DeferredRenderingConstants.MaxSpotLights);
         var ubo = new LightingUbo
         {
-            Ambient = new Vector4D<float>(ambient.Color.X, ambient.Color.Y, ambient.Color.Z, ambient.Intensity),
-            DirectionalDirIntensity = new Vector4D<float>(dir.X, dir.Y, directional.Intensity, 0f),
-            DirectionalColor = new Vector4D<float>(directional.Color.X, directional.Color.Y, directional.Color.Z, directional.CastsShadow ? 1f : 0f),
-            PointPosRadius = default,
-            PointColorIntensity = default,
-            PointFalloff = default,
-            SpotPosRadius = new Vector4D<float>(spot.PositionWorld.X, spot.PositionWorld.Y, spot.Radius, spot.CastsShadow ? 1f : 0f),
-            SpotDirCosOuter = new Vector4D<float>(sdir.X, sdir.Y, MathF.Cos(spot.InnerConeRadians), MathF.Cos(spot.OuterConeRadians)),
-            SpotColorIntensity = new Vector4D<float>(spot.Color.X, spot.Color.Y, spot.Color.Z, spot.Intensity)
+            Ambient = new Vector4D<float>(ar, ag, ab, 1f),
+            Counts = new Vector4D<float>(nDir, nSpot, 0f, 0f)
         };
-
         Unsafe.Write(_lightingBufferMapped, ubo);
+        UploadDirectionalSpotLightSsboData(in framePlan, nDir, nSpot);
+    }
+
+    private void UploadDirectionalSpotLightSsboData(in FramePlan framePlan, int nDir, int nSpot)
+    {
+        if (_directionalLightSsboMapped is null || _spotLightSsboMapped is null)
+            return;
+
+        if (nDir > 0)
+        {
+            var dirSpan = new Span<Vector4D<float>>(
+                (Vector4D<float>*)_directionalLightSsboMapped, DeferredRenderingConstants.MaxDirectionalLights * 2);
+            var src = framePlan.DirectionalLights;
+            for (var i = 0; i < nDir; i++)
+            {
+                ref readonly var d = ref src[i];
+                var w = d.DirectionWorld;
+                var len = MathF.Sqrt(w.X * w.X + w.Y * w.Y);
+                if (len < 1e-6f)
+                {
+                    w = new Vector2D<float>(0.25f, 0.35f);
+                }
+                else
+                {
+                    w = new Vector2D<float>(w.X / len, w.Y / len);
+                }
+                dirSpan[i * 2] = new Vector4D<float>(w.X, w.Y, d.Intensity, 0f);
+                dirSpan[i * 2 + 1] = new Vector4D<float>(d.Color.X, d.Color.Y, d.Color.Z, d.CastsShadow ? 1f : 0f);
+            }
+        }
+
+        if (nSpot > 0)
+        {
+            var spotSpan = new Span<Vector4D<float>>(
+                (Vector4D<float>*)_spotLightSsboMapped, DeferredRenderingConstants.MaxSpotLights * 3);
+            var ssrc = framePlan.SpotLights;
+            for (var j = 0; j < nSpot; j++)
+            {
+                ref readonly var sp = ref ssrc[j];
+                var sdir = sp.DirectionWorld;
+                var sLen = MathF.Sqrt(sdir.X * sdir.X + sdir.Y * sdir.Y);
+                if (sLen < 1e-6f)
+                {
+                    sdir = new Vector2D<float>(1f, 0f);
+                }
+                else
+                {
+                    sdir = new Vector2D<float>(sdir.X / sLen, sdir.Y / sLen);
+                }
+                spotSpan[j * 3] = new Vector4D<float>(sp.PositionWorld.X, sp.PositionWorld.Y, sp.Radius, sp.CastsShadow ? 1f : 0f);
+                spotSpan[j * 3 + 1] = new Vector4D<float>(sdir.X, sdir.Y, MathF.Cos(sp.InnerConeRadians), MathF.Cos(sp.OuterConeRadians));
+                spotSpan[j * 3 + 2] = new Vector4D<float>(sp.Color.X, sp.Color.Y, sp.Color.Z, sp.Intensity);
+            }
+        }
     }
 
     private void UploadPointLightSsboData(in FramePlan framePlan)

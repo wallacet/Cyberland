@@ -15,6 +15,7 @@ namespace Cyberland.Engine.Scene.Systems;
 /// The system runs pair detection and transition classification in parallel. Event ordering inside each entity buffer is not
 /// deterministic, but event membership is deterministic for the same world state.
 /// Pairs are skipped when either entity is in the other entity's transform ancestry chain.
+/// The cached <see cref="World"/> is used for <see cref="TriggerEvents"/> stores and snapshot merge/commit outside the trigger-only chunk query.
 /// </remarks>
 [RunAfter("cyberland.engine/transform2d")]
 public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
@@ -28,11 +29,20 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
     private readonly HashSet<TriggerPairKey> _currentOverlaps = new();
     private readonly Dictionary<EntityId, List<TriggerEvent>> _mergedEvents = new();
     private readonly List<EntityId> _eventEntities = new();
+    private World _world;
 
     /// <inheritdoc />
-    public void OnParallelFixedUpdate(World world, ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+    public void OnStart(World world, ChunkQueryAll query)
+    {
+        _world = world;
+        _ = query;
+    }
+
+    /// <inheritdoc />
+    public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
         _ = fixedDeltaSeconds;
+        var world = _world;
         BuildSnapshotsAndEnsureBuffers(world, query);
         if (_snapshots.Count == 0)
         {
@@ -60,7 +70,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         foreach (var chunk in query)
         {
             var entities = chunk.Entities;
-            var triggers = chunk.Column<Trigger>(0);
+            var triggers = chunk.Column<Trigger>();
             for (var i = 0; i < chunk.Count; i++)
             {
                 var entity = entities[i];
