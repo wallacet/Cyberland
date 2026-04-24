@@ -17,7 +17,7 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
     private readonly GameHostServices _host;
     private readonly EntityId _session;
     private readonly VisualIds _visuals;
-    private World _world;
+    private World _world = null!;
 
     public SimulationSystem(GameHostServices host, EntityId session, VisualIds visuals)
     {
