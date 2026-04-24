@@ -20,7 +20,7 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
     private readonly EntityId _spot;
     private readonly EntityId _ballPoint;
     private readonly EntityId _leftAccentPoint;
-    private World _world;
+    private World _world = null!;
 
     /// <summary>Creates the system.</summary>
     public PongLightsFillSystem(GameHostServices host, EntityId session, EntityId ambient, EntityId directional, EntityId spot,

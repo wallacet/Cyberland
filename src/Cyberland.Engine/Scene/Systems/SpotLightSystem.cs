@@ -41,11 +41,12 @@ public sealed class SpotLightSystem : IParallelSystem, IParallelLateUpdate
                 if (!s.Active)
                     return;
                 ref readonly var t = ref chunk.Column<Transform>()[j];
-                var dir = LightSceneMath.DirectionFromWorldRotation(t.WorldRotationRadians);
-                var radiusScale = LightSceneMath.MaxAbsScale(t.WorldScale);
+                TransformMath.DecomposeToPRS(t.WorldMatrix, out var worldPos, out var worldRad, out var worldScale);
+                var dir = LightSceneMath.DirectionFromWorldRotation(worldRad);
+                var radiusScale = LightSceneMath.MaxAbsScale(worldScale);
                 var payload = new SpotLight
                 {
-                    PositionWorld = t.WorldPosition,
+                    PositionWorld = worldPos,
                     DirectionWorld = dir,
                     Radius = s.Radius * radiusScale,
                     InnerConeRadians = s.InnerConeRadians,

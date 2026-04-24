@@ -182,15 +182,12 @@ public sealed class SceneSetupSystem : ISystem
         var fb = renderer.SwapchainPixelSize;
         var hx = fb.X * 0.5f;
         var hy = fb.Y * 0.5f;
-        world.Components<Transform>().GetOrAdd(eBloom) = new Transform
-        {
-            LocalPosition = new Vector2D<float>(hx, hy),
-            LocalRotationRadians = 0f,
-            LocalScale = new Vector2D<float>(1f, 1f),
-            WorldPosition = new Vector2D<float>(hx, hy),
-            WorldRotationRadians = 0f,
-            WorldScale = new Vector2D<float>(1f, 1f)
-        };
+        // Transform's property setters rebuild the backing matrix from cached PRS; seed from Identity so the initial
+        // scale is (1,1) rather than the zero-matrix default.
+        var bloomTransform = Transform.Identity;
+        bloomTransform.LocalPosition = new Vector2D<float>(hx, hy);
+        bloomTransform.WorldPosition = new Vector2D<float>(hx, hy);
+        world.Components<Transform>().GetOrAdd(eBloom) = bloomTransform;
         world.Components<PostProcessVolumeSource>().GetOrAdd(eBloom) = new PostProcessVolumeSource
         {
             Active = true,

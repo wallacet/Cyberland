@@ -41,7 +41,8 @@ public sealed class DirectionalLightSystem : IParallelSystem, IParallelLateUpdat
                 if (!s.Active)
                     return;
                 ref readonly var t = ref chunk.Column<Transform>()[j];
-                var dir = LightSceneMath.DirectionFromWorldRotation(t.WorldRotationRadians);
+                TransformMath.DecomposeToPRS(t.WorldMatrix, out _, out var worldRad, out _);
+                var dir = LightSceneMath.DirectionFromWorldRotation(worldRad);
                 var payload = new DirectionalLight
                 {
                     DirectionWorld = dir,

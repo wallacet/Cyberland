@@ -40,32 +40,39 @@ public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
 
         ref var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
         ref var ballVel = ref world.Components<Velocity>().Get(_ballEntity);
-        ballTransform.LocalPosition.X += ballVel.Value.X * fixedDeltaSeconds;
-        ballTransform.LocalPosition.Y += ballVel.Value.Y * fixedDeltaSeconds;
+        // Stage the local position in a value, mutate .X / .Y by velocity + wall response, then assign back so the
+        // property setter rebuilds the matrix once per step rather than after every axis tweak.
+        var ballPos = ballTransform.LocalPosition;
+        ballPos.X += ballVel.Value.X * fixedDeltaSeconds;
+        ballPos.Y += ballVel.Value.Y * fixedDeltaSeconds;
 
-        if (ballTransform.LocalPosition.X - Constants.BallR < game.ArenaMinX)
+        if (ballPos.X - Constants.BallR < game.ArenaMinX)
         {
-            ballTransform.LocalPosition.X = game.ArenaMinX + Constants.BallR;
+            ballPos.X = game.ArenaMinX + Constants.BallR;
             ballVel.Value.X *= -1f;
         }
-        else if (ballTransform.LocalPosition.X + Constants.BallR > game.ArenaMaxX)
+        else if (ballPos.X + Constants.BallR > game.ArenaMaxX)
         {
-            ballTransform.LocalPosition.X = game.ArenaMaxX - Constants.BallR;
+            ballPos.X = game.ArenaMaxX - Constants.BallR;
             ballVel.Value.X *= -1f;
         }
 
-        if (ballTransform.LocalPosition.Y + Constants.BallR > game.ArenaMaxY)
+        if (ballPos.Y + Constants.BallR > game.ArenaMaxY)
         {
-            ballTransform.LocalPosition.Y = game.ArenaMaxY - Constants.BallR;
+            ballPos.Y = game.ArenaMaxY - Constants.BallR;
             ballVel.Value.Y *= -1f;
         }
 
-        if (ballTransform.LocalPosition.Y >= game.ArenaMinY - Constants.BallFallSafetyBand)
+        if (ballPos.Y >= game.ArenaMinY - Constants.BallFallSafetyBand)
+        {
+            ballTransform.LocalPosition = ballPos;
             return;
+        }
 
         game.Lives--;
         if (game.Lives <= 0)
         {
+            ballTransform.LocalPosition = ballPos;
             game.Phase = Phase.GameOver;
             ref var ballTrigger = ref world.Components<Trigger>().Get(_ballEntity);
             ref var paddleTrigger = ref world.Components<Trigger>().Get(_paddleEntity);
@@ -77,9 +84,10 @@ public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
         game.BallDocked = true;
         ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
         ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
-        ballTransform.LocalPosition.X = paddleTransform.WorldPosition.X;
-        ballTransform.LocalPosition.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
+        ballPos.X = paddleTransform.WorldPosition.X;
+        ballPos.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
         ballVel.Value = default;
-        ballTransform.WorldPosition = ballTransform.LocalPosition;
+        ballTransform.LocalPosition = ballPos;
+        ballTransform.WorldPosition = ballPos;
     }
 }

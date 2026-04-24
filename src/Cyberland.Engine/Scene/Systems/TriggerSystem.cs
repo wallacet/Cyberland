@@ -29,7 +29,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
     private readonly HashSet<TriggerPairKey> _currentOverlaps = new();
     private readonly Dictionary<EntityId, List<TriggerEvent>> _mergedEvents = new();
     private readonly List<EntityId> _eventEntities = new();
-    private World _world;
+    private World _world = null!;
 
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll query)
@@ -439,10 +439,12 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         {
             Entity = entity;
             Trigger = trigger;
-            Position = transform.WorldPosition;
-            RotationRadians = transform.WorldRotationRadians;
+            // Decompose once per snapshot; snapshots are immutable PRS views used by the overlap math in this file.
+            TransformMath.DecomposeToPRS(transform.WorldMatrix, out var pos, out var rad, out var scale);
+            Position = pos;
+            RotationRadians = rad;
             Parent = transform.Parent;
-            Scale = transform.WorldScale;
+            Scale = scale;
         }
 
         public readonly EntityId Entity;

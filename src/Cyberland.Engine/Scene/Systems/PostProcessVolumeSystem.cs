@@ -41,11 +41,14 @@ public sealed class PostProcessVolumeSystem : IParallelSystem, IParallelLateUpda
                     return;
 
                 ref readonly var tf = ref chunk.Column<Transform>()[i];
+                // Single decomposition feeds all three submit arguments; property access through a ref readonly would
+                // decompose three times.
+                TransformMath.DecomposeToPRS(tf.WorldMatrix, out var worldPos, out var worldRad, out var worldScale);
                 r.SubmitPostProcessVolume(
                     in row.Volume,
-                    tf.WorldPosition,
-                    tf.WorldRotationRadians,
-                    tf.WorldScale);
+                    worldPos,
+                    worldRad,
+                    worldScale);
             });
         }
     }

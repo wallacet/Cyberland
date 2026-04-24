@@ -41,10 +41,11 @@ public sealed class PointLightSystem : IParallelSystem, IParallelLateUpdate
                 if (!s.Active)
                     return;
                 ref readonly var t = ref chunk.Column<Transform>()[j];
-                var radiusScale = LightSceneMath.MaxAbsScale(t.WorldScale);
+                TransformMath.DecomposeToPRS(t.WorldMatrix, out var worldPos, out _, out var worldScale);
+                var radiusScale = LightSceneMath.MaxAbsScale(worldScale);
                 var payload = new PointLight
                 {
-                    PositionWorld = t.WorldPosition,
+                    PositionWorld = worldPos,
                     Radius = s.Radius * radiusScale,
                     Color = s.Color,
                     Intensity = s.Intensity,

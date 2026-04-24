@@ -55,14 +55,16 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
 
             if (ev.Other == _paddleEntity && ballVel.Value.Y < 0f)
             {
-                ballTransform.LocalPosition.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
+                var ballPos = ballTransform.LocalPosition;
+                ballPos.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
                 ballVel.Value.Y = MathF.Abs(ballVel.Value.Y);
-                var off = (ballTransform.LocalPosition.X - paddleTransform.WorldPosition.X) / paddleBody.HalfWidth;
+                var off = (ballPos.X - paddleTransform.WorldPosition.X) / paddleBody.HalfWidth;
                 ballVel.Value.X += off * Constants.PaddleEnglish;
                 var len = MathF.Sqrt(ballVel.Value.X * ballVel.Value.X + ballVel.Value.Y * ballVel.Value.Y);
                 if (len > 1e-3f)
                     ballVel.Value *= Constants.BallSpeed / len;
-                ballTransform.WorldPosition = ballTransform.LocalPosition;
+                ballTransform.LocalPosition = ballPos;
+                ballTransform.WorldPosition = ballPos;
                 continue;
             }
 

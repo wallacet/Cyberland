@@ -7,11 +7,23 @@ namespace Cyberland.Engine.Tests;
 public sealed class TransformMathTests
 {
     [Fact]
-    public void LocalMatrix_translation_without_rotation()
+    public void MatrixFromPositionRotationScale_translation_without_rotation()
     {
-        var m = TransformMath.LocalMatrix(new Vector2D<float>(10f, 20f), 0f, new Vector2D<float>(1f, 1f));
+        var m = TransformMath.MatrixFromPositionRotationScale(new Vector2D<float>(10f, 20f), 0f, new Vector2D<float>(1f, 1f));
         Assert.Equal(10f, m.M31, 4);
         Assert.Equal(20f, m.M32, 4);
+    }
+
+    [Fact]
+    public void MatrixFromPositionRotationScale_rotation_scale_round_trip()
+    {
+        var scale = new Vector2D<float>(2f, 3f);
+        var radians = MathF.PI / 4f;
+        var m = TransformMath.MatrixFromPositionRotationScale(new Vector2D<float>(0f, 0f), radians, scale);
+        TransformMath.DecomposeToPRS(m, out _, out var rad, out var s);
+        Assert.Equal(radians, rad, 4);
+        Assert.Equal(scale.X, s.X, 4);
+        Assert.Equal(scale.Y, s.Y, 4);
     }
 
     [Fact]

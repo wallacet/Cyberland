@@ -52,10 +52,10 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
                 var minI = tm.NonEmptyTileMinIndex;
                 var defaultNormal = r.DefaultNormalTextureId;
 
-                var worldM = TransformMath.MatrixFromPositionRotationScale(
-                    transform.WorldPosition,
-                    transform.WorldRotationRadians,
-                    transform.WorldScale);
+                // WorldMatrix is already the composed TRS; avoid the old decompose-then-rebuild round trip and pull
+                // scale / rotation for per-tile extents and orientation from one decomposition.
+                var worldM = transform.WorldMatrix;
+                TransformMath.DecomposeToPRS(worldM, out _, out var worldRad, out var worldScale);
 
                 for (var y = 0; y < rows; y++)
                 for (var x = 0; x < cols; x++)
@@ -68,13 +68,13 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
                     var centerWorldV = Vector2.Transform(local, worldM);
                     var centerWorld = new Vector2D<float>(centerWorldV.X, centerWorldV.Y);
 
-                    var hx = tw * 0.48f * transform.WorldScale.X;
-                    var hy = th * 0.48f * transform.WorldScale.Y;
+                    var hx = tw * 0.48f * worldScale.X;
+                    var hy = th * 0.48f * worldScale.Y;
                     var req = new SpriteDrawRequest
                     {
                         CenterWorld = centerWorld,
                         HalfExtentsWorld = new Vector2D<float>(hx, hy),
-                        RotationRadians = transform.WorldRotationRadians,
+                        RotationRadians = worldRad,
                         Layer = tm.Layer,
                         SortKey = tm.SortKey + x * 0.001f + y * 0.0001f,
                         AlbedoTextureId = tid,

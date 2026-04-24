@@ -300,7 +300,7 @@ Within each phase, order is still **global registration order**: each entry is e
 
 ### Scene (`Scene/`)
 
-- **Components** — **`Transform`** (local TRS + optional parent + resolved world cache), **`Sprite`** (includes **`Transparent`** for WBOIT vs deferred opaque path; optional **`EmissiveTextureId`**), **`BitmapText`** (HUD strings; pair with **`Transform`** for baseline), **`Tilemap`**, **`SpriteAnimation`**, **`ParticleEmitter`**.
+- **Components** — **`Transform`** (local/world 2D homogeneous matrices + optional parent, with lazily decomposed position/rotation/scale properties), **`Sprite`** (includes **`Transparent`** for WBOIT vs deferred opaque path; optional **`EmissiveTextureId`**), **`BitmapText`** (HUD strings; pair with **`Transform`** for baseline), **`Tilemap`**, **`SpriteAnimation`**, **`ParticleEmitter`**.
 - **Stores** — **`TilemapDataStore`** / **`ITilemapDataStore`**, **`ParticleStore`** (indexed by entity; not stored inside ECS chunks).
 - **Systems** (registered by the host; see frame order above) — **`TransformHierarchySystem`**, **`SpriteAnimationSystem`**, **`ParticleSimulationSystem`**, **`TilemapRenderSystem`**, **`SpriteRenderSystem`**, **`ParticleRenderSystem`**, **`TextRenderSystem`**. Baseline global post lives in **`EngineDefaultGlobalPostProcess`** (applied at init, not as a system).
 

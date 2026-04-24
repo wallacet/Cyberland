@@ -48,9 +48,11 @@ public sealed class BallLaunchSystem : ISystem, IFixedUpdate
 
         if (game.BallDocked)
         {
-            ballTransform.LocalPosition.X = paddleTransform.WorldPosition.X;
-            ballTransform.LocalPosition.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
-            ballTransform.WorldPosition = ballTransform.LocalPosition;
+            var dockedPos = new Vector2D<float>(
+                paddleTransform.WorldPosition.X,
+                game.PaddleY + paddleBody.HalfHeight + Constants.BallR);
+            ballTransform.LocalPosition = dockedPos;
+            ballTransform.WorldPosition = dockedPos;
         }
 
         if (!game.BallDocked || !control.LaunchBall)

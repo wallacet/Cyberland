@@ -55,12 +55,14 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
         ref var transform = ref world.Components<Transform>().Get(_player);
         ref var vel = ref world.Components<Velocity>().Get(_player);
 
-        transform.LocalPosition.X += vel.X * fixedDeltaSeconds;
-        transform.LocalPosition.Y += vel.Y * fixedDeltaSeconds;
+        var pos = transform.LocalPosition;
+        pos.X += vel.X * fixedDeltaSeconds;
+        pos.Y += vel.Y * fixedDeltaSeconds;
 
         var h = Constants.SpriteHalfExtent;
-        transform.LocalPosition.X = Math.Clamp(transform.LocalPosition.X, h, fb.X - h);
-        transform.LocalPosition.Y = Math.Clamp(transform.LocalPosition.Y, h, fb.Y - h);
-        transform.WorldPosition = transform.LocalPosition;
+        pos.X = Math.Clamp(pos.X, h, fb.X - h);
+        pos.Y = Math.Clamp(pos.Y, h, fb.Y - h);
+        transform.LocalPosition = pos;
+        transform.WorldPosition = pos;
     }
 }

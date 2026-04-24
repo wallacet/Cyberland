@@ -15,8 +15,8 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     private readonly GameHostServices _host;
     private readonly EntityId _session;
     private readonly SystemScheduler _scheduler;
-    private World _world;
-    private IKeyboard? _keyboard;
+    private World _world = null!;
+    private IKeyboard _keyboard = null!;
 
     public InputSystem(GameHostServices host, EntityId session, SystemScheduler scheduler) { _host = host; _session = session; _scheduler = scheduler; }
 
@@ -49,7 +49,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         c = default;
 
         var renderer = _host.Renderer!;
-        var keyboard = _keyboard!;
+        var keyboard = _keyboard;
         var syncOn = _scheduler.IsEnabled("cyberland.demo.pong/visual-sync");
         if (keyboard.IsKeyPressed(Key.F10) && syncOn)
             _scheduler.SetEnabled("cyberland.demo.pong/visual-sync", !syncOn);

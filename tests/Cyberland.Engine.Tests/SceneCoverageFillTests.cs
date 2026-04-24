@@ -35,6 +35,26 @@ public sealed class SceneCoverageFillTests
         return h;
     }
 
+    // Seeded-from-Identity helper: `new Transform { LocalPosition = ... }` would start from a zero matrix, which
+    // decomposes to zero scale and collapses the transform. Tests use this factory instead.
+    private static Transform MakeTransform(
+        Vector2D<float>? localPos = null,
+        Vector2D<float>? worldPos = null,
+        float localRotation = 0f,
+        float worldRotation = 0f,
+        Vector2D<float>? localScale = null,
+        Vector2D<float>? worldScale = null)
+    {
+        var t = Transform.Identity;
+        if (localPos is { } lp) t.LocalPosition = lp;
+        if (worldPos is { } wp) t.WorldPosition = wp;
+        if (localRotation != 0f) t.LocalRotationRadians = localRotation;
+        if (worldRotation != 0f) t.WorldRotationRadians = worldRotation;
+        if (localScale is { } ls) t.LocalScale = ls;
+        if (worldScale is { } ws) t.WorldScale = ws;
+        return t;
+    }
+
     [Fact]
     public void Transform_local_and_world_position_round_trip()
     {
@@ -63,6 +83,86 @@ public sealed class SceneCoverageFillTests
     }
 
     [Fact]
+    public void Transform_identity_has_identity_matrices_and_cached_prs()
+    {
+        var t = Transform.Identity;
+        Assert.Equal(System.Numerics.Matrix3x2.Identity, t.LocalMatrix);
+        Assert.Equal(System.Numerics.Matrix3x2.Identity, t.WorldMatrix);
+        Assert.Equal(0f, t.LocalPosition.X);
+        Assert.Equal(0f, t.LocalPosition.Y);
+        Assert.Equal(0f, t.LocalRotationRadians);
+        Assert.Equal(0f, t.WorldRotationRadians);
+        Assert.Equal(1f, t.LocalScale.X);
+        Assert.Equal(1f, t.LocalScale.Y);
+        Assert.Equal(1f, t.WorldScale.X);
+        Assert.Equal(1f, t.WorldScale.Y);
+    }
+
+    [Fact]
+    public void Transform_prs_setters_update_matrix_components()
+    {
+        var t = Transform.Identity;
+        t.LocalPosition = new Vector2D<float>(5f, -3f);
+        Assert.Equal(5f, t.LocalMatrix.M31, 4);
+        Assert.Equal(-3f, t.LocalMatrix.M32, 4);
+
+        t.LocalScale = new Vector2D<float>(2f, 3f);
+        // Matrix column lengths reflect scale (column 0 = M11,M21; column 1 = M12,M22).
+        var col0 = MathF.Sqrt(t.LocalMatrix.M11 * t.LocalMatrix.M11 + t.LocalMatrix.M21 * t.LocalMatrix.M21);
+        var col1 = MathF.Sqrt(t.LocalMatrix.M12 * t.LocalMatrix.M12 + t.LocalMatrix.M22 * t.LocalMatrix.M22);
+        Assert.Equal(2f, col0, 4);
+        Assert.Equal(3f, col1, 4);
+
+        t.LocalRotationRadians = MathF.PI * 0.5f;
+        Assert.Equal(MathF.PI * 0.5f, t.LocalRotationRadians, 4);
+        // Position and scale survive a rotation-only change (same PRS convention applies end to end).
+        Assert.Equal(5f, t.LocalPosition.X, 3);
+        Assert.Equal(-3f, t.LocalPosition.Y, 3);
+        Assert.Equal(2f, t.LocalScale.X, 3);
+        Assert.Equal(3f, t.LocalScale.Y, 3);
+    }
+
+    [Fact]
+    public void Transform_world_prs_setters_rebuild_world_matrix()
+    {
+        var t = Transform.Identity;
+        t.WorldPosition = new Vector2D<float>(7f, 11f);
+        t.WorldRotationRadians = MathF.PI * 0.25f;
+        t.WorldScale = new Vector2D<float>(4f, 5f);
+
+        TransformMath.DecomposeToPRS(t.WorldMatrix, out var pos, out var rad, out var scale);
+        Assert.Equal(7f, pos.X, 3);
+        Assert.Equal(11f, pos.Y, 3);
+        Assert.Equal(MathF.PI * 0.25f, rad, 3);
+        Assert.Equal(4f, scale.X, 3);
+        Assert.Equal(5f, scale.Y, 3);
+    }
+
+    [Fact]
+    public void Transform_direct_matrix_mutation_invalidates_prs_cache()
+    {
+        var t = Transform.Identity;
+        t.LocalPosition = new Vector2D<float>(1f, 2f);
+        // Cache was seeded by the setter: reading the property again hits the valid cache path.
+        Assert.Equal(1f, t.LocalPosition.X);
+
+        // Direct mutation of the matrix bypasses setters; next read should re-decompose rather than return stale data.
+        t.LocalMatrix = TransformMath.MatrixFromPositionRotationScale(
+            new Vector2D<float>(9f, 8f),
+            0f,
+            new Vector2D<float>(1f, 1f));
+        Assert.Equal(9f, t.LocalPosition.X, 3);
+        Assert.Equal(8f, t.LocalPosition.Y, 3);
+
+        t.WorldMatrix = TransformMath.MatrixFromPositionRotationScale(
+            new Vector2D<float>(-1f, -2f),
+            0f,
+            new Vector2D<float>(1f, 1f));
+        Assert.Equal(-1f, t.WorldPosition.X, 3);
+        Assert.Equal(-2f, t.WorldPosition.Y, 3);
+    }
+
+    [Fact]
     public void Sprite_DefaultWhiteUnlit_populates()
     {
         var s = Sprite.DefaultWhiteUnlit(9, 8, new Vector2D<float>(3f, 4f));
@@ -76,15 +176,13 @@ public sealed class SceneCoverageFillTests
         var r = new RecordingRenderer();
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = new Transform
-        {
-            LocalPosition = new Vector2D<float>(1f, 1f),
-            WorldPosition = new Vector2D<float>(1f, 1f),
-            LocalRotationRadians = MathF.PI / 4f,
-            WorldRotationRadians = MathF.PI / 4f,
-            LocalScale = new Vector2D<float>(2f, 2f),
-            WorldScale = new Vector2D<float>(2f, 2f)
-        };
+        w.Components<Transform>().GetOrAdd(e) = MakeTransform(
+            localPos: new Vector2D<float>(1f, 1f),
+            worldPos: new Vector2D<float>(1f, 1f),
+            localRotation: MathF.PI / 4f,
+            worldRotation: MathF.PI / 4f,
+            localScale: new Vector2D<float>(2f, 2f),
+            worldScale: new Vector2D<float>(2f, 2f));
         ref var spr = ref w.Components<Sprite>().GetOrAdd(e);
         spr = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(5f, 5f));
         spr.Visible = false;
@@ -142,15 +240,7 @@ public sealed class SceneCoverageFillTests
         tm.Register(map, new[] { 0, 1 }, 1, 2);
         var fb = r.SwapchainPixelSize;
         var cornerWorld = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
-        w.Components<Transform>().GetOrAdd(map) = new Transform
-        {
-            LocalPosition = cornerWorld,
-            LocalRotationRadians = 0f,
-            LocalScale = new Vector2D<float>(1f, 1f),
-            WorldPosition = cornerWorld,
-            WorldRotationRadians = 0f,
-            WorldScale = new Vector2D<float>(1f, 1f)
-        };
+        w.Components<Transform>().GetOrAdd(map) = MakeTransform(localPos: cornerWorld, worldPos: cornerWorld);
         w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
         {
             TileWidth = 10f,
@@ -361,15 +451,7 @@ public sealed class SceneCoverageFillTests
         var map = w.CreateEntity();
         var fb2 = r.SwapchainPixelSize;
         var corner2 = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb2);
-        w.Components<Transform>().GetOrAdd(map) = new Transform
-        {
-            LocalPosition = corner2,
-            LocalRotationRadians = 0f,
-            LocalScale = new Vector2D<float>(1f, 1f),
-            WorldPosition = corner2,
-            WorldRotationRadians = 0f,
-            WorldScale = new Vector2D<float>(1f, 1f)
-        };
+        w.Components<Transform>().GetOrAdd(map) = MakeTransform(localPos: corner2, worldPos: corner2);
         w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
         {
             TileWidth = 8f,
@@ -455,12 +537,9 @@ public sealed class SceneCoverageFillTests
         };
 
         var child = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(child) = new Transform
-        {
-            Parent = parent,
-            LocalScale = new Vector2D<float>(1f, 1f),
-            WorldScale = new Vector2D<float>(1f, 1f)
-        };
+        ref var childTransform = ref world.Components<Transform>().GetOrAdd(child);
+        childTransform = Transform.Identity;
+        childTransform.Parent = parent;
         world.Components<Trigger>().GetOrAdd(child) = new Trigger
         {
             Enabled = true,

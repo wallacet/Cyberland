@@ -40,18 +40,20 @@ public sealed class PaddleMoveSystem : ISystem, IFixedUpdate
         ref var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
         ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
 
+        var paddlePos = paddleTransform.LocalPosition;
         var move = Constants.PaddleMoveSpeed * fixedDeltaSeconds;
         if (control.MoveLeft)
-            paddleTransform.LocalPosition.X -= move;
+            paddlePos.X -= move;
         if (control.MoveRight)
-            paddleTransform.LocalPosition.X += move;
+            paddlePos.X += move;
 
-        paddleTransform.LocalPosition.Y = game.PaddleY;
-        paddleTransform.LocalPosition.X = Math.Clamp(
-            paddleTransform.LocalPosition.X,
+        paddlePos.Y = game.PaddleY;
+        paddlePos.X = Math.Clamp(
+            paddlePos.X,
             game.ArenaMinX + paddleBody.HalfWidth,
             game.ArenaMaxX - paddleBody.HalfWidth);
-        paddleTransform.WorldPosition = paddleTransform.LocalPosition;
+        paddleTransform.LocalPosition = paddlePos;
+        paddleTransform.WorldPosition = paddlePos;
 
     }
 }

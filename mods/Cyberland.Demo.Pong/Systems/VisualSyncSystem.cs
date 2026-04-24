@@ -31,7 +31,7 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     private int _cachedCpuPoints = int.MinValue;
     private string _cachedPlayerPointsText = "0";
     private string _cachedCpuPointsText = "0";
-    private World _world;
+    private World _world = null!;
 
     public VisualSyncSystem(GameHostServices host, EntityId session, VisualIds visuals, HudTextIds texts)
     {

@@ -44,14 +44,17 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
                     return;
 
                 ref readonly var transform = ref chunk.Column<Transform>()[i];
-                var hx = spr.HalfExtents.X * transform.WorldScale.X;
-                var hy = spr.HalfExtents.Y * transform.WorldScale.Y;
+                // Decompose the world matrix once per sprite: reading the PRS properties via a ref readonly transform
+                // would decompose (via a defensive copy) on every property access.
+                TransformMath.DecomposeToPRS(transform.WorldMatrix, out var worldPos, out var worldRad, out var worldScale);
+                var hx = spr.HalfExtents.X * worldScale.X;
+                var hy = spr.HalfExtents.Y * worldScale.Y;
 
                 var req = new SpriteDrawRequest
                 {
-                    CenterWorld = transform.WorldPosition,
+                    CenterWorld = worldPos,
                     HalfExtentsWorld = new Vector2D<float>(hx, hy),
-                    RotationRadians = transform.WorldRotationRadians,
+                    RotationRadians = worldRad,
                     Layer = spr.Layer,
                     SortKey = spr.SortKey,
                     AlbedoTextureId = spr.AlbedoTextureId,

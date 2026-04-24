@@ -87,16 +87,19 @@ internal static class TextRuntimeBuilder
         out int fbW,
         out int fbH)
     {
+        // Translation is the homogeneous matrix's third row (M31, M32); pull it directly to avoid a decompose just to
+        // recover the world position.
+        var worldTranslation = new Vector2D<float>(transform.WorldMatrix.M31, transform.WorldMatrix.M32);
         if (bt.CoordinateSpace == CoordinateSpace.WorldSpace)
         {
-            baselineWorld = transform.WorldPosition;
+            baselineWorld = worldTranslation;
             fbW = 0;
             fbH = 0;
             return;
         }
 
         var fb = renderer.SwapchainPixelSize;
-        baselineWorld = WorldScreenSpace.ScreenPixelToWorldCenter(transform.WorldPosition, fb);
+        baselineWorld = WorldScreenSpace.ScreenPixelToWorldCenter(worldTranslation, fb);
         fbW = fb.X;
         fbH = fb.Y;
     }

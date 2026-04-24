@@ -52,14 +52,18 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
                 if (em.RuntimeCount == 0)
                     return;
 
+                // Translation lives in the world matrix row directly; pull it once so the per-particle loop doesn't
+                // defensive-copy + decompose on every sample.
+                var originX = transform.WorldMatrix.M31;
+                var originY = transform.WorldMatrix.M32;
                 var he = em.HalfExtent;
                 for (var p = 0; p < em.RuntimeCount; p++)
                 {
                     var req = new SpriteDrawRequest
                     {
                         CenterWorld = new Vector2D<float>(
-                            transform.WorldPosition.X + em.RuntimePx[p],
-                            transform.WorldPosition.Y + em.RuntimePy[p]),
+                            originX + em.RuntimePx[p],
+                            originY + em.RuntimePy[p]),
                         HalfExtentsWorld = new Vector2D<float>(he, he),
                         RotationRadians = 0f,
                         Layer = em.Layer,

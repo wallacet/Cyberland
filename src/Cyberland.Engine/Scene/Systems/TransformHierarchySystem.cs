@@ -4,14 +4,18 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
-using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Resolves <see cref="Transform"/> hierarchies into world transform cache fields.
-/// Forest roots are solved in parallel (disjoint subtrees); cycle leftovers are resolved sequentially.
+/// Resolves <see cref="Transform"/> hierarchies by composing each entity's <see cref="Transform.LocalMatrix"/> with its
+/// parent chain into <see cref="Transform.WorldMatrix"/>. Forest roots are solved in parallel (disjoint subtrees);
+/// cycle leftovers are resolved sequentially.
 /// </summary>
+/// <remarks>
+/// Downstream systems can read the composed <see cref="Transform.WorldMatrix"/> directly or access position/rotation/
+/// scale via <see cref="Transform"/>'s PRS properties (decomposed on demand with a per-row cache).
+/// </remarks>
 public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
@@ -25,23 +29,23 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
     private readonly Dictionary<EntityId, List<EntityId>> _children = new();
     private readonly HashSet<EntityId> _tfSet = new();
     private readonly HashSet<EntityId> _visited = new();
-    private readonly Dictionary<EntityId, Matrix3x2> _world = new();
     private readonly List<EntityId> _roots = new();
     private readonly Dictionary<EntityId, int> _inDegree = new();
+
+    // Tracks which entities have had WorldMatrix written this frame. Consulted by SolveOne to decide whether a parent's
+    // WorldMatrix is fresh or still stale from the previous frame (in which case we fall back to parent.LocalMatrix).
     private readonly ConcurrentDictionary<EntityId, byte> _processed = new();
 
-    // Parallel.ForEach root tasks reuse per-thread scratch to avoid per-root List/Dictionary allocations.
+    // Parallel.For root tasks reuse per-thread BFS scratch to avoid per-root List/Queue allocations.
     private readonly ThreadLocal<List<EntityId>> _bfsOrderTls = new(() => new List<EntityId>(64));
     private readonly ThreadLocal<Queue<EntityId>> _bfsQueueTls = new(() => new Queue<EntityId>(64));
-    private readonly ThreadLocal<Dictionary<EntityId, Matrix3x2>> _localWorldTls =
-        new(() => new Dictionary<EntityId, Matrix3x2>(64));
 
-    private World _ecsWorld;
+    private World _world = null!;
 
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll query)
     {
-        _ecsWorld = world;
+        _world = world;
         _ = query;
     }
 
@@ -49,7 +53,8 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
     public void OnParallelEarlyUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
-        var world = _ecsWorld;
+        var world = _world;
+
         // Return last frame's adjacency lists to the pool before rebuilding (avoids per-parent List alloc when stable).
         foreach (var kv in _children)
         {
@@ -62,7 +67,6 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
         _order.Clear();
         _queue.Clear();
         _visited.Clear();
-        _world.Clear();
         _roots.Clear();
         _inDegree.Clear();
         _processed.Clear();
@@ -130,21 +134,23 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
             Parallel.For(0, _roots.Count, parallelOptions, i =>
             {
                 var root = _roots[i];
-                var localW = _localWorldTls.Value!;
-                localW.Clear();
                 var subOrder = BuildSubtreeBfsOrder(root);
+                // BFS order guarantees parents are solved before children inside the subtree,
+                // so SolveOne can read the parent's fresh WorldMatrix directly from the store.
                 foreach (var eid in subOrder)
-                    SolveOne(world, tfStore, eid, localW, _processed);
+                    SolveOne(world, tfStore, eid);
             });
         }
 
+        // Cycle leftovers: anything in _order that parallel BFS didn't reach (topologically impossible in a cycle).
+        // We fall back to parent.LocalMatrix when the parent hasn't been processed yet — this matches the prior
+        // "eventually completes" semantics without ever stalling the frame on unresolved cycles.
         foreach (var id in _order)
         {
             if (_processed.ContainsKey(id))
                 continue;
 
-            // Same parent resolution as parallel SolveOne, using the shared world matrix map built for this frame.
-            SolveOne(world, tfStore, id, _world, _processed);
+            SolveOne(world, tfStore, id);
         }
     }
 
@@ -169,32 +175,21 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
         return order;
     }
 
-    private void SolveOne(
-        World world,
-        ComponentStore<Transform> tfStore,
-        EntityId id,
-        Dictionary<EntityId, Matrix3x2> localW,
-        ConcurrentDictionary<EntityId, byte> processed)
+    private void SolveOne(World world, ComponentStore<Transform> tfStore, EntityId id)
     {
-        ref readonly var t = ref tfStore.Get(id);
-        var local = TransformMath.LocalMatrix(in t);
-        Matrix3x2 parentM;
+        ref var t = ref tfStore.Get(id);
+        var parentM = Matrix3x2.Identity;
         var p = t.Parent;
-        if (p.Raw == 0 || !world.IsAlive(p))
-            parentM = Matrix3x2.Identity;
-        else if (localW.TryGetValue(p, out var pm))
-            parentM = pm;
-        else
-            parentM = TransformMath.LocalMatrix(in tfStore.Get(p));
+        if (p.Raw != 0 && world.IsAlive(p) && tfStore.Contains(p))
+        {
+            ref readonly var parentT = ref tfStore.Get(p);
+            // If the parent was already solved this frame, its WorldMatrix is fresh (tree order guarantees this within
+            // a subtree). Otherwise (cycle fallback) use the parent's local matrix so cycles still converge across
+            // frames without reading last-frame world state.
+            parentM = _processed.ContainsKey(p) ? parentT.WorldMatrix : parentT.LocalMatrix;
+        }
 
-        var wM = TransformMath.Compose(parentM, local);
-        localW[id] = wM;
-        TransformMath.DecomposeToPRS(wM, out var pos, out var rad, out var sc);
-        ref var resolved = ref tfStore.Get(id);
-        resolved.WorldPosition = pos;
-        resolved.WorldRotationRadians = rad;
-        resolved.WorldScale = sc;
-
-        processed.TryAdd(id, 0);
+        t.WorldMatrix = TransformMath.Compose(parentM, t.LocalMatrix);
+        _processed.TryAdd(id, 0);
     }
 }

@@ -19,6 +19,26 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
 
     private static GameHostServices Host(IRenderer r) => new GameHostServices(new KeyBindingStore()) { Renderer = r };
 
+    // Seeded-from-Identity helper: property setters on a default Transform collapse scale to (0,0) because the zero
+    // matrix decomposes to zero PRS. Tests must seed from Identity before assigning PRS properties.
+    private static Transform MakeTransform(
+        Vector2D<float>? localPos = null,
+        Vector2D<float>? worldPos = null,
+        float localRotation = 0f,
+        float worldRotation = 0f,
+        Vector2D<float>? localScale = null,
+        Vector2D<float>? worldScale = null)
+    {
+        var t = Transform.Identity;
+        if (localPos is { } lp) t.LocalPosition = lp;
+        if (worldPos is { } wp) t.WorldPosition = wp;
+        if (localRotation != 0f) t.LocalRotationRadians = localRotation;
+        if (worldRotation != 0f) t.WorldRotationRadians = worldRotation;
+        if (localScale is { } ls) t.LocalScale = ls;
+        if (worldScale is { } ws) t.WorldScale = ws;
+        return t;
+    }
+
     [Fact]
     public void Engine_submit_systems_expose_expected_query_specs()
     {
@@ -128,7 +148,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<Transform>().GetOrAdd(dirOff) = Transform.Identity;
         w.Components<DirectionalLightSource>().GetOrAdd(dirOff) = new DirectionalLightSource { Active = false };
         var dirOn = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(dirOn) = new Transform { LocalRotationRadians = MathF.PI * 0.5f, WorldRotationRadians = MathF.PI * 0.5f, LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
+        w.Components<Transform>().GetOrAdd(dirOn) = MakeTransform(localRotation: MathF.PI * 0.5f, worldRotation: MathF.PI * 0.5f);
         w.Components<DirectionalLightSource>().GetOrAdd(dirOn) = new DirectionalLightSource
         {
             Active = true,
@@ -140,7 +160,11 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<Transform>().GetOrAdd(spotOff) = Transform.Identity;
         w.Components<SpotLightSource>().GetOrAdd(spotOff) = new SpotLightSource { Active = false };
         var spotOn = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(spotOn) = new Transform { LocalPosition = new Vector2D<float>(1f, 2f), WorldPosition = new Vector2D<float>(1f, 2f), LocalRotationRadians = -MathF.PI * 0.5f, WorldRotationRadians = -MathF.PI * 0.5f, LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
+        w.Components<Transform>().GetOrAdd(spotOn) = MakeTransform(
+            localPos: new Vector2D<float>(1f, 2f),
+            worldPos: new Vector2D<float>(1f, 2f),
+            localRotation: -MathF.PI * 0.5f,
+            worldRotation: -MathF.PI * 0.5f);
         w.Components<SpotLightSource>().GetOrAdd(spotOn) = new SpotLightSource
         {
             Active = true,
@@ -229,7 +253,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         };
 
         var dir = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(dir) = new Transform { LocalRotationRadians = -MathF.PI * 0.5f, WorldRotationRadians = -MathF.PI * 0.5f, LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
+        w.Components<Transform>().GetOrAdd(dir) = MakeTransform(localRotation: -MathF.PI * 0.5f, worldRotation: -MathF.PI * 0.5f);
         w.Components<DirectionalLightSource>().GetOrAdd(dir) = new DirectionalLightSource
         {
             Active = true,
@@ -238,7 +262,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         };
 
         var spot = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(spot) = new Transform { LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f), LocalRotationRadians = -MathF.PI * 0.5f, WorldRotationRadians = -MathF.PI * 0.5f };
+        w.Components<Transform>().GetOrAdd(spot) = MakeTransform(localRotation: -MathF.PI * 0.5f, worldRotation: -MathF.PI * 0.5f);
         w.Components<SpotLightSource>().GetOrAdd(spot) = new SpotLightSource
         {
             Active = true,
@@ -259,7 +283,9 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             Intensity = 1f
         };
         var p2 = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(p2) = new Transform { LocalPosition = new Vector2D<float>(3f, 4f), WorldPosition = new Vector2D<float>(3f, 4f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
+        w.Components<Transform>().GetOrAdd(p2) = MakeTransform(
+            localPos: new Vector2D<float>(3f, 4f),
+            worldPos: new Vector2D<float>(3f, 4f));
         w.Components<PointLightSource>().GetOrAdd(p2) = new PointLightSource
         {
             Active = true,
@@ -373,15 +399,9 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         sys.OnStart(w, w.QueryChunks(vSpec));
 
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = new Transform
-        {
-            LocalPosition = new Vector2D<float>(5f, 5f),
-            LocalRotationRadians = 0f,
-            LocalScale = new Vector2D<float>(1f, 1f),
-            WorldPosition = new Vector2D<float>(5f, 5f),
-            WorldRotationRadians = 0f,
-            WorldScale = new Vector2D<float>(1f, 1f)
-        };
+        w.Components<Transform>().GetOrAdd(e) = MakeTransform(
+            localPos: new Vector2D<float>(5f, 5f),
+            worldPos: new Vector2D<float>(5f, 5f));
         w.Components<PostProcessVolumeSource>().GetOrAdd(e) = new PostProcessVolumeSource
         {
             Active = true,
@@ -449,7 +469,9 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
 
         var inactive = w.CreateEntity();
         w.Components<ViewportAnchor2D>().GetOrAdd(inactive) = new ViewportAnchor2D { Active = false };
-        w.Components<Transform>().GetOrAdd(inactive) = new Transform { LocalPosition = new Vector2D<float>(99f, 99f), WorldPosition = new Vector2D<float>(99f, 99f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
+        w.Components<Transform>().GetOrAdd(inactive) = MakeTransform(
+            localPos: new Vector2D<float>(99f, 99f),
+            worldPos: new Vector2D<float>(99f, 99f));
 
         var full = w.CreateEntity();
         w.Components<ViewportAnchor2D>().GetOrAdd(full) = new ViewportAnchor2D

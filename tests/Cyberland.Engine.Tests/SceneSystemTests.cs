@@ -46,8 +46,9 @@ public sealed class SceneSystemTests
         var id = world.CreateEntity();
         ref var transform = ref world.Components<Transform>().GetOrAdd(id);
         transform = Transform.Identity;
-        transform.LocalPosition = new Vector2D<float>(x, y);
-        transform.WorldPosition = transform.LocalPosition;
+        var pos = new Vector2D<float>(x, y);
+        transform.LocalPosition = pos;
+        transform.WorldPosition = pos;
         transform.LocalRotationRadians = rotation;
         transform.WorldRotationRadians = rotation;
         world.Components<Trigger>().GetOrAdd(id) = trigger;
@@ -57,6 +58,26 @@ public sealed class SceneSystemTests
         }
 
         return id;
+    }
+
+    // Test helper: seeded-from-Identity constructor replaces the old `new Transform { Local.. = , World.. = }`
+    // initializer pattern. Object initializers would start from a zero matrix and collapse scale to (0,0).
+    private static Transform MakeTransform(
+        Vector2D<float>? localPos = null,
+        Vector2D<float>? worldPos = null,
+        float localRotation = 0f,
+        float worldRotation = 0f,
+        Vector2D<float>? localScale = null,
+        Vector2D<float>? worldScale = null)
+    {
+        var t = Transform.Identity;
+        if (localPos is { } lp) t.LocalPosition = lp;
+        if (worldPos is { } wp) t.WorldPosition = wp;
+        if (localRotation != 0f) t.LocalRotationRadians = localRotation;
+        if (worldRotation != 0f) t.WorldRotationRadians = worldRotation;
+        if (localScale is { } ls) t.LocalScale = ls;
+        if (worldScale is { } ws) t.WorldScale = ws;
+        return t;
     }
 
     private static HashSet<(uint Other, TriggerEventKind Kind)> EventSet(World world, EntityId entity)
@@ -115,6 +136,45 @@ public sealed class SceneSystemTests
     }
 
     [Fact]
+    public void TransformHierarchySystem_writes_world_matrix_for_roots_and_children()
+    {
+        var w = new World();
+        var root = w.CreateEntity();
+        var child = w.CreateEntity();
+        ref var rootTransform = ref w.Components<Transform>().GetOrAdd(root);
+        rootTransform = Transform.Identity;
+        rootTransform.LocalPosition = new Vector2D<float>(10f, 20f);
+        rootTransform.LocalRotationRadians = MathF.PI * 0.5f;
+
+        ref var childTransformIn = ref w.Components<Transform>().GetOrAdd(child);
+        childTransformIn = Transform.Identity;
+        childTransformIn.LocalPosition = new Vector2D<float>(1f, 0f);
+        childTransformIn.Parent = root;
+
+        var sys = new TransformHierarchySystem();
+        StartEcs(sys, w);
+        sys.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        // Root's WorldMatrix equals its LocalMatrix (parent = identity).
+        var rootAfter = w.Components<Transform>().Get(root);
+        Assert.Equal(rootAfter.LocalMatrix, rootAfter.WorldMatrix);
+
+        // Child WorldMatrix = child.LocalMatrix * parent.WorldMatrix (row-vector convention: local applies first, then parent).
+        var childAfter = w.Components<Transform>().Get(child);
+        var expected = System.Numerics.Matrix3x2.Multiply(childAfter.LocalMatrix, rootAfter.WorldMatrix);
+        Assert.Equal(expected.M11, childAfter.WorldMatrix.M11, 4);
+        Assert.Equal(expected.M12, childAfter.WorldMatrix.M12, 4);
+        Assert.Equal(expected.M21, childAfter.WorldMatrix.M21, 4);
+        Assert.Equal(expected.M22, childAfter.WorldMatrix.M22, 4);
+        Assert.Equal(expected.M31, childAfter.WorldMatrix.M31, 4);
+        Assert.Equal(expected.M32, childAfter.WorldMatrix.M32, 4);
+
+        // Sanity: rotating parent by +90° CCW places child at parent's (1,0) local → world (10, 21).
+        Assert.Equal(10f, childAfter.WorldPosition.X, 3);
+        Assert.Equal(21f, childAfter.WorldPosition.Y, 3);
+    }
+
+    [Fact]
     public void TransformHierarchySystem_recycles_child_adjacency_lists_across_ticks()
     {
         var w = new World();
@@ -138,7 +198,9 @@ public sealed class SceneSystemTests
         var h = new GameHostServices(kb) { Renderer = null };
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = new Transform { LocalPosition = new Vector2D<float>(1f, 2f), WorldPosition = new Vector2D<float>(1f, 2f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
+        w.Components<Transform>().GetOrAdd(e) = MakeTransform(
+            localPos: new Vector2D<float>(1f, 2f),
+            worldPos: new Vector2D<float>(1f, 2f));
         w.Components<Sprite>().GetOrAdd(e) = Sprite.DefaultWhiteUnlit(0, 0, new Vector2D<float>(1f, 1f));
 
         var sr0 = new SpriteRenderSystem(h);
@@ -153,7 +215,9 @@ public sealed class SceneSystemTests
         var r = new RecordingRenderer();
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = new Transform { LocalPosition = new Vector2D<float>(1f, 2f), WorldPosition = new Vector2D<float>(1f, 2f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
+        w.Components<Transform>().GetOrAdd(e) = MakeTransform(
+            localPos: new Vector2D<float>(1f, 2f),
+            worldPos: new Vector2D<float>(1f, 2f));
         ref var spr = ref w.Components<Sprite>().GetOrAdd(e);
         spr = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(4f, 4f));
         spr.Visible = true;
@@ -224,15 +288,7 @@ public sealed class SceneSystemTests
         tm.Register(map, new[] { 1, 0 }, 1, 2);
         var fb = r.SwapchainPixelSize;
         var cornerWorld = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
-        w.Components<Transform>().GetOrAdd(map) = new Transform
-        {
-            LocalPosition = cornerWorld,
-            LocalRotationRadians = 0f,
-            LocalScale = new Vector2D<float>(1f, 1f),
-            WorldPosition = cornerWorld,
-            WorldRotationRadians = 0f,
-            WorldScale = new Vector2D<float>(1f, 1f)
-        };
+        w.Components<Transform>().GetOrAdd(map) = MakeTransform(localPos: cornerWorld, worldPos: cornerWorld);
         w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
         {
             TileWidth = 16f,
@@ -255,7 +311,9 @@ public sealed class SceneSystemTests
         var h = Host(r);
         var w = new World();
         var emitter = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(emitter) = new Transform { LocalPosition = new Vector2D<float>(100f, 100f), WorldPosition = new Vector2D<float>(100f, 100f), LocalScale = new Vector2D<float>(1f, 1f), WorldScale = new Vector2D<float>(1f, 1f) };
+        w.Components<Transform>().GetOrAdd(emitter) = MakeTransform(
+            localPos: new Vector2D<float>(100f, 100f),
+            worldPos: new Vector2D<float>(100f, 100f));
         w.Components<ParticleEmitter>().GetOrAdd(emitter) = new ParticleEmitter
         {
             Active = true,
@@ -323,8 +381,12 @@ public sealed class SceneSystemTests
         Assert.Contains((a.Raw, TriggerEventKind.OnTriggerStay), EventSet(w, b));
 
         ref var tb = ref w.Components<Transform>().Get(b);
-        tb.LocalPosition.X = 20f;
-        tb.WorldPosition.X = 20f;
+        var tbLocal = tb.LocalPosition;
+        tbLocal.X = 20f;
+        tb.LocalPosition = tbLocal;
+        var tbWorld = tb.WorldPosition;
+        tbWorld.X = 20f;
+        tb.WorldPosition = tbWorld;
         sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
         Assert.Contains((b.Raw, TriggerEventKind.OnTriggerExit), EventSet(w, a));
         Assert.Contains((a.Raw, TriggerEventKind.OnTriggerExit), EventSet(w, b));

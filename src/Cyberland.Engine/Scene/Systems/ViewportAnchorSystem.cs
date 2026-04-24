@@ -10,7 +10,7 @@ namespace Cyberland.Engine.Scene.Systems;
 public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
-    private World _world;
+    private World _world = null!;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ViewportAnchor2D, Transform>();

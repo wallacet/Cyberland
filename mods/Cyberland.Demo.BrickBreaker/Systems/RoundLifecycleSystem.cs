@@ -65,16 +65,17 @@ public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
 
         ref var paddleTransform = ref _transforms.Get(_paddleEntity);
         ref var paddleBody = ref _paddleBodies.Get(_paddleEntity);
-        paddleTransform.LocalPosition = new Vector2D<float>(game.LayoutWidth * 0.5f, game.PaddleY);
-        paddleTransform.WorldPosition = paddleTransform.LocalPosition;
+        var paddlePos = new Vector2D<float>(game.LayoutWidth * 0.5f, game.PaddleY);
+        paddleTransform.LocalPosition = paddlePos;
+        paddleTransform.WorldPosition = paddlePos;
         paddleBody.HalfWidth = 72f;
         paddleBody.HalfHeight = 10f;
 
         ref var ballTransform = ref _transforms.Get(_ballEntity);
         ref var ballVel = ref _velocities.Get(_ballEntity);
-        ballTransform.LocalPosition.X = paddleTransform.LocalPosition.X;
-        ballTransform.LocalPosition.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
-        ballTransform.WorldPosition = ballTransform.LocalPosition;
+        var ballPos = new Vector2D<float>(paddlePos.X, game.PaddleY + paddleBody.HalfHeight + Constants.BallR);
+        ballTransform.LocalPosition = ballPos;
+        ballTransform.WorldPosition = ballPos;
         ballVel.Value = default;
 
         ref var paddleTrigger = ref _triggers.Get(_paddleEntity);
