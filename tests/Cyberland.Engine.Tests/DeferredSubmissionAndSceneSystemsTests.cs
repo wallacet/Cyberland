@@ -3,7 +3,6 @@ using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
-using Cyberland.Engine.Input;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
@@ -17,7 +16,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
 {
     private static ParallelOptions ParOpts() => new ParallelismSettings().CreateParallelOptions();
 
-    private static GameHostServices Host(IRenderer r) => new GameHostServices(new KeyBindingStore()) { Renderer = r };
+    private static GameHostServices Host(IRenderer r) => new GameHostServices() { Renderer = r };
 
     // Seeded-from-Identity helper: property setters on a default Transform collapse scale to (0,0) because the zero
     // matrix decomposes to zero PRS. Tests must seed from Identity before assigning PRS properties.
@@ -59,7 +58,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void PointLightSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var sys = new PointLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
@@ -68,7 +67,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void AmbientLightSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var sys = new AmbientLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
@@ -77,7 +76,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void DirectionalLightSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var sys = new DirectionalLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
@@ -86,7 +85,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void SpotLightSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var sys = new SpotLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
@@ -95,7 +94,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void PostProcessVolumeSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var sys = new PostProcessVolumeSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PostProcessVolumeSource, Transform>()));
@@ -104,7 +103,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void ViewportAnchorSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var sys = new ViewportAnchorSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()));
@@ -565,7 +564,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void TextStagingSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var sys = new TextStagingSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()));

@@ -206,7 +206,7 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     [Fact]
     public void TextRenderSystem_OnStart_initializes_column_map()
     {
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = new RecordingRenderer() };
+        var host = new GameHostServices() { Renderer = new RecordingRenderer() };
         var world = new World();
         var sys = new TextRenderSystem(host);
         var spec = SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();

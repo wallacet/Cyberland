@@ -87,7 +87,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     {
         _ = archetype;
         var world = _world;
-        var r = _host.Renderer!;
         var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         if (frameSeconds > 1e-6f)
         {
@@ -97,7 +96,9 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         }
 
         ref readonly var s = ref world.Components<GameState>().Get(_stateEntity);
-        var fb = r.ActiveCameraViewportSize;
+        // Match the fixed Camera2D viewport (see Constants); late-phase reads of ActiveCameraViewportSize can
+        // still be inconsistent with early arena layout on the first frame if keyed off swapchain fallback.
+        var fb = new Vector2D<int>(Constants.CanvasWidth, Constants.CanvasHeight);
         var transforms = world.Components<Transform>();
         var sprites = world.Components<Sprite>();
         var brickStates = world.Components<BrickState>();

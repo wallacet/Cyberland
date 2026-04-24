@@ -2,7 +2,6 @@ using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
-using Cyberland.Engine.Input;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
@@ -15,7 +14,7 @@ public sealed class CameraTests
     private static ParallelOptions ParOpts() => new ParallelismSettings().CreateParallelOptions();
 
     private static GameHostServices Host(IRenderer r) =>
-        new GameHostServices(new KeyBindingStore()) { Renderer = r };
+        new GameHostServices() { Renderer = r };
 
     private static Transform MakeTransform(Vector2D<float>? worldPos = null, float worldRotation = 0f)
     {
@@ -228,7 +227,7 @@ public sealed class CameraTests
     [Fact]
     public void CameraSubmitSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices(new KeyBindingStore()) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var sys = new CameraSubmitSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Camera2D, Transform>()));

@@ -3,7 +3,6 @@ using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
-using Silk.NET.Input;
 
 namespace Cyberland.Demo.Pong;
 
@@ -16,7 +15,6 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     private readonly EntityId _session;
     private readonly SystemScheduler _scheduler;
     private World _world = null!;
-    private IKeyboard _keyboard = null!;
 
     public InputSystem(GameHostServices host, EntityId session, SystemScheduler scheduler) { _host = host; _session = session; _scheduler = scheduler; }
 
@@ -30,14 +28,11 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
             throw new InvalidOperationException("Cyberland.Demo.Pong InputSystem requires a renderer.");
         }
 
-        var input = _host.Input;
-        if (input?.Keyboards.Count is not > 0)
+        if (_host.Input is null)
         {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong.InputSystem startup failed", "No keyboard input device was available during OnStart.");
-            throw new InvalidOperationException("Cyberland.Demo.Pong InputSystem requires a keyboard.");
+            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong.InputSystem startup failed", "Host.Input was null during OnStart.");
+            throw new InvalidOperationException("Cyberland.Demo.Pong InputSystem requires input.");
         }
-
-        _keyboard = input.Keyboards[0];
     }
 
     public void OnEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds)
@@ -46,23 +41,27 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         _ = deltaSeconds;
         var world = _world;
         ref var c = ref world.Components<Control>().Get(_session);
-        c = default;
+        // Only reset per-frame movement; StartMatch must survive until Simulation consumes it — at high refresh several
+        // Render ticks can occur before the fixed accumulator reaches a substep, and clearing the whole struct would drop the latch.
+        c.PaddleUp = false;
+        c.PaddleDown = false;
 
         var renderer = _host.Renderer!;
-        var keyboard = _keyboard;
+        var input = _host.Input!;
         var syncOn = _scheduler.IsEnabled("cyberland.demo.pong/visual-sync");
-        if (keyboard.IsKeyPressed(Key.F10) && syncOn)
+        if (input.WasPressed("cyberland.demo.pong/toggle_visual_sync") && syncOn)
             _scheduler.SetEnabled("cyberland.demo.pong/visual-sync", !syncOn);
-        if (keyboard.IsKeyPressed(Key.Q)) { renderer.RequestClose?.Invoke(); return; }
+        if (input.IsDown("cyberland.common/quit")) { renderer.RequestClose?.Invoke(); return; }
 
         ref var st = ref world.Components<State>().Get(_session);
         switch (st.Phase)
         {
-            case Phase.Title: if (keyboard.IsKeyPressed(Key.Enter)) c.StartMatch = true; break;
-            case Phase.GameOver: if (keyboard.IsKeyPressed(Key.Enter) || keyboard.IsKeyPressed(Key.R)) c.StartMatch = true; break;
+            case Phase.Title: if (input.WasPressed("cyberland.demo.pong/start_match") || input.WasPressed("cyberland.common/start")) c.StartMatch = true; break;
+            case Phase.GameOver: if (input.WasPressed("cyberland.demo.pong/start_match") || input.WasPressed("cyberland.common/start")) c.StartMatch = true; break;
             case Phase.Playing:
-                if (keyboard.IsKeyPressed(Key.W) || keyboard.IsKeyPressed(Key.Up)) c.PaddleUp = true;
-                if (keyboard.IsKeyPressed(Key.S) || keyboard.IsKeyPressed(Key.Down)) c.PaddleDown = true;
+                var y = input.ReadAxis("cyberland.demo.pong/paddle_y");
+                if (y > 0f) c.PaddleUp = true;
+                if (y < 0f) c.PaddleDown = true;
                 break;
         }
     }

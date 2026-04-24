@@ -2,7 +2,6 @@ using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
-using Cyberland.Engine.Input;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
@@ -29,8 +28,7 @@ public sealed class SceneCoverageFillTests
 
     private static GameHostServices Host(IRenderer r, TilemapDataStore? tm = null)
     {
-        var kb = new KeyBindingStore();
-        var h = new GameHostServices(kb) { Renderer = r };
+        var h = new GameHostServices() { Renderer = r };
         h.Tilemaps = tm ?? new TilemapDataStore();
         return h;
     }
@@ -205,9 +203,8 @@ public sealed class SceneCoverageFillTests
     public void TilemapRenderSystem_no_renderer_no_store_noop()
     {
         var w = new World();
-        var kb = new KeyBindingStore();
         var tmStore = new TilemapDataStore();
-        var hNullR = new GameHostServices(kb) { Renderer = null, Tilemaps = tmStore };
+        var hNullR = new GameHostServices() { Renderer = null, Tilemaps = tmStore };
         var map = w.CreateEntity();
         tmStore.Register(map, new[] { 1 }, 1, 1);
         w.Components<Transform>().GetOrAdd(map) = Transform.Identity;
@@ -226,7 +223,7 @@ public sealed class SceneCoverageFillTests
         Assert.IsType<NullReferenceException>(agg.InnerException);
 
         var r = new RecordingRenderer();
-        var hNullTm = new GameHostServices(kb) { Renderer = r, Tilemaps = null };
+        var hNullTm = new GameHostServices() { Renderer = r, Tilemaps = null };
         new TilemapRenderSystem(hNullTm).OnParallelLateUpdate(w.QueryChunks(tmSpec), 0f, ParOpts());
     }
 
@@ -336,9 +333,8 @@ public sealed class SceneCoverageFillTests
     [Fact]
     public void ParticleSimulationSystem_inactive_and_render_null_paths()
     {
-        var kb = new KeyBindingStore();
         var r = new RecordingRenderer();
-        var hNoPt = new GameHostServices(kb) { Renderer = r };
+        var hNoPt = new GameHostServices() { Renderer = r };
         var emptyWorld = new World();
         var simNo = new ParticleSimulationSystem();
         StartEcs(simNo, emptyWorld);
@@ -347,7 +343,7 @@ public sealed class SceneCoverageFillTests
         StartEcs(prNo, emptyWorld);
         prNo.OnParallelLateUpdate(emptyWorld.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
 
-        var hNoR = new GameHostServices(kb) { Renderer = null };
+        var hNoR = new GameHostServices() { Renderer = null };
         var emptyWorld2 = new World();
         var prNo2 = new ParticleRenderSystem(hNoR);
         StartEcs(prNo2, emptyWorld2);
@@ -571,7 +567,7 @@ public sealed class SceneCoverageFillTests
     public void Stock_engine_scene_systems_register_using_self_declared_QuerySpec()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        var host = new GameHostServices(new KeyBindingStore());
+        var host = new GameHostServices();
         sched.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
         sched.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
         sched.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());

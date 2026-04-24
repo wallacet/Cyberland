@@ -3,8 +3,6 @@ using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
-using Silk.NET.Input;
-
 namespace Cyberland.Engine.Hosting;
 
 /// <summary>
@@ -22,19 +20,14 @@ namespace Cyberland.Engine.Hosting;
 public sealed class GameHostServices
 {
     /// <summary>
-    /// Creates services with user key bindings (loaded from disk by the host after startup).
+    /// Creates host-owned services used by mods and built-in systems.
     /// </summary>
-    /// <param name="keyBindings">Shared store for action → key mappings.</param>
-    public GameHostServices(KeyBindingStore keyBindings)
+    public GameHostServices()
     {
-        KeyBindings = keyBindings;
         Fonts = new FontLibrary();
         BuiltinFonts.AddTo(Fonts);
         TextGlyphCache = new TextGlyphCache();
     }
-
-    /// <summary>User-editable bindings (e.g. <c>keybindings.json</c>).</summary>
-    public KeyBindingStore KeyBindings { get; }
 
     /// <summary>Localized strings + media resolution; set by the host before <see cref="Modding.ModLoader.LoadAll"/>.</summary>
     public ILocalizedContent? LocalizedContent { get; set; }
@@ -50,8 +43,10 @@ public sealed class GameHostServices
     /// </summary>
     public IRenderer? Renderer { get; set; }
 
-    /// <summary>Silk.NET input polled from the main window; null until the host assigns it.</summary>
-    public IInputContext? Input { get; set; }
+    /// <summary>
+    /// Frame-stable input service populated by the host after window/input setup; null before host bootstrap completes.
+    /// </summary>
+    public IInputService? Input { get; set; }
 
     /// <summary>Optional backing store for <see cref="Cyberland.Engine.Scene.Tilemap"/> grid data used by <see cref="Cyberland.Engine.Scene.Systems.TilemapRenderSystem"/>.</summary>
     public ITilemapDataStore? Tilemaps { get; set; }

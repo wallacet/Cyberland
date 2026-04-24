@@ -59,9 +59,10 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
 
     private void UpdateLayoutIfNeeded(ChunkQueryAll cellArchetype, ParallelOptions? parallelOptions)
     {
-        var fb = _host.Renderer!.ActiveCameraViewportSize;
-        if (fb.X <= 0 || fb.Y <= 0)
-            return;
+        // Use the mod's fixed virtual canvas, not IRenderer.ActiveCameraViewportSize, in this parallel *early*
+        // pass: cameras are submitted in *late*, so the renderer may still report swapchain size here and the
+        // arena would be laid out for the wrong extent relative to Camera2D (Constants.CanvasWidth/Height).
+        var fb = new Vector2D<int>(Constants.CanvasWidth, Constants.CanvasHeight);
 
         ref var game = ref _game.Get(_stateEntity);
         var layoutChanged = !game.LayoutInitialized || game.LayoutWidth != fb.X || game.LayoutHeight != fb.Y;
@@ -97,7 +98,6 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
                 var by = brickTopY - (cell.Y + 0.5f) * brickH;
                 ref var transform = ref _transforms.Get(entity);
                 transform.LocalPosition = new Vector2D<float>(bx, by);
-                transform.WorldPosition = transform.LocalPosition;
                 ref var t = ref _triggers.Get(entity);
                 t.HalfExtents = new Vector2D<float>(brickW * 0.46f, brickH * 0.45f);
             }

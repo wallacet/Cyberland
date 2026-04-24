@@ -1,3 +1,5 @@
+using System.Numerics;
+using System.Reflection;
 using Cyberland.Engine.Input;
 using Moq;
 using Silk.NET.Input;
@@ -7,48 +9,60 @@ namespace Cyberland.Engine.Tests;
 public sealed class KeyBindingAndInputTests
 {
     [Fact]
-    public void InputAction_stores_id()
+    public void InputActionId_stores_id()
     {
-        var a = new InputAction("jump");
+        var a = new InputActionId("jump");
         Assert.Equal("jump", a.Id);
+        string asString = a;
+        Assert.Equal("jump", asString);
     }
 
     [Fact]
-    public void KeyBindingStore_set_tryget_isdown()
+    public void InputControl_parse_roundtrip_for_keyboard_mouse_and_axis()
     {
-        var k = new KeyBindingStore();
-        k.Set("a", Key.Space);
-        Assert.True(k.TryGet("a", out var key));
-        Assert.Equal(Key.Space, key);
-        Assert.False(k.TryGet("b", out _));
+        Assert.True(InputControl.TryParse("keyboard:Space", out var key));
+        Assert.Equal(InputControlKind.KeyboardKey, key.Kind);
+        Assert.Equal("keyboard:Space", key.ToPersistedString());
 
-        var kb = new Mock<IKeyboard>(MockBehavior.Strict);
-        kb.Setup(x => x.IsKeyPressed(Key.Space)).Returns(true);
-        Assert.True(k.IsDown(kb.Object, "a"));
-        kb.Verify(x => x.IsKeyPressed(Key.Space), Times.Once);
+        Assert.True(InputControl.TryParse("mouse:Left", out var button));
+        Assert.Equal(InputControlKind.MouseButton, button.Kind);
+        Assert.Equal("mouse:Left", button.ToPersistedString());
+
+        Assert.True(InputControl.TryParse("mouseAxis:DeltaX", out var axis));
+        Assert.Equal(InputControlKind.MouseAxis, axis.Kind);
+        Assert.Equal("mouseAxis:DeltaX", axis.ToPersistedString());
+
+        var invalid = CreateControl((InputControlKind)99, default, default, default);
+        Assert.Throws<InvalidOperationException>(() => invalid.ToPersistedString());
     }
 
     [Fact]
-    public void KeyBindingStore_LoadDefaults_populates_move_actions()
+    public void InputBindings_supports_multiple_bindings_and_removal()
     {
-        var k = new KeyBindingStore();
-        k.LoadDefaults();
-        Assert.True(k.TryGet("move_up", out var up));
-        Assert.Equal(Key.W, up);
+        var bindings = new InputBindings();
+        var left = new InputBinding(InputControl.Keyboard(Key.A), -1f);
+        var right = new InputBinding(InputControl.Keyboard(Key.D), +1f);
+        bindings.AddBinding("move_x", left);
+        bindings.AddBinding("move_x", right);
+
+        Assert.True(bindings.TryGetBindings("move_x", out var current));
+        Assert.Equal(2, current.Count);
+        Assert.True(bindings.RemoveBinding("move_x", left));
+        Assert.True(bindings.TryGetBindings("move_x", out current));
+        Assert.Single(current);
     }
 
     [Fact]
-    public async Task KeyBindingStore_LoadOrCreateUserFileAsync_creates_file_when_absent()
+    public async Task InputBindings_load_or_create_writes_defaults_when_file_absent()
     {
-        var path = Path.Combine(Path.GetTempPath(), "cyb keys " + Guid.NewGuid() + ".json");
+        var path = Path.Combine(Path.GetTempPath(), "cyb input " + Guid.NewGuid() + ".json");
         try
         {
-            var k = new KeyBindingStore();
-            await k.LoadOrCreateUserFileAsync(path);
+            var bindings = new InputBindings();
+            await bindings.LoadOrCreateUserFileAsync(path);
             Assert.True(File.Exists(path));
-            var k2 = new KeyBindingStore();
-            await k2.LoadOrCreateUserFileAsync(path);
-            Assert.True(k2.TryGet("menu", out _));
+            Assert.True(bindings.TryGetBindings("cyberland.demo/move_x", out var moveX));
+            Assert.NotEmpty(moveX);
         }
         finally
         {
@@ -58,15 +72,78 @@ public sealed class KeyBindingAndInputTests
     }
 
     [Fact]
-    public async Task KeyBindingStore_LoadOrCreateUserFileAsync_null_json_falls_back_to_defaults()
+    public async Task InputBindings_save_and_load_roundtrip_preserves_mouse_binding()
     {
-        var path = Path.Combine(Path.GetTempPath(), "cyb keys null " + Guid.NewGuid() + ".json");
+        var path = Path.Combine(Path.GetTempPath(), "cyb input rt " + Guid.NewGuid() + ".json");
         try
         {
+            var a = new InputBindings();
+            a.SetBindings(
+                "fire",
+                new[]
+                {
+                    new InputBinding(InputControl.Keyboard(Key.Space)),
+                    new InputBinding(InputControl.MouseButtonControl(MouseButton.Left))
+                });
+            await a.SaveAsync(path);
+
+            var b = new InputBindings();
+            await b.LoadOrCreateUserFileAsync(path);
+            Assert.True(b.TryGetBindings("fire", out var loaded));
+            Assert.Equal(2, loaded.Count);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void InputBindings_clear_and_missing_paths_are_safe()
+    {
+        var bindings = new InputBindings();
+        var left = new InputBinding(InputControl.Keyboard(Key.A), -1f);
+        bindings.AddBinding("move_x", left);
+
+        Assert.False(bindings.RemoveBinding("missing", left));
+        Assert.True(bindings.ClearBindings("move_x"));
+        Assert.False(bindings.TryGetBindings("move_x", out var afterClear));
+        Assert.Empty(afterClear);
+
+        bindings.AddBinding("move_x", left);
+        bindings.Clear();
+        Assert.False(bindings.TryGetBindings("move_x", out _));
+    }
+
+    [Fact]
+    public async Task InputBindings_load_skips_invalid_entries_and_null_payload_uses_defaults()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "cyb input invalid " + Guid.NewGuid() + ".json");
+        try
+        {
+            await File.WriteAllTextAsync(
+                path,
+                """
+                {
+                  "version": 1,
+                  "bindings": {
+                    "": [{ "control": "keyboard:W" }],
+                    "ok": null,
+                    "mixed": [{ "control": null }, { "control": "bad:foo" }, { "control": "keyboard:D", "scale": 0.5 }]
+                  }
+                }
+                """);
+
+            var bindings = new InputBindings();
+            await bindings.LoadOrCreateUserFileAsync(path);
+            Assert.True(bindings.TryGetBindings("mixed", out var mixed));
+            Assert.Single(mixed);
+            Assert.Equal(0.5f, mixed[0].Scale);
+
             await File.WriteAllTextAsync(path, "null");
-            var k = new KeyBindingStore();
-            await k.LoadOrCreateUserFileAsync(path);
-            Assert.True(k.TryGet("move_left", out _));
+            await bindings.LoadOrCreateUserFileAsync(path);
+            Assert.True(bindings.TryGetBindings("cyberland.common/quit", out _));
         }
         finally
         {
@@ -76,24 +153,164 @@ public sealed class KeyBindingAndInputTests
     }
 
     [Fact]
-    public async Task KeyBindingStore_save_roundtrip()
+    public void SilkInputService_supports_edges_and_axis_composition()
     {
-        var path = Path.Combine(Path.GetTempPath(), "cyb keys rt " + Guid.NewGuid() + ".json");
-        try
-        {
-            var k = new KeyBindingStore();
-            k.LoadDefaults();
-            k.Set("menu", Key.Q);
-            await k.SaveAsync(path);
-            var k2 = new KeyBindingStore();
-            await k2.LoadOrCreateUserFileAsync(path);
-            Assert.True(k2.TryGet("menu", out var m));
-            Assert.Equal(Key.Q, m);
-        }
-        finally
-        {
-            if (File.Exists(path))
-                File.Delete(path);
-        }
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var service = CreateService(pressedKeys, pressedButtons, () => Vector2.Zero);
+        service.Bindings.SetBindings(
+            "jump",
+            new[]
+            {
+                new InputBinding(InputControl.Keyboard(Key.Space)),
+                new InputBinding(InputControl.MouseButtonControl(MouseButton.Left))
+            });
+        service.Bindings.SetBindings(
+            "move_x",
+            new[]
+            {
+                new InputBinding(InputControl.Keyboard(Key.A), -1f),
+                new InputBinding(InputControl.Keyboard(Key.D), +1f),
+                new InputBinding(InputControl.MouseAxisControl(MouseAxis.DeltaX), +10f)
+            });
+
+        pressedKeys.Add(Key.Space);
+        pressedKeys.Add(Key.D);
+        pressedButtons.Add(MouseButton.Left);
+        service.BeginFrame();
+        Assert.True(service.IsDown("jump"));
+        Assert.True(service.WasPressed("jump"));
+        Assert.Equal(1f, service.ReadAxis("move_x"));
+        Assert.False(service.IsControlDown(InputControl.Keyboard(Key.A)));
+        Assert.Equal(0f, service.ReadAxis("unknown"));
+
+        service.BeginFrame();
+        Assert.True(service.IsDown("jump"));
+        Assert.False(service.WasPressed("jump"));
+
+        pressedKeys.Clear();
+        pressedButtons.Clear();
+        service.BeginFrame();
+        Assert.False(service.IsDown("jump"));
+        Assert.True(service.WasReleased("jump"));
+
+        service.Bindings.SetBindings("empty", Array.Empty<InputBinding>());
+        service.BeginFrame();
+        Assert.False(service.IsDown("empty"));
+    }
+
+    [Fact]
+    public void SilkInputService_reports_mouse_position_and_movement()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var pos = new Vector2(100f, 200f);
+        var service = CreateService(pressedKeys, pressedButtons, () => pos);
+        service.Bindings.SetBindings("look_x", new[] { new InputBinding(InputControl.MouseAxisControl(MouseAxis.DeltaX)) });
+
+        service.BeginFrame();
+        Assert.Equal(new Vector2(100f, 200f), service.MousePosition);
+        Assert.Equal(Vector2.Zero, service.MouseDelta);
+        Assert.Equal(Vector2.Zero, service.MouseWheelDelta);
+
+        pos = new Vector2(112f, 195f);
+        service.BeginFrame();
+        Assert.Equal(new Vector2(12f, -5f), service.MouseDelta);
+        Assert.Equal(Vector2.Zero, service.MouseWheelDelta);
+        Assert.Equal(12f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.DeltaX)));
+        Assert.Equal(112f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.PositionX)));
+        Assert.Equal(195f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.PositionY)));
+        Assert.Equal(-5f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.DeltaY)));
+        Assert.Equal(0f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.WheelX)));
+    }
+
+    [Fact]
+    public void SilkInputService_handles_missing_devices_and_dispose()
+    {
+        var input = new Mock<IInputContext>(MockBehavior.Strict);
+        input.SetupGet(x => x.Keyboards).Returns(Array.Empty<IKeyboard>());
+        input.SetupGet(x => x.Mice).Returns(Array.Empty<IMouse>());
+        input.Setup(x => x.Dispose());
+
+        var service = new SilkInputService(input.Object);
+        service.Bindings.SetBindings("jump", new[] { new InputBinding(InputControl.Keyboard(Key.Space)) });
+        service.BeginFrame();
+
+        Assert.Equal(Vector2.Zero, service.MouseDelta);
+        Assert.Equal(0f, service.ReadControlValue(InputControl.Keyboard(Key.Space)));
+        Assert.Equal(0f, service.ReadControlValue(InputControl.MouseButtonControl(MouseButton.Left)));
+        Assert.Equal(0f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.WheelY)));
+        var invalidKind = CreateControl((InputControlKind)42, default, default, default);
+        var invalidAxis = CreateControl(InputControlKind.MouseAxis, default, default, (MouseAxis)42);
+        Assert.Equal(0f, service.ReadControlValue(invalidKind));
+        Assert.Equal(0f, service.ReadControlValue(invalidAxis));
+        service.Dispose();
+        input.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    [Fact]
+    public void SilkInputService_KeyDown_pulse_makes_WasPressed_when_IsKeyPressed_misses_transient_tap()
+    {
+        Action<IKeyboard, Key, int>? onKeyDown = null;
+        var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
+        keyboard.Setup(k => k.IsKeyPressed(It.IsAny<Key>())).Returns(false);
+        keyboard.SetupAdd(k => k.KeyDown += It.IsAny<Action<IKeyboard, Key, int>>())
+            .Callback((Action<IKeyboard, Key, int> h) => onKeyDown = h);
+        keyboard.SetupRemove(k => k.KeyDown -= It.IsAny<Action<IKeyboard, Key, int>>());
+
+        var input = new Mock<IInputContext>(MockBehavior.Strict);
+        input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });
+        input.SetupGet(x => x.Mice).Returns(Array.Empty<IMouse>());
+        input.Setup(x => x.Dispose());
+
+        var service = new SilkInputService(input.Object);
+        service.Bindings.SetBindings("fire", new[] { new InputBinding(InputControl.Keyboard(Key.Space)) });
+
+        service.BeginFrame();
+        Assert.False(service.WasPressed("fire"));
+
+        Assert.NotNull(onKeyDown);
+        onKeyDown!(keyboard.Object, Key.Space, 0);
+
+        service.BeginFrame();
+        Assert.True(service.WasPressed("fire"));
+        Assert.True(service.IsDown("fire"));
+
+        service.BeginFrame();
+        Assert.False(service.WasPressed("fire"));
+        Assert.False(service.IsDown("fire"));
+
+        service.Dispose();
+        input.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    private static SilkInputService CreateService(
+        HashSet<Key> pressedKeys,
+        HashSet<MouseButton> pressedButtons,
+        Func<Vector2> mousePosition)
+    {
+        var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
+        keyboard.Setup(x => x.IsKeyPressed(It.IsAny<Key>())).Returns<Key>(key => pressedKeys.Contains(key));
+
+        var mouse = new Mock<IMouse>(MockBehavior.Strict);
+        mouse.Setup(x => x.IsButtonPressed(It.IsAny<MouseButton>())).Returns<MouseButton>(button => pressedButtons.Contains(button));
+        mouse.SetupGet(x => x.Position).Returns(() => mousePosition());
+
+        var input = new Mock<IInputContext>(MockBehavior.Strict);
+        input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });
+        input.SetupGet(x => x.Mice).Returns(new[] { mouse.Object });
+        input.Setup(x => x.Dispose());
+
+        return new SilkInputService(input.Object);
+    }
+
+    private static InputControl CreateControl(InputControlKind kind, Key key, MouseButton button, MouseAxis axis)
+    {
+        var ctor = typeof(InputControl).GetConstructor(
+            BindingFlags.NonPublic | BindingFlags.Instance,
+            binder: null,
+            new[] { typeof(InputControlKind), typeof(Key), typeof(MouseButton), typeof(MouseAxis) },
+            modifiers: null)!;
+        return (InputControl)ctor.Invoke(new object[] { kind, key, button, axis });
     }
 }

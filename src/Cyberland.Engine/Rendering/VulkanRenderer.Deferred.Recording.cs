@@ -159,18 +159,30 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdSetViewport(cmd, 0, 1, &vp);
         _vk.CmdSetScissor(cmd, 0, 1, &sci);
 
-        var scrPush = stackalloc float[4];
-        scrPush[0] = screen.X;
-        scrPush[1] = screen.Y;
-        scrPush[2] = 0f;
-        scrPush[3] = 0f;
+        // Fullscreen deferred fragments only need swapchain size for UVs; point-light quads also need the
+        // letterboxed VkViewport rect so clip-space matches sprite rendering.
+        var screenPushHdr = stackalloc float[4];
+        screenPushHdr[0] = screen.X;
+        screenPushHdr[1] = screen.Y;
+        screenPushHdr[2] = 0f;
+        screenPushHdr[3] = 0f;
+
+        var pointPushHdr = stackalloc float[8];
+        pointPushHdr[0] = physical.OffsetPixels.X;
+        pointPushHdr[1] = physical.OffsetPixels.Y;
+        pointPushHdr[2] = physical.SizePixels.X;
+        pointPushHdr[3] = physical.SizePixels.Y;
+        pointPushHdr[4] = screen.X;
+        pointPushHdr[5] = screen.Y;
+        pointPushHdr[6] = 0f;
+        pointPushHdr[7] = 0f;
 
         _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBase);
         var setsBase = stackalloc DescriptorSet[2];
         setsBase[0] = _dsGbufferRead;
         setsBase[1] = _dsLighting;
         _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBase, 0, 2, setsBase, 0, null);
-        _vk.CmdPushConstants(cmd, _plDeferredBase, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), scrPush);
+        _vk.CmdPushConstants(cmd, _plDeferredBase, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
         _vk.CmdDraw(cmd, 3, 1, 0, 0);
 
         _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredPoint);
@@ -179,7 +191,7 @@ public sealed unsafe partial class VulkanRenderer
         setsPt[1] = _dsPointSsbo;
         _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredPoint, 0, 2, setsPt, 0, null);
         _vk.CmdPushConstants(cmd, _plDeferredPoint, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
-            (uint)(sizeof(float) * 4), scrPush);
+            (uint)(sizeof(float) * 8), pointPushHdr);
         var nPt = Math.Min(framePlan.PointLightCount, DeferredRenderingConstants.MaxPointLights);
         if (nPt > 0)
         {
@@ -193,7 +205,7 @@ public sealed unsafe partial class VulkanRenderer
         setsBl[0] = _dsGbufferRead;
         setsBl[1] = _dsEmissiveScene;
         _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBleed, 0, 2, setsBl, 0, null);
-        _vk.CmdPushConstants(cmd, _plDeferredBleed, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), scrPush);
+        _vk.CmdPushConstants(cmd, _plDeferredBleed, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
         _vk.CmdDraw(cmd, 3, 1, 0, 0);
 
         _vk.CmdEndRenderPass(cmd);
@@ -259,7 +271,7 @@ public sealed unsafe partial class VulkanRenderer
             {
                 _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plTransparentResolve, 0, 1, dsTr, 0, null);
             }
-            _vk.CmdPushConstants(cmd, _plTransparentResolve, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), scrPush);
+            _vk.CmdPushConstants(cmd, _plTransparentResolve, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
             _vk.CmdDraw(cmd, 3, 1, 0, 0);
             _vk.CmdEndRenderPass(cmd);
             _offsWrittenHdrComposite = true;
@@ -332,12 +344,14 @@ public sealed unsafe partial class VulkanRenderer
             uv = new Vector4D<float>(0f, 0f, 1f, 1f);
 
         var screen = plan.Screen;
+        var phys = plan.Physical;
         var push = new SpritePushData
         {
             CenterHalfPx = new Vector4D<float>(px.X, px.Y, halfX, halfY),
             UvRect = uv,
             ColorAlpha = new Vector4D<float>(s.ColorMultiply.X * s.Alpha, s.ColorMultiply.Y * s.Alpha, s.ColorMultiply.Z * s.Alpha, s.ColorMultiply.W * s.Alpha),
             EmissiveRgbIntensity = new Vector4D<float>(s.EmissiveTint.X, s.EmissiveTint.Y, s.EmissiveTint.Z, s.EmissiveIntensity),
+            ViewportPhysical = new Vector4D<float>(phys.OffsetPixels.X, phys.OffsetPixels.Y, phys.SizePixels.X, phys.SizePixels.Y),
             ScreenRot = new Vector4D<float>(screen.X, screen.Y, rotScreen, 0f),
             Mode = mode,
             UseEmissiveMap = 0

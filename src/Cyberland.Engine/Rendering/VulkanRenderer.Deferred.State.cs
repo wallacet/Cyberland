@@ -195,7 +195,14 @@ public sealed unsafe partial class VulkanRenderer
         public Vector4D<float> UvRect;
         public Vector4D<float> ColorAlpha;
         public Vector4D<float> EmissiveRgbIntensity;
-        /// <summary>XY = framebuffer size, Z = rotation radians, W unused.</summary>
+        /// <summary>Letterboxed drawable rect in swapchain pixels: X = offset X, Y = offset Y, Z = width, W = height.</summary>
+        /// <remarks>
+        /// Sprite vertices must map swapchain pixel centers into clip space using this rect, because
+        /// <c>vkCmdSetViewport</c> is bound to the same physical region — using the full swapchain size here skews
+        /// NDC whenever pillarbox/letterbox bars are present.
+        /// </remarks>
+        public Vector4D<float> ViewportPhysical;
+        /// <summary>XY = full swapchain size (HDR UVs etc.), Z = rotation radians, W unused.</summary>
         public Vector4D<float> ScreenRot;
         public int Mode;
         /// <summary>Emissive prepass: 1 when <see cref="SpriteDrawRequest.EmissiveTextureId"/> is bound.</summary>

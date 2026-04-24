@@ -89,7 +89,7 @@ public sealed class ModdingTests
                 localized,
                 world,
                 sched,
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.Same(locMgr, ctx.Localization);
             Assert.Same(localized, ctx.LocalizedContent);
@@ -157,7 +157,7 @@ public sealed class ModdingTests
             TestLoc(vfs),
             new World(),
             new SystemScheduler(new ParallelismSettings()),
-            new GameHostServices(new KeyBindingStore()));
+            new GameHostServices());
 
         Assert.Empty(loader.LoadedManifests);
     }
@@ -192,7 +192,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.Equal(2, TestModEntry.OnLoadCount);
             Assert.Equal(2, loader.LoadedManifests.Count);
@@ -244,7 +244,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.False(vfs.Exists("gone.txt"));
             Assert.False(vfs.TryOpenRead("gone.txt", out _));
@@ -278,7 +278,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.Equal(0, TestModEntry.OnLoadCount);
             Assert.Single(loader.LoadedManifests);
@@ -313,7 +313,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.Single(loader.LoadedManifests);
             Assert.Equal("tex.pack", loader.LoadedManifests[0].Id);
@@ -349,7 +349,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
             Assert.Equal(0, TestModEntry.OnLoadCount);
         }
         finally
@@ -389,7 +389,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.Equal(1, TestModEntry.OnLoadCount);
         }
@@ -409,8 +409,7 @@ public sealed class ModdingTests
         ModLoader? loader = null;
         try
         {
-            var keys = new KeyBindingStore();
-            var host = new GameHostServices(keys);
+            var host = new GameHostServices();
             loader = new ModLoader();
             var vfs = new VirtualFileSystem();
             loader.LoadAll(
@@ -450,7 +449,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()),
+                new GameHostServices(),
                 excluded);
 
             Assert.Equal(1, TestModEntry.OnLoadCount);
@@ -496,7 +495,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.Equal(1, TestModEntry.OnLoadCount);
             Assert.Single(loader.LoadedManifests);
@@ -531,7 +530,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.Equal(1, TestModEntry.OnLoadCount);
             Assert.Single(loader.LoadedManifests);
@@ -563,7 +562,7 @@ public sealed class ModdingTests
                 TestLoc(vfs),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             Assert.Equal(1, TestModEntry.OnLoadCount);
             Assert.Single(loader.LoadedManifests);
@@ -588,7 +587,7 @@ public sealed class ModdingTests
         {
             var vfs = new VirtualFileSystem();
             loader = new ModLoader();
-            var host = new GameHostServices(new KeyBindingStore());
+            var host = new GameHostServices();
             var world = new World();
             var sched = new SystemScheduler(new ParallelismSettings());
             var loc = TestLoc(vfs);

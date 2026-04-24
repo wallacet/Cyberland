@@ -176,7 +176,7 @@ public sealed class LocalizedContentTests
         var vfs = new VirtualFileSystem();
         var lc = new LocalizedContent(new LocalizationManager(), vfs, "fr-CA");
         Assert.Equal("fr-CA", lc.PrimaryCultureName);
-        var host = new GameHostServices(new KeyBindingStore()) { LocalizedContent = lc };
+        var host = new GameHostServices() { LocalizedContent = lc };
         Assert.Same(lc, host.LocalizedContent);
     }
 

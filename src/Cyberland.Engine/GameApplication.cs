@@ -48,14 +48,13 @@ public sealed class GameApplication : IDisposable
     private readonly SystemScheduler _scheduler;
     private readonly ModLoader _mods = new();
     private readonly LocalizationManager _localization = new();
-    private readonly KeyBindingStore _bindings = new();
     private readonly GameHostServices _host;
     private readonly string[] _commandLineArgs;
     private ILocalizedContent? _localizedContent;
     private OpenALAudioDevice? _audio;
     private VulkanRenderer? _renderer;
     private IWindow? _window;
-    private IInputContext? _input;
+    private SilkInputService? _input;
 
     /// <summary>
     /// Prepares host services and the frame scheduler. Does not open the window until <see cref="Run"/> is called.
@@ -65,7 +64,7 @@ public sealed class GameApplication : IDisposable
     {
         _commandLineArgs = commandLineArgs ?? Array.Empty<string>();
         _scheduler = new SystemScheduler(_parallelism);
-        _host = new GameHostServices(_bindings);
+        _host = new GameHostServices();
     }
 
     /// <summary>
@@ -92,7 +91,7 @@ public sealed class GameApplication : IDisposable
             return;
 
         // Bootstrap order: Vulkan + audio + input → assign Host.Renderer/Input → baseline HDR once (EngineDefaultGlobalPostProcess)
-        // → sync keybindings (window thread; GetAwaiter().GetResult avoids re-entrancy on the same thread)
+        // → sync input bindings (window thread; GetAwaiter().GetResult avoids re-entrancy on the same thread)
         // → register core parallel sim systems → ModLoader.LoadAll (mods register systems) → parallel render submit systems
         // → locale bootstrap. First RunFrame runs after this returns.
         _renderer = new VulkanRenderer(_window);
@@ -121,7 +120,7 @@ public sealed class GameApplication : IDisposable
             _audio = null;
         }
 
-        _input = _window.CreateInput();
+        _input = new SilkInputService(_window.CreateInput());
         _host.Renderer = _renderer;
         _host.Input = _input;
         _host.Tilemaps ??= new TilemapDataStore();
@@ -129,8 +128,8 @@ public sealed class GameApplication : IDisposable
 
         EngineDefaultGlobalPostProcess.Apply(_renderer);
 
-        var bindingsFile = Path.Combine(AppContext.BaseDirectory, "keybindings.json");
-        _bindings.LoadOrCreateUserFileAsync(bindingsFile).GetAwaiter().GetResult();
+        var bindingsFile = Path.Combine(AppContext.BaseDirectory, "input-bindings.json");
+        _input.Bindings.LoadOrCreateUserFileAsync(bindingsFile).GetAwaiter().GetResult();
 
         var languageFile = Path.Combine(AppContext.BaseDirectory, "language.json");
         var primaryCulture = LanguagePreference.Resolve(_commandLineArgs, languageFile);
@@ -206,6 +205,7 @@ public sealed class GameApplication : IDisposable
         if (dt > 0f)
             dt = Math.Min(dt, 0.25f);
 
+        _host.Input?.BeginFrame();
         // Publish fixed-step remainder before ILateUpdate so visual extrapolation (e.g. pos + vel * acc) uses this frame's alpha.
         _scheduler.RunFrame(_world, dt, acc => _host.FixedAccumulatorSeconds = acc);
         _host.FixedDeltaSeconds = _scheduler.FixedDeltaSeconds;
@@ -223,6 +223,7 @@ public sealed class GameApplication : IDisposable
     /// </summary>
     public void Dispose()
     {
+        _input?.Dispose();
         _renderer?.Dispose();
         _audio?.Dispose();
         _window?.Dispose();

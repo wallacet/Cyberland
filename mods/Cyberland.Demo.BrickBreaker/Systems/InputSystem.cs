@@ -1,7 +1,6 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
-using Silk.NET.Input;
 
 namespace Cyberland.Demo.BrickBreaker;
 
@@ -35,15 +34,20 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         _ = deltaSeconds;
         var world = _world;
         ref var c = ref world.Components<Control>().Get(_controlEntity);
-        c = default;
+        // Preserve latched intents for fixed systems: several Render ticks may occur before the next fixed substep at high refresh.
+        var pendingStart = c.StartRound;
+        var pendingLaunch = c.LaunchBall;
+        c.MoveLeft = false;
+        c.MoveRight = false;
+        c.StartRound = pendingStart;
+        c.LaunchBall = pendingLaunch;
         var r = _host.Renderer;
         var input = _host.Input;
         if (r is null)
             return;
-        var kb = input?.Keyboards.Count > 0 ? input.Keyboards[0] : null;
-        if (kb is null)
+        if (input is null)
             return;
-        if (kb.IsKeyPressed(Key.Q))
+        if (input.IsDown("cyberland.common/quit"))
         {
             r.RequestClose?.Invoke();
             return;
@@ -52,19 +56,20 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         switch (phase)
         {
             case Phase.Title:
-                if (kb.IsKeyPressed(Key.Enter))
+                if (input.WasPressed("cyberland.demo.brickbreaker/start_round") || input.WasPressed("cyberland.common/start"))
                     c.StartRound = true;
                 break;
             case Phase.GameOver:
-                if (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.R))
+                if (input.WasPressed("cyberland.demo.brickbreaker/start_round") || input.WasPressed("cyberland.common/start"))
                     c.StartRound = true;
                 break;
             case Phase.Playing:
-                if (kb.IsKeyPressed(Key.A) || kb.IsKeyPressed(Key.Left))
+                var move = input.ReadAxis("cyberland.demo.brickbreaker/move_x");
+                if (move < 0f)
                     c.MoveLeft = true;
-                if (kb.IsKeyPressed(Key.D) || kb.IsKeyPressed(Key.Right))
+                if (move > 0f)
                     c.MoveRight = true;
-                if (kb.IsKeyPressed(Key.Space))
+                if (input.WasPressed("cyberland.demo.brickbreaker/launch_ball"))
                     c.LaunchBall = true;
                 break;
         }

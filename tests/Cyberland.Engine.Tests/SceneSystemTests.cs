@@ -2,7 +2,6 @@ using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
-using Cyberland.Engine.Input;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
@@ -29,8 +28,7 @@ public sealed class SceneSystemTests
 
     private static GameHostServices Host(IRenderer r, TilemapDataStore? tm = null)
     {
-        var kb = new KeyBindingStore();
-        var h = new GameHostServices(kb) { Renderer = r };
+        var h = new GameHostServices() { Renderer = r };
         h.Tilemaps = tm ?? new TilemapDataStore();
         return h;
     }
@@ -303,10 +301,171 @@ public sealed class SceneSystemTests
     }
 
     [Fact]
+    public void Transform_WorldPosition_setter_falls_back_to_root_on_degenerate_parented_world()
+    {
+        // A parented child whose own WorldMatrix is still degenerate (e.g. default(Transform) before any
+        // hierarchy pass) cannot invert to recover the parent's world; the setter must fall back to
+        // LocalMatrix = newWorld so the pose is at least reachable after the next hierarchy pass.
+        var w = new World();
+        var parent = w.CreateEntity();
+        var child = w.CreateEntity();
+
+        ref var parentTf = ref w.Components<Transform>().GetOrAdd(parent);
+        parentTf = Transform.Identity;
+
+        ref var childTf = ref w.Components<Transform>().GetOrAdd(child);
+        childTf = default; // zero matrices: WorldMatrix is non-invertible
+        childTf.Parent = parent;
+        childTf.WorldPosition = new Vector2D<float>(11f, 13f);
+
+        var sys = new TransformHierarchySystem();
+        StartEcs(sys, w);
+        sys.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var after = w.Components<Transform>().Get(child);
+        Assert.Equal(11f, after.WorldPosition.X, 3);
+        Assert.Equal(13f, after.WorldPosition.Y, 3);
+    }
+
+    [Fact]
+    public void Transform_root_LocalPosition_setter_keeps_WorldMatrix_in_sync()
+    {
+        // Setters on a root must leave Local and World consistent so reads between setters (and downstream
+        // systems that read WorldMatrix directly, e.g. SpriteRenderSystem) see the requested pose without
+        // waiting for the next hierarchy pass.
+        var t = Transform.Identity;
+        t.LocalPosition = new Vector2D<float>(7f, 11f);
+        Assert.Equal(7f, t.WorldPosition.X, 3);
+        Assert.Equal(11f, t.WorldPosition.Y, 3);
+        Assert.Equal(7f, t.WorldMatrix.M31, 3);
+        Assert.Equal(11f, t.WorldMatrix.M32, 3);
+    }
+
+    [Fact]
+    public void Transform_root_LocalRotation_and_LocalScale_setters_keep_WorldMatrix_in_sync()
+    {
+        var t = Transform.Identity;
+        t.LocalPosition = new Vector2D<float>(3f, 4f);
+        t.LocalRotationRadians = MathF.PI * 0.5f;
+        t.LocalScale = new Vector2D<float>(2f, 3f);
+
+        // Local and world must match component-wise since the root has no parent.
+        Assert.Equal(3f, t.WorldPosition.X, 3);
+        Assert.Equal(4f, t.WorldPosition.Y, 3);
+        Assert.Equal(MathF.PI * 0.5f, t.WorldRotationRadians, 4);
+        Assert.Equal(2f, t.WorldScale.X, 3);
+        Assert.Equal(3f, t.WorldScale.Y, 3);
+    }
+
+    [Fact]
+    public void Transform_root_interleaved_Local_and_World_writes_converge_to_last_write()
+    {
+        // Mods may freely interleave Local* and World* writes in any order, any number of times — the final
+        // matrix pair reflects the last write and is internally consistent.
+        var t = Transform.Identity;
+        t.LocalPosition = new Vector2D<float>(1f, 2f);
+        t.WorldPosition = new Vector2D<float>(5f, 6f);
+        t.LocalPosition = new Vector2D<float>(9f, 10f);
+        t.WorldRotationRadians = 0.5f;
+        t.LocalScale = new Vector2D<float>(2f, 2f);
+        t.WorldPosition = new Vector2D<float>(-3f, -4f);
+
+        Assert.Equal(-3f, t.LocalPosition.X, 3);
+        Assert.Equal(-4f, t.LocalPosition.Y, 3);
+        Assert.Equal(-3f, t.WorldPosition.X, 3);
+        Assert.Equal(-4f, t.WorldPosition.Y, 3);
+        Assert.Equal(0.5f, t.WorldRotationRadians, 4);
+        Assert.Equal(2f, t.WorldScale.X, 3);
+        Assert.Equal(2f, t.WorldScale.Y, 3);
+    }
+
+    [Fact]
+    public void Transform_child_LocalPosition_setter_updates_WorldMatrix_via_implicit_parent()
+    {
+        // After one hierarchy pass, the child's Local/World pair captures the parent's world. A subsequent
+        // child.LocalPosition write must update WorldMatrix using that implicit parent so the render this
+        // frame already reflects the new world pose — not wait for the next hierarchy pass.
+        var w = new World();
+        var parent = w.CreateEntity();
+        var child = w.CreateEntity();
+
+        ref var parentTf = ref w.Components<Transform>().GetOrAdd(parent);
+        parentTf = Transform.Identity;
+        parentTf.LocalPosition = new Vector2D<float>(100f, 0f);
+
+        ref var childTf = ref w.Components<Transform>().GetOrAdd(child);
+        childTf = Transform.Identity;
+        childTf.LocalPosition = new Vector2D<float>(50f, 50f);
+        childTf.Parent = parent;
+
+        var sys = new TransformHierarchySystem();
+        StartEcs(sys, w);
+        sys.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        // Change only the child's local; world must immediately reflect local * parent.World = (160, 60).
+        ref var childRef = ref w.Components<Transform>().Get(child);
+        childRef.LocalPosition = new Vector2D<float>(60f, 60f);
+        Assert.Equal(160f, childRef.WorldPosition.X, 3);
+        Assert.Equal(60f, childRef.WorldPosition.Y, 3);
+
+        // Hierarchy reruns idempotently.
+        sys.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+        var after = w.Components<Transform>().Get(child);
+        Assert.Equal(160f, after.WorldPosition.X, 3);
+        Assert.Equal(60f, after.WorldPosition.Y, 3);
+        Assert.Equal(60f, after.LocalPosition.X, 3);
+        Assert.Equal(60f, after.LocalPosition.Y, 3);
+    }
+
+    [Fact]
+    public void Transform_LocalPosition_setter_falls_back_to_root_on_degenerate_old_local()
+    {
+        // default(Transform) is the degenerate "all zeros" state. The local setter cannot recover an implicit
+        // parent from a non-invertible LocalMatrix, so it falls back to LocalMatrix = WorldMatrix = newLocal.
+        var t = default(Transform);
+        t.LocalPosition = new Vector2D<float>(2f, 5f);
+
+        // World follows Local in the degenerate fallback (identity parent assumption).
+        Assert.Equal(2f, t.WorldMatrix.M31, 3);
+        Assert.Equal(5f, t.WorldMatrix.M32, 3);
+    }
+
+    [Fact]
+    public void Transform_root_double_assign_LocalPosition_then_WorldPosition_stays_at_target_after_hierarchy()
+    {
+        // Regression: mods commonly write `LocalPosition = X; WorldPosition = X;` in late-phase systems so
+        // the render sees the intended world pose this frame AND the pose survives the next frame's hierarchy
+        // recompose. Without the root short-circuit the WorldPosition back-prop reads a stale WorldMatrix
+        // (unchanged by the preceding LocalPosition write) and doubled the translation on the next pass.
+        var w = new World();
+        var e = w.CreateEntity();
+        var tf = Transform.Identity;
+        var target = new Vector2D<float>(640f, 360f);
+        tf.LocalPosition = target;
+        tf.WorldPosition = target;
+        w.Components<Transform>().GetOrAdd(e) = tf;
+
+        // Immediately after the setters: both caches report the requested pose.
+        var immediate = w.Components<Transform>().Get(e);
+        Assert.Equal(target.X, immediate.LocalPosition.X, 3);
+        Assert.Equal(target.Y, immediate.LocalPosition.Y, 3);
+        Assert.Equal(target.X, immediate.WorldPosition.X, 3);
+        Assert.Equal(target.Y, immediate.WorldPosition.Y, 3);
+
+        // After hierarchy: WorldMatrix recomposed from LocalMatrix must still land on the target, not 2*target.
+        var sys = new TransformHierarchySystem();
+        StartEcs(sys, w);
+        sys.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var after = w.Components<Transform>().Get(e);
+        Assert.Equal(target.X, after.WorldPosition.X, 3);
+        Assert.Equal(target.Y, after.WorldPosition.Y, 3);
+    }
+
+    [Fact]
     public void SpriteRenderSystem_noop_when_renderer_null()
     {
-        var kb = new KeyBindingStore();
-        var h = new GameHostServices(kb) { Renderer = null };
+        var h = new GameHostServices() { Renderer = null };
         var w = new World();
         var e = w.CreateEntity();
         w.Components<Transform>().GetOrAdd(e) = MakeTransform(

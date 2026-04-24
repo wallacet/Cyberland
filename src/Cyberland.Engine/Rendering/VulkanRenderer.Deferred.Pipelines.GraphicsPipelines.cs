@@ -421,7 +421,7 @@ public sealed unsafe partial class VulkanRenderer
         {
             StageFlags = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit,
             Offset = 0,
-            Size = (uint)(sizeof(float) * 4)
+            Size = (uint)(sizeof(float) * 8)
         };
 
         var pcrF = stackalloc PushConstantRange[1];

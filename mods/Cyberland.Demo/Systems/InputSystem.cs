@@ -2,7 +2,6 @@ using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
-using Silk.NET.Input;
 
 namespace Cyberland.Demo;
 
@@ -31,10 +30,8 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     {
         _world = world;
         _ = archetype;
-        var input = _host.Input
-                    ?? throw new InvalidOperationException("cyberland.demo/input requires Host.Input during OnStart.");
-        if (input.Keyboards.Count == 0)
-            throw new InvalidOperationException("cyberland.demo/input requires at least one keyboard during OnStart.");
+        _ = _host.Input
+            ?? throw new InvalidOperationException("cyberland.demo/input requires Host.Input during OnStart.");
 
         _player = archetype.RequireSingleEntityWith<PlayerTag>("player");
         _initialized = true;
@@ -51,30 +48,22 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         ref var v = ref world.Components<Velocity>().Get(_player);
         v = default;
 
-        var kb = _host.Input!.Keyboards[0];
-        var bindings = _host.KeyBindings;
+        var input = _host.Input!;
 
-        if (kb.IsKeyPressed(Key.Q))
+        if (input.IsDown("cyberland.common/quit"))
         {
             _host.Renderer?.RequestClose?.Invoke();
             return;
         }
 
-        if (kb.IsKeyPressed(Key.F9))
+        if (input.WasPressed("cyberland.demo/toggle_velocity_damp"))
         {
             var id = "cyberland.demo/velocity-damp";
             _scheduler.SetEnabled(id, !_scheduler.IsEnabled(id));
         }
 
-        float dx = 0f, dy = 0f;
-        if (bindings.IsDown(kb, "move_left") || kb.IsKeyPressed(Key.Left))
-            dx -= 1f;
-        if (bindings.IsDown(kb, "move_right") || kb.IsKeyPressed(Key.Right))
-            dx += 1f;
-        if (bindings.IsDown(kb, "move_up") || kb.IsKeyPressed(Key.Up))
-            dy += 1f;
-        if (bindings.IsDown(kb, "move_down") || kb.IsKeyPressed(Key.Down))
-            dy -= 1f;
+        float dx = input.ReadAxis("cyberland.demo/move_x");
+        float dy = input.ReadAxis("cyberland.demo/move_y");
 
         if (dx == 0f && dy == 0f)
             return;

@@ -132,7 +132,7 @@ Use this when you want a **fresh tree** or a **folder you can zip** and run else
    .\scripts\Sync-CyberlandAssets.ps1
    ```
 
-4. **Package** — archive **`artifacts/publish/Cyberland.Host/release/`** (e.g. zip that folder). **`Mods/`** is already next to the published exe. **`keybindings.json`** is created at runtime next to the exe if missing.
+4. **Package** — archive **`artifacts/publish/Cyberland.Host/release/`** (e.g. zip that folder). **`Mods/`** is already next to the published exe. **`input-bindings.json`** is created at runtime next to the exe if missing.
 
 **RID-specific publish** (platform-native dependencies, still uses the shared .NET 8 runtime — small download), example for Windows x64:
 
@@ -218,12 +218,11 @@ flowchart TB
     SYS --> ECS
     SYS --> SVC["GameHostServices"]
     SVC --> VK
-    SVC --> INP["IInputContext"]
-    SVC --> KEYS["KeyBindingStore"]
+    SVC --> INP["IInputService"]
   end
 ```
 
-1. **Host** creates the window, graphics, input, keybindings, ECS world, scheduler, and VFS, then calls **`ModLoader.LoadAll`** on `AppContext.BaseDirectory/Mods`.
+1. **Host** creates the window, graphics, input service, input bindings, ECS world, scheduler, and VFS, then calls **`ModLoader.LoadAll`** on `AppContext.BaseDirectory/Mods`.
 2. Each mod’s **`IMod.OnLoad`** receives a **`ModLoadContext`**: world, scheduler, localization, VFS, and **`Host`** (`GameHostServices`).
 3. Mods **register systems** on the scheduler and optionally spawn entities, mount extra paths, etc.
 4. Each presented frame, the window **Render** callback runs **`SystemScheduler.RunFrame(world, dt)`** once (with **`deltaSeconds`** from wall time between draws), then **`VulkanRenderer.DrawFrame`**. **`RunFrame`** walks the **same ordered list** of registrations for three **phases**—**Early** (variable dt), **Fixed** (zero or more substeps at **`FixedDeltaSeconds`**, capped by **`MaxSubstepsPerFrame`**), **Late** (variable dt)—invoking **`IEarlyUpdate`/`IFixedUpdate`/`ILateUpdate`** or **`IParallelEarlyUpdate`/`IParallelFixedUpdate`/`IParallelLateUpdate`** where implemented. The **`Update`** callback is intentionally empty so ECS does not run multiple times per draw. Input and exit behavior are handled inside **mod** systems (the host wires **`Renderer.RequestClose`** to close the window; shipped demos invoke it from input when exiting).
@@ -268,7 +267,9 @@ Within each phase, order is still **global registration order**: each entry is e
 
 ### Input (`Input/`)
 
-- **`KeyBindingStore`** — maps action ids (`move_up`, `move_left`, …) to **`Silk.NET.Input.Key`**, loaded from `keybindings.json` under the app base directory.
+- **`IInputService`** / **`SilkInputService`** — frame-stable input abstraction over Silk devices. The host calls **`BeginFrame()`** once per render tick before ECS updates; systems then read stable action, axis, and mouse state for that frame.
+- **`InputBindings`** — runtime-editable map from action/axis ids to one or more **`InputBinding`** entries, loaded from `input-bindings.json` under the app base directory.
+- **`InputControl`** — persisted physical control token (`keyboard:*`, `mouse:*`, `mouseAxis:*`) used by binding JSON and runtime rebind APIs.
 
 ### Assets (`Assets/`)
 
@@ -295,7 +296,7 @@ Within each phase, order is still **global registration order**: each entry is e
 
 ### Hosting (`Hosting/`)
 
-- **`GameHostServices`** — **`KeyBindings`**, **`Renderer`** (**`IRenderer?`**; concrete type **`VulkanRenderer`**), **`Input`** (**`IInputContext?`**), **`LocalizedContent`** (**`ILocalizedContent?`**), built-in **`Fonts`** (**`FontLibrary`**) and **`TextGlyphCache`** for **`TextRenderSystem`** / **`TextRenderer`**, optional **`Tilemaps`** (**`ITilemapDataStore?`**) and **`Particles`** (**`ParticleStore?`**) for tile indices and CPU particle buffers used by engine render/sim systems. **`LastPresentDeltaSeconds`** is wall time between draws (matches ECS **`deltaSeconds`** in the stock host, which runs **`RunFrame`** once per **Render** tick). Populated by **`GameApplication`** after the window and device exist, then passed into **`ModLoadContext`** so mods do not use static globals.
+- **`GameHostServices`** — **`Renderer`** (**`IRenderer?`**; concrete type **`VulkanRenderer`**), **`Input`** (**`IInputService?`**), **`LocalizedContent`** (**`ILocalizedContent?`**), built-in **`Fonts`** (**`FontLibrary`**) and **`TextGlyphCache`** for **`TextRenderSystem`** / **`TextRenderer`**, optional **`Tilemaps`** (**`ITilemapDataStore?`**) and **`Particles`** (**`ParticleStore?`**) for tile indices and CPU particle buffers used by engine render/sim systems. **`LastPresentDeltaSeconds`** is wall time between draws (matches ECS **`deltaSeconds`** in the stock host, which runs **`RunFrame`** once per **Render** tick). Populated by **`GameApplication`** after the window and device exist, then passed into **`ModLoadContext`** so mods do not use static globals.
 
 ### Diagnostics (`Diagnostics/`)
 
@@ -382,8 +383,7 @@ Use **`context.RegisterSequential`**, **`context.RegisterParallel`**, **`context
 
 | Member | Use |
 |--------|-----|
-| **`KeyBindings`** | **`IsDown(keyboard, "move_up")`** etc. |
-| **`Input`** | Raw **`IKeyboard`** / mice if needed. |
+| **`Input`** | Action/axis queries (`IsDown`, `WasPressed`, `ReadAxis`), mouse position/delta, runtime rebinds via `Input.Bindings`. |
 | **`Renderer`** | **`IRenderer`**: **`SwapchainPixelSize`** / **`ActiveCameraViewportSize`**, **`SubmitSprite`**, **`SubmitPointLight`** / **`SubmitSpotLight`** / **`SubmitDirectionalLight`** / **`SubmitAmbientLight`**, **`SubmitPostProcessVolume`**, **`SetGlobalPostProcess`**, **`SubmitCamera`**, **`RegisterTextureRgba`**, **`TryUploadTextureRgbaSubregion`**, **`RequestClose`** (e.g. **`Cyberland.Demo`**). |
 | **`Tilemaps`** | Optional; holds per-entity tile index buffers for **`TilemapRenderSystem`**. |
 | **`Particles`** | Optional; CPU particle buckets for **`ParticleSimulationSystem`** / **`ParticleRenderSystem`**. |
@@ -435,7 +435,7 @@ c = new MyComponent { Value = 1f };
 
 ### 6. Input and rendering
 
-- Read actions through **`context.Host.KeyBindings`** and **`context.Host.Input`**.
+- Read actions and axes through **`context.Host.Input`** (`IsDown`, `WasPressed`, `ReadAxis`) and update bindings through **`context.Host.Input.Bindings`** when supporting runtime rebind UI.
 - **Lighting** — queue **`SubmitPointLight`**, **`SubmitSpotLight`**, **`SubmitDirectionalLight`**, and **`SubmitAmbientLight`** on **`context.Host.Renderer`** each frame you need them (same **`IRenderer`** as sprites). The deferred path accumulates **all** submitted ambients, **all** directionals and spots in the base fullscreen pass (up to engine caps), and **all** point lights in the instanced pass.
 - For drawing, prefer **`Sprite`** + **`Transform`** on entities; the engine’s **`SpriteRenderSystem`** submits **`SpriteDrawRequest`** in **world space** after your mod systems run. For HUD text, prefer **`BitmapText`** + **`Transform`** and **`TextRenderSystem`**. For one-off or procedural draws, build **`SpriteDrawRequest`** yourself and call **`context.Host.Renderer?.SubmitSprite(...)`** (and post volumes as needed).
 
@@ -475,7 +475,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 
 ## Configuration
 
-- **`keybindings.json`** — lives next to the host executable (see **`KeyBindingStore.LoadDefaults`** for action ids). First run creates the file if missing.
+- **`input-bindings.json`** — lives next to the host executable (see **`InputBindings.LoadDefaults`** for shipped action ids). First run creates the file if missing.
 
 ---
 

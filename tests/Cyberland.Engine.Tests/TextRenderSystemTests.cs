@@ -2,7 +2,6 @@ using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
-using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -19,7 +18,7 @@ public sealed class TextRenderSystemTests
     [Fact]
     public void TextRenderSystem_throws_when_renderer_null()
     {
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = null, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = null, LocalizedContent = null };
         var world = new World();
         var e = world.CreateEntity();
         world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
@@ -43,7 +42,7 @@ public sealed class TextRenderSystemTests
         var loc = new LocalizationManager();
         loc.MergeJson("""{"ok":"v"}"""u8.ToArray());
         var lc = new LocalizedContent(loc, new VirtualFileSystem(), "en");
-        var host = new GameHostServices(new KeyBindingStore())
+        var host = new GameHostServices()
         {
             Renderer = r,
             LocalizedContent = null
@@ -106,7 +105,7 @@ public sealed class TextRenderSystemTests
         var loc = new LocalizationManager();
         loc.MergeJson("""{"a":"Z"}"""u8.ToArray());
         var lc = new LocalizedContent(loc, new VirtualFileSystem(), "en");
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = lc };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = lc };
 
         var world = new World();
         var ew = world.CreateEntity();
@@ -151,7 +150,7 @@ public sealed class TextRenderSystemTests
     public void TextRenderSystem_world_literal_and_screen_literal_branches()
     {
         var r = new RecordingRenderer();
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
 
         var world = new World();
         var ew = world.CreateEntity();
@@ -199,7 +198,7 @@ public sealed class TextRenderSystemTests
         var loc = new LocalizationManager();
         loc.MergeJson("""{"empty":""}"""u8.ToArray());
         var lc = new LocalizedContent(loc, new VirtualFileSystem(), "en");
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = lc };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = lc };
         var world = new World();
         var e = world.CreateEntity();
         world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
@@ -224,7 +223,7 @@ public sealed class TextRenderSystemTests
         var loc = new LocalizationManager();
         loc.MergeJson("""{"k":"Z"}"""u8.ToArray());
         var lc = new LocalizedContent(loc, new VirtualFileSystem(), "en");
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = lc };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = lc };
         var world = new World();
 
         var e0 = world.CreateEntity();
@@ -279,7 +278,7 @@ public sealed class TextRenderSystemTests
     public void TextRenderSystem_second_frame_unchanged_uses_glyph_cache_replay()
     {
         var r = new RecordingRenderer();
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
@@ -307,7 +306,7 @@ public sealed class TextRenderSystemTests
     public void TextRenderSystem_prunes_cache_when_entity_destroyed()
     {
         var r = new RecordingRenderer();
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
@@ -330,7 +329,7 @@ public sealed class TextRenderSystemTests
     public void TextRenderSystem_throws_when_renderer_becomes_null()
     {
         var r = new RecordingRenderer();
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
@@ -353,7 +352,7 @@ public sealed class TextRenderSystemTests
     public void TextRenderSystem_reuses_cached_row_array_when_content_grows()
     {
         var r = new RecordingRenderer();
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
@@ -378,7 +377,7 @@ public sealed class TextRenderSystemTests
     public void TextRenderSystem_OnLateUpdate_renders_without_column_map_cache()
     {
         var r = new RecordingRenderer();
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
@@ -400,7 +399,7 @@ public sealed class TextRenderSystemTests
     public void TextRenderSystem_uses_bitmaptext_runtime_cache_fields()
     {
         var r = new RecordingRenderer();
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
@@ -444,7 +443,7 @@ public sealed class TextRenderSystemTests
     public void TextBuildSystem_builds_runtime_sprites_in_parallel()
     {
         var r = new RecordingRenderer();
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = r, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
         var sys = new TextBuildSystem(host);
         var world = new World();
         var e = world.CreateEntity();
@@ -468,7 +467,7 @@ public sealed class TextRenderSystemTests
     [Fact]
     public void TextBuildSystem_throws_when_renderer_null()
     {
-        var host = new GameHostServices(new KeyBindingStore()) { Renderer = null, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = null, LocalizedContent = null };
         var sys = new TextBuildSystem(host);
         var world = new World();
         var e = world.CreateEntity();

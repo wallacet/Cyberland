@@ -9,6 +9,7 @@ layout(push_constant) uniform Pc {
     vec4 uvRect;
     vec4 colorAlpha;
     vec4 emissive;
+    vec4 viewportPhysical;
     vec4 screenRot;
     int mode;
     int useEmissiveMap;

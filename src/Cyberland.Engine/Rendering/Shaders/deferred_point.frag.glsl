@@ -7,6 +7,7 @@ layout(std430, set = 1, binding = 0) readonly buffer PointSsbo {
 } points;
 layout(location = 0) out vec4 outAdd;
 layout(push_constant) uniform Pc {
+    vec4 viewportPhysical;
     vec4 screen;
 } pc;
 void main() {

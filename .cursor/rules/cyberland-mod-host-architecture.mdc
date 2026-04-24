@@ -10,7 +10,7 @@ alwaysApply: false
 
 | Layer | Project / location | Owns |
 |--------|-------------------|------|
-| **Host** | `Cyberland.Host`, `Cyberland.Engine.GameApplication` | Process entry, window, Vulkan init, swapchain present, global input context, keybinding store file, audio device, ECS `World` + `SystemScheduler`, mod discovery, `Mods/` staging (via **`scripts/StageModsForHost.ps1`**) |
+| **Host** | `Cyberland.Host`, `Cyberland.Engine.GameApplication` | Process entry, window, Vulkan init, swapchain present, global input service + input bindings file, audio device, ECS `World` + `SystemScheduler`, mod discovery, `Mods/` staging (via **`scripts/StageModsForHost.ps1`**) |
 | **Base campaign** | `mods/Cyberland.Game` | `IMod` (`BaseGameMod`), locale and future core **`Content/`** |
 | **Optional samples** | `mods/Cyberland.Demo`, `Cyberland.Demo.Pong`, `.Snake`, `.BrickBreaker` | `IMod` demos: 2D HDR sprites + ECS; arcade minigames (often **`disabled`** in **`manifest.json`**) |
 | **Engine** | `Cyberland.Engine` | Reusable APIs: ECS, tasks, rendering, input helpers, `GameHostServices`, `ModLoadContext`, `ModLoader` |
@@ -64,7 +64,7 @@ After **`VulkanRenderer`** initializes, **`GameApplication`** applies baseline H
   - Re-registering an existing id **replaces** the implementation in place (order relative to other systems unchanged) and resets **`OnStart`** for the new instance.
 - Use **`context.HideContentPath`** or manifest **`contentBlocklist`** to suppress a virtual file; use **`context.TryRemoveLocalizationKey`** to drop a merged string key.
 - Use **`context.World`** for entities and `Components<T>()`.
-- Use **`context.Host`** (`GameHostServices`) for **KeyBindings**, **Input** (`IInputContext`), **Renderer** (`IRenderer` / `VulkanRenderer`), **`Fonts`**, and **`TextGlyphCache`** when the mod needs custom **`TextRenderer`** calls; ordinary HUD should use **`BitmapText`** + **`Position`** and the stock **`TextRenderSystem`**. Do not static-import host singletons.
+- Use **`context.Host`** (`GameHostServices`) for **Input** (`IInputService`), **Renderer** (`IRenderer` / `VulkanRenderer`), **`Fonts`**, and **`TextGlyphCache`** when the mod needs custom **`TextRenderer`** calls; ordinary HUD should use **`BitmapText`** + **`Position`** and the stock **`TextRenderSystem`**. Do not static-import host singletons.
 
 ## Adding a new gameplay feature (checklist)
 

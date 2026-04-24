@@ -259,9 +259,7 @@ public sealed class SchedulerAndHostTests
     [Fact]
     public void GameHostServices_exposes_assignable_renderer_and_input()
     {
-        var keys = new KeyBindingStore();
-        var host = new GameHostServices(keys);
-        Assert.Same(keys, host.KeyBindings);
+        var host = new GameHostServices();
         Assert.Null(host.Renderer);
         Assert.Null(host.Input);
         host.Renderer = null;
@@ -285,7 +283,7 @@ public sealed class SchedulerAndHostTests
     {
         var sched = new SystemScheduler(new ParallelismSettings()) { FixedDeltaSeconds = 1f / 60f };
         sched.RunFrame(new World(), 0.01f);
-        var host = new GameHostServices(new KeyBindingStore())
+        var host = new GameHostServices()
         {
             FixedAccumulatorSeconds = sched.FixedAccumulator,
             FixedDeltaSeconds = sched.FixedDeltaSeconds

@@ -210,8 +210,10 @@ public sealed class SystemScheduler
     /// <see cref="ILateUpdate"/> / <see cref="IParallelLateUpdate"/>.
     /// </summary>
     /// <remarks>
-    /// Early runs once; <see cref="IFixedUpdate"/> may run multiple times per call. Input written in early is visible to every
-    /// fixed substep — avoid resetting entire input components inside fixed after reading held controls.
+    /// Early runs once; <see cref="IFixedUpdate"/> may run <strong>zero or more</strong> times per call when the variable
+    /// <paramref name="deltaSeconds"/> is small relative to <see cref="FixedDeltaSeconds"/> (common at high refresh). Input
+    /// written in early is visible to every fixed substep in that frame — avoid resetting entire input components in early
+    /// before fixed has a chance to consume latched intents (e.g. one-shot start flags).
     /// After the fixed loop, <see cref="FixedAccumulator"/> holds the remainder for optional render extrapolation.
     /// The stock host passes a callback into the three-parameter <c>RunFrame</c> overload so
     /// <see cref="Hosting.GameHostServices.FixedAccumulatorSeconds"/> is updated <strong>before</strong> late phase, allowing

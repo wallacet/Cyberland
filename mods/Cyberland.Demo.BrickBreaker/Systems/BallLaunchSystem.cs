@@ -55,10 +55,18 @@ public sealed class BallLaunchSystem : ISystem, IFixedUpdate
             ballTransform.WorldPosition = dockedPos;
         }
 
-        if (!game.BallDocked || !control.LaunchBall)
+        if (!game.BallDocked)
+        {
+            // Avoid leaving LaunchBall stuck true across undocked frames (early input may set it before a fixed substep runs).
+            control.LaunchBall = false;
+            return;
+        }
+
+        if (!control.LaunchBall)
             return;
 
         game.BallDocked = false;
+        control.LaunchBall = false;
         var v = new Vector2D<float>((Random.Shared.NextSingle() - 0.5f) * 0.5f, 1f);
         var len = MathF.Sqrt(v.X * v.X + v.Y * v.Y);
         if (len > 1e-5f)

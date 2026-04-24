@@ -256,12 +256,11 @@ public sealed class CoverageFillTests
     }
 
     [Fact]
-    public void KeyBindingStore_IsDown_short_circuits_when_action_unknown()
+    public void InputControl_TryParse_rejects_invalid_values()
     {
-        var store = new KeyBindingStore();
-        var kb = new Mock<IKeyboard>(MockBehavior.Strict);
-        Assert.False(store.IsDown(kb.Object, "missing"));
-        kb.VerifyNoOtherCalls();
+        Assert.False(InputControl.TryParse("", out _));
+        Assert.False(InputControl.TryParse("keyboard", out _));
+        Assert.False(InputControl.TryParse("mouseAxis:wat", out _));
     }
 
     [Fact]
@@ -328,7 +327,7 @@ public sealed class CoverageFillTests
                 new LocalizedContent(new LocalizationManager(), vfs, "en"),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
             Assert.Single(loader.LoadedManifests);
             loader.UnloadAll();
         }
@@ -357,7 +356,7 @@ public sealed class CoverageFillTests
                 new LocalizedContent(new LocalizationManager(), vfs, "en"),
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
-                new GameHostServices(new KeyBindingStore()));
+                new GameHostServices());
 
             ctx.MountDefaultContent();
             Assert.Empty(vfs.Roots);

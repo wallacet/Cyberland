@@ -54,4 +54,4 @@ When no camera is submitted, the renderer falls back to a default camera centere
 
 ## Rebasing keys
 
-If `keybindings.json` binds arrow keys to `move_*`, avoid double-applying the same physical key in separate branches.
+If `input-bindings.json` maps arrow keys into the same action/axis that your system also handles explicitly, avoid double-applying the same physical key in separate branches.
