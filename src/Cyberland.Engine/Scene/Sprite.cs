@@ -46,6 +46,13 @@ public struct Sprite : IComponent
     /// <summary>When false, the sprite submitter skips this drawable.</summary>
     public bool Visible;
 
+    /// <summary>
+    /// Whether <see cref="Transform.WorldPosition"/> is interpreted as world (camera-transformed) or viewport
+    /// pixels (+Y down, locked to the camera's virtual viewport / HUD). Defaults to
+    /// <see cref="SpriteCoordinateSpace.World"/>.
+    /// </summary>
+    public SpriteCoordinateSpace Space;
+
     /// <summary>Struct field initializers require an explicit constructor; <see cref="Alpha"/> defaults to 1.</summary>
     public Sprite()
     {
@@ -56,7 +63,7 @@ public struct Sprite : IComponent
     /// <summary>Convenience preset: white quad, default layer, fully opaque, no emissive.</summary>
     public static Sprite DefaultWhiteUnlit(TextureId whiteTextureId, TextureId normalTextureId, Vector2D<float> halfExtents)
     {
-        Sprite s;
+        Sprite s = default;
         s.HalfExtents = halfExtents;
         s.AlbedoTextureId = whiteTextureId;
         s.NormalTextureId = normalTextureId;

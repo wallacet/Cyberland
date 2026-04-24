@@ -30,16 +30,39 @@ public enum SpriteLayer : int
 }
 
 /// <summary>
+/// Which coordinate space a <see cref="SpriteDrawRequest"/> is authored in.
+/// </summary>
+public enum SpriteCoordinateSpace
+{
+    /// <summary>
+    /// <see cref="SpriteDrawRequest.CenterWorld"/> is in world pixels (+Y up). Transformed by the active camera
+    /// (position and rotation) before letterbox mapping into the swapchain.
+    /// </summary>
+    World = 0,
+
+    /// <summary>
+    /// <see cref="SpriteDrawRequest.CenterWorld"/> is in virtual viewport pixels (+Y down, top-left origin, range
+    /// <c>[0, ViewportSizeWorld]</c>). Not transformed by the camera — useful for HUD / UI that should stay locked
+    /// to the camera's virtual viewport regardless of camera position or rotation.
+    /// </summary>
+    Viewport = 1
+}
+
+/// <summary>
 /// Immediate-mode sprite submit (used by <see cref="IRenderer.SubmitSprite"/>): axis-aligned quad with optional rotation, materials, and transparency mode.
 /// </summary>
 /// <remarks>Straight alpha: <see cref="Alpha"/> multiplies RGB after texture sampling.</remarks>
 public struct SpriteDrawRequest
 {
-    /// <summary>Center in world pixels (+Y up), converted internally for the framebuffer.</summary>
+    /// <summary>
+    /// Center position; interpretation depends on <see cref="Space"/>: world pixels (+Y up) for
+    /// <see cref="SpriteCoordinateSpace.World"/>, virtual viewport pixels (+Y down) for
+    /// <see cref="SpriteCoordinateSpace.Viewport"/>.
+    /// </summary>
     public Vector2D<float> CenterWorld;
-    /// <summary>Half-width / half-height in world units before rotation.</summary>
+    /// <summary>Half-width / half-height in world / viewport units before rotation (same pixel unit as <see cref="CenterWorld"/>).</summary>
     public Vector2D<float> HalfExtentsWorld;
-    /// <summary>Counter-clockwise rotation in radians about the sprite center (world +Y up).</summary>
+    /// <summary>Counter-clockwise rotation in radians about the sprite center.</summary>
     public float RotationRadians;
     /// <summary>Cast to <see cref="SpriteLayer"/> for bucketed draws.</summary>
     public int Layer;
@@ -71,6 +94,29 @@ public struct SpriteDrawRequest
 
     /// <summary>Weighted blended transparency path (glass/crystal); skipped in opaque G-buffer.</summary>
     public bool Transparent;
+
+    /// <summary>Whether <see cref="CenterWorld"/> is world-space or viewport-space (HUD); defaults to world.</summary>
+    public SpriteCoordinateSpace Space;
+}
+
+/// <summary>
+/// Camera snapshot submitted by <see cref="IRenderer.SubmitCamera"/>. The renderer picks the highest-priority
+/// enabled entry per frame; lights, world sprites, and post-volume containment are evaluated against the winner.
+/// </summary>
+public struct CameraViewRequest
+{
+    /// <summary>Camera world position (from the owning <see cref="Scene.Transform"/>).</summary>
+    public Vector2D<float> PositionWorld;
+    /// <summary>Camera CCW rotation in radians about its center.</summary>
+    public float RotationRadians;
+    /// <summary>Virtual viewport size in world pixels (must be positive for the camera to be eligible).</summary>
+    public Vector2D<int> ViewportSizeWorld;
+    /// <summary>Higher wins; ties broken by submit order.</summary>
+    public int Priority;
+    /// <summary>When <c>false</c>, the camera is ignored even if submitted.</summary>
+    public bool Enabled;
+    /// <summary>Scene clear / letterbox bar color (linear RGBA).</summary>
+    public Vector4D<float> BackgroundColor;
 }
 
 /// <summary>Radial point light evaluated in the deferred lighting pass (world pixels, +Y up).</summary>

@@ -4,19 +4,30 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Rendering;
 
 /// <summary>
-/// Mod-facing renderer: layered sprites, materials, lights, post volumes. Implemented by <see cref="VulkanRenderer"/>.
+/// Mod-facing renderer: layered sprites, materials, lights, post volumes, and the active 2D camera.
+/// Implemented by <see cref="VulkanRenderer"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Coordinate spaces:</b> <see cref="SubmitSprite"/> / <see cref="SpriteDrawRequest"/> use <b>world space</b> (origin bottom-left, +Y up).
-/// Lights and volumes that take <c>*World</c> positions use the same convention. Fullscreen post-processing and compositing operate in
-/// internal framebuffer space; <see cref="SetGlobalPostProcess"/> does not take world coordinates.
+/// <b>Coordinate spaces:</b>
 /// </para>
+/// <list type="bullet">
+/// <item><b>World</b> (origin bottom-left, +Y up): gameplay, <see cref="SubmitSprite"/> with
+/// <see cref="SpriteCoordinateSpace.World"/>, all <c>*World</c> light / volume positions, and
+/// <see cref="SubmitCamera"/> position / background.</item>
+/// <item><b>Virtual viewport</b> (top-left, +Y down, extent <see cref="ActiveCameraViewportSize"/>): HUD / UI
+/// sprites submitted with <see cref="SpriteCoordinateSpace.Viewport"/>. Stays locked to the camera's virtual
+/// canvas regardless of camera position, rotation, or window size.</item>
+/// <item><b>Swapchain</b> (top-left, +Y down, extent <see cref="SwapchainPixelSize"/>): physical window pixels.
+/// The renderer aspect-preserving letterboxes the virtual viewport into the swapchain; bars fill the unused
+/// area with the active camera's background color.</item>
+/// </list>
 /// <para>
 /// <b>Threading:</b> <see cref="SubmitSprite"/>, <see cref="SubmitPointLight"/>, <see cref="SubmitPostProcessVolume"/>,
-/// and <see cref="SetGlobalPostProcess"/> are safe to call from <see cref="Cyberland.Engine.Core.Ecs.IParallelSystem"/> workers concurrently
-/// (implementations synchronize CPU-side queues with the render thread). Vulkan command recording and <c>DrawFrame</c> run on
-/// the window/render thread only.
+/// <see cref="SetGlobalPostProcess"/>, and <see cref="SubmitCamera"/> are safe to call from
+/// <see cref="Cyberland.Engine.Core.Ecs.IParallelSystem"/> workers concurrently (implementations synchronize
+/// CPU-side queues with the render thread). Vulkan command recording and <c>DrawFrame</c> run on the window /
+/// render thread only.
 /// </para>
 /// <para>
 /// <see cref="RegisterTextureRgba(ReadOnlySpan{byte}, int, int)"/> is normally used from the main thread during load; call sites that invoke it from
@@ -27,6 +38,14 @@ public interface IRenderer
 {
     /// <summary>Current backbuffer size in pixels (width × height).</summary>
     Vector2D<int> SwapchainPixelSize { get; }
+
+    /// <summary>
+    /// Virtual viewport size in world pixels of the camera that will render the <b>next</b> frame — either the
+    /// highest-priority enabled <see cref="SubmitCamera"/> submission or a default camera equal to
+    /// <see cref="SwapchainPixelSize"/> when no cameras are submitted. Use for HUD layout and viewport anchors
+    /// so UI stays the same pixel size regardless of the physical window.
+    /// </summary>
+    Vector2D<int> ActiveCameraViewportSize { get; }
 
     /// <summary>
     /// Host-driven frame pacing: VSync (mailbox when available, else FIFO), uncapped, or CPU-limited FPS.
@@ -91,4 +110,11 @@ public interface IRenderer
 
     /// <summary>Global post-process toggles and parameters. Persists until the next call (not reset each frame).</summary>
     void SetGlobalPostProcess(in GlobalPostProcessSettings settings);
+
+    /// <summary>
+    /// Queues one camera for the next frame. The renderer picks the highest-<see cref="CameraViewRequest.Priority"/>
+    /// enabled entry per frame (submit order breaks ties). When no eligible camera is submitted the renderer falls
+    /// back to a default camera centered on <see cref="SwapchainPixelSize"/>.
+    /// </summary>
+    void SubmitCamera(in CameraViewRequest camera);
 }

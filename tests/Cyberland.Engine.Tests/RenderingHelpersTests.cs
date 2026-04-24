@@ -277,9 +277,9 @@ public sealed class RenderingHelpersTests
             }
         };
 
-        var viewMin = new Vector2D<float>(0f, 0f);
-        var viewMax = new Vector2D<float>(100f, 100f);
-        var r = PostProcessVolumeMerge.Resolve(in g, vols, viewMin, viewMax);
+        // Camera at the shared center of both volumes: the higher-priority override (pri 5) wins per-field.
+        var inside = new Vector2D<float>(5f, 5f);
+        var r = PostProcessVolumeMerge.ResolveAtPoint(in g, vols, inside);
         Assert.Equal(3f, r.BloomGain);
         Assert.Equal(1.5f, r.BloomRadius);
         Assert.Equal(0.7f * 0.45f, r.EmissiveToHdrGain);
@@ -309,7 +309,8 @@ public sealed class RenderingHelpersTests
             }
         };
 
-        var r2 = PostProcessVolumeMerge.Resolve(in g, miss, viewMin, viewMax);
+        // Camera NOT inside the volume (far from its OBB), so the global value is returned.
+        var r2 = PostProcessVolumeMerge.ResolveAtPoint(in g, miss, inside);
         Assert.Equal(1f, r2.BloomGain);
 
         var skipLowerPri = new[]
@@ -356,12 +357,12 @@ public sealed class RenderingHelpersTests
             }
         };
 
-        var r3 = PostProcessVolumeMerge.Resolve(in g, skipLowerPri, viewMin, viewMax);
+        var r3 = PostProcessVolumeMerge.ResolveAtPoint(in g, skipLowerPri, inside);
         Assert.Equal(2f, r3.BloomGain);
         Assert.Equal(0.5f, r3.Exposure);
         Assert.Equal(0.8f, r3.Saturation);
 
-        Assert.Equal(1f, PostProcessVolumeMerge.Resolve(in g, ReadOnlySpan<PostProcessVolumeSubmission>.Empty, viewMin, viewMax).BloomGain);
+        Assert.Equal(1f, PostProcessVolumeMerge.ResolveAtPoint(in g, ReadOnlySpan<PostProcessVolumeSubmission>.Empty, inside).BloomGain);
     }
 
     [Fact]
@@ -377,42 +378,48 @@ public sealed class RenderingHelpersTests
     }
 
     [Fact]
-    public void PostProcessVolumeMerge_OrientedRect_cases()
+    public void PostProcessVolumeMerge_ContainsPoint_cases()
     {
-        Assert.True(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+        // Axis-aligned box centered at (5,5) with half-extents (5,5) → [0,10]x[0,10]. Center contains.
+        Assert.True(PostProcessVolumeMerge.ContainsPoint(
             new Vector2D<float>(5f, 5f),
             new Vector2D<float>(5f, 5f),
             0f,
-            new Vector2D<float>(0f, 0f),
-            new Vector2D<float>(100f, 100f)));
+            new Vector2D<float>(5f, 5f)));
 
-        Assert.False(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+        // Box centered at (205, 205) doesn't contain the origin.
+        Assert.False(PostProcessVolumeMerge.ContainsPoint(
             new Vector2D<float>(205f, 205f),
             new Vector2D<float>(5f, 5f),
             0f,
-            new Vector2D<float>(0f, 0f),
-            new Vector2D<float>(100f, 100f)));
+            new Vector2D<float>(0f, 0f)));
 
-        // Narrow diamond: center on view, corners poke outside axis-aligned inscribed square but still hits view corners.
-        Assert.True(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+        // Rotated box (45°) centered at (50,50) with half-extents (40,40) — diamond still contains its center.
+        Assert.True(PostProcessVolumeMerge.ContainsPoint(
             new Vector2D<float>(50f, 50f),
             new Vector2D<float>(40f, 40f),
             MathF.PI / 4f,
-            new Vector2D<float>(0f, 0f),
-            new Vector2D<float>(100f, 100f)));
+            new Vector2D<float>(50f, 50f)));
 
-        Assert.False(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+        // Rotated box at origin with half-extents (1,1) covers up to sqrt(2) ≈ 1.41 along each world axis;
+        // a point at (1.8, 0) is outside the rotated local frame.
+        Assert.False(PostProcessVolumeMerge.ContainsPoint(
+            new Vector2D<float>(0f, 0f),
+            new Vector2D<float>(1f, 1f),
+            MathF.PI / 4f,
+            new Vector2D<float>(1.8f, 0f)));
+
+        // Zero / negative half-extents are treated as empty (never contain).
+        Assert.False(PostProcessVolumeMerge.ContainsPoint(
             new Vector2D<float>(5f, 5f),
             new Vector2D<float>(0f, 3f),
             0f,
-            new Vector2D<float>(0f, 0f),
-            new Vector2D<float>(10f, 10f)));
+            new Vector2D<float>(5f, 5f)));
 
-        Assert.False(PostProcessVolumeMerge.OrientedRectOverlapsAxisAlignedRect(
+        Assert.False(PostProcessVolumeMerge.ContainsPoint(
             new Vector2D<float>(5f, 5f),
             new Vector2D<float>(3f, 0f),
             0f,
-            new Vector2D<float>(0f, 0f),
-            new Vector2D<float>(10f, 10f)));
+            new Vector2D<float>(5f, 5f)));
     }
 }

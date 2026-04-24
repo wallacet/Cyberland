@@ -46,17 +46,26 @@ public sealed unsafe partial class VulkanRenderer
         UpdateLightingFrameData(in framePlan);
         UploadPointLightSsboData(in framePlan);
 
+        // Viewport / scissor bound to the physical (letterboxed) rectangle so offscreen passes don't waste
+        // fragment work on bar areas. The bars keep whatever the attachment's clear value was (we drive HDR's
+        // clear from the camera background color), so letterbox / pillarbox regions are visible but don't
+        // participate in deferred lighting or transparency.
+        var physical = framePlan.Physical;
         Viewport vp = new()
         {
-            X = 0f,
-            Y = 0f,
-            Width = _swapchainExtent.Width,
-            Height = _swapchainExtent.Height,
+            X = physical.OffsetPixels.X,
+            Y = physical.OffsetPixels.Y,
+            Width = physical.SizePixels.X,
+            Height = physical.SizePixels.Y,
             MinDepth = 0f,
             MaxDepth = 1f
         };
 
-        Rect2D sci = new() { Offset = default, Extent = _swapchainExtent };
+        Rect2D sci = new()
+        {
+            Offset = new Offset2D { X = physical.OffsetPixels.X, Y = physical.OffsetPixels.Y },
+            Extent = new Extent2D { Width = (uint)physical.SizePixels.X, Height = (uint)physical.SizePixels.Y }
+        };
 
         ClearValue cEm = new()
         {
@@ -87,7 +96,7 @@ public sealed unsafe partial class VulkanRenderer
         {
             var idx = sortIdx[si];
             ref readonly var s = ref sprites[idx];
-            DrawSprite(cmd, in s, screen, 0);
+            DrawSprite(cmd, in s, in framePlan, 0);
         }
 
         _vk.CmdEndRenderPass(cmd);
@@ -121,15 +130,19 @@ public sealed unsafe partial class VulkanRenderer
             var idx = sortIdx[si];
             ref readonly var s = ref sprites[idx];
             if (!s.Transparent)
-                DrawSprite(cmd, in s, screen, 1);
+                DrawSprite(cmd, in s, in framePlan, 1);
         }
 
         _vk.CmdEndRenderPass(cmd);
         _offsWrittenGbuffer = true;
 
+        // Camera-driven HDR clear: the active camera's background color doubles as the letterbox bar color
+        // (pixels outside the scissor never get written by any pass, so the clear we pick here is what shows
+        // through in the bars after the composite copies HDR → swapchain).
+        var bg = framePlan.Camera.BackgroundColor;
         ClearValue cHdr = new()
         {
-            Color = new ClearColorValue { Float32_0 = 0.02f, Float32_1 = 0.02f, Float32_2 = 0.06f, Float32_3 = 1f }
+            Color = new ClearColorValue { Float32_0 = bg.X, Float32_1 = bg.Y, Float32_2 = bg.Z, Float32_3 = bg.W }
         };
 
         RenderPassBeginInfo rpH = new()
@@ -221,7 +234,7 @@ public sealed unsafe partial class VulkanRenderer
                 ref readonly var s = ref sprites[idx];
                 if (!s.Transparent)
                     continue;
-                DrawSprite(cmd, in s, screen, 2);
+                DrawSprite(cmd, in s, in framePlan, 2);
             }
 
             _vk.CmdEndRenderPass(cmd);
@@ -282,7 +295,7 @@ public sealed unsafe partial class VulkanRenderer
             throw new InvalidOperationException("vkEndCommandBuffer failed.");
     }
 
-    private void DrawSprite(CommandBuffer cmd, in SpriteDrawRequest s, Vector2D<float> screen, int mode)
+    private void DrawSprite(CommandBuffer cmd, in SpriteDrawRequest s, in FramePlan plan, int mode)
     {
         var al = s.AlbedoTextureId < (TextureId)_textureSlots.Count
             ? _textureSlots[(int)s.AlbedoTextureId]
@@ -290,18 +303,42 @@ public sealed unsafe partial class VulkanRenderer
         if (al is null)
             return;
 
-        var px = WorldScreenSpace.WorldCenterToScreenPixel(s.CenterWorld, new Vector2D<int>((int)screen.X, (int)screen.Y));
+        // Project the sprite's authored center down to swapchain pixels (+Y down). World sprites go through
+        // the camera transform first, then letterbox. Viewport sprites skip the camera transform so HUD stays
+        // locked to the virtual viewport regardless of camera pose.
+        var viewportSize = new Vector2D<float>(plan.Camera.ViewportSizeWorld.X, plan.Camera.ViewportSizeWorld.Y);
+        Vector2D<float> vpPixel;
+        float rotScreen;
+        if (s.Space == SpriteCoordinateSpace.Viewport)
+        {
+            vpPixel = s.CenterWorld;
+            rotScreen = s.RotationRadians;
+        }
+        else
+        {
+            vpPixel = CameraProjection.WorldToViewportPixel(
+                s.CenterWorld,
+                plan.Camera.PositionWorld,
+                plan.Camera.RotationRadians,
+                viewportSize);
+            rotScreen = s.RotationRadians - plan.Camera.RotationRadians;
+        }
+
+        var px = CameraProjection.ViewportPixelToSwapchainPixel(vpPixel, in plan.Physical);
+        var halfX = s.HalfExtentsWorld.X * plan.Physical.Scale;
+        var halfY = s.HalfExtentsWorld.Y * plan.Physical.Scale;
         var uv = s.UvRect;
         if (uv.X == 0f && uv.Y == 0f && uv.Z == 0f && uv.W == 0f)
             uv = new Vector4D<float>(0f, 0f, 1f, 1f);
 
+        var screen = plan.Screen;
         var push = new SpritePushData
         {
-            CenterHalfPx = new Vector4D<float>(px.X, px.Y, s.HalfExtentsWorld.X, s.HalfExtentsWorld.Y),
+            CenterHalfPx = new Vector4D<float>(px.X, px.Y, halfX, halfY),
             UvRect = uv,
             ColorAlpha = new Vector4D<float>(s.ColorMultiply.X * s.Alpha, s.ColorMultiply.Y * s.Alpha, s.ColorMultiply.Z * s.Alpha, s.ColorMultiply.W * s.Alpha),
             EmissiveRgbIntensity = new Vector4D<float>(s.EmissiveTint.X, s.EmissiveTint.Y, s.EmissiveTint.Z, s.EmissiveIntensity),
-            ScreenRot = new Vector4D<float>(screen.X, screen.Y, s.RotationRadians, 0f),
+            ScreenRot = new Vector4D<float>(screen.X, screen.Y, rotScreen, 0f),
             Mode = mode,
             UseEmissiveMap = 0
         };

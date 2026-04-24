@@ -55,7 +55,9 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
         _ = deltaSeconds;
         var world = _world;
         var r = _host.Renderer!;
-        var fb = r.SwapchainPixelSize;
+        // Lights are authored in world units that match the camera's virtual viewport; using
+        // ActiveCameraViewportSize keeps relative sizes stable regardless of the physical window.
+        var fb = r.ActiveCameraViewportSize;
         var w = fb.X;
         var h = fb.Y;
         if (w <= 0 || h <= 0)

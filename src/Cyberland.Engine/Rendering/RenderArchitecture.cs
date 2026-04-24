@@ -31,7 +31,12 @@ internal readonly struct FramePlan
     public readonly int[] SortIndices;
     /// <summary>Count of sprites with <see cref="SpriteDrawRequest.Transparent"/> true (after sort order).</summary>
     public readonly int TransparentSpriteCount;
+    /// <summary>Swapchain (physical window) size in pixels.</summary>
     public readonly Vector2D<float> Screen;
+    /// <summary>The camera selected for this frame (either highest-priority submission or the default).</summary>
+    public readonly CameraViewRequest Camera;
+    /// <summary>Letterbox mapping from the camera's virtual viewport to the swapchain.</summary>
+    public readonly PhysicalViewport Physical;
 
     public FramePlan(
         SpriteDrawRequest[] sprites,
@@ -50,7 +55,9 @@ internal readonly struct FramePlan
         in GlobalPostProcessSettings resolvedPost,
         int[] sortIndices,
         int transparentSpriteCount,
-        in Vector2D<float> screen)
+        in Vector2D<float> screen,
+        in CameraViewRequest camera,
+        in PhysicalViewport physical)
     {
         Sprites = sprites;
         SpriteCount = spriteCount;
@@ -69,6 +76,8 @@ internal readonly struct FramePlan
         SortIndices = sortIndices;
         TransparentSpriteCount = transparentSpriteCount;
         Screen = screen;
+        Camera = camera;
+        Physical = physical;
     }
 }
 

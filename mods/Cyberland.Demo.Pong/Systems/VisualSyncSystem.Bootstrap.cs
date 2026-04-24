@@ -12,6 +12,9 @@ public sealed partial class VisualSyncSystem
 {
     private void ConfigureSpritesOnStart(World world, TextureId whiteTextureId, TextureId normalTextureId)
     {
+        // Every sprite uses world space (the default): HUD bars author positions as "fb.Y - offset" in the
+        // camera's virtual viewport, which the camera transform Y-flips back to "offset from top" in screen
+        // space — same math as the pre-camera engine.
         ConfigureSprite(world, _v.Background, (int)SpriteLayer.Background, 0f, whiteTextureId, normalTextureId, new Vector4D<float>(0.04f, 0.05f, 0.08f, 1f));
         ConfigureSprite(world, _v.TitleBar, (int)SpriteLayer.Ui, 1f, whiteTextureId, normalTextureId, new Vector4D<float>(0.1f, 0.85f, 0.95f, 1f));
         ConfigureSprite(world, _v.HintBar, (int)SpriteLayer.Ui, 5f, whiteTextureId, normalTextureId, new Vector4D<float>(0.5f, 0.55f, 0.65f, 1f), transparent: true, alpha: 0.85f);

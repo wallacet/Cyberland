@@ -63,7 +63,9 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         var world = _world;
         var r = _host.Renderer!;
         ref readonly var st = ref world.Components<State>().Get(_session);
-        var fb = r.SwapchainPixelSize;
+        // Layout against the camera's virtual viewport, not the physical window, so HUD and world-space
+        // positions stay consistent across resize (letterboxed on non-16:9 windows).
+        var fb = r.ActiveCameraViewportSize;
         SetBg(world, fb);
         SetTitle(world, fb, st);
         SetHint(world, fb, st);

@@ -27,6 +27,16 @@ public sealed class SceneSetupSystem : ISystem
         var white = renderer.WhiteTextureId;
         var defaultNormal = renderer.DefaultNormalTextureId;
 
+        // Demo authors gameplay against a fixed 1280x720 canvas; camera sits at the center so existing
+        // sprites/anchor positions (+Y up in world space) line up with what the pre-camera engine rendered.
+        const int CanvasWidth = 1280;
+        const int CanvasHeight = 720;
+        var camera = world.CreateEntity();
+        var camTransform = Transform.Identity;
+        camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
+        world.Components<Transform>().GetOrAdd(camera) = camTransform;
+        world.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
+
         var player = world.CreateEntity();
         world.Components<PlayerTag>().GetOrAdd(player);
         world.Components<Transform>().GetOrAdd(player) = Transform.Identity;
@@ -179,7 +189,7 @@ public sealed class SceneSetupSystem : ISystem
 
         var eBloom = world.CreateEntity();
         world.Components<HdrBloomVolumeTag>().GetOrAdd(eBloom);
-        var fb = renderer.SwapchainPixelSize;
+        var fb = renderer.ActiveCameraViewportSize;
         var hx = fb.X * 0.5f;
         var hy = fb.Y * 0.5f;
         // Transform's property setters rebuild the backing matrix from cached PRS; seed from Identity so the initial

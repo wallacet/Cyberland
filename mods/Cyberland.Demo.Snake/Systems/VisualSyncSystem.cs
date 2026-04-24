@@ -114,7 +114,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         if (renderer is null) return;
         ref var session = ref world.Components<Session>().Get(_sessionEntity);
         var visuals = world.Components<VisualBundle>().Get(_visualsEntity);
-        var fb = renderer.SwapchainPixelSize;
+        var fb = renderer.ActiveCameraViewportSize;
         if (fb.X <= 0 || fb.Y <= 0) return;
         session.UpdateLayout(fb.X, fb.Y);
         var cell = session.Cell;

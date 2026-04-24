@@ -5,6 +5,7 @@ using System.Threading;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using InteropMarshal = System.Runtime.InteropServices.CollectionsMarshal;
 using Glslang.NET;
 using Silk.NET.Core.Contexts;
 using Silk.NET.Core.Native;
@@ -89,6 +90,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private readonly List<DirectionalLight> _directionalLightQueue = new();
     private readonly List<AmbientLight> _ambientLightQueue = new();
     private readonly List<PostProcessVolumeSubmission> _volumeQueue = new();
+    private readonly List<CameraViewRequest> _cameraQueue = new();
 
     // Grow-only snapshots for FramePlanBuilder.Build — reused each frame to avoid List.ToArray / per-frame int[] allocs.
     private SpriteDrawRequest[]? _frameScratchSprites;
@@ -97,7 +99,14 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private DirectionalLight[]? _frameScratchDirectionalLights;
     private AmbientLight[]? _frameScratchAmbientLights;
     private PostProcessVolumeSubmission[]? _frameScratchVolumes;
+    private CameraViewRequest[]? _frameScratchCameras;
     private int[]? _frameScratchSortIndices;
+
+    // Selected camera viewport size for the NEXT frame; resolved under _recordLock so mod systems can read
+    // ActiveCameraViewportSize safely from parallel workers and layout against a stable value even if multiple
+    // cameras are submitted concurrently. Initialized to swapchain size so the first frame's viewport anchors
+    // behave like the pre-camera default.
+    private Vector2D<int> _activeCameraViewportSize;
 
     private GlobalPostProcessSettings _globalPost = new()
     {
@@ -163,8 +172,34 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     /// <param name="window">Silk.NET window that provides a Vulkan surface.</param>
     public VulkanRenderer(IWindow window) => _window = window;
 
-    /// <summary>Current swapchain size in pixels — use for world-space clamps (matches shader <c>screenSize</c>).</summary>
+    /// <summary>Current swapchain size in pixels — physical window extent (matches shader <c>screenSize</c>).</summary>
     public Vector2D<int> SwapchainPixelSize => new((int)_swapchainExtent.Width, (int)_swapchainExtent.Height);
+
+    /// <inheritdoc />
+    public Vector2D<int> ActiveCameraViewportSize
+    {
+        get
+        {
+            lock (_recordLock)
+            {
+                // Peek (not drain) the camera queue so systems that submit cameras and read back their
+                // viewport in the same frame — e.g. CameraSubmitSystem (parallel late) followed by
+                // ViewportAnchorSystem (sequential late) — see a consistent value. The frame plan builder
+                // still drains and uses the same selection logic later.
+                if (_cameraQueue.Count > 0)
+                {
+                    var pending = InteropMarshal.AsSpan(_cameraQueue);
+                    return CameraSelection.PickActive(pending, SwapchainPixelSize).ViewportSizeWorld;
+                }
+                // No pending submissions this frame yet — return the last frame's resolved viewport so
+                // repeated reads stay stable. Before the first frame this falls back to the swapchain size
+                // (default camera viewport = physical window).
+                if (_activeCameraViewportSize.X > 0 && _activeCameraViewportSize.Y > 0)
+                    return _activeCameraViewportSize;
+                return SwapchainPixelSize;
+            }
+        }
+    }
 
     TextureId IRenderer.RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height) =>
         RegisterTextureRgbaInternal(rgba, width, height);
@@ -234,6 +269,12 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     {
         lock (_recordLock)
             _globalPost = settings;
+    }
+
+    void IRenderer.SubmitCamera(in CameraViewRequest camera)
+    {
+        lock (_recordLock)
+            _cameraQueue.Add(camera);
     }
 
     /// <summary>

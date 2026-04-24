@@ -20,6 +20,14 @@ namespace Cyberland.Engine.Scene;
 /// decomposition) or the <c>World*</c> PRS properties (decomposes once and caches until the matrix changes again).
 /// </para>
 /// <para>
+/// <b>World-space setters back-propagate.</b> Writing <see cref="WorldPosition"/>, <see cref="WorldRotationRadians"/>,
+/// or <see cref="WorldScale"/> updates <see cref="LocalMatrix"/> so the next hierarchy pass reproduces the requested
+/// world pose. For a root entity the new <see cref="LocalMatrix"/> equals the new <see cref="WorldMatrix"/>; for a
+/// parented entity the setter preserves the current <c>Local ↔ World</c> relationship (i.e. keeps the parent's
+/// implicit world matrix fixed). If the current <see cref="WorldMatrix"/> is degenerate (non-invertible, e.g. a
+/// default-initialized zero matrix) the setter falls back to root semantics.
+/// </para>
+/// <para>
 /// <b>Thread safety:</b> the PRS property getters lazily write a cache back into the struct. Call them on a mutable
 /// reference (e.g. <c>ref var t = ref store.Get(id)</c>) so the cache persists, or use the <c>ref readonly</c> /
 /// value-copy form when the caller tolerates repeated decomposition. Concurrent access from multiple threads to the
@@ -99,7 +107,11 @@ public struct Transform : IComponent
         }
     }
 
-    /// <summary>Resolved world position in world units (+Y up), derived from <see cref="WorldMatrix"/>.</summary>
+    /// <summary>
+    /// Resolved world position in world units (+Y up), derived from <see cref="WorldMatrix"/>. Assignment
+    /// back-propagates to <see cref="LocalMatrix"/> (see type-level remarks) so
+    /// <see cref="Systems.TransformHierarchySystem"/> reproduces the requested position next frame.
+    /// </summary>
     public Vector2D<float> WorldPosition
     {
         get { RefreshWorldPrs(); return _worldPos; }
@@ -107,13 +119,15 @@ public struct Transform : IComponent
         {
             RefreshWorldPrs();
             _worldPos = value;
-            WorldMatrix = TransformMath.MatrixFromPositionRotationScale(_worldPos, _worldRad, _worldScale);
-            _worldCacheKey = WorldMatrix;
-            _worldCacheValid = true;
+            ApplyWorldMatrixWithLocalBackProp(
+                TransformMath.MatrixFromPositionRotationScale(_worldPos, _worldRad, _worldScale));
         }
     }
 
-    /// <summary>Resolved world rotation in radians, derived from <see cref="WorldMatrix"/>.</summary>
+    /// <summary>
+    /// Resolved world rotation in radians, derived from <see cref="WorldMatrix"/>. Assignment back-propagates
+    /// to <see cref="LocalMatrix"/> (see type-level remarks).
+    /// </summary>
     public float WorldRotationRadians
     {
         get { RefreshWorldPrs(); return _worldRad; }
@@ -121,13 +135,15 @@ public struct Transform : IComponent
         {
             RefreshWorldPrs();
             _worldRad = value;
-            WorldMatrix = TransformMath.MatrixFromPositionRotationScale(_worldPos, _worldRad, _worldScale);
-            _worldCacheKey = WorldMatrix;
-            _worldCacheValid = true;
+            ApplyWorldMatrixWithLocalBackProp(
+                TransformMath.MatrixFromPositionRotationScale(_worldPos, _worldRad, _worldScale));
         }
     }
 
-    /// <summary>Resolved world non-uniform scale, derived from <see cref="WorldMatrix"/>.</summary>
+    /// <summary>
+    /// Resolved world non-uniform scale, derived from <see cref="WorldMatrix"/>. Assignment back-propagates
+    /// to <see cref="LocalMatrix"/> (see type-level remarks).
+    /// </summary>
     public Vector2D<float> WorldScale
     {
         get { RefreshWorldPrs(); return _worldScale; }
@@ -135,9 +151,8 @@ public struct Transform : IComponent
         {
             RefreshWorldPrs();
             _worldScale = value;
-            WorldMatrix = TransformMath.MatrixFromPositionRotationScale(_worldPos, _worldRad, _worldScale);
-            _worldCacheKey = WorldMatrix;
-            _worldCacheValid = true;
+            ApplyWorldMatrixWithLocalBackProp(
+                TransformMath.MatrixFromPositionRotationScale(_worldPos, _worldRad, _worldScale));
         }
     }
 
@@ -182,6 +197,39 @@ public struct Transform : IComponent
             return;
 
         TransformMath.DecomposeToPRS(WorldMatrix, out _worldPos, out _worldRad, out _worldScale);
+        _worldCacheKey = WorldMatrix;
+        _worldCacheValid = true;
+    }
+
+    // Assigns `newWorld` to WorldMatrix and derives the matching LocalMatrix so Systems.TransformHierarchySystem
+    // (which always recomposes world from `local * parent`) reproduces `newWorld` next pass.
+    //
+    // The parent's world matrix is inferred from the current Local↔World relationship:
+    //   child.World = child.Local * parent.World   (Matrix3x2.Multiply uses row-vector order)
+    //   parent.World = child.Local^(-1) * child.World
+    //   => new child.Local = newWorld * parent.World^(-1)
+    //                      = newWorld * (child.Local_old^(-1) * child.World_old)^(-1)
+    //                      = newWorld * child.World_old^(-1) * child.Local_old
+    //
+    // Since `parent.World` cancels out, we don't need the Parent EntityId at the point of assignment — we only
+    // need the old world to be invertible. For root entities this reduces to newLocal = newWorld (parent=I).
+    // If the old world is degenerate (e.g. zero scale from a default(Transform)) we fall back to root semantics.
+    private void ApplyWorldMatrixWithLocalBackProp(in Matrix3x2 newWorld)
+    {
+        if (Matrix3x2.Invert(WorldMatrix, out var invOldWorld))
+        {
+            var relative = Matrix3x2.Multiply(newWorld, invOldWorld);
+            LocalMatrix = Matrix3x2.Multiply(relative, LocalMatrix);
+        }
+        else
+        {
+            LocalMatrix = newWorld;
+        }
+
+        WorldMatrix = newWorld;
+        // LocalMatrix changed but its PRS cache reflects the OLD local; force a re-decompose on next access.
+        _localCacheValid = false;
+        // WorldMatrix was just rebuilt from the updated world PRS cache — keep the cache valid by pinning the key.
         _worldCacheKey = WorldMatrix;
         _worldCacheValid = true;
     }

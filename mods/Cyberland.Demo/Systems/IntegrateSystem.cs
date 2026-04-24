@@ -36,7 +36,7 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
         _player = archetype.RequireSingleEntityWith<PlayerTag>("player");
 
         ref var transform = ref world.Components<Transform>().Get(_player);
-        var fb = r.SwapchainPixelSize;
+        var fb = r.ActiveCameraViewportSize;
         var p = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(fb.X * 0.55f, fb.Y / 2f), fb);
         transform.LocalPosition = p;
         transform.WorldPosition = p;
@@ -51,7 +51,7 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
 
         var world = _world;
         var r = _host.Renderer!;
-        var fb = r.SwapchainPixelSize;
+        var fb = r.ActiveCameraViewportSize;
         ref var transform = ref world.Components<Transform>().Get(_player);
         ref var vel = ref world.Components<Velocity>().Get(_player);
 

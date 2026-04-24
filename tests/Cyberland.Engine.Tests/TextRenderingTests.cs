@@ -130,7 +130,7 @@ public sealed class TextRenderingTests
             new TextRun("!", st with { Italic = true })
         };
 
-        TextRenderer.DrawRunsScreen(a, lib, cache, loc, runs, screenBaseline, fb);
+        TextRenderer.DrawRunsScreen(a, lib, cache, loc, runs, screenBaseline);
         TextRenderer.DrawRuns(b, lib, cache, loc, runs, worldBaseline);
 
         Assert.Equal(b.Sprites.Count, a.Sprites.Count);
@@ -150,14 +150,18 @@ public sealed class TextRenderingTests
         var cache = new TextGlyphCache();
         var st = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        TextRenderer.DrawLiteralScreen(a, lib, cache, st, "B", screenBaseline, fb);
+        TextRenderer.DrawLiteralScreen(a, lib, cache, st, "B", screenBaseline);
         TextRenderer.DrawLiteral(b, lib, cache, st, "B", worldBaseline);
 
+        // Both runs emit the same number of glyph quads. The positions now differ between screen (viewport,
+        // +Y down) and world (+Y up) authoring — the X coord still matches for the first glyph because it
+        // shares the same pen advance, but Y differs by construction.
         Assert.Equal(b.Sprites.Count, a.Sprites.Count);
         if (a.Sprites.Count > 0)
         {
             Assert.Equal(b.Sprites[0].CenterWorld.X, a.Sprites[0].CenterWorld.X, 5);
-            Assert.Equal(b.Sprites[0].CenterWorld.Y, a.Sprites[0].CenterWorld.Y, 5);
+            Assert.Equal(SpriteCoordinateSpace.Viewport, a.Sprites[0].Space);
+            Assert.Equal(SpriteCoordinateSpace.World, b.Sprites[0].Space);
         }
     }
 

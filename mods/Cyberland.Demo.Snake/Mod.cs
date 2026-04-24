@@ -21,6 +21,18 @@ public sealed class Mod : IMod
         context.MountDefaultContent();
         context.LocalizedContent.MergeStringTableAsync("snake.json").GetAwaiter().GetResult();
         var w = context.World;
+
+        // Camera anchors Snake's gameplay to a fixed 1280x720 canvas; non-matching window sizes letterbox
+        // instead of exposing more tiles. The camera sits at the canvas center so world-space sprites keep
+        // the legacy "fb.Y - offset = near top" convention from before cameras were introduced.
+        const int CanvasWidth = 1280;
+        const int CanvasHeight = 720;
+        var camera = w.CreateEntity();
+        var camTransform = Transform.Identity;
+        camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
+        w.Components<Transform>().GetOrAdd(camera) = camTransform;
+        w.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
+
         var controlEntity = w.CreateEntity();
         w.Components<Control>().GetOrAdd(controlEntity);
         var sessionEntity = w.CreateEntity();

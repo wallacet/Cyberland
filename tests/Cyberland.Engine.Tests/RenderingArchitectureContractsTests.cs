@@ -20,6 +20,17 @@ public sealed class RenderingArchitectureContractsTests
         var sortIndices = new[] { 0 };
         var screen = new Vector2D<float>(1920f, 1080f);
 
+        var camera = new CameraViewRequest
+        {
+            PositionWorld = new Vector2D<float>(640f, 360f),
+            RotationRadians = 0.5f,
+            ViewportSizeWorld = new Vector2D<int>(1280, 720),
+            Priority = 7,
+            Enabled = true,
+            BackgroundColor = new Vector4D<float>(0.01f, 0.02f, 0.03f, 1f)
+        };
+        var physical = new PhysicalViewport(new Vector2D<int>(10, 20), new Vector2D<int>(1280, 720), 1.5f);
+
         var plan = new FramePlan(
             sprites,
             1,
@@ -37,7 +48,9 @@ public sealed class RenderingArchitectureContractsTests
             in resolved,
             sortIndices,
             transparentSpriteCount: 0,
-            in screen);
+            in screen,
+            in camera,
+            in physical);
 
         Assert.Same(sprites, plan.Sprites);
         Assert.Equal(1, plan.SpriteCount);
@@ -59,6 +72,12 @@ public sealed class RenderingArchitectureContractsTests
         Assert.Same(sortIndices, plan.SortIndices);
         Assert.Equal(screen.X, plan.Screen.X);
         Assert.Equal(screen.Y, plan.Screen.Y);
+        Assert.Equal(camera.PositionWorld, plan.Camera.PositionWorld);
+        Assert.Equal(camera.Priority, plan.Camera.Priority);
+        Assert.Equal(camera.ViewportSizeWorld, plan.Camera.ViewportSizeWorld);
+        Assert.Equal(physical.OffsetPixels, plan.Physical.OffsetPixels);
+        Assert.Equal(physical.SizePixels, plan.Physical.SizePixels);
+        Assert.Equal(physical.Scale, plan.Physical.Scale);
     }
 
     [Fact]
@@ -79,6 +98,8 @@ public sealed class RenderingArchitectureContractsTests
             Extent = new Extent2D { Width = 70, Height = 80 }
         };
 
+        var camera = CameraSelection.Default(new Vector2D<int>(1, 1));
+        var physical = new PhysicalViewport(new Vector2D<int>(0, 0), new Vector2D<int>(1, 1), 1f);
         var plan = new FramePlan(
             sprites: [],
             spriteCount: 0,
@@ -96,7 +117,9 @@ public sealed class RenderingArchitectureContractsTests
             resolvedPost: default,
             sortIndices: [],
             transparentSpriteCount: 0,
-            screen: new Vector2D<float>(1f, 1f));
+            screen: new Vector2D<float>(1f, 1f),
+            camera: camera,
+            physical: physical);
 
         var context = new PostEffectContext(cmd, fb, in plan, in fullViewport, in fullScissor, in halfViewport, in halfScissor);
 

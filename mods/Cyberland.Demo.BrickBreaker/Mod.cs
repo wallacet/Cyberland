@@ -23,6 +23,18 @@ public sealed class Mod : IMod
         context.LocalizedContent.MergeStringTableAsync("brick.json").GetAwaiter().GetResult();
 
         var w = context.World;
+
+        // Fixed 1280x720 camera so brick arena dimensions are independent of window size; the camera sits at
+        // the canvas center so existing "fb.Y - offset" sprite layout math continues to work via the world-
+        // space camera Y-flip.
+        const int CanvasWidth = 1280;
+        const int CanvasHeight = 720;
+        var camera = w.CreateEntity();
+        var camTransform = Transform.Identity;
+        camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
+        w.Components<Transform>().GetOrAdd(camera) = camTransform;
+        w.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
+
         var stateEntity = w.CreateEntity();
         w.Components<GameState>().GetOrAdd(stateEntity) = new GameState
         {

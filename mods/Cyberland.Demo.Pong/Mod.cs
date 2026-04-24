@@ -26,6 +26,17 @@ public sealed class Mod : IMod
         world.Components<State>().GetOrAdd(session);
         world.Components<Control>().GetOrAdd(session);
 
+        // Pong authors gameplay in a fixed 1280x720 canvas; anchor the camera at the center so world-space
+        // sprites (ball, paddles) line up with the legacy "fb.X/2, fb.Y/2" layout without rewriting the
+        // simulation.
+        const int CanvasWidth = 1280;
+        const int CanvasHeight = 720;
+        var camera = world.CreateEntity();
+        var camTransform = Transform.Identity;
+        camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
+        world.Components<Transform>().GetOrAdd(camera) = camTransform;
+        world.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
+
         var visuals = new VisualIds(
             CreateSpriteEntity(world),
             CreateSpriteEntity(world),

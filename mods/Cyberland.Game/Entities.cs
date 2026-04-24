@@ -1,11 +1,33 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Scene;
+using Silk.NET.Maths;
 
 /// <summary>
 /// Helper methods to create entities with common components.
 /// </summary>
 public static class Entities
 {
+    /// <summary>
+    /// Creates a camera entity with a <see cref="Transform"/> and <see cref="Camera2D"/> component.
+    /// <paramref name="viewportSizeWorld"/> fixes the virtual canvas size in world pixels so the visible
+    /// world is independent of the physical window.
+    /// </summary>
+    /// <param name="world">Target ECS world.</param>
+    /// <param name="viewportSizeWorld">Virtual viewport size in world pixels.</param>
+    /// <param name="positionWorld">
+    /// Optional initial camera world position (defaults to the canvas center, which reproduces the legacy
+    /// 1:1 swapchain-pixel mapping when <paramref name="viewportSizeWorld"/> matches the window).
+    /// </param>
+    public static EntityId CreateCamera(World world, Vector2D<int> viewportSizeWorld, Vector2D<float>? positionWorld = null)
+    {
+        var entity = world.CreateEntity();
+        var transform = Transform.Identity;
+        transform.WorldPosition = positionWorld ?? new Vector2D<float>(viewportSizeWorld.X * 0.5f, viewportSizeWorld.Y * 0.5f);
+        world.Components<Transform>().GetOrAdd(entity) = transform;
+        world.Components<Camera2D>().GetOrAdd(entity) = Camera2D.Create(viewportSizeWorld);
+        return entity;
+    }
+
 
     /// <summary>
     /// Creates an empty entity with no components.

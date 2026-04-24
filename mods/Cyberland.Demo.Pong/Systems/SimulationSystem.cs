@@ -63,7 +63,9 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
     {
         _ = archetype;
         var world = _world;
-        var fb = _host.Renderer!.SwapchainPixelSize;
+        // Simulation uses the camera's virtual viewport as its fixed arena, so gameplay stays the same size
+        // regardless of the physical window (letterboxed on non-16:9 displays).
+        var fb = _host.Renderer!.ActiveCameraViewportSize;
         ref var st = ref world.Components<State>().Get(_session);
         ref var ctl = ref world.Components<Control>().Get(_session);
         var margin = 32f;

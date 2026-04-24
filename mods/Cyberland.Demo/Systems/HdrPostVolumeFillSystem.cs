@@ -42,7 +42,7 @@ public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
 
         var world = _world;
         var renderer = _host.Renderer!;
-        var frameBuffer = renderer.SwapchainPixelSize;
+        var frameBuffer = renderer.ActiveCameraViewportSize;
 
         var player = archetype.RequireSingleEntityWith<PlayerTag>("player");
         ref readonly var playerTransform = ref world.Components<Transform>().Get(player);

@@ -4,22 +4,27 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Rendering;
 
 /// <summary>
-/// Merges global post settings with overlapping volumes (higher <see cref="PostProcessVolume.Priority"/> wins per field).
+/// Merges global post settings with the submitted post volume whose oriented box contains the active camera's
+/// world position. Higher <see cref="PostProcessVolume.Priority"/> wins on overlap; ties break by submit order.
 /// </summary>
+/// <remarks>
+/// Volumes only apply when the camera's world position is inside them, per design goal: "post volumes only apply
+/// to cameras when the camera's transform position is inside the volume." Global post settings always apply;
+/// an overlapping volume multiplies its override fields onto the global result.
+/// </remarks>
 public static class PostProcessVolumeMerge
 {
     /// <summary>
-    /// Picks the highest-priority <see cref="PostProcessVolume"/> overlapping the view rectangle and merges its <see cref="PostProcessVolume.Overrides"/> into <paramref name="global"/>.
+    /// Picks the highest-priority <see cref="PostProcessVolume"/> that contains <paramref name="cameraPositionWorld"/>
+    /// and merges its <see cref="PostProcessVolume.Overrides"/> into <paramref name="global"/>.
     /// </summary>
     /// <param name="global">Baseline settings from <see cref="IRenderer.SetGlobalPostProcess"/>.</param>
     /// <param name="volumes">Volumes submitted this frame.</param>
-    /// <param name="viewMinWorld">Axis-aligned min corner of the evaluated region in world space (+Y up).</param>
-    /// <param name="viewMaxWorld">Axis-aligned max corner.</param>
-    internal static GlobalPostProcessSettings Resolve(
+    /// <param name="cameraPositionWorld">Active camera world position (+Y up).</param>
+    internal static GlobalPostProcessSettings ResolveAtPoint(
         in GlobalPostProcessSettings global,
         ReadOnlySpan<PostProcessVolumeSubmission> volumes,
-        Vector2D<float> viewMinWorld,
-        Vector2D<float> viewMaxWorld)
+        Vector2D<float> cameraPositionWorld)
     {
         var bestPri = int.MinValue;
         var bestIdx = -1;
@@ -31,12 +36,11 @@ public static class PostProcessVolumeMerge
             var halfExtentsWorld = new Vector2D<float>(
                 v.HalfExtentsLocal.X * submitted.WorldScale.X,
                 v.HalfExtentsLocal.Y * submitted.WorldScale.Y);
-            if (!OrientedRectOverlapsAxisAlignedRect(
+            if (!ContainsPoint(
                     submitted.WorldPosition,
                     halfExtentsWorld,
                     submitted.WorldRotationRadians,
-                    viewMinWorld,
-                    viewMaxWorld))
+                    cameraPositionWorld))
                 continue;
 
             if (v.Priority < bestPri)
@@ -63,67 +67,26 @@ public static class PostProcessVolumeMerge
         aMin.X < bMax.X && aMax.X > bMin.X && aMin.Y < bMax.Y && aMax.Y > bMin.Y;
 
     /// <summary>
-    /// Whether an oriented rectangle (center, half extents, CCW rotation) intersects an axis-aligned rectangle in world space.
+    /// Whether an oriented rectangle (center, half extents, CCW rotation) contains <paramref name="pointWorld"/>
+    /// in world space. Negative or zero half extents are treated as empty boxes (never contain).
     /// </summary>
-    public static bool OrientedRectOverlapsAxisAlignedRect(
+    public static bool ContainsPoint(
         Vector2D<float> centerWorld,
         Vector2D<float> halfExtentsWorld,
         float rotationRadians,
-        Vector2D<float> rectMinWorld,
-        Vector2D<float> rectMaxWorld)
+        Vector2D<float> pointWorld)
     {
         if (halfExtentsWorld.X <= 0f || halfExtentsWorld.Y <= 0f)
             return false;
 
-        var c = MathF.Cos(rotationRadians);
-        var s = MathF.Sin(rotationRadians);
-        var ux = new Vector2D<float>(c, s);
-        var uy = new Vector2D<float>(-s, c);
-
-        Span<Vector2D<float>> axes = stackalloc Vector2D<float>[4];
-        axes[0] = new Vector2D<float>(1f, 0f);
-        axes[1] = new Vector2D<float>(0f, 1f);
-        axes[2] = ux;
-        axes[3] = uy;
-
-        for (var ai = 0; ai < 4; ai++)
-        {
-            var axis = axes[ai];
-            var ax = axis.X;
-            var ay = axis.Y;
-            var lenSq = ax * ax + ay * ay;
-            var invLen = 1f / MathF.Sqrt(lenSq);
-            var nx = ax * invLen;
-            var ny = ay * invLen;
-
-            var obbCenterProj = centerWorld.X * nx + centerWorld.Y * ny;
-            var obbHalf =
-                halfExtentsWorld.X * MathF.Abs(ux.X * nx + ux.Y * ny) +
-                halfExtentsWorld.Y * MathF.Abs(uy.X * nx + uy.Y * ny);
-
-            ProjectAxisAlignedRectOntoAxis(rectMinWorld, rectMaxWorld, nx, ny, out var rectMinProj, out var rectMaxProj);
-
-            if (obbCenterProj + obbHalf <= rectMinProj || obbCenterProj - obbHalf >= rectMaxProj)
-                return false;
-        }
-
-        return true;
-    }
-
-    private static void ProjectAxisAlignedRectOntoAxis(
-        Vector2D<float> rectMin,
-        Vector2D<float> rectMax,
-        float nx,
-        float ny,
-        out float minProj,
-        out float maxProj)
-    {
-        var p0 = rectMin.X * nx + rectMin.Y * ny;
-        var p1 = rectMax.X * nx + rectMin.Y * ny;
-        var p2 = rectMax.X * nx + rectMax.Y * ny;
-        var p3 = rectMin.X * nx + rectMax.Y * ny;
-        minProj = MathF.Min(MathF.Min(p0, p1), MathF.Min(p2, p3));
-        maxProj = MathF.Max(MathF.Max(p0, p1), MathF.Max(p2, p3));
+        // Express the point in the box's local frame: translate by -center, rotate by -rotation.
+        var dx = pointWorld.X - centerWorld.X;
+        var dy = pointWorld.Y - centerWorld.Y;
+        var c = MathF.Cos(-rotationRadians);
+        var s = MathF.Sin(-rotationRadians);
+        var lx = dx * c - dy * s;
+        var ly = dx * s + dy * c;
+        return MathF.Abs(lx) <= halfExtentsWorld.X && MathF.Abs(ly) <= halfExtentsWorld.Y;
     }
 
     private static void ApplyOverrides(ref GlobalPostProcessSettings g, PostProcessOverrides o)

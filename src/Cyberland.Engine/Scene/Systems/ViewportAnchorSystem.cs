@@ -5,7 +5,10 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Applies <see cref="ViewportAnchor2D"/> to <see cref="Transform"/> (and optional <see cref="Sprite"/> half extents) from <see cref="Hosting.GameHostServices.Renderer"/>'s swapchain size.
+/// Applies <see cref="ViewportAnchor2D"/> to <see cref="Transform"/> (and optional <see cref="Sprite"/> half
+/// extents) using <see cref="Hosting.GameHostServices.Renderer"/>'s
+/// <see cref="Rendering.IRenderer.ActiveCameraViewportSize"/>, so HUD anchoring tracks the camera's virtual
+/// viewport rather than the physical window (letterbox bars never clip the UI).
 /// </summary>
 public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
 {
@@ -32,8 +35,8 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
         var world = _world;
         var renderer = _host.Renderer!;
 
-        var fb = renderer.SwapchainPixelSize;
-        if (fb.X <= 0 || fb.Y <= 0)
+        var viewport = renderer.ActiveCameraViewportSize;
+        if (viewport.X <= 0 || viewport.Y <= 0)
             return;
 
         var sprites = world.Components<Sprite>();
@@ -50,8 +53,8 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
 
                 var e = ents[i];
                 var p = a.ContentSpace == CoordinateSpace.ScreenSpace
-                    ? ComputeScreen(fb, a)
-                    : ComputeWorld(fb, a);
+                    ? ComputeScreen(viewport, a)
+                    : ComputeWorld(viewport, a);
                 ref var transform = ref transforms[i];
                 transform.LocalPosition = p;
                 transform.WorldPosition = p;
@@ -59,16 +62,16 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
                 if (a.SyncSpriteHalfExtentsToViewport && sprites.Contains(e))
                 {
                     ref var s = ref sprites.Get(e);
-                    s.HalfExtents = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
+                    s.HalfExtents = new Vector2D<float>(viewport.X * 0.5f, viewport.Y * 0.5f);
                 }
             }
         }
     }
 
-    private static Vector2D<float> ComputeScreen(Vector2D<int> fb, in ViewportAnchor2D a)
+    private static Vector2D<float> ComputeScreen(Vector2D<int> viewport, in ViewportAnchor2D a)
     {
-        var w = fb.X;
-        var h = fb.Y;
+        var w = viewport.X;
+        var h = viewport.Y;
         var ox = a.OffsetX;
         var oy = a.OffsetY;
         return a.Anchor switch
@@ -83,9 +86,9 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
         };
     }
 
-    private static Vector2D<float> ComputeWorld(Vector2D<int> fb, in ViewportAnchor2D a)
+    private static Vector2D<float> ComputeWorld(Vector2D<int> viewport, in ViewportAnchor2D a)
     {
-        var screen = ComputeScreen(fb, a);
-        return WorldScreenSpace.ScreenPixelToWorldCenter(screen, fb);
+        var screen = ComputeScreen(viewport, a);
+        return WorldScreenSpace.ScreenPixelToWorldCenter(screen, viewport);
     }
 }

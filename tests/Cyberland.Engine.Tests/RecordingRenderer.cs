@@ -17,6 +17,11 @@ internal sealed class RecordingRenderer : IRenderer
     private readonly object _lock = new();
 
     public Vector2D<int> SwapchainPixelSize { get; set; } = new(800, 600);
+    /// <summary>
+    /// Virtual camera viewport exposed to mod code; initialized to swapchain so pre-camera layout helpers still work.
+    /// Tests may override to simulate specific active cameras without submitting a full <see cref="CameraViewRequest"/>.
+    /// </summary>
+    public Vector2D<int> ActiveCameraViewportSize { get; set; } = new(800, 600);
     public Action? RequestClose { get; set; }
     public FramePacing FramePacing { get; set; } = FramePacing.VSync;
     public TextureId DefaultNormalTextureId => 1;
@@ -28,6 +33,7 @@ internal sealed class RecordingRenderer : IRenderer
     public List<DirectionalLight> DirectionalLights { get; } = new();
     public List<AmbientLight> AmbientLights { get; } = new();
     public List<RecordedPostProcessVolume> Volumes { get; } = new();
+    public List<CameraViewRequest> Cameras { get; } = new();
     public GlobalPostProcessSettings? LastGlobal { get; private set; }
 
     /// <summary>When set, returned from <see cref="RegisterTextureRgba"/> instead of the default id (tests upload failures).</summary>
@@ -129,5 +135,11 @@ internal sealed class RecordingRenderer : IRenderer
     {
         lock (_lock)
             LastGlobal = settings;
+    }
+
+    public void SubmitCamera(in CameraViewRequest camera)
+    {
+        lock (_lock)
+            Cameras.Add(camera);
     }
 }

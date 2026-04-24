@@ -15,13 +15,15 @@ internal static class TextRuntimeBuilder
         ref readonly Transform transform,
         GameHostServices host,
         IRenderer renderer,
-        out Vector2D<float> baselineWorld)
+        out Vector2D<float> baselineAuthored,
+        out SpriteCoordinateSpace space)
     {
-        baselineWorld = default;
+        baselineAuthored = default;
+        space = SpriteCoordinateSpace.World;
         if (!ValidateAndResolve(ref bt, host, out var resolved))
             return false;
 
-        ResolveBaseline(in bt, in transform, renderer, out baselineWorld, out var fbW, out var fbH);
+        ResolveBaseline(in bt, in transform, renderer, out baselineAuthored, out space, out var vpW, out var vpH);
 
         var contentHash = string.GetHashCode(resolved, StringComparison.Ordinal);
         var styleHash = bt.Style.GetHashCode();
@@ -30,10 +32,10 @@ internal static class TextRuntimeBuilder
             fingerprint.StyleHash == styleHash &&
             fingerprint.CoordinateSpace == bt.CoordinateSpace &&
             fingerprint.SortKey == bt.SortKey &&
-            fingerprint.BaselineWorldX == baselineWorld.X &&
-            fingerprint.BaselineWorldY == baselineWorld.Y &&
-            fingerprint.FramebufferW == fbW &&
-            fingerprint.FramebufferH == fbH;
+            fingerprint.BaselineWorldX == baselineAuthored.X &&
+            fingerprint.BaselineWorldY == baselineAuthored.Y &&
+            fingerprint.FramebufferW == vpW &&
+            fingerprint.FramebufferH == vpH;
         if (unchanged)
             return true;
 
@@ -41,12 +43,12 @@ internal static class TextRuntimeBuilder
         fingerprint.StyleHash = styleHash;
         fingerprint.CoordinateSpace = bt.CoordinateSpace;
         fingerprint.SortKey = bt.SortKey;
-        fingerprint.BaselineWorldX = baselineWorld.X;
-        fingerprint.BaselineWorldY = baselineWorld.Y;
-        fingerprint.FramebufferW = fbW;
-        fingerprint.FramebufferH = fbH;
+        fingerprint.BaselineWorldX = baselineAuthored.X;
+        fingerprint.BaselineWorldY = baselineAuthored.Y;
+        fingerprint.FramebufferW = vpW;
+        fingerprint.FramebufferH = vpH;
 
-        BuildGlyphSprites(ref bt, ref cache, host, renderer, resolved, baselineWorld);
+        BuildGlyphSprites(ref bt, ref cache, host, renderer, resolved, baselineAuthored, space);
         return true;
     }
 
@@ -83,25 +85,31 @@ internal static class TextRuntimeBuilder
         ref readonly BitmapText bt,
         ref readonly Transform transform,
         IRenderer renderer,
-        out Vector2D<float> baselineWorld,
-        out int fbW,
-        out int fbH)
+        out Vector2D<float> baselineAuthored,
+        out SpriteCoordinateSpace space,
+        out int vpW,
+        out int vpH)
     {
         // Translation is the homogeneous matrix's third row (M31, M32); pull it directly to avoid a decompose just to
         // recover the world position.
         var worldTranslation = new Vector2D<float>(transform.WorldMatrix.M31, transform.WorldMatrix.M32);
         if (bt.CoordinateSpace == CoordinateSpace.WorldSpace)
         {
-            baselineWorld = worldTranslation;
-            fbW = 0;
-            fbH = 0;
+            baselineAuthored = worldTranslation;
+            space = SpriteCoordinateSpace.World;
+            vpW = 0;
+            vpH = 0;
             return;
         }
 
-        var fb = renderer.SwapchainPixelSize;
-        baselineWorld = WorldScreenSpace.ScreenPixelToWorldCenter(worldTranslation, fb);
-        fbW = fb.X;
-        fbH = fb.Y;
+        // Screen-space text: author in the camera's virtual viewport (so HUD size/layout is independent of the
+        // physical window). Glyphs submit in viewport space; the fingerprint tracks viewport extent so HUD
+        // rebuilds when the active camera swaps or its virtual viewport changes.
+        baselineAuthored = worldTranslation;
+        space = SpriteCoordinateSpace.Viewport;
+        var viewport = renderer.ActiveCameraViewportSize;
+        vpW = viewport.X;
+        vpH = viewport.Y;
     }
 
     private static void BuildGlyphSprites(
@@ -110,7 +118,8 @@ internal static class TextRuntimeBuilder
         GameHostServices host,
         IRenderer renderer,
         string resolved,
-        Vector2D<float> baselineWorld)
+        Vector2D<float> baselineAuthored,
+        SpriteCoordinateSpace space)
     {
         var needed = Math.Max(1, resolved.Length);
         if (cache.CachedGlyphs is null || cache.CachedGlyphs.Length < needed)
@@ -122,11 +131,12 @@ internal static class TextRuntimeBuilder
             host.TextGlyphCache,
             resolved,
             in bt.Style,
-            baselineWorld,
+            baselineAuthored,
             0f,
             bt.SortKey,
             cache.CachedGlyphs.AsSpan(0, needed),
-            out var penAfter);
+            out var penAfter,
+            space);
         cache.GlyphCount = n;
         cache.PenAfter = penAfter;
     }

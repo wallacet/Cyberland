@@ -37,13 +37,14 @@ public sealed unsafe partial class VulkanRenderer
 
         public FramePlan Build()
         {
-            int spriteCount, pointCount, spotCount, directionalCount, ambientCount, volumeCount;
+            int spriteCount, pointCount, spotCount, directionalCount, ambientCount, volumeCount, cameraCount;
             SpriteDrawRequest[] sprites = [];
             PointLight[] pointLights = [];
             SpotLight[] spotLights = [];
             DirectionalLight[] directionalLights = [];
             AmbientLight[] ambientLights = [];
             PostProcessVolumeSubmission[] volumes = [];
+            CameraViewRequest[] cameras = [];
             GlobalPostProcessSettings globalPost;
             lock (_r._recordLock)
             {
@@ -101,13 +102,31 @@ public sealed unsafe partial class VulkanRenderer
                 }
                 _r._volumeQueue.Clear();
 
+                cameraCount = _r._cameraQueue.Count;
+                if (cameraCount > 0)
+                {
+                    EnsureFrameScratch(ref _r._frameScratchCameras, cameraCount);
+                    _r._cameraQueue.CopyTo(0, _r._frameScratchCameras!, 0, cameraCount);
+                    cameras = _r._frameScratchCameras!;
+                }
+                _r._cameraQueue.Clear();
+
                 globalPost = _r._globalPost;
             }
 
             var screen = new Vector2D<float>(_r._swapchainExtent.Width, _r._swapchainExtent.Height);
-            var viewMin = new Vector2D<float>(0f, 0f);
-            var viewMax = new Vector2D<float>(screen.X, screen.Y);
-            var resolvedPost = PostProcessVolumeMerge.Resolve(in globalPost, volumes.AsSpan(0, volumeCount), viewMin, viewMax);
+            var swapchainPixelSize = new Vector2D<int>((int)_r._swapchainExtent.Width, (int)_r._swapchainExtent.Height);
+            var camera = CameraSelection.PickActive(cameras.AsSpan(0, cameraCount), swapchainPixelSize);
+            var physical = CameraProjection.ComputePhysicalViewport(camera.ViewportSizeWorld, swapchainPixelSize);
+            // Publish the resolved viewport size so the NEXT frame's mod systems (anchors, HUD layout) see the
+            // camera chosen for THIS frame — this is the stable "virtual window" size for anchor calculations.
+            lock (_r._recordLock)
+                _r._activeCameraViewportSize = camera.ViewportSizeWorld;
+
+            var resolvedPost = PostProcessVolumeMerge.ResolveAtPoint(
+                in globalPost,
+                volumes.AsSpan(0, volumeCount),
+                camera.PositionWorld);
 
             int[] sortIndices;
             if (spriteCount == 0)
@@ -147,7 +166,9 @@ public sealed unsafe partial class VulkanRenderer
                 in resolvedPost,
                 sortIndices,
                 transparentSpriteCount,
-                in screen);
+                in screen,
+                in camera,
+                in physical);
         }
     }
 
@@ -248,9 +269,12 @@ public sealed unsafe partial class VulkanRenderer
         public void RecordComposite(in PostEffectContext context, in GlobalPostProcessSettings post, ImageView bloomView, float bloomGain)
         {
             _r.UpdateCompositeBloomSource(bloomView);
+            // Clear the full swapchain with the camera's background color; the actual draw is scissored to the
+            // letterbox rect via context.FullViewport / FullScissor so bar areas keep this clear value.
+            var bg = context.FramePlan.Camera.BackgroundColor;
             ClearValue cSw = new()
             {
-                Color = new ClearColorValue { Float32_0 = 0f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 1f }
+                Color = new ClearColorValue { Float32_0 = bg.X, Float32_1 = bg.Y, Float32_2 = bg.Z, Float32_3 = bg.W }
             };
 
             RenderPassBeginInfo rpS = new()

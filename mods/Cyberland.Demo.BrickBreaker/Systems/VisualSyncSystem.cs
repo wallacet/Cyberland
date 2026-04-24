@@ -97,7 +97,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         }
 
         ref readonly var s = ref world.Components<GameState>().Get(_stateEntity);
-        var fb = r.SwapchainPixelSize;
+        var fb = r.ActiveCameraViewportSize;
         var transforms = world.Components<Transform>();
         var sprites = world.Components<Sprite>();
         var brickStates = world.Components<BrickState>();

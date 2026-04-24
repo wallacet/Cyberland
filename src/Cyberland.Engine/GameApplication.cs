@@ -159,6 +159,10 @@ public sealed class GameApplication : IDisposable
                 _host,
                 excludedSet);
 
+            // Camera submits before anchors so the active camera's virtual viewport is resolved before HUD
+            // layout runs; anchors read IRenderer.ActiveCameraViewportSize. The submit itself goes through
+            // IRenderer.SubmitCamera and is drained by the renderer when building the next frame plan.
+            _scheduler.RegisterParallel("cyberland.engine/camera-submit", new CameraSubmitSystem(_host));
             _scheduler.RegisterSequential("cyberland.engine/viewport-layout", new ViewportAnchorSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/lighting-directional", new DirectionalLightSystem(_host));

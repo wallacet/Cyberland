@@ -59,7 +59,7 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
         _ = deltaSeconds;
         var world = _world;
         var r = _host.Renderer!;
-        var fb = r.SwapchainPixelSize;
+        var fb = r.ActiveCameraViewportSize;
         var w = fb.X;
         var h = fb.Y;
         if (w <= 0 || h <= 0)

@@ -64,7 +64,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         IRenderer renderer)
     {
         if (!TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, _host, renderer,
-                out var baselineWorld))
+                out var baselineAuthored, out var space))
         {
             cache.GlyphCount = 0;
             cache.PenAfter = 0f;
@@ -80,11 +80,12 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         TextRenderer.SubmitTextDecorations(
             renderer,
             in bt.Style,
-            baselineWorld,
+            baselineAuthored,
             0f,
             cache.PenAfter,
             bt.SortKey,
             renderer.WhiteTextureId,
-            renderer.DefaultNormalTextureId);
+            renderer.DefaultNormalTextureId,
+            space);
     }
 }

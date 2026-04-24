@@ -39,7 +39,7 @@ public sealed class TextBuildSystem : IParallelSystem, IParallelLateUpdate
                 ref var fingerprint = ref chunk.Column<TextBuildFingerprint>()[i];
                 ref var cache = ref chunk.Column<TextSpriteCache>()[i];
                 ref readonly var transform = ref chunk.Column<Transform>()[i];
-                TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, _host, renderer, out _);
+                TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, _host, renderer, out _, out _);
             });
         }
     }

@@ -66,7 +66,8 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
                     EmissiveIntensity = spr.EmissiveIntensity,
                     DepthHint = spr.DepthHint,
                     UvRect = spr.UvRect,
-                    Transparent = spr.Transparent
+                    Transparent = spr.Transparent,
+                    Space = spr.Space
                 };
 
                 r.SubmitSprite(in req);

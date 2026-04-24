@@ -48,7 +48,7 @@ public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
         var world = _world;
         var renderer = _host.Renderer;
         if (renderer is null) return;
-        var fb = renderer.SwapchainPixelSize;
+        var fb = renderer.ActiveCameraViewportSize;
         if (fb.X <= 0 || fb.Y <= 0) return;
         ref var session = ref world.Components<Session>().Get(_sessionEntity);
         session.UpdateLayout(fb.X, fb.Y);

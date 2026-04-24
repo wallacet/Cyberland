@@ -64,11 +64,28 @@ public sealed unsafe partial class VulkanRenderer
         UploadDirectionalSpotLightSsboData(in framePlan, nDir, nSpot);
     }
 
+    private static Vector2D<float> WorldLightToSwapchainPixel(Vector2D<float> positionWorld, in FramePlan plan)
+    {
+        var viewportSize = new Vector2D<float>(plan.Camera.ViewportSizeWorld.X, plan.Camera.ViewportSizeWorld.Y);
+        var vp = CameraProjection.WorldToViewportPixel(
+            positionWorld,
+            plan.Camera.PositionWorld,
+            plan.Camera.RotationRadians,
+            viewportSize);
+        return CameraProjection.ViewportPixelToSwapchainPixel(vp, in plan.Physical);
+    }
+
     private void UploadDirectionalSpotLightSsboData(in FramePlan framePlan, int nDir, int nSpot)
     {
         if (_directionalLightSsboMapped is null || _spotLightSsboMapped is null)
             return;
 
+        // Directional lights have no position, but their direction rotates with the camera so visuals stay
+        // consistent after a camera rotation. The +Y-up → screen +Y-down flip keeps the old "sun from
+        // upper-left" convention when the camera is unrotated.
+        var camRot = framePlan.Camera.RotationRadians;
+        var cr = MathF.Cos(-camRot);
+        var sr = MathF.Sin(-camRot);
         if (nDir > 0)
         {
             var dirSpan = new Span<Vector4D<float>>(
@@ -87,7 +104,11 @@ public sealed unsafe partial class VulkanRenderer
                 {
                     w = new Vector2D<float>(w.X / len, w.Y / len);
                 }
-                dirSpan[i * 2] = new Vector4D<float>(w.X, w.Y, d.Intensity, 0f);
+                // Rotate world direction into the camera's view frame (opposite of camera rotation) so lighting
+                // stays oriented from the viewer's perspective. No letterbox scaling — directions are unitless.
+                var rx = w.X * cr - w.Y * sr;
+                var ry = w.X * sr + w.Y * cr;
+                dirSpan[i * 2] = new Vector4D<float>(rx, ry, d.Intensity, 0f);
                 dirSpan[i * 2 + 1] = new Vector4D<float>(d.Color.X, d.Color.Y, d.Color.Z, d.CastsShadow ? 1f : 0f);
             }
         }
@@ -110,8 +131,20 @@ public sealed unsafe partial class VulkanRenderer
                 {
                     sdir = new Vector2D<float>(sdir.X / sLen, sdir.Y / sLen);
                 }
-                spotSpan[j * 3] = new Vector4D<float>(sp.PositionWorld.X, sp.PositionWorld.Y, sp.Radius, sp.CastsShadow ? 1f : 0f);
-                spotSpan[j * 3 + 1] = new Vector4D<float>(sdir.X, sdir.Y, MathF.Cos(sp.InnerConeRadians), MathF.Cos(sp.OuterConeRadians));
+                // Spot position + radius are in world units; project through camera + letterbox so the shader's
+                // pixel-distance math matches the fragment's pixel-space view. The world →  screen Y-flip lives
+                // inside the camera projection.
+                var swPos = WorldLightToSwapchainPixel(sp.PositionWorld, in framePlan);
+                // `fragWorld` in deferred_base.frag mirrors Y within the full swapchain
+                // (`screenSize.y - gl_FragCoord.y`), so the position we upload must also use that "flipped"
+                // frame — not the letterbox-local pixel — for the `toSpot` vector to match the fragment.
+                var lightY = framePlan.Screen.Y - swPos.Y;
+                // Direction likewise rotates with the camera, then flips Y to stay in the shader's +Y up frame.
+                var rx = sdir.X * cr - sdir.Y * sr;
+                var ry = sdir.X * sr + sdir.Y * cr;
+                var radiusPx = sp.Radius * framePlan.Physical.Scale;
+                spotSpan[j * 3] = new Vector4D<float>(swPos.X, lightY, radiusPx, sp.CastsShadow ? 1f : 0f);
+                spotSpan[j * 3 + 1] = new Vector4D<float>(rx, ry, MathF.Cos(sp.InnerConeRadians), MathF.Cos(sp.OuterConeRadians));
                 spotSpan[j * 3 + 2] = new Vector4D<float>(sp.Color.X, sp.Color.Y, sp.Color.Z, sp.Intensity);
             }
         }
@@ -129,7 +162,12 @@ public sealed unsafe partial class VulkanRenderer
         {
             ref readonly var pl = ref pts[i];
             var fall = pl.FalloffExponent > 1e-6f ? pl.FalloffExponent : 2f;
-            span[i * 2] = new Vector4D<float>(pl.PositionWorld.X, pl.PositionWorld.Y, pl.Radius, fall);
+            // Point light shaders (`deferred_point.vert/frag`) do `centerPx = (pr.x, screen.y - pr.y)`, so
+            // keep the shader-expected +Y-up pixel frame: upload swapchain pixel X, (screen.Y - swapchain Y).
+            var swPos = WorldLightToSwapchainPixel(pl.PositionWorld, in framePlan);
+            var lightY = framePlan.Screen.Y - swPos.Y;
+            var radiusPx = pl.Radius * framePlan.Physical.Scale;
+            span[i * 2] = new Vector4D<float>(swPos.X, lightY, radiusPx, fall);
             span[i * 2 + 1] = new Vector4D<float>(pl.Color.X, pl.Color.Y, pl.Color.Z, pl.Intensity);
         }
     }

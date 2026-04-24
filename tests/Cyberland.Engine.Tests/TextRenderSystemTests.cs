@@ -437,7 +437,6 @@ public sealed class TextRenderSystemTests
             in style,
             "hud",
             new Vector2D<float>(12f, 24f),
-            r.SwapchainPixelSize,
             300f);
     }
 

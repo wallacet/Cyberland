@@ -59,7 +59,7 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
 
     private void UpdateLayoutIfNeeded(ChunkQueryAll cellArchetype, ParallelOptions? parallelOptions)
     {
-        var fb = _host.Renderer!.SwapchainPixelSize;
+        var fb = _host.Renderer!.ActiveCameraViewportSize;
         if (fb.X <= 0 || fb.Y <= 0)
             return;
 
