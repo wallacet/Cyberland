@@ -10,13 +10,13 @@ public sealed class TutorialHudSystem : ISystem, ILateUpdate
 {
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly LocalizationManager _strings;
     private readonly EntityId _stateEntity;
     private readonly EntityId _titleTextEntity;
     private readonly EntityId _detailTextEntity;
     private readonly EntityId _statusTextEntity;
-    private World _world = null!;
-
     public TutorialHudSystem(LocalizationManager strings, EntityId stateEntity, EntityId titleTextEntity, EntityId detailTextEntity,
         EntityId statusTextEntity)
     {
@@ -37,7 +37,7 @@ public sealed class TutorialHudSystem : ISystem, ILateUpdate
     {
         _ = query;
         _ = deltaSeconds;
-        ref readonly var state = ref _world.Components<GameState>().Get(_stateEntity);
+        ref readonly var state = ref _world.Get<GameState>(_stateEntity);
 
         UpdateHudText(_titleTextEntity, HeaderText(state), new Vector2D<float>(40f, 36f), 24f);
         UpdateHudText(_detailTextEntity, DetailText(state), new Vector2D<float>(40f, 74f), 18f);
@@ -46,11 +46,11 @@ public sealed class TutorialHudSystem : ISystem, ILateUpdate
 
     private void UpdateHudText(EntityId entity, string text, Vector2D<float> viewportPos, float size)
     {
-        ref var transform = ref _world.Components<Transform>().Get(entity);
+        ref var transform = ref _world.Get<Transform>(entity);
         transform.WorldPosition = viewportPos;
         transform.LocalPosition = viewportPos;
 
-        ref var bt = ref _world.Components<BitmapText>().Get(entity);
+        ref var bt = ref _world.Get<BitmapText>(entity);
         bt.Visible = true;
         bt.Content = text;
         bt.IsLocalizationKey = false;

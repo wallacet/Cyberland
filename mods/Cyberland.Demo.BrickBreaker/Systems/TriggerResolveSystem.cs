@@ -15,11 +15,11 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly EntityId _stateEntity;
     private readonly EntityId _paddleEntity;
     private readonly EntityId _ballEntity;
-    private World _world;
-
     public TriggerResolveSystem(EntityId stateEntity, EntityId paddleEntity, EntityId ballEntity)
     {
         _stateEntity = stateEntity;
@@ -37,21 +37,18 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
     {
         _ = archetype;
         _ = fixedDeltaSeconds;
-        var world = _world;
-        ref var game = ref world.Components<GameState>().Get(_stateEntity);
+        ref var game = ref _world.Get<GameState>(_stateEntity);
         if (game.Phase != Phase.Playing || game.BallDocked)
             return;
 
-        if (!world.Components<TriggerEvents>().TryGet(_ballEntity, out var triggerEvents) || triggerEvents.Events is null)
+        if (!_world.TryGet<TriggerEvents>(_ballEntity, out var triggerEvents) || triggerEvents.Events is null)
             return;
 
-        ref var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
-        ref var ballVel = ref world.Components<Velocity>().Get(_ballEntity);
-        ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
-        ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
-        var brickStateStore = world.Components<BrickState>();
-        var brickCellStore = world.Components<Cell>();
-        var triggerStore = world.Components<Trigger>();
+        ref var ballTransform = ref _world.Get<Transform>(_ballEntity);
+        ref var ballVel = ref _world.Get<Velocity>(_ballEntity);
+        ref readonly var paddleTransform = ref _world.Get<Transform>(_paddleEntity);
+        ref var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
+        var w = _world;
         var ballPos = ballTransform.LocalPosition;
         var velocityTouched = false;
 
@@ -76,15 +73,15 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
                 continue;
             }
 
-            if (!brickCellStore.TryGet(ev.Other, out var cell))
+            if (!w.TryGet<Cell>(ev.Other, out var cell))
                 continue;
-            if (!brickStateStore.TryGet(ev.Other, out var brickState) || !brickState.Active)
+            if (!w.TryGet<BrickState>(ev.Other, out var brickState) || !brickState.Active)
                 continue;
 
             GetBrickAabb(in game, in cell, out var cbx, out var cby, out var hwx, out var hhy);
-            brickState.Active = false;
-            brickStateStore.Get(ev.Other) = brickState;
-            ref var tri = ref triggerStore.Get(ev.Other);
+            ref var brSt = ref w.Get<BrickState>(ev.Other);
+            brSt.Active = false;
+            ref var tri = ref w.Get<Trigger>(ev.Other);
             tri.Enabled = false;
             game.Score += Constants.BrickPoints;
             if (!velocityTouched)

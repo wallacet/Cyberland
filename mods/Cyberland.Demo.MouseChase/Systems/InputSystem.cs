@@ -9,11 +9,11 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
 {
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _controlEntity;
     private readonly EntityId _stateEntity;
-    private World _world = null!;
-
     public InputSystem(GameHostServices host, EntityId controlEntity, EntityId stateEntity)
     {
         _host = host;
@@ -43,8 +43,8 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
             return;
         }
 
-        ref var control = ref _world.Components<ControlState>().Get(_controlEntity);
-        ref readonly var state = ref _world.Components<GameState>().Get(_stateEntity);
+        ref var control = ref _world.Get<ControlState>(_controlEntity);
+        ref readonly var state = ref _world.Get<GameState>(_stateEntity);
 
         var mouse = input.GetMousePosition(CoordinateSpace.WorldSpace);
         control.MouseWorld = new Silk.NET.Maths.Vector2D<float>(mouse.X, mouse.Y);

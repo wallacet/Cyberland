@@ -15,11 +15,11 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _session;
     private readonly VisualIds _visuals;
-    private World _world = null!;
-
     public SimulationSystem(GameHostServices host, EntityId session, VisualIds visuals)
     {
         _host = host;
@@ -41,35 +41,34 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
     public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
-        var world = _world;
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
-        ref var st = ref world.Components<State>().Get(_session);
-        ref var ctl = ref world.Components<Control>().Get(_session);
+        ref var st = ref _world.Get<State>(_session);
+        ref var ctl = ref _world.Get<Control>(_session);
         var margin = 32f;
         st.ArenaMinX = margin + Constants.PaddleHalfW + 8f;
         st.ArenaMaxX = fb.X - margin - Constants.PaddleHalfW - 8f;
         st.ArenaMinY = margin;
         st.ArenaMaxY = fb.Y - margin;
         st.Pulse += fixedDeltaSeconds * Constants.TitlePulseSpeed;
-        SyncPaddleAndBallTransforms(world, in st);
+        SyncPaddleAndBallTransforms(in st);
         if (ctl.StartMatch) StartMatch(ref st, fb);
         ctl.StartMatch = false;
         if (st.Phase == Phase.Playing) StepPlaying(ref st, fb, ctl.PaddleUp, ctl.PaddleDown, fixedDeltaSeconds);
     }
 
-    private void SyncPaddleAndBallTransforms(World world, in State st)
+    private void SyncPaddleAndBallTransforms(in State st)
     {
-        var transforms = world.Components<Transform>();
+        var w = _world;
 
-        ref var leftTransform = ref transforms.Get(_visuals.LeftPad);
+        ref var leftTransform = ref w.Get<Transform>(_visuals.LeftPad);
         leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, st.LeftPaddleY);
         leftTransform.WorldPosition = leftTransform.LocalPosition;
 
-        ref var rightTransform = ref transforms.Get(_visuals.RightPad);
+        ref var rightTransform = ref w.Get<Transform>(_visuals.RightPad);
         rightTransform.LocalPosition = new Vector2D<float>(st.ArenaMaxX, st.RightPaddleY);
         rightTransform.WorldPosition = rightTransform.LocalPosition;
 
-        ref var ballTransform = ref transforms.Get(_visuals.Ball);
+        ref var ballTransform = ref w.Get<Transform>(_visuals.Ball);
         ballTransform.LocalPosition = st.BallPos;
         ballTransform.WorldPosition = st.BallPos;
     }

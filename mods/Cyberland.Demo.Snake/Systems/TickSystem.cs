@@ -11,10 +11,11 @@ public sealed class TickSystem : ISystem, IFixedUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _sessionEntity;
     private readonly EntityId _controlEntity;
-    private World _world;
     public TickSystem(GameHostServices host, EntityId sessionEntity, EntityId controlEntity)
     {
         _host = host;
@@ -31,13 +32,12 @@ public sealed class TickSystem : ISystem, IFixedUpdate
     public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
-        var world = _world;
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         if (fb.X <= 0 || fb.Y <= 0) return;
-        ref var session = ref world.Components<Session>().Get(_sessionEntity);
+        ref var session = ref _world.Get<Session>(_sessionEntity);
         // Idempotent layout: same math as tilemap/lights/visuals so each system can run independently.
         session.UpdateLayout(fb.X, fb.Y);
-        ref var ctl = ref world.Components<Control>().Get(_controlEntity);
+        ref var ctl = ref _world.Get<Control>(_controlEntity);
         if (ctl.StartGame) { ctl.StartGame = false; session.StartGame(); }
         if (session.Phase != Phase.Playing) return;
         session.TickAcc += fixedDeltaSeconds;

@@ -9,10 +9,11 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _sessionEntity;
     private readonly EntityId _controlEntity;
-    private World _world;
     public InputSystem(GameHostServices host, EntityId sessionEntity, EntityId controlEntity)
     {
         _host = host;
@@ -28,8 +29,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     {
         _ = archetype;
         _ = deltaSeconds;
-        var world = _world;
-        ref var ctl = ref world.Components<Control>().Get(_controlEntity);
+        ref var ctl = ref _world.Get<Control>(_controlEntity);
         // Do not clear the whole component: StartGame is latched for TickSystem (fixed). High refresh can deliver many
         // Render ticks before the next fixed substep; ctl = default would erase an unconsumed StartGame before Tick runs.
         var r = _host.Renderer;
@@ -37,7 +37,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         if (r is null) return;
         if (input is null) return;
         if (input.IsDown("cyberland.common/quit")) { r.RequestClose?.Invoke(); return; }
-        ref var session = ref world.Components<Session>().Get(_sessionEntity);
+        ref var session = ref _world.Get<Session>(_sessionEntity);
         switch (session.Phase)
         {
             case Phase.Title: if (input.WasPressed("cyberland.demo.snake/start_game") || input.WasPressed("cyberland.common/start")) ctl.StartGame = true; break;

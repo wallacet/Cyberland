@@ -14,6 +14,8 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _sessionEntity;
     private readonly EntityId _ambient;
@@ -21,8 +23,6 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
     private readonly EntityId _spot;
     private readonly EntityId _headPoint;
     private readonly EntityId _foodPoint;
-    private World _world;
-
     /// <summary>Creates the system.</summary>
     public SnakeLightsFillSystem(GameHostServices host, EntityId sessionEntity, EntityId ambient, EntityId directional,
         EntityId spot, EntityId headPoint, EntityId foodPoint)
@@ -54,7 +54,6 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
     {
         _ = archetype;
         _ = deltaSeconds;
-        var world = _world;
         var r = _host.Renderer;
         if (r is null)
             return;
@@ -63,7 +62,7 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         var h = fb.Y;
         if (w <= 0 || h <= 0)
             return;
-        ref var s = ref world.Components<Session>().Get(_sessionEntity);
+        ref var s = ref _world.Get<Session>(_sessionEntity);
         s.UpdateLayout(w, h);
         var cell = s.Cell;
         var ox = s.OriginX;
@@ -72,15 +71,15 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         var gridCy = oy + Constants.GridH * 0.5f * cell;
         var gridCenterWorld = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(gridCx, gridCy), fb);
 
-        ref var amb = ref world.Components<AmbientLightSource>().Get(_ambient);
+        ref var amb = ref _world.Get<AmbientLightSource>(_ambient);
         amb.Active = true;
         amb.Color = new Vector3D<float>(0.22f, 0.26f, 0.32f);
         amb.Intensity = 0.13f;
 
-        ref var dirTransform = ref world.Components<Transform>().Get(_directional);
+        ref var dirTransform = ref _world.Get<Transform>(_directional);
         dirTransform.LocalRotationRadians = MathF.Atan2(-0.58f, 0.38f);
         dirTransform.WorldRotationRadians = dirTransform.LocalRotationRadians;
-        ref var dir = ref world.Components<DirectionalLightSource>().Get(_directional);
+        ref var dir = ref _world.Get<DirectionalLightSource>(_directional);
         dir.Active = true;
         dir.Color = new Vector3D<float>(0.52f, 0.5f, 0.46f);
         dir.Intensity = 0.2f;
@@ -92,12 +91,12 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
         var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(0f, 1f);
 
-        ref var spotTransform = ref world.Components<Transform>().Get(_spot);
+        ref var spotTransform = ref _world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;
         spotTransform.WorldPosition = spotPos;
         spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
         spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
-        ref var sp = ref world.Components<SpotLightSource>().Get(_spot);
+        ref var sp = ref _world.Get<SpotLightSource>(_spot);
         sp.Active = true;
         sp.Radius = w * 0.52f;
         sp.InnerConeRadians = MathF.PI / 4f;
@@ -110,10 +109,10 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
             ? s.CellCenterWorld(s.Snake.First!.Value.x, s.Snake.First!.Value.y, fb)
             : gridCenterWorld;
         var headIntensity = s.Phase == Phase.Playing && s.Snake.Count > 0 ? 0.52f : 0.26f;
-        ref var headTransform = ref world.Components<Transform>().Get(_headPoint);
+        ref var headTransform = ref _world.Get<Transform>(_headPoint);
         headTransform.LocalPosition = headWorld;
         headTransform.WorldPosition = headWorld;
-        ref var hp = ref world.Components<PointLightSource>().Get(_headPoint);
+        ref var hp = ref _world.Get<PointLightSource>(_headPoint);
         hp.Active = true;
         hp.Radius = w * 0.28f;
         hp.Color = new Vector3D<float>(0.35f, 1f, 0.55f);
@@ -125,10 +124,10 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
             ? s.CellCenterWorld(s.Food.x, s.Food.y, fb)
             : WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(ox + (Constants.GridW - 0.5f) * cell, oy + cell * 0.5f), fb);
         var foodIntensity = s.Phase == Phase.Playing ? 0.44f : 0.22f;
-        ref var foodTransform = ref world.Components<Transform>().Get(_foodPoint);
+        ref var foodTransform = ref _world.Get<Transform>(_foodPoint);
         foodTransform.LocalPosition = foodWorld;
         foodTransform.WorldPosition = foodWorld;
-        ref var fp = ref world.Components<PointLightSource>().Get(_foodPoint);
+        ref var fp = ref _world.Get<PointLightSource>(_foodPoint);
         fp.Active = true;
         fp.Radius = w * 0.22f;
         fp.Color = new Vector3D<float>(1f, 0.45f, 0.28f);

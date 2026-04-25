@@ -10,9 +10,9 @@ using TextureId = System.UInt32;
 
 namespace Cyberland.Demo.MouseChase;
 
-// MouseChase is a compact playable tutorial game:
-// input -> fixed simulation -> trigger-driven game events -> HUD teaching prompts.
-// It intentionally keeps all state in ECS singleton components so systems remain easy to inspect.
+// MouseChase is a compact playable tutorial game.
+// The runtime flow is split into focused ECS systems:
+// input -> fixed reset/movement/camera/trigger/round-state -> HUD prompts.
 public sealed class Mod : IMod
 {
     public void OnLoad(ModLoadContext context)
@@ -27,11 +27,11 @@ public sealed class Mod : IMod
         var cameraEntity = world.CreateEntity();
         var cameraTransform = Transform.Identity;
         cameraTransform.WorldPosition = new Vector2D<float>(640f, 360f);
-        world.Components<Transform>().GetOrAdd(cameraEntity) = cameraTransform;
-        world.Components<Camera2D>().GetOrAdd(cameraEntity) = Camera2D.Create(new Vector2D<int>(1280, 720));
+        world.GetOrAdd<Transform>(cameraEntity) = cameraTransform;
+        world.GetOrAdd<Camera2D>(cameraEntity) = Camera2D.Create(new Vector2D<int>(1280, 720));
 
         var stateEntity = world.CreateEntity();
-        world.Components<GameState>().GetOrAdd(stateEntity) = new GameState
+        world.GetOrAdd<GameState>(stateEntity) = new GameState
         {
             Phase = RoundPhase.Tutorial,
             TutorialStep = 0,
@@ -42,18 +42,18 @@ public sealed class Mod : IMod
         };
 
         var controlEntity = world.CreateEntity();
-        world.Components<ControlState>().GetOrAdd(controlEntity);
+        world.GetOrAdd<ControlState>(controlEntity);
 
         var player = CreateSprite(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(260f, 360f), new Vector2D<float>(22f, 22f), new Vector4D<float>(0.2f, 0.95f, 1f, 1f));
-        world.Components<PlayerTag>().GetOrAdd(player);
-        world.Components<Trigger>().GetOrAdd(player) = new Trigger
+        world.GetOrAdd<PlayerTag>(player);
+        world.GetOrAdd<Trigger>(player) = new Trigger
         {
             Enabled = true,
             Shape = TriggerShapeKind.Circle,
             Radius = 24f
         };
-        world.Components<CameraFollow2D>().GetOrAdd(cameraEntity) = new CameraFollow2D
+        world.GetOrAdd<CameraFollow2D>(cameraEntity) = new CameraFollow2D
         {
             Enabled = true,
             Target = player,
@@ -66,15 +66,15 @@ public sealed class Mod : IMod
 
         var collectible = CreateSprite(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(920f, 300f), new Vector2D<float>(16f, 16f), new Vector4D<float>(1f, 0.7f, 0.2f, 1f));
-        world.Components<CollectibleTag>().GetOrAdd(collectible);
-        world.Components<SpriteLocalizedAsset>().GetOrAdd(collectible) = new SpriteLocalizedAsset
+        world.GetOrAdd<CollectibleTag>(collectible);
+        world.GetOrAdd<SpriteLocalizedAsset>(collectible) = new SpriteLocalizedAsset
         {
             CanonicalAlbedoPath = "Textures/Pickups/shard.png",
             ReloadGeneration = 1,
             LoadedGeneration = 0,
             KeepExistingOnMissing = true
         };
-        world.Components<Trigger>().GetOrAdd(collectible) = new Trigger
+        world.GetOrAdd<Trigger>(collectible) = new Trigger
         {
             Enabled = true,
             Shape = TriggerShapeKind.Circle,
@@ -83,24 +83,24 @@ public sealed class Mod : IMod
 
         var enterZone = CreateZone(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(450f, 480f), new Vector2D<float>(120f, 42f), new Vector4D<float>(0.2f, 0.8f, 0.25f, 0.4f));
-        world.Components<EnterZoneTag>().GetOrAdd(enterZone);
+        world.GetOrAdd<EnterZoneTag>(enterZone);
 
         var stayZone = CreateZone(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(760f, 430f), new Vector2D<float>(100f, 55f), new Vector4D<float>(0.15f, 0.45f, 1f, 0.4f));
-        world.Components<StayZoneTag>().GetOrAdd(stayZone);
+        world.GetOrAdd<StayZoneTag>(stayZone);
 
         var exitZone = CreateZone(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(900f, 190f), new Vector2D<float>(100f, 55f), new Vector4D<float>(1f, 0.28f, 0.3f, 0.4f));
-        world.Components<ExitZoneTag>().GetOrAdd(exitZone);
+        world.GetOrAdd<ExitZoneTag>(exitZone);
 
         var gateZone = CreateZone(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(1120f, 520f), new Vector2D<float>(75f, 85f), new Vector4D<float>(1f, 0.98f, 0.15f, 0.6f));
-        world.Components<GateZoneTag>().GetOrAdd(gateZone);
+        world.GetOrAdd<GateZoneTag>(gateZone);
 
         // Opaque world sprites: deferred_base.frag only adds ambient + directional/spot in the G-buffer pass; with no
         // submissions, albedo*lit stays 0 → black quads. (Semi-transparent tutorial zones use WBOIT and still read tinted.)
         var ambient = world.CreateEntity();
-        world.Components<AmbientLightSource>().GetOrAdd(ambient) = new AmbientLightSource
+        world.GetOrAdd<AmbientLightSource>(ambient) = new AmbientLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.5f, 0.55f, 0.65f),
@@ -110,8 +110,8 @@ public sealed class Mod : IMod
         var key = world.CreateEntity();
         var keyXf = Transform.Identity;
         keyXf.WorldPosition = new Vector2D<float>(480f, 500f);
-        world.Components<Transform>().GetOrAdd(key) = keyXf;
-        world.Components<PointLightSource>().GetOrAdd(key) = new PointLightSource
+        world.GetOrAdd<Transform>(key) = keyXf;
+        world.GetOrAdd<PointLightSource>(key) = new PointLightSource
         {
             Active = true,
             Radius = 1100f,
@@ -127,8 +127,11 @@ public sealed class Mod : IMod
 
         var host = context.Host;
         context.RegisterSequential("cyberland.demo.mousechase/input", new InputSystem(host, controlEntity, stateEntity));
-        context.RegisterSequential("cyberland.demo.mousechase/sim",
-            new SimulationSystem(stateEntity, controlEntity, cameraEntity, player, collectible, enterZone, stayZone, exitZone, gateZone));
+        context.RegisterSequential("cyberland.demo.mousechase/reset", new RoundResetSystem());
+        context.RegisterParallel("cyberland.demo.mousechase/movement", new PlayerMovementSystem());
+        context.RegisterParallel("cyberland.demo.mousechase/camera-zoom", new CameraZoomSystem());
+        context.RegisterSequential("cyberland.demo.mousechase/trigger-resolve", new TriggerResolveSystem());
+        context.RegisterParallel("cyberland.demo.mousechase/round-state", new RoundStateSystem());
         context.RegisterSequential("cyberland.demo.mousechase/tutorial-hud",
             new TutorialHudSystem(context.LocalizedContent.Strings, stateEntity, titleText, detailText, statusText));
 
@@ -147,13 +150,13 @@ public sealed class Mod : IMod
         // Local/World PRS writes from that state can leave world scale at 0 → invisible sprites in SpriteRenderSystem.
         var xf = Transform.Identity;
         xf.WorldPosition = worldPos;
-        world.Components<Transform>().GetOrAdd(entity) = xf;
+        world.GetOrAdd<Transform>(entity) = xf;
         var renderer = Sprite.DefaultWhiteUnlit(whiteTextureId, defaultNormalTextureId, halfExtents);
         renderer.Visible = true;
         renderer.Transparent = tint.W < 1f;
         renderer.ColorMultiply = tint;
         renderer.Layer = (int)SpriteLayer.World;
-        world.Components<Sprite>().GetOrAdd(entity) = renderer;
+        world.GetOrAdd<Sprite>(entity) = renderer;
         return entity;
     }
 
@@ -161,7 +164,7 @@ public sealed class Mod : IMod
         Vector2D<float> worldPos, Vector2D<float> halfExtents, Vector4D<float> tint)
     {
         var entity = CreateSprite(world, whiteTextureId, defaultNormalTextureId, worldPos, halfExtents, tint);
-        world.Components<Trigger>().GetOrAdd(entity) = new Trigger
+        world.GetOrAdd<Trigger>(entity) = new Trigger
         {
             Enabled = true,
             Shape = TriggerShapeKind.Rectangle,
@@ -173,8 +176,8 @@ public sealed class Mod : IMod
     private static EntityId CreateHudText(World world, float sortKey)
     {
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = " ";
         bt.SortKey = sortKey;
@@ -187,7 +190,7 @@ public sealed class Mod : IMod
     private static void ApplyGlobalPost(World world)
     {
         var e = world.CreateEntity();
-        world.Components<GlobalPostProcessSource>().GetOrAdd(e) = new GlobalPostProcessSource
+        world.GetOrAdd<GlobalPostProcessSource>(e) = new GlobalPostProcessSource
         {
             Active = true,
             Priority = 100,

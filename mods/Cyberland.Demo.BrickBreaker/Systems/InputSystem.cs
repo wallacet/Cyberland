@@ -10,11 +10,11 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _stateEntity;
     private readonly EntityId _controlEntity;
-    private World _world;
-
     public InputSystem(GameHostServices host, EntityId stateEntity, EntityId controlEntity)
     {
         _host = host;
@@ -32,8 +32,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     {
         _ = archetype;
         _ = deltaSeconds;
-        var world = _world;
-        ref var c = ref world.Components<Control>().Get(_controlEntity);
+        ref var c = ref _world.Get<Control>(_controlEntity);
         // Preserve latched intents for fixed systems: several Render ticks may occur before the next fixed substep at high refresh.
         var pendingStart = c.StartRound;
         var pendingLaunch = c.LaunchBall;
@@ -52,7 +51,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
             r.RequestClose?.Invoke();
             return;
         }
-        var phase = world.Components<GameState>().Get(_stateEntity).Phase;
+        var phase = _world.Get<GameState>(_stateEntity).Phase;
         switch (phase)
         {
             case Phase.Title:

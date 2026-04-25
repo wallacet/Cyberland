@@ -12,6 +12,8 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _stateEntity;
     private readonly EntityId _paddleEntity;
@@ -21,8 +23,6 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
     private readonly EntityId _spot;
     private readonly EntityId _paddlePoint;
     private readonly EntityId _ballPoint;
-    private World _world;
-
     /// <summary>Creates the system.</summary>
     public BrickBreakerLightsFillSystem(GameHostServices host, EntityId stateEntity, EntityId paddleEntity, EntityId ballEntity,
         EntityId ambient, EntityId directional, EntityId spot, EntityId paddlePoint, EntityId ballPoint)
@@ -56,26 +56,25 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
     {
         _ = archetype;
         _ = deltaSeconds;
-        var world = _world;
         var w = Constants.CanvasWidth;
 
-        ref readonly var s = ref world.Components<GameState>().Get(_stateEntity);
-        ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
-        ref readonly var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
-        ref readonly var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
+        ref readonly var s = ref _world.Get<GameState>(_stateEntity);
+        ref readonly var paddleTransform = ref _world.Get<Transform>(_paddleEntity);
+        ref readonly var ballTransform = ref _world.Get<Transform>(_ballEntity);
+        ref readonly var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
         var cx = (s.ArenaMinX + s.ArenaMaxX) * 0.5f;
         var brickMidY = s.BrickTopY - (Constants.Rows * 0.5f) * s.BrickH;
         var paddleX = paddleTransform.WorldPosition.X;
 
-        ref var amb = ref world.Components<AmbientLightSource>().Get(_ambient);
+        ref var amb = ref _world.Get<AmbientLightSource>(_ambient);
         amb.Active = true;
         amb.Color = new Vector3D<float>(0.22f, 0.24f, 0.32f);
         amb.Intensity = 0.14f;
 
-        ref var dirTransform = ref world.Components<Transform>().Get(_directional);
+        ref var dirTransform = ref _world.Get<Transform>(_directional);
         dirTransform.LocalRotationRadians = MathF.Atan2(-0.62f, 0.35f);
         dirTransform.WorldRotationRadians = dirTransform.LocalRotationRadians;
-        ref var dir = ref world.Components<DirectionalLightSource>().Get(_directional);
+        ref var dir = ref _world.Get<DirectionalLightSource>(_directional);
         dir.Active = true;
         dir.Color = new Vector3D<float>(0.55f, 0.52f, 0.48f);
         dir.Intensity = 0.22f;
@@ -88,12 +87,12 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
         var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(0f, -1f);
 
-        ref var spotTransform = ref world.Components<Transform>().Get(_spot);
+        ref var spotTransform = ref _world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;
         spotTransform.WorldPosition = spotPos;
         spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
         spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
-        ref var sp = ref world.Components<SpotLightSource>().Get(_spot);
+        ref var sp = ref _world.Get<SpotLightSource>(_spot);
         sp.Active = true;
         sp.Radius = w * 0.55f;
         sp.InnerConeRadians = MathF.PI / 4f;
@@ -102,10 +101,10 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
         sp.Intensity = 0.38f;
         sp.CastsShadow = false;
 
-        ref var paddlePointTransform = ref world.Components<Transform>().Get(_paddlePoint);
+        ref var paddlePointTransform = ref _world.Get<Transform>(_paddlePoint);
         paddlePointTransform.LocalPosition = new Vector2D<float>(paddleX, s.PaddleY - 24f);
         paddlePointTransform.WorldPosition = paddlePointTransform.LocalPosition;
-        ref var pp = ref world.Components<PointLightSource>().Get(_paddlePoint);
+        ref var pp = ref _world.Get<PointLightSource>(_paddlePoint);
         pp.Active = true;
         pp.Radius = w * 0.5f;
         pp.Color = new Vector3D<float>(1f, 0.55f, 0.28f);
@@ -117,10 +116,10 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
             ? ballTransform.WorldPosition
             : new Vector2D<float>(paddleX, s.PaddleY + paddleBody.HalfHeight + Constants.BallR);
 
-        ref var ballPointTransform = ref world.Components<Transform>().Get(_ballPoint);
+        ref var ballPointTransform = ref _world.Get<Transform>(_ballPoint);
         ballPointTransform.LocalPosition = trackedBallPos;
         ballPointTransform.WorldPosition = trackedBallPos;
-        ref var bp = ref world.Components<PointLightSource>().Get(_ballPoint);
+        ref var bp = ref _world.Get<PointLightSource>(_ballPoint);
         bp.Active = true;
         bp.Radius = 140f;
         bp.Color = new Vector3D<float>(0.85f, 0.95f, 1f);

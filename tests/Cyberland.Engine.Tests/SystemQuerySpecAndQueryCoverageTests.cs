@@ -18,9 +18,9 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e);
-        world.Components<Sprite>().GetOrAdd(e);
-        world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e);
+        world.GetOrAdd<Sprite>(e);
+        world.GetOrAdd<BitmapText>(e);
 
         var spec = SystemQuerySpec.All<BitmapText, Sprite, Transform>();
         var bitmapCol = spec.GetColumnIndex<BitmapText>(world);
@@ -46,7 +46,7 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e);
 
         var spec = new SystemQuerySpec(new[] { typeof(Transform), typeof(Transform) });
         var ecs = (ArchetypeWorld)typeof(World).GetField("_ecs", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(world)!;
@@ -84,7 +84,7 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e);
         var spec = SystemQuerySpec.All<Transform>();
 
         var ex = Assert.Throws<ArgumentException>(() =>
@@ -141,17 +141,17 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
         var w = new World();
 
         var ePs = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(ePs);
-        w.Components<Sprite>().GetOrAdd(ePs);
+        w.GetOrAdd<Transform>(ePs);
+        w.GetOrAdd<Sprite>(ePs);
 
         var ePt = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(ePt);
-        w.Components<BitmapText>().GetOrAdd(ePt);
+        w.GetOrAdd<Transform>(ePt);
+        w.GetOrAdd<BitmapText>(ePt);
 
         var eFull = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(eFull);
-        w.Components<Sprite>().GetOrAdd(eFull);
-        w.Components<BitmapText>().GetOrAdd(eFull);
+        w.GetOrAdd<Transform>(eFull);
+        w.GetOrAdd<Sprite>(eFull);
+        w.GetOrAdd<BitmapText>(eFull);
 
         var spec = SystemQuerySpec.All<BitmapText, Sprite, Transform>();
         var n = 0;
@@ -187,7 +187,7 @@ public sealed class SystemQuerySpecAndQueryCoverageTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<BitmapText>(e);
 
         var spec = SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();
         var n = 0;

@@ -27,7 +27,7 @@ public sealed class CameraFollowSystem : IParallelSystem, IParallelFixedUpdate
     {
         _ = fixedDeltaSeconds;
         _ = parallelOptions;
-        var transformStore = _world.Components<Transform>();
+        var w = _world;
         foreach (var chunk in query)
         {
             var followCol = chunk.Column<CameraFollow2D>();
@@ -37,7 +37,7 @@ public sealed class CameraFollowSystem : IParallelSystem, IParallelFixedUpdate
                 ref var follow = ref followCol[i];
                 if (!follow.Enabled || follow.Target.Raw == 0)
                     continue;
-                if (!transformStore.TryGet(follow.Target, out var targetTransform))
+                if (!w.TryGet<Transform>(follow.Target, out var targetTransform))
                     continue;
 
                 TransformMath.DecomposeToPRS(targetTransform.WorldMatrix, out var targetPos, out _, out _);

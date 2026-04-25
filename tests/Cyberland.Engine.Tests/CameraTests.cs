@@ -254,9 +254,9 @@ public sealed class CameraTests
         sys.OnStart(w, w.QueryChunks(spec));
 
         var enabled = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(enabled) = MakeTransform(
+        w.GetOrAdd<Transform>(enabled) = MakeTransform(
             worldPos: new Vector2D<float>(25f, 35f), worldRotation: 0.3f);
-        w.Components<Camera2D>().GetOrAdd(enabled) = new Camera2D
+        w.GetOrAdd<Camera2D>(enabled) = new Camera2D
         {
             Enabled = true,
             Priority = 5,
@@ -265,8 +265,8 @@ public sealed class CameraTests
         };
 
         var disabled = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(disabled) = Transform.Identity;
-        w.Components<Camera2D>().GetOrAdd(disabled) = new Camera2D
+        w.GetOrAdd<Transform>(disabled) = Transform.Identity;
+        w.GetOrAdd<Camera2D>(disabled) = new Camera2D
         {
             Enabled = false,
             Priority = 99,
@@ -303,8 +303,8 @@ public sealed class CameraTests
         var camera = w.CreateEntity();
         var tf = Transform.Identity;
         tf.WorldPosition = new Vector2D<float>(640f, 360f);
-        w.Components<Transform>().GetOrAdd(camera) = tf;
-        w.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(1280, 720));
+        w.GetOrAdd<Transform>(camera) = tf;
+        w.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(1280, 720));
 
         // Early update resolves the camera's world matrix from its back-propagated local matrix; the camera
         // submit then decomposes the refreshed world matrix to get (640, 360) back.
@@ -327,8 +327,8 @@ public sealed class CameraTests
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()));
 
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        w.Components<ViewportAnchor2D>().GetOrAdd(e) = new ViewportAnchor2D
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
+        w.GetOrAdd<ViewportAnchor2D>(e) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.ViewportSpace,
@@ -337,8 +337,8 @@ public sealed class CameraTests
 
         sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()), 0f);
         // Transform stays at Identity because the early return fires before writing.
-        Assert.Equal(0f, w.Components<Transform>().Get(e).WorldPosition.X);
-        Assert.Equal(0f, w.Components<Transform>().Get(e).WorldPosition.Y);
+        Assert.Equal(0f, w.Get<Transform>(e).WorldPosition.X);
+        Assert.Equal(0f, w.Get<Transform>(e).WorldPosition.Y);
     }
 
     [Fact]
@@ -358,7 +358,7 @@ public sealed class CameraTests
         sys.OnStart(w, w.QueryChunks(spec));
 
         var e = w.CreateEntity();
-        w.Components<ViewportAnchor2D>().GetOrAdd(e) = new ViewportAnchor2D
+        w.GetOrAdd<ViewportAnchor2D>(e) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.ViewportSpace,
@@ -366,10 +366,10 @@ public sealed class CameraTests
             OffsetX = 10f,
             OffsetY = 20f
         };
-        w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
 
         sys.OnLateUpdate(w.QueryChunks(spec), 0f);
-        ref var t = ref w.Components<Transform>().Get(e);
+        ref var t = ref w.Get<Transform>(e);
         Assert.Equal(800f - 10f, t.WorldPosition.X);
         Assert.Equal(20f, t.WorldPosition.Y);
     }

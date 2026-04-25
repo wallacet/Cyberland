@@ -54,6 +54,7 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
     {
         _ = deltaSeconds;
         var world = _world;
+        var w = _world;
 
         // Return last frame's adjacency lists to the pool before rebuilding (avoids per-parent List alloc when stable).
         foreach (var kv in _children)
@@ -71,7 +72,6 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
         _inDegree.Clear();
         _processed.Clear();
 
-        var tfStore = world.Components<Transform>();
         foreach (var view in query)
         {
             var ents = view.Entities;
@@ -84,7 +84,7 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
 
         foreach (var id in _tfSet)
         {
-            ref readonly var t = ref tfStore.Get(id);
+            ref readonly var t = ref w.Get<Transform>(id);
             var p = t.Parent;
             if (p.Raw == 0 || !world.IsAlive(p) || !_tfSet.Contains(p))
                 continue;
@@ -138,7 +138,7 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
                 // BFS order guarantees parents are solved before children inside the subtree,
                 // so SolveOne can read the parent's fresh WorldMatrix directly from the store.
                 foreach (var eid in subOrder)
-                    SolveOne(world, tfStore, eid);
+                    SolveOne(eid);
             });
         }
 
@@ -150,7 +150,7 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
             if (_processed.ContainsKey(id))
                 continue;
 
-            SolveOne(world, tfStore, id);
+            SolveOne(id);
         }
     }
 
@@ -175,14 +175,16 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
         return order;
     }
 
-    private void SolveOne(World world, ComponentStore<Transform> tfStore, EntityId id)
+    private void SolveOne(EntityId id)
     {
-        ref var t = ref tfStore.Get(id);
+        var world = _world;
+        var w = _world;
+        ref var t = ref w.Get<Transform>(id);
         var parentM = Matrix3x2.Identity;
         var p = t.Parent;
-        if (p.Raw != 0 && world.IsAlive(p) && tfStore.Contains(p))
+        if (p.Raw != 0 && world.IsAlive(p) && w.Has<Transform>(p))
         {
-            ref readonly var parentT = ref tfStore.Get(p);
+            ref readonly var parentT = ref w.Get<Transform>(p);
             // If the parent was already solved this frame, its WorldMatrix is fresh (tree order guarantees this within
             // a subtree). Otherwise (cycle fallback) use the parent's local matrix so cycles still converge across
             // frames without reading last-frame world state.

@@ -1,8 +1,7 @@
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Scene;
+using System.Collections.Concurrent;
 
 namespace Cyberland.Demo;
 
@@ -16,24 +15,21 @@ public sealed class VelocityDampSystem : IParallelSystem, IParallelFixedUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Velocity>();
 
-    // Reused across ticks to avoid list allocation churn in the fixed-step loop.
-    private readonly List<MultiComponentChunkView> _chunks = new();
-
     public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
         var factor = MathF.Pow(0.999f, fixedDeltaSeconds * 60f);
-        _chunks.Clear();
         foreach (var chunk in query)
-            _chunks.Add(chunk);
-
-        if (_chunks.Count == 0)
-            return;
-
-        Parallel.ForEach(_chunks, parallelOptions, chunk =>
         {
-            var v = chunk.Column<Velocity>(0);
-            var f = MemoryMarshal.Cast<Velocity, float>(v);
-            SimdFloat.MultiplyInPlace(f, factor);
-        });
+            Parallel.ForEach(Partitioner.Create(0, chunk.Count), parallelOptions, range =>
+            {
+                var velocity = chunk.Column<Velocity>(0);
+                for (var i = range.Item1; i < range.Item2; i++)
+                {
+                    ref var v = ref velocity[i];
+                    v.X *= factor;
+                    v.Y *= factor;
+                }
+            });
+        }
     }
 }

@@ -34,30 +34,30 @@ public sealed class SceneSetupSystem : ISystem
         var camera = world.CreateEntity();
         var camTransform = Transform.Identity;
         camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
-        world.Components<Transform>().GetOrAdd(camera) = camTransform;
-        world.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
+        world.GetOrAdd<Transform>(camera) = camTransform;
+        world.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
 
         var player = world.CreateEntity();
-        world.Components<PlayerTag>().GetOrAdd(player);
-        world.Components<Transform>().GetOrAdd(player) = Transform.Identity;
-        world.Components<Velocity>().GetOrAdd(player);
-        ref var playerSprite = ref world.Components<Sprite>().GetOrAdd(player);
+        world.GetOrAdd<PlayerTag>(player);
+        world.GetOrAdd<Transform>(player) = Transform.Identity;
+        world.GetOrAdd<Velocity>(player);
+        ref var playerSprite = ref world.GetOrAdd<Sprite>(player);
         playerSprite = Sprite.DefaultWhiteUnlit(white, defaultNormal, new Vector2D<float>(Constants.SpriteHalfExtent, Constants.SpriteHalfExtent));
         playerSprite.Layer = (int)SpriteLayer.World;
         playerSprite.SortKey = 2f;
         playerSprite.ColorMultiply = new Vector4D<float>(0f, 0.9f, 0f, 1f);
 
         var background = world.CreateEntity();
-        world.Components<BackgroundTag>().GetOrAdd(background);
-        world.Components<Transform>().GetOrAdd(background) = Transform.Identity;
-        ref var backgroundSprite = ref world.Components<Sprite>().GetOrAdd(background);
+        world.GetOrAdd<BackgroundTag>(background);
+        world.GetOrAdd<Transform>(background) = Transform.Identity;
+        ref var backgroundSprite = ref world.GetOrAdd<Sprite>(background);
         backgroundSprite.Layer = (int)SpriteLayer.Background;
         backgroundSprite.AlbedoTextureId = white;
         backgroundSprite.NormalTextureId = defaultNormal;
         backgroundSprite.ColorMultiply = new Vector4D<float>(0.07f, 0.06f, 0.12f, 1f);
         backgroundSprite.SortKey = 0f;
         backgroundSprite.Visible = true;
-        world.Components<ViewportAnchor2D>().GetOrAdd(background) = new ViewportAnchor2D
+        world.GetOrAdd<ViewportAnchor2D>(background) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.WorldSpace,
@@ -68,9 +68,9 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var neonStrip = world.CreateEntity();
-        world.Components<NeonStripTag>().GetOrAdd(neonStrip);
-        world.Components<Transform>().GetOrAdd(neonStrip) = Transform.Identity;
-        ref var neonSprite = ref world.Components<Sprite>().GetOrAdd(neonStrip);
+        world.GetOrAdd<NeonStripTag>(neonStrip);
+        world.GetOrAdd<Transform>(neonStrip) = Transform.Identity;
+        ref var neonSprite = ref world.GetOrAdd<Sprite>(neonStrip);
         neonSprite.HalfExtents = new Vector2D<float>(36f, 140f);
         neonSprite.Layer = (int)SpriteLayer.World;
         neonSprite.AlbedoTextureId = white;
@@ -80,7 +80,7 @@ public sealed class SceneSetupSystem : ISystem
         neonSprite.EmissiveIntensity = 2.4f;
         neonSprite.SortKey = 1f;
         neonSprite.Visible = true;
-        world.Components<ViewportAnchor2D>().GetOrAdd(neonStrip) = new ViewportAnchor2D
+        world.GetOrAdd<ViewportAnchor2D>(neonStrip) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.WorldSpace,
@@ -91,16 +91,16 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var hudTitle = world.CreateEntity();
-        world.Components<HudTitleTag>().GetOrAdd(hudTitle);
-        world.Components<Transform>().GetOrAdd(hudTitle) = Transform.Identity;
-        ref var titleText = ref world.Components<BitmapText>().GetOrAdd(hudTitle);
+        world.GetOrAdd<HudTitleTag>(hudTitle);
+        world.GetOrAdd<Transform>(hudTitle) = Transform.Identity;
+        ref var titleText = ref world.GetOrAdd<BitmapText>(hudTitle);
         titleText.Visible = true;
         titleText.IsLocalizationKey = true;
         titleText.Content = "demo.hdr.title";
         titleText.Style = new TextStyle(BuiltinFonts.UiSans, 22f, new Vector4D<float>(0.85f, 0.95f, 1f, 1f), Bold: true);
         titleText.SortKey = 450f;
         titleText.CoordinateSpace = CoordinateSpace.ViewportSpace;
-        world.Components<ViewportAnchor2D>().GetOrAdd(hudTitle) = new ViewportAnchor2D
+        world.GetOrAdd<ViewportAnchor2D>(hudTitle) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.ViewportSpace,
@@ -111,16 +111,16 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var hudHint = world.CreateEntity();
-        world.Components<HudHintTag>().GetOrAdd(hudHint);
-        world.Components<Transform>().GetOrAdd(hudHint) = Transform.Identity;
-        ref var hintText = ref world.Components<BitmapText>().GetOrAdd(hudHint);
+        world.GetOrAdd<HudHintTag>(hudHint);
+        world.GetOrAdd<Transform>(hudHint) = Transform.Identity;
+        ref var hintText = ref world.GetOrAdd<BitmapText>(hudHint);
         hintText.Visible = true;
         hintText.IsLocalizationKey = true;
         hintText.Content = "demo.hdr.hint";
         hintText.Style = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.55f, 0.65f, 0.75f, 0.9f), Italic: true);
         hintText.SortKey = 451f;
         hintText.CoordinateSpace = CoordinateSpace.ViewportSpace;
-        world.Components<ViewportAnchor2D>().GetOrAdd(hudHint) = new ViewportAnchor2D
+        world.GetOrAdd<ViewportAnchor2D>(hudHint) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.ViewportSpace,
@@ -131,7 +131,7 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var eAmb = world.CreateEntity();
-        world.Components<AmbientLightSource>().GetOrAdd(eAmb) = new AmbientLightSource
+        world.GetOrAdd<AmbientLightSource>(eAmb) = new AmbientLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.2f, 0.23f, 0.32f),
@@ -139,8 +139,8 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var eDir = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(eDir) = Transform.Identity;
-        world.Components<DirectionalLightSource>().GetOrAdd(eDir) = new DirectionalLightSource
+        world.GetOrAdd<Transform>(eDir) = Transform.Identity;
+        world.GetOrAdd<DirectionalLightSource>(eDir) = new DirectionalLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.6f, 0.58f, 0.55f),
@@ -149,8 +149,8 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var eSpot = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(eSpot) = Transform.Identity;
-        world.Components<SpotLightSource>().GetOrAdd(eSpot) = new SpotLightSource
+        world.GetOrAdd<Transform>(eSpot) = Transform.Identity;
+        world.GetOrAdd<SpotLightSource>(eSpot) = new SpotLightSource
         {
             Active = true,
             Radius = 540f,
@@ -162,9 +162,9 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var eWarm = world.CreateEntity();
-        world.Components<HdrWarmPointTag>().GetOrAdd(eWarm);
-        world.Components<Transform>().GetOrAdd(eWarm) = Transform.Identity;
-        world.Components<PointLightSource>().GetOrAdd(eWarm) = new PointLightSource
+        world.GetOrAdd<HdrWarmPointTag>(eWarm);
+        world.GetOrAdd<Transform>(eWarm) = Transform.Identity;
+        world.GetOrAdd<PointLightSource>(eWarm) = new PointLightSource
         {
             Active = true,
             Radius = 420f,
@@ -175,9 +175,9 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var ePlayerPt = world.CreateEntity();
-        world.Components<HdrPlayerPointTag>().GetOrAdd(ePlayerPt);
-        world.Components<Transform>().GetOrAdd(ePlayerPt) = Transform.Identity;
-        world.Components<PointLightSource>().GetOrAdd(ePlayerPt) = new PointLightSource
+        world.GetOrAdd<HdrPlayerPointTag>(ePlayerPt);
+        world.GetOrAdd<Transform>(ePlayerPt) = Transform.Identity;
+        world.GetOrAdd<PointLightSource>(ePlayerPt) = new PointLightSource
         {
             Active = true,
             Radius = 180f,
@@ -188,7 +188,7 @@ public sealed class SceneSetupSystem : ISystem
         };
 
         var eBloom = world.CreateEntity();
-        world.Components<HdrBloomVolumeTag>().GetOrAdd(eBloom);
+        world.GetOrAdd<HdrBloomVolumeTag>(eBloom);
         var fb = new Vector2D<int>(CanvasWidth, CanvasHeight);
         var hx = fb.X * 0.5f;
         var hy = fb.Y * 0.5f;
@@ -197,8 +197,8 @@ public sealed class SceneSetupSystem : ISystem
         var bloomTransform = Transform.Identity;
         bloomTransform.LocalPosition = new Vector2D<float>(hx, hy);
         bloomTransform.WorldPosition = new Vector2D<float>(hx, hy);
-        world.Components<Transform>().GetOrAdd(eBloom) = bloomTransform;
-        world.Components<PostProcessVolumeSource>().GetOrAdd(eBloom) = new PostProcessVolumeSource
+        world.GetOrAdd<Transform>(eBloom) = bloomTransform;
+        world.GetOrAdd<PostProcessVolumeSource>(eBloom) = new PostProcessVolumeSource
         {
             Active = true,
             Volume = new PostProcessVolume
@@ -211,7 +211,7 @@ public sealed class SceneSetupSystem : ISystem
 
         // Tunes emissive and bloom; stacks with the host’s one-time EngineDefaultGlobalPostProcess.Apply in GameApplication.
         var globalPostEntity = world.CreateEntity();
-        world.Components<GlobalPostProcessSource>().GetOrAdd(globalPostEntity) = new GlobalPostProcessSource
+        world.GetOrAdd<GlobalPostProcessSource>(globalPostEntity) = new GlobalPostProcessSource
         {
             Active = true,
             Priority = 100,

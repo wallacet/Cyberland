@@ -27,7 +27,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     private static readonly TextStyle ScoreStyle = new(BuiltinFonts.Mono, 18f, new Vector4D<float>(0.95f, 1f, 0.85f, 1f));
     private static readonly TextStyle GameOverStyle = new(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.45f, 0.35f, 1f), Italic: true, Underline: true);
 
-    private World _world;
+    private World _world = null!;
 
     public VisualSyncSystem(GameHostServices host, EntityId sessionEntity, EntityId visualsEntity)
     {
@@ -35,6 +35,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         _sessionEntity = sessionEntity;
         _visualsEntity = visualsEntity;
     }
+
     public void OnStart(World world, ChunkQueryAll archetype)
     {
         _world = world;
@@ -46,22 +47,22 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             throw new InvalidOperationException("Renderer is required by VisualSyncSystem.");
         }
 
-        var visuals = world.Components<VisualBundle>().Get(_visualsEntity);
+        var visuals = _world.Get<VisualBundle>(_visualsEntity);
         var white = renderer.WhiteTextureId;
         var normal = renderer.DefaultNormalTextureId;
 
         for (var i = 0; i < visuals.Segments.Length; i++)
         {
-            InitializeSprite(world, visuals.Segments[i], white, normal);
-            ref var segmentSprite = ref world.Components<Sprite>().Get(visuals.Segments[i]);
+            InitializeSprite(visuals.Segments[i], white, normal);
+            ref var segmentSprite = ref _world.Get<Sprite>(visuals.Segments[i]);
             segmentSprite.Layer = (int)SpriteLayer.World;
             segmentSprite.EmissiveTint = new Vector3D<float>(0.2f, 1f, 0.4f);
             segmentSprite.Transparent = false;
             segmentSprite.Alpha = 1f;
         }
 
-        InitializeSprite(world, visuals.Food, white, normal);
-        ref var foodSprite = ref world.Components<Sprite>().Get(visuals.Food);
+        InitializeSprite(visuals.Food, white, normal);
+        ref var foodSprite = ref _world.Get<Sprite>(visuals.Food);
         foodSprite.Layer = (int)SpriteLayer.World;
         foodSprite.SortKey = 50f;
         foodSprite.ColorMultiply = new Vector4D<float>(1f, 0.2f, 0.25f, 1f);
@@ -70,8 +71,8 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         foodSprite.EmissiveTint = new Vector3D<float>(1f, 0.3f, 0.35f);
         foodSprite.Transparent = false;
 
-        InitializeSprite(world, visuals.TitleBar, white, normal);
-        ref var titleSprite = ref world.Components<Sprite>().Get(visuals.TitleBar);
+        InitializeSprite(visuals.TitleBar, white, normal);
+        ref var titleSprite = ref _world.Get<Sprite>(visuals.TitleBar);
         titleSprite.Layer = (int)SpriteLayer.Ui;
         titleSprite.SortKey = 100f;
         titleSprite.ColorMultiply = new Vector4D<float>(0.3f, 1f, 0.5f, 1f);
@@ -80,8 +81,8 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         titleSprite.EmissiveTint = new Vector3D<float>(0.3f, 1f, 0.5f);
         titleSprite.Transparent = false;
 
-        InitializeSprite(world, visuals.GoPanel, white, normal);
-        ref var gameOverSprite = ref world.Components<Sprite>().Get(visuals.GoPanel);
+        InitializeSprite(visuals.GoPanel, white, normal);
+        ref var gameOverSprite = ref _world.Get<Sprite>(visuals.GoPanel);
         gameOverSprite.Layer = (int)SpriteLayer.Ui;
         gameOverSprite.SortKey = 200f;
         gameOverSprite.ColorMultiply = new Vector4D<float>(0.15f, 0.15f, 0.18f, 1f);
@@ -89,8 +90,8 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         gameOverSprite.EmissiveIntensity = 0f;
         gameOverSprite.Transparent = true;
 
-        InitializeSprite(world, visuals.ScoreBar, white, normal);
-        ref var scoreSprite = ref world.Components<Sprite>().Get(visuals.ScoreBar);
+        InitializeSprite(visuals.ScoreBar, white, normal);
+        ref var scoreSprite = ref _world.Get<Sprite>(visuals.ScoreBar);
         scoreSprite.Layer = (int)SpriteLayer.Ui;
         scoreSprite.SortKey = 201f;
         scoreSprite.ColorMultiply = new Vector4D<float>(1f, 0.85f, 0.2f, 1f);
@@ -98,22 +99,22 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         scoreSprite.EmissiveIntensity = 0.4f;
         scoreSprite.EmissiveTint = new Vector3D<float>(1f, 0.9f, 0.2f);
         scoreSprite.Transparent = false;
-        InitializeText(world, visuals.TxtTitle);
-        InitializeText(world, visuals.TxtHintTitle);
-        InitializeText(world, visuals.TxtGameOver);
-        InitializeText(world, visuals.TxtHintGo);
-        InitializeText(world, visuals.TxtPlaying);
-        InitializeText(world, visuals.TxtScore);
+        InitializeText(visuals.TxtTitle);
+        InitializeText(visuals.TxtHintTitle);
+        InitializeText(visuals.TxtGameOver);
+        InitializeText(visuals.TxtHintGo);
+        InitializeText(visuals.TxtPlaying);
+        InitializeText(visuals.TxtScore);
     }
+
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
         _ = deltaSeconds;
-        var world = _world;
         var renderer = _host.Renderer;
         if (renderer is null) return;
-        ref var session = ref world.Components<Session>().Get(_sessionEntity);
-        var visuals = world.Components<VisualBundle>().Get(_visualsEntity);
+        ref var session = ref _world.Get<Session>(_sessionEntity);
+        var visuals = _world.Get<VisualBundle>(_visualsEntity);
         var fb = ModLayoutViewport.VirtualSizeForPresentation(renderer);
         if (fb.X <= 0 || fb.Y <= 0) return;
         session.UpdateLayout(fb.X, fb.Y);
@@ -126,8 +127,10 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             {
                 var e = visuals.Segments[segIdx++];
                 var center = session.CellCenterWorld(seg.x, seg.y, fb);
-                ref var transform = ref world.Components<Transform>().Get(e); transform.LocalPosition = center; transform.WorldPosition = center;
-                ref var spr = ref world.Components<Sprite>().Get(e);
+                ref var transform = ref _world.Get<Transform>(e);
+                transform.LocalPosition = center;
+                transform.WorldPosition = center;
+                ref var spr = ref _world.Get<Sprite>(e);
                 var head = seg.x == headCell.x && seg.y == headCell.y;
                 spr.Visible = true;
                 spr.HalfExtents = new Vector2D<float>(cell * 0.45f, cell * 0.45f);
@@ -136,57 +139,69 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
                 spr.EmissiveIntensity = head ? 0.5f : 0.1f;
             }
         }
-        for (var i = segIdx; i < visuals.Segments.Length; i++) world.Components<Sprite>().Get(visuals.Segments[i]).Visible = false;
+        for (var i = segIdx; i < visuals.Segments.Length; i++)
+            _world.Get<Sprite>(visuals.Segments[i]).Visible = false;
 
         var foodCenter = session.CellCenterWorld(session.Food.x, session.Food.y, fb);
-        ref var foodTransform = ref world.Components<Transform>().Get(visuals.Food); foodTransform.LocalPosition = foodCenter; foodTransform.WorldPosition = foodCenter;
-        ref var foodSprite = ref world.Components<Sprite>().Get(visuals.Food);
-        foodSprite.Visible = session.Phase == Phase.Playing;
-        foodSprite.HalfExtents = new Vector2D<float>(cell * 0.35f, cell * 0.35f);
+        ref var foodTransform = ref _world.Get<Transform>(visuals.Food);
+        foodTransform.LocalPosition = foodCenter;
+        foodTransform.WorldPosition = foodCenter;
+        ref var foodSp = ref _world.Get<Sprite>(visuals.Food);
+        foodSp.Visible = session.Phase == Phase.Playing;
+        foodSp.HalfExtents = new Vector2D<float>(cell * 0.35f, cell * 0.35f);
 
-        ref var titleSprite = ref world.Components<Sprite>().Get(visuals.TitleBar);
+        ref var titleSp = ref _world.Get<Sprite>(visuals.TitleBar);
         if (session.Phase == Phase.Title)
         {
             var titleBar = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y - 48f), fb);
-            ref var titleTransform = ref world.Components<Transform>().Get(visuals.TitleBar); titleTransform.LocalPosition = titleBar; titleTransform.WorldPosition = titleBar;
-            titleSprite.Visible = true;
-            titleSprite.HalfExtents = new Vector2D<float>(fb.X * 0.42f, 20f);
+            ref var titleTransform = ref _world.Get<Transform>(visuals.TitleBar);
+            titleTransform.LocalPosition = titleBar;
+            titleTransform.WorldPosition = titleBar;
+            titleSp.Visible = true;
+            titleSp.HalfExtents = new Vector2D<float>(fb.X * 0.42f, 20f);
         }
-        else titleSprite.Visible = false;
+        else titleSp.Visible = false;
 
-        ref var gameOverSprite = ref world.Components<Sprite>().Get(visuals.GoPanel);
-        ref var scoreSprite = ref world.Components<Sprite>().Get(visuals.ScoreBar);
+        ref var gameOverSp = ref _world.Get<Sprite>(visuals.GoPanel);
+        ref var scoreSp = ref _world.Get<Sprite>(visuals.ScoreBar);
         if (session.Phase is Phase.GameOver or Phase.Won)
         {
             var goPanel = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f), fb);
-            ref var gameOverTransform = ref world.Components<Transform>().Get(visuals.GoPanel); gameOverTransform.LocalPosition = goPanel; gameOverTransform.WorldPosition = goPanel;
-            gameOverSprite.Visible = true;
-            gameOverSprite.HalfExtents = new Vector2D<float>(fb.X * 0.45f, 80f);
+            ref var gameOverTransform = ref _world.Get<Transform>(visuals.GoPanel);
+            gameOverTransform.LocalPosition = goPanel;
+            gameOverTransform.WorldPosition = goPanel;
+            gameOverSp.Visible = true;
+            gameOverSp.HalfExtents = new Vector2D<float>(fb.X * 0.45f, 80f);
             var scoreW = fb.X * 0.45f * Math.Min(1f, session.FoodsEaten / 30f);
-            var scoreBar = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f - (fb.X * 0.45f - scoreW) * 0.5f, fb.Y * 0.5f + 28f), fb);
-            ref var scoreTransform = ref world.Components<Transform>().Get(visuals.ScoreBar); scoreTransform.LocalPosition = scoreBar; scoreTransform.WorldPosition = scoreBar;
-            scoreSprite.Visible = true;
-            scoreSprite.HalfExtents = new Vector2D<float>(Math.Max(0.5f, scoreW * 0.5f), 10f);
+            var scoreBar = WorldViewportSpace.ViewportPixelToWorldCenter(
+                new Vector2D<float>(fb.X * 0.5f - (fb.X * 0.45f - scoreW) * 0.5f, fb.Y * 0.5f + 28f), fb);
+            ref var scoreTransform = ref _world.Get<Transform>(visuals.ScoreBar);
+            scoreTransform.LocalPosition = scoreBar;
+            scoreTransform.WorldPosition = scoreBar;
+            scoreSp.Visible = true;
+            scoreSp.HalfExtents = new Vector2D<float>(Math.Max(0.5f, scoreW * 0.5f), 10f);
         }
         else
         {
-            gameOverSprite.Visible = false;
-            scoreSprite.Visible = false;
+            gameOverSp.Visible = false;
+            scoreSp.Visible = false;
         }
 
-        SetHudText(world, visuals, fb, session);
+        SetHudText(visuals, fb, session);
     }
-    private static void InitializeSprite(World world, EntityId entity, TextureId whiteTextureId, TextureId normalTextureId)
+
+    private void InitializeSprite(EntityId entity, TextureId whiteTextureId, TextureId normalTextureId)
     {
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        ref var sprite = ref world.Components<Sprite>().GetOrAdd(entity);
+        _world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        ref var sprite = ref _world.GetOrAdd<Sprite>(entity);
         sprite = Sprite.DefaultWhiteUnlit(whiteTextureId, normalTextureId, new Vector2D<float>(1f, 1f));
         sprite.Visible = false;
     }
-    private static void InitializeText(World world, EntityId entity)
+
+    private void InitializeText(EntityId entity)
     {
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        ref var text = ref world.Components<BitmapText>().GetOrAdd(entity);
+        _world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        ref var text = ref _world.GetOrAdd<BitmapText>(entity);
         text.Visible = false;
         text.Content = " ";
         text.SortKey = 450f;
@@ -194,39 +209,50 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         text.Style = HudStyle;
         text.IsLocalizationKey = false;
     }
-    private static void SetHudText(World world, VisualBundle visuals, Vector2D<int> framebufferSize, Session session)
+
+    private void SetHudText(VisualBundle visuals, Vector2D<int> framebufferSize, Session session)
     {
-        HideAllHudText(world, visuals);
+        HideAllHudText(visuals);
         if (session.Phase == Phase.Title)
         {
-            SetHudRow(world, visuals.TxtTitle, TitleStyle, "demo.snake.title", true, 36f, framebufferSize.Y - 50f);
-            SetHudRow(world, visuals.TxtHintTitle, HintStyle, "demo.snake.hint_title", true, 36f, 100f);
+            SetHudRow(visuals.TxtTitle, TitleStyle, "demo.snake.title", true, 36f, framebufferSize.Y - 50f);
+            SetHudRow(visuals.TxtHintTitle, HintStyle, "demo.snake.hint_title", true, 36f, 100f);
         }
         else if (session.Phase is Phase.GameOver or Phase.Won)
         {
             var titleKey = session.Phase == Phase.Won ? "demo.snake.you_win" : "demo.snake.game_over";
-            SetHudRow(world, visuals.TxtGameOver, GameOverStyle, titleKey, true, framebufferSize.X * 0.5f - 120f, framebufferSize.Y * 0.5f + 52f);
+            SetHudRow(visuals.TxtGameOver, GameOverStyle, titleKey, true, framebufferSize.X * 0.5f - 120f, framebufferSize.Y * 0.5f + 52f);
             var hint = session.Phase == Phase.Won ? "demo.snake.hint_win" : "demo.snake.hint_gameover";
-            SetHudRow(world, visuals.TxtHintGo, HintStyle, hint, true, 36f, 118f);
+            SetHudRow(visuals.TxtHintGo, HintStyle, hint, true, 36f, 118f);
         }
         else if (session.Phase == Phase.Playing)
         {
-            SetHudRow(world, visuals.TxtPlaying, HudStyle, "demo.snake.playing", true, 24f, framebufferSize.Y - 36f);
-            SetHudRow(world, visuals.TxtScore, ScoreStyle, session.FoodsEaten.ToString(), false, 110f, framebufferSize.Y - 36f);
+            SetHudRow(visuals.TxtPlaying, HudStyle, "demo.snake.playing", true, 24f, framebufferSize.Y - 36f);
+            SetHudRow(visuals.TxtScore, ScoreStyle, session.FoodsEaten.ToString(), false, 110f, framebufferSize.Y - 36f);
         }
     }
-    private static void HideAllHudText(World world, VisualBundle v)
+
+    private void HideAllHudText(VisualBundle v)
     {
-        world.Components<BitmapText>().Get(v.TxtTitle).Visible = false;
-        world.Components<BitmapText>().Get(v.TxtHintTitle).Visible = false;
-        world.Components<BitmapText>().Get(v.TxtGameOver).Visible = false;
-        world.Components<BitmapText>().Get(v.TxtHintGo).Visible = false;
-        world.Components<BitmapText>().Get(v.TxtPlaying).Visible = false;
-        world.Components<BitmapText>().Get(v.TxtScore).Visible = false;
+        _world.Get<BitmapText>(v.TxtTitle).Visible = false;
+        _world.Get<BitmapText>(v.TxtHintTitle).Visible = false;
+        _world.Get<BitmapText>(v.TxtGameOver).Visible = false;
+        _world.Get<BitmapText>(v.TxtHintGo).Visible = false;
+        _world.Get<BitmapText>(v.TxtPlaying).Visible = false;
+        _world.Get<BitmapText>(v.TxtScore).Visible = false;
     }
-    private static void SetHudRow(World world, EntityId e, TextStyle style, string content, bool isKey, float screenX, float screenY)
+
+    private void SetHudRow(EntityId e, TextStyle style, string content, bool isKey, float screenX, float screenY)
     {
-        ref var transform = ref world.Components<Transform>().Get(e); transform.LocalPosition = new Vector2D<float>(screenX, screenY); transform.WorldPosition = transform.LocalPosition;
-        ref var bt = ref world.Components<BitmapText>().Get(e); bt.Visible = true; bt.Style = style; bt.Content = content; bt.IsLocalizationKey = isKey; bt.CoordinateSpace = CoordinateSpace.ViewportSpace; bt.SortKey = 450f;
+        ref var transform = ref _world.Get<Transform>(e);
+        transform.LocalPosition = new Vector2D<float>(screenX, screenY);
+        transform.WorldPosition = transform.LocalPosition;
+        ref var bt = ref _world.Get<BitmapText>(e);
+        bt.Visible = true;
+        bt.Style = style;
+        bt.Content = content;
+        bt.IsLocalizationKey = isKey;
+        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        bt.SortKey = 450f;
     }
 }

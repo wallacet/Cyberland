@@ -24,8 +24,8 @@ public sealed class Mod : IMod
         context.LocalizedContent.MergeStringTable("pong.json");
         var world = context.World;
         var session = world.CreateEntity();
-        world.Components<State>().GetOrAdd(session);
-        world.Components<Control>().GetOrAdd(session);
+        world.GetOrAdd<State>(session);
+        world.GetOrAdd<Control>(session);
 
         // Pong authors gameplay in a fixed 1280x720 canvas; anchor the camera at the center so world-space
         // sprites (ball, paddles) line up with the legacy "fb.X/2, fb.Y/2" layout without rewriting the
@@ -35,8 +35,8 @@ public sealed class Mod : IMod
         var camera = world.CreateEntity();
         var camTransform = Transform.Identity;
         camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
-        world.Components<Transform>().GetOrAdd(camera) = camTransform;
-        world.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
+        world.GetOrAdd<Transform>(camera) = camTransform;
+        world.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
 
         var visuals = new VisualIds(
             CreateSpriteEntity(world),
@@ -58,15 +58,15 @@ public sealed class Mod : IMod
             CreateHudTextEntity(world));
 
         var amb = world.CreateEntity();
-        world.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource
+        world.GetOrAdd<AmbientLightSource>(amb) = new AmbientLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.2f, 0.23f, 0.3f),
             Intensity = 0.12f
         };
         var dir = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(dir) = Transform.Identity;
-        world.Components<DirectionalLightSource>().GetOrAdd(dir) = new DirectionalLightSource
+        world.GetOrAdd<Transform>(dir) = Transform.Identity;
+        world.GetOrAdd<DirectionalLightSource>(dir) = new DirectionalLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.52f, 0.5f, 0.46f),
@@ -74,8 +74,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var spot = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(spot) = Transform.Identity;
-        world.Components<SpotLightSource>().GetOrAdd(spot) = new SpotLightSource
+        world.GetOrAdd<Transform>(spot) = Transform.Identity;
+        world.GetOrAdd<SpotLightSource>(spot) = new SpotLightSource
         {
             Active = true,
             Radius = 460f,
@@ -86,8 +86,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var ballPt = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(ballPt) = Transform.Identity;
-        world.Components<PointLightSource>().GetOrAdd(ballPt) = new PointLightSource
+        world.GetOrAdd<Transform>(ballPt) = Transform.Identity;
+        world.GetOrAdd<PointLightSource>(ballPt) = new PointLightSource
         {
             Active = true,
             Radius = 280f,
@@ -97,8 +97,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var leftPt = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(leftPt) = Transform.Identity;
-        world.Components<PointLightSource>().GetOrAdd(leftPt) = new PointLightSource
+        world.GetOrAdd<Transform>(leftPt) = Transform.Identity;
+        world.GetOrAdd<PointLightSource>(leftPt) = new PointLightSource
         {
             Active = true,
             Radius = 320f,
@@ -123,16 +123,16 @@ public sealed class Mod : IMod
     private static EntityId CreateSpriteEntity(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        world.Components<Sprite>().GetOrAdd(entity);
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        world.GetOrAdd<Sprite>(entity);
         return entity;
     }
 
     private static EntityId CreateHudTextEntity(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        ref var text = ref world.Components<BitmapText>().GetOrAdd(entity);
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        ref var text = ref world.GetOrAdd<BitmapText>(entity);
         text.Visible = false;
         text.Content = " ";
         text.SortKey = 450f;
@@ -145,7 +145,7 @@ public sealed class Mod : IMod
     private static void ApplyGlobalPost(World world)
     {
         var e = world.CreateEntity();
-        world.Components<GlobalPostProcessSource>().GetOrAdd(e) = new GlobalPostProcessSource
+        world.GetOrAdd<GlobalPostProcessSource>(e) = new GlobalPostProcessSource
         {
             Active = true,
             Priority = 100,

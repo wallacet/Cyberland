@@ -12,11 +12,11 @@ public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly EntityId _stateEntity;
     private readonly EntityId _paddleEntity;
     private readonly EntityId _ballEntity;
-    private World _world;
-
     public BallIntegrateSystem(EntityId stateEntity, EntityId paddleEntity, EntityId ballEntity)
     {
         _stateEntity = stateEntity;
@@ -33,13 +33,12 @@ public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
     public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
-        var world = _world;
-        ref var game = ref world.Components<GameState>().Get(_stateEntity);
+        ref var game = ref _world.Get<GameState>(_stateEntity);
         if (game.Phase != Phase.Playing || game.BallDocked)
             return;
 
-        ref var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
-        ref var ballVel = ref world.Components<Velocity>().Get(_ballEntity);
+        ref var ballTransform = ref _world.Get<Transform>(_ballEntity);
+        ref var ballVel = ref _world.Get<Velocity>(_ballEntity);
         // Stage the local position in a value, mutate .X / .Y by velocity + wall response, then assign back so the
         // property setter rebuilds the matrix once per step rather than after every axis tweak.
         var ballPos = ballTransform.LocalPosition;
@@ -74,16 +73,16 @@ public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
         {
             ballTransform.LocalPosition = ballPos;
             game.Phase = Phase.GameOver;
-            ref var ballTrigger = ref world.Components<Trigger>().Get(_ballEntity);
-            ref var paddleTrigger = ref world.Components<Trigger>().Get(_paddleEntity);
+            ref var ballTrigger = ref _world.Get<Trigger>(_ballEntity);
+            ref var paddleTrigger = ref _world.Get<Trigger>(_paddleEntity);
             ballTrigger.Enabled = false;
             paddleTrigger.Enabled = false;
             return;
         }
 
         game.BallDocked = true;
-        ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
-        ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
+        ref readonly var paddleTransform = ref _world.Get<Transform>(_paddleEntity);
+        ref var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
         ballPos.X = paddleTransform.WorldPosition.X;
         ballPos.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
         ballVel.Value = default;

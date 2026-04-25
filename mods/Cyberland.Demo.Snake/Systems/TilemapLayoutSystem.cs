@@ -18,10 +18,11 @@ public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Tilemap>();
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _sessionEntity;
     private readonly EntityId _arena;
-    private World _world;
     public TilemapLayoutSystem(GameHostServices host, EntityId sessionEntity, EntityId arena)
     {
         _host = host;
@@ -34,7 +35,7 @@ public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
         _ = archetype;
         var renderer = _host.RendererRequired;
 
-        ref var tilemap = ref world.Components<Tilemap>().Get(_arena);
+        ref var tilemap = ref _world.Get<Tilemap>(_arena);
         tilemap.AtlasAlbedoTextureId = renderer.WhiteTextureId;
         tilemap.Layer = (int)SpriteLayer.Background;
         tilemap.SortKey = 0f;
@@ -44,16 +45,15 @@ public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
     {
         _ = archetype;
         _ = deltaSeconds;
-        var world = _world;
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         if (fb.X <= 0 || fb.Y <= 0) return;
-        ref var session = ref world.Components<Session>().Get(_sessionEntity);
+        ref var session = ref _world.Get<Session>(_sessionEntity);
         session.UpdateLayout(fb.X, fb.Y);
-        ref var tilemap = ref world.Components<Tilemap>().Get(_arena);
+        ref var tilemap = ref _world.Get<Tilemap>(_arena);
         tilemap.TileWidth = session.Cell;
         tilemap.TileHeight = session.Cell;
 
-        ref var tf = ref world.Components<Transform>().Get(_arena);
+        ref var tf = ref _world.Get<Transform>(_arena);
         tf.LocalPosition = WorldViewportSpace.ViewportPixelToWorldCenter(
             new Vector2D<float>(session.OriginX, session.OriginY),
             fb);

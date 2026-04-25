@@ -18,16 +18,16 @@ public sealed class WorldRequiresComponentTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        ref var bt = ref w.Components<BitmapText>().GetOrAdd(e);
+        ref var bt = ref w.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "a";
         bt.IsLocalizationKey = false;
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
-        Assert.True(w.Components<Transform>().Contains(e));
-        Assert.True(w.Components<TextBuildFingerprint>().Contains(e));
-        Assert.True(w.Components<TextSpriteCache>().Contains(e));
+        Assert.True(w.Has<Transform>(e));
+        Assert.True(w.Has<TextBuildFingerprint>(e));
+        Assert.True(w.Has<TextSpriteCache>(e));
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class WorldRequiresComponentTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        ref var bt = ref w.Components<BitmapText>().GetOrAdd(e, new BitmapText
+        ref var bt = ref w.GetOrAdd<BitmapText>(e, new BitmapText
         {
             Visible = true,
             Content = "b",
@@ -45,9 +45,9 @@ public sealed class WorldRequiresComponentTests
         });
 
         Assert.True(bt.Visible);
-        Assert.True(w.Components<Transform>().Contains(e));
-        Assert.True(w.Components<TextBuildFingerprint>().Contains(e));
-        Assert.True(w.Components<TextSpriteCache>().Contains(e));
+        Assert.True(w.Has<Transform>(e));
+        Assert.True(w.Has<TextBuildFingerprint>(e));
+        Assert.True(w.Has<TextSpriteCache>(e));
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public sealed class WorldRequiresComponentTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        _ = w.Components<RequiresDupCoverageComponent>().GetOrAdd(e);
-        Assert.True(w.Components<Transform>().Contains(e));
+        _ = w.GetOrAdd<RequiresDupCoverageComponent>(e);
+        Assert.True(w.Has<Transform>(e));
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class WorldRequiresComponentTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        _ = w.Components<TriggerEvents>().GetOrAdd(e);
-        Assert.True(w.Components<Trigger>().Contains(e));
+        _ = w.GetOrAdd<TriggerEvents>(e);
+        Assert.True(w.Has<Trigger>(e));
     }
 }

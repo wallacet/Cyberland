@@ -11,12 +11,12 @@ public sealed class BallLaunchSystem : ISystem, IFixedUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly EntityId _stateEntity;
     private readonly EntityId _controlEntity;
     private readonly EntityId _paddleEntity;
     private readonly EntityId _ballEntity;
-    private World _world;
-
     public BallLaunchSystem(EntityId stateEntity, EntityId controlEntity, EntityId paddleEntity, EntityId ballEntity)
     {
         _stateEntity = stateEntity;
@@ -35,16 +35,15 @@ public sealed class BallLaunchSystem : ISystem, IFixedUpdate
     {
         _ = archetype;
         _ = fixedDeltaSeconds;
-        var world = _world;
-        ref var game = ref world.Components<GameState>().Get(_stateEntity);
+        ref var game = ref _world.Get<GameState>(_stateEntity);
         if (game.Phase != Phase.Playing)
             return;
 
-        ref var control = ref world.Components<Control>().Get(_controlEntity);
-        ref readonly var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
-        ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
-        ref var ballTransform = ref world.Components<Transform>().Get(_ballEntity);
-        ref var ballVel = ref world.Components<Velocity>().Get(_ballEntity);
+        ref var control = ref _world.Get<Control>(_controlEntity);
+        ref readonly var paddleTransform = ref _world.Get<Transform>(_paddleEntity);
+        ref var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
+        ref var ballTransform = ref _world.Get<Transform>(_ballEntity);
+        ref var ballVel = ref _world.Get<Velocity>(_ballEntity);
 
         if (game.BallDocked)
         {

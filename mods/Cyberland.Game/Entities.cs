@@ -23,8 +23,8 @@ public static class Entities
         var entity = world.CreateEntity();
         var transform = Transform.Identity;
         transform.WorldPosition = positionWorld ?? new Vector2D<float>(viewportSizeWorld.X * 0.5f, viewportSizeWorld.Y * 0.5f);
-        world.Components<Transform>().GetOrAdd(entity) = transform;
-        world.Components<Camera2D>().GetOrAdd(entity) = Camera2D.Create(viewportSizeWorld);
+        world.GetOrAdd<Transform>(entity) = transform;
+        world.GetOrAdd<Camera2D>(entity) = Camera2D.Create(viewportSizeWorld);
         return entity;
     }
 
@@ -48,7 +48,7 @@ public static class Entities
     public static EntityId CreateEmpty(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
         return entity;
     }
 
@@ -58,8 +58,8 @@ public static class Entities
     public static EntityId CreateSprite(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        world.Components<Sprite>().GetOrAdd(entity);
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        world.GetOrAdd<Sprite>(entity);
         return entity;
     }
 
@@ -69,8 +69,8 @@ public static class Entities
     public static EntityId CreateText(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        world.Components<BitmapText>().GetOrAdd(entity);
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        world.GetOrAdd<BitmapText>(entity);
         return entity;
     }
 
@@ -80,8 +80,8 @@ public static class Entities
     public static EntityId CreatePointLight(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        world.Components<PointLightSource>().GetOrAdd(entity);
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        world.GetOrAdd<PointLightSource>(entity);
         return entity;
     }
 
@@ -91,8 +91,8 @@ public static class Entities
     public static EntityId CreateSpotLight(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        world.Components<SpotLightSource>().GetOrAdd(entity);
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        world.GetOrAdd<SpotLightSource>(entity);
         return entity;
     }
 
@@ -102,8 +102,8 @@ public static class Entities
     public static EntityId CreateDirectionalLight(World world)
     {
         var entity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(entity) = Transform.Identity;
-        world.Components<DirectionalLightSource>().GetOrAdd(entity);
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        world.GetOrAdd<DirectionalLightSource>(entity);
         return entity;
     }
 

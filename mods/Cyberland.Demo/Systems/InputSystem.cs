@@ -12,12 +12,10 @@ namespace Cyberland.Demo;
 public sealed class InputSystem : ISystem, IEarlyUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag, Velocity>();
 
     private readonly GameHostServices _host;
     private readonly SystemScheduler _scheduler;
-    private World _world;
-    private EntityId _player;
     private bool _initialized;
 
     public InputSystem(GameHostServices host, SystemScheduler scheduler)
@@ -28,27 +26,29 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
-        _world = world;
+        _ = world;
         _ = archetype;
         _ = _host.Input
             ?? throw new InvalidOperationException("cyberland.demo/input requires Host.Input during OnStart.");
 
-        _player = archetype.RequireSingleEntityWith<PlayerTag>("player");
+        _ = archetype.RequireSingleEntityWith<PlayerTag>("player");
         _initialized = true;
     }
 
     public void OnEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
-        _ = archetype;
         _ = deltaSeconds;
         if (!_initialized)
             return;
 
-        var world = _world;
-        ref var v = ref world.Components<Velocity>().Get(_player);
-        v = default;
-
         var input = _host.Input!;
+
+        foreach (var chunk in archetype)
+        {
+            var vels = chunk.Column<Velocity>();
+            for (var i = 0; i < chunk.Count; i++)
+                vels[i] = default;
+        }
 
         if (input.IsDown("cyberland.common/quit"))
         {
@@ -72,7 +72,15 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         dx /= len;
         dy /= len;
 
-        v.X = dx * Constants.MoveSpeed;
-        v.Y = dy * Constants.MoveSpeed;
+        foreach (var chunk in archetype)
+        {
+            var vels = chunk.Column<Velocity>();
+            for (var i = 0; i < chunk.Count; i++)
+            {
+                ref var v = ref vels[i];
+                v.X = dx * Constants.MoveSpeed;
+                v.Y = dy * Constants.MoveSpeed;
+            }
+        }
     }
 }

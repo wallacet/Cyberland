@@ -21,8 +21,8 @@ public sealed class TextRenderSystemTests
         var host = new GameHostServices() { Renderer = null, LocalizedContent = null };
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "x";
         bt.IsLocalizationKey = false;
@@ -50,8 +50,8 @@ public sealed class TextRenderSystemTests
 
         var world = new World();
         var e0 = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e0) = Transform.Identity;
-        ref var b0 = ref world.Components<BitmapText>().GetOrAdd(e0);
+        world.GetOrAdd<Transform>(e0) = Transform.Identity;
+        ref var b0 = ref world.GetOrAdd<BitmapText>(e0);
         b0.Visible = false;
         b0.Content = "ok";
         b0.IsLocalizationKey = true;
@@ -59,8 +59,8 @@ public sealed class TextRenderSystemTests
         b0.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
         var e1 = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e1) = Transform.Identity;
-        ref var b1 = ref world.Components<BitmapText>().GetOrAdd(e1);
+        world.GetOrAdd<Transform>(e1) = Transform.Identity;
+        ref var b1 = ref world.GetOrAdd<BitmapText>(e1);
         b1.Visible = true;
         b1.Content = "";
         b1.IsLocalizationKey = false;
@@ -68,8 +68,8 @@ public sealed class TextRenderSystemTests
         b1.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
         var e2 = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e2) = Transform.Identity;
-        ref var b2 = ref world.Components<BitmapText>().GetOrAdd(e2);
+        world.GetOrAdd<Transform>(e2) = Transform.Identity;
+        ref var b2 = ref world.GetOrAdd<BitmapText>(e2);
         b2.Visible = true;
         b2.Content = "ok";
         b2.IsLocalizationKey = true;
@@ -77,8 +77,8 @@ public sealed class TextRenderSystemTests
         b2.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
         var e3 = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e3) = Transform.Identity;
-        ref var b3 = ref world.Components<BitmapText>().GetOrAdd(e3);
+        world.GetOrAdd<Transform>(e3) = Transform.Identity;
+        ref var b3 = ref world.GetOrAdd<BitmapText>(e3);
         b3.Visible = true;
         b3.Content = "ok";
         b3.IsLocalizationKey = true;
@@ -109,14 +109,14 @@ public sealed class TextRenderSystemTests
 
         var world = new World();
         var ew = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(ew) = Transform.Identity;
-        ref var btw = ref world.Components<BitmapText>().GetOrAdd(ew);
+        world.GetOrAdd<Transform>(ew) = Transform.Identity;
+        ref var btw = ref world.GetOrAdd<BitmapText>(ew);
         btw.Visible = true;
         btw.Content = "a";
         btw.IsLocalizationKey = true;
         btw.CoordinateSpace = CoordinateSpace.WorldSpace;
         btw.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
-        ref var tw = ref world.Components<Transform>().Get(ew);
+        ref var tw = ref world.Get<Transform>(ew);
         tw.WorldPosition = new Vector2D<float>(40f, 50f);
 
         r.Sprites.Clear();
@@ -130,14 +130,14 @@ public sealed class TextRenderSystemTests
         r.Sprites.Clear();
         btw.Visible = false;
         var es = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(es) = Transform.Identity;
-        ref var bts = ref world.Components<BitmapText>().GetOrAdd(es);
+        world.GetOrAdd<Transform>(es) = Transform.Identity;
+        ref var bts = ref world.GetOrAdd<BitmapText>(es);
         bts.Visible = true;
         bts.Content = "a";
         bts.IsLocalizationKey = true;
         bts.CoordinateSpace = CoordinateSpace.ViewportSpace;
         bts.Style = btw.Style;
-        ref var ts = ref world.Components<Transform>().Get(es);
+        ref var ts = ref world.Get<Transform>(es);
         ts.WorldPosition = new Vector2D<float>(40f, r.SwapchainPixelSize.Y - 50f);
 
         var trScreen = new TextRenderSystem(host);
@@ -154,14 +154,14 @@ public sealed class TextRenderSystemTests
 
         var world = new World();
         var ew = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(ew) = Transform.Identity;
-        ref var bw = ref world.Components<BitmapText>().GetOrAdd(ew);
+        world.GetOrAdd<Transform>(ew) = Transform.Identity;
+        ref var bw = ref world.GetOrAdd<BitmapText>(ew);
         bw.Visible = true;
         bw.Content = "Hi";
         bw.IsLocalizationKey = false;
         bw.CoordinateSpace = CoordinateSpace.WorldSpace;
         bw.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
-        ref var tw2 = ref world.Components<Transform>().Get(ew);
+        ref var tw2 = ref world.Get<Transform>(ew);
         tw2.WorldPosition = new Vector2D<float>(10f, 20f);
 
         r.Sprites.Clear();
@@ -175,14 +175,14 @@ public sealed class TextRenderSystemTests
         r.Sprites.Clear();
         bw.Visible = false;
         var es = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(es) = Transform.Identity;
-        ref var bs = ref world.Components<BitmapText>().GetOrAdd(es);
+        world.GetOrAdd<Transform>(es) = Transform.Identity;
+        ref var bs = ref world.GetOrAdd<BitmapText>(es);
         bs.Visible = true;
         bs.Content = "Hi";
         bs.IsLocalizationKey = false;
         bs.CoordinateSpace = CoordinateSpace.ViewportSpace;
         bs.Style = bw.Style;
-        ref var ts2 = ref world.Components<Transform>().Get(es);
+        ref var ts2 = ref world.Get<Transform>(es);
         ts2.WorldPosition = new Vector2D<float>(10f, 20f);
 
         var trSc = new TextRenderSystem(host);
@@ -201,8 +201,8 @@ public sealed class TextRenderSystemTests
         var host = new GameHostServices() { Renderer = r, LocalizedContent = lc };
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "empty";
         bt.IsLocalizationKey = true;
@@ -227,8 +227,8 @@ public sealed class TextRenderSystemTests
         var world = new World();
 
         var e0 = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e0) = Transform.Identity;
-        ref var b0 = ref world.Components<BitmapText>().GetOrAdd(e0);
+        world.GetOrAdd<Transform>(e0) = Transform.Identity;
+        ref var b0 = ref world.GetOrAdd<BitmapText>(e0);
         b0.Visible = true;
         b0.Content = "Hi";
         b0.IsLocalizationKey = false;
@@ -236,8 +236,8 @@ public sealed class TextRenderSystemTests
         b0.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
 
         var e1 = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e1) = Transform.Identity;
-        ref var b1 = ref world.Components<BitmapText>().GetOrAdd(e1);
+        world.GetOrAdd<Transform>(e1) = Transform.Identity;
+        ref var b1 = ref world.GetOrAdd<BitmapText>(e1);
         b1.Visible = true;
         b1.Content = "k";
         b1.IsLocalizationKey = true;
@@ -245,25 +245,25 @@ public sealed class TextRenderSystemTests
         b1.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Strikethrough: true);
 
         var e2 = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e2) = Transform.Identity;
-        ref var b2 = ref world.Components<BitmapText>().GetOrAdd(e2);
+        world.GetOrAdd<Transform>(e2) = Transform.Identity;
+        ref var b2 = ref world.GetOrAdd<BitmapText>(e2);
         b2.Visible = true;
         b2.Content = "Lo";
         b2.IsLocalizationKey = false;
         b2.CoordinateSpace = CoordinateSpace.ViewportSpace;
         b2.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
-        ref var t2 = ref world.Components<Transform>().Get(e2);
+        ref var t2 = ref world.Get<Transform>(e2);
         t2.WorldPosition = new Vector2D<float>(4f, 20f);
 
         var e3 = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e3) = Transform.Identity;
-        ref var b3 = ref world.Components<BitmapText>().GetOrAdd(e3);
+        world.GetOrAdd<Transform>(e3) = Transform.Identity;
+        ref var b3 = ref world.GetOrAdd<BitmapText>(e3);
         b3.Visible = true;
         b3.Content = "k";
         b3.IsLocalizationKey = true;
         b3.CoordinateSpace = CoordinateSpace.ViewportSpace;
         b3.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Strikethrough: true);
-        ref var t3 = ref world.Components<Transform>().Get(e3);
+        ref var t3 = ref world.Get<Transform>(e3);
         t3.WorldPosition = new Vector2D<float>(40f, 50f);
 
         r.Sprites.Clear();
@@ -282,14 +282,14 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "Cache";
         bt.IsLocalizationKey = false;
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
-        ref var transform = ref world.Components<Transform>().Get(e);
+        ref var transform = ref world.Get<Transform>(e);
         transform.WorldPosition = new Vector2D<float>(1f, 2f);
 
         var q = world.QueryChunks(TextRowQuery);
@@ -310,8 +310,8 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "X";
         bt.IsLocalizationKey = false;
@@ -333,8 +333,8 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "Y";
         bt.IsLocalizationKey = false;
@@ -356,8 +356,8 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "A";
         bt.IsLocalizationKey = false;
@@ -381,8 +381,8 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "Z";
         bt.IsLocalizationKey = false;
@@ -403,8 +403,8 @@ public sealed class TextRenderSystemTests
         var sys = new TextRenderSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "hi";
         bt.IsLocalizationKey = false;
@@ -415,7 +415,7 @@ public sealed class TextRenderSystemTests
         sys.OnStart(world, q);
         sys.OnLateUpdate(q, 0.016f);
 
-        ref var cache = ref world.Components<TextSpriteCache>().Get(e);
+        ref var cache = ref world.Get<TextSpriteCache>(e);
         Assert.True(cache.GlyphCount > 0);
         Assert.NotNull(cache.CachedGlyphs);
     }
@@ -447,8 +447,8 @@ public sealed class TextRenderSystemTests
         var sys = new TextBuildSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "parallel";
         bt.IsLocalizationKey = false;
@@ -460,7 +460,7 @@ public sealed class TextRenderSystemTests
         sys.OnStart(world, q);
         sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions());
 
-        ref var cache = ref world.Components<TextSpriteCache>().Get(e);
+        ref var cache = ref world.Get<TextSpriteCache>(e);
         Assert.True(cache.GlyphCount >= 0);
     }
 
@@ -471,8 +471,8 @@ public sealed class TextRenderSystemTests
         var sys = new TextBuildSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "x";
         bt.IsLocalizationKey = false;
@@ -492,8 +492,8 @@ public sealed class TextRenderSystemTests
         var sys = new TextBuildSystem(host);
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = "stable";
         bt.IsLocalizationKey = false;
@@ -503,12 +503,12 @@ public sealed class TextRenderSystemTests
         var q = world.QueryChunks(TextRowQuery);
         sys.OnStart(world, q);
         sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions());
-        var firstHash = world.Components<TextBuildFingerprint>().Get(e).ResolvedContentHash64;
-        var firstArray = world.Components<TextSpriteCache>().Get(e).CachedGlyphs;
+        var firstHash = world.Get<TextBuildFingerprint>(e).ResolvedContentHash64;
+        var firstArray = world.Get<TextSpriteCache>(e).CachedGlyphs;
 
         sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions());
-        var second = world.Components<TextBuildFingerprint>().Get(e);
-        var secondArray = world.Components<TextSpriteCache>().Get(e).CachedGlyphs;
+        var second = world.Get<TextBuildFingerprint>(e);
+        var secondArray = world.Get<TextSpriteCache>(e).CachedGlyphs;
 
         Assert.Equal(firstHash, second.ResolvedContentHash64);
         Assert.Same(firstArray, secondArray);

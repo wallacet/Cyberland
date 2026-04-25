@@ -129,14 +129,14 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         ambSys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
 
         var ambOff = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(ambOff) = new AmbientLightSource
+        w.GetOrAdd<AmbientLightSource>(ambOff) = new AmbientLightSource
         {
             Active = false,
             Color = new Vector3D<float>(0.2f, 0f, 0f),
             Intensity = 99f
         };
         var ambOn = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(ambOn) = new AmbientLightSource
+        w.GetOrAdd<AmbientLightSource>(ambOn) = new AmbientLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0f, 0.8f, 0f),
@@ -144,11 +144,11 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         };
 
         var dirOff = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(dirOff) = Transform.Identity;
-        w.Components<DirectionalLightSource>().GetOrAdd(dirOff) = new DirectionalLightSource { Active = false };
+        w.GetOrAdd<Transform>(dirOff) = Transform.Identity;
+        w.GetOrAdd<DirectionalLightSource>(dirOff) = new DirectionalLightSource { Active = false };
         var dirOn = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(dirOn) = MakeTransform(localRotation: MathF.PI * 0.5f, worldRotation: MathF.PI * 0.5f);
-        w.Components<DirectionalLightSource>().GetOrAdd(dirOn) = new DirectionalLightSource
+        w.GetOrAdd<Transform>(dirOn) = MakeTransform(localRotation: MathF.PI * 0.5f, worldRotation: MathF.PI * 0.5f);
+        w.GetOrAdd<DirectionalLightSource>(dirOn) = new DirectionalLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.5f, 0.5f, 0.5f),
@@ -156,15 +156,15 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         };
 
         var spotOff = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(spotOff) = Transform.Identity;
-        w.Components<SpotLightSource>().GetOrAdd(spotOff) = new SpotLightSource { Active = false };
+        w.GetOrAdd<Transform>(spotOff) = Transform.Identity;
+        w.GetOrAdd<SpotLightSource>(spotOff) = new SpotLightSource { Active = false };
         var spotOn = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(spotOn) = MakeTransform(
+        w.GetOrAdd<Transform>(spotOn) = MakeTransform(
             localPos: new Vector2D<float>(1f, 2f),
             worldPos: new Vector2D<float>(1f, 2f),
             localRotation: -MathF.PI * 0.5f,
             worldRotation: -MathF.PI * 0.5f);
-        w.Components<SpotLightSource>().GetOrAdd(spotOn) = new SpotLightSource
+        w.GetOrAdd<SpotLightSource>(spotOn) = new SpotLightSource
         {
             Active = true,
             Radius = 50f,
@@ -209,14 +209,14 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var q0 = w.QueryChunks(spec);
         sys.OnStart(w, q0);
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        w.Components<BitmapText>().GetOrAdd(e) = new BitmapText { Visible = false, Content = "ok" };
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
+        w.GetOrAdd<BitmapText>(e) = new BitmapText { Visible = false, Content = "ok" };
 
         sys.OnLateUpdate(w.QueryChunks(spec), 0f);
 
         var e2 = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e2) = Transform.Identity;
-        w.Components<BitmapText>().GetOrAdd(e2) = new BitmapText { Visible = true, Content = "visible with content skips warning branch" };
+        w.GetOrAdd<Transform>(e2) = Transform.Identity;
+        w.GetOrAdd<BitmapText>(e2) = new BitmapText { Visible = true, Content = "visible with content skips warning branch" };
 
         sys.OnLateUpdate(w.QueryChunks(spec), 0f);
     }
@@ -237,14 +237,14 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         pointS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
 
         var ambLow = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(ambLow) = new AmbientLightSource
+        w.GetOrAdd<AmbientLightSource>(ambLow) = new AmbientLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.1f, 0.1f, 0.1f),
             Intensity = 1f
         };
         var ambHigh = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(ambHigh) = new AmbientLightSource
+        w.GetOrAdd<AmbientLightSource>(ambHigh) = new AmbientLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.9f, 0.9f, 0.9f),
@@ -252,8 +252,8 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         };
 
         var dir = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(dir) = MakeTransform(localRotation: -MathF.PI * 0.5f, worldRotation: -MathF.PI * 0.5f);
-        w.Components<DirectionalLightSource>().GetOrAdd(dir) = new DirectionalLightSource
+        w.GetOrAdd<Transform>(dir) = MakeTransform(localRotation: -MathF.PI * 0.5f, worldRotation: -MathF.PI * 0.5f);
+        w.GetOrAdd<DirectionalLightSource>(dir) = new DirectionalLightSource
         {
             Active = true,
             Color = new Vector3D<float>(1f, 1f, 1f),
@@ -261,8 +261,8 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         };
 
         var spot = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(spot) = MakeTransform(localRotation: -MathF.PI * 0.5f, worldRotation: -MathF.PI * 0.5f);
-        w.Components<SpotLightSource>().GetOrAdd(spot) = new SpotLightSource
+        w.GetOrAdd<Transform>(spot) = MakeTransform(localRotation: -MathF.PI * 0.5f, worldRotation: -MathF.PI * 0.5f);
+        w.GetOrAdd<SpotLightSource>(spot) = new SpotLightSource
         {
             Active = true,
             Radius = 100f,
@@ -273,8 +273,8 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         };
 
         var p1 = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(p1) = Transform.Identity;
-        w.Components<PointLightSource>().GetOrAdd(p1) = new PointLightSource
+        w.GetOrAdd<Transform>(p1) = Transform.Identity;
+        w.GetOrAdd<PointLightSource>(p1) = new PointLightSource
         {
             Active = false,
             Radius = 1f,
@@ -282,10 +282,10 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             Intensity = 1f
         };
         var p2 = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(p2) = MakeTransform(
+        w.GetOrAdd<Transform>(p2) = MakeTransform(
             localPos: new Vector2D<float>(3f, 4f),
             worldPos: new Vector2D<float>(3f, 4f));
-        w.Components<PointLightSource>().GetOrAdd(p2) = new PointLightSource
+        w.GetOrAdd<PointLightSource>(p2) = new PointLightSource
         {
             Active = true,
             Radius = 10f,
@@ -398,10 +398,10 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         sys.OnStart(w, w.QueryChunks(vSpec));
 
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = MakeTransform(
+        w.GetOrAdd<Transform>(e) = MakeTransform(
             localPos: new Vector2D<float>(5f, 5f),
             worldPos: new Vector2D<float>(5f, 5f));
-        w.Components<PostProcessVolumeSource>().GetOrAdd(e) = new PostProcessVolumeSource
+        w.GetOrAdd<PostProcessVolumeSource>(e) = new PostProcessVolumeSource
         {
             Active = true,
             Volume = new PostProcessVolume
@@ -412,8 +412,8 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             }
         };
         var eInactive = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(eInactive) = Transform.Identity;
-        w.Components<PostProcessVolumeSource>().GetOrAdd(eInactive) = new PostProcessVolumeSource
+        w.GetOrAdd<Transform>(eInactive) = Transform.Identity;
+        w.GetOrAdd<PostProcessVolumeSource>(eInactive) = new PostProcessVolumeSource
         {
             Active = false,
             Volume = default
@@ -445,7 +445,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()));
 
         var screen = w.CreateEntity();
-        w.Components<ViewportAnchor2D>().GetOrAdd(screen) = new ViewportAnchor2D
+        w.GetOrAdd<ViewportAnchor2D>(screen) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.ViewportSpace,
@@ -453,10 +453,10 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             OffsetX = 10f,
             OffsetY = 20f
         };
-        w.Components<Transform>().GetOrAdd(screen) = Transform.Identity;
+        w.GetOrAdd<Transform>(screen) = Transform.Identity;
 
         var world = w.CreateEntity();
-        w.Components<ViewportAnchor2D>().GetOrAdd(world) = new ViewportAnchor2D
+        w.GetOrAdd<ViewportAnchor2D>(world) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.WorldSpace,
@@ -464,16 +464,16 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             OffsetX = 0f,
             OffsetY = 0f
         };
-        w.Components<Transform>().GetOrAdd(world) = Transform.Identity;
+        w.GetOrAdd<Transform>(world) = Transform.Identity;
 
         var inactive = w.CreateEntity();
-        w.Components<ViewportAnchor2D>().GetOrAdd(inactive) = new ViewportAnchor2D { Active = false };
-        w.Components<Transform>().GetOrAdd(inactive) = MakeTransform(
+        w.GetOrAdd<ViewportAnchor2D>(inactive) = new ViewportAnchor2D { Active = false };
+        w.GetOrAdd<Transform>(inactive) = MakeTransform(
             localPos: new Vector2D<float>(99f, 99f),
             worldPos: new Vector2D<float>(99f, 99f));
 
         var full = w.CreateEntity();
-        w.Components<ViewportAnchor2D>().GetOrAdd(full) = new ViewportAnchor2D
+        w.GetOrAdd<ViewportAnchor2D>(full) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.ViewportSpace,
@@ -482,11 +482,11 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             OffsetY = 0f,
             SyncSpriteHalfExtentsToViewport = true
         };
-        w.Components<Transform>().GetOrAdd(full) = Transform.Identity;
-        w.Components<Sprite>().GetOrAdd(full) = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(1f, 1f));
+        w.GetOrAdd<Transform>(full) = Transform.Identity;
+        w.GetOrAdd<Sprite>(full) = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(1f, 1f));
 
         var presets = w.CreateEntity();
-        w.Components<ViewportAnchor2D>().GetOrAdd(presets) = new ViewportAnchor2D
+        w.GetOrAdd<ViewportAnchor2D>(presets) = new ViewportAnchor2D
         {
             Active = true,
             ContentSpace = CoordinateSpace.ViewportSpace,
@@ -494,12 +494,12 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             OffsetX = 1f,
             OffsetY = 2f
         };
-        w.Components<Transform>().GetOrAdd(presets) = Transform.Identity;
+        w.GetOrAdd<Transform>(presets) = Transform.Identity;
 
         void AddCorner(ViewportAnchorPreset anchor, float ox, float oy)
         {
             var ent = w.CreateEntity();
-            w.Components<ViewportAnchor2D>().GetOrAdd(ent) = new ViewportAnchor2D
+            w.GetOrAdd<ViewportAnchor2D>(ent) = new ViewportAnchor2D
             {
                 Active = true,
                 ContentSpace = CoordinateSpace.ViewportSpace,
@@ -507,7 +507,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
                 OffsetX = ox,
                 OffsetY = oy
             };
-            w.Components<Transform>().GetOrAdd(ent) = Transform.Identity;
+            w.GetOrAdd<Transform>(ent) = Transform.Identity;
         }
 
         AddCorner(ViewportAnchorPreset.TopLeft, 3f, 4f);
@@ -516,7 +516,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
 
         sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()), 0f);
 
-        ref var ts = ref w.Components<Transform>().Get(screen);
+        ref var ts = ref w.Get<Transform>(screen);
         Assert.Equal(800f - 10f, ts.WorldPosition.X);
         Assert.Equal(20f, ts.WorldPosition.Y);
 
@@ -547,8 +547,8 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()));
 
             var e = w.CreateEntity();
-            w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-            w.Components<BitmapText>().GetOrAdd(e) = new BitmapText { Visible = true, Content = "" };
+            w.GetOrAdd<Transform>(e) = Transform.Identity;
+            w.GetOrAdd<BitmapText>(e) = new BitmapText { Visible = true, Content = "" };
 
             sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
             sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
@@ -580,8 +580,8 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var spec = SystemQuerySpec.All<BitmapText, Transform>();
         sys.OnStart(w, w.QueryChunks(spec));
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        w.Components<BitmapText>().GetOrAdd(e) = new BitmapText { Visible = false, Content = "x" };
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
+        w.GetOrAdd<BitmapText>(e) = new BitmapText { Visible = false, Content = "x" };
         sys.OnLateUpdate(w.QueryChunks(spec), 0f);
     }
 }

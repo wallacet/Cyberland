@@ -31,28 +31,28 @@ public sealed class Mod : IMod
         var camera = w.CreateEntity();
         var camTransform = Transform.Identity;
         camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
-        w.Components<Transform>().GetOrAdd(camera) = camTransform;
-        w.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
+        w.GetOrAdd<Transform>(camera) = camTransform;
+        w.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
 
         var controlEntity = w.CreateEntity();
-        w.Components<Control>().GetOrAdd(controlEntity);
+        w.GetOrAdd<Control>(controlEntity);
         var sessionEntity = w.CreateEntity();
-        w.Components<Session>().GetOrAdd(sessionEntity);
+        w.GetOrAdd<Session>(sessionEntity);
         var arena = w.CreateEntity();
-        w.Components<Tilemap>().GetOrAdd(arena);
+        w.GetOrAdd<Tilemap>(arena);
         var visualsEntity = w.CreateEntity();
-        w.Components<VisualBundle>().GetOrAdd(visualsEntity);
+        w.GetOrAdd<VisualBundle>(visualsEntity);
 
         var amb = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource
+        w.GetOrAdd<AmbientLightSource>(amb) = new AmbientLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.22f, 0.26f, 0.32f),
             Intensity = 0.13f
         };
         var dir = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(dir) = Transform.Identity;
-        w.Components<DirectionalLightSource>().GetOrAdd(dir) = new DirectionalLightSource
+        w.GetOrAdd<Transform>(dir) = Transform.Identity;
+        w.GetOrAdd<DirectionalLightSource>(dir) = new DirectionalLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.52f, 0.5f, 0.46f),
@@ -60,8 +60,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var spot = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(spot) = Transform.Identity;
-        w.Components<SpotLightSource>().GetOrAdd(spot) = new SpotLightSource
+        w.GetOrAdd<Transform>(spot) = Transform.Identity;
+        w.GetOrAdd<SpotLightSource>(spot) = new SpotLightSource
         {
             Active = true,
             Radius = 500f,
@@ -72,8 +72,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var headPt = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(headPt) = Transform.Identity;
-        w.Components<PointLightSource>().GetOrAdd(headPt) = new PointLightSource
+        w.GetOrAdd<Transform>(headPt) = Transform.Identity;
+        w.GetOrAdd<PointLightSource>(headPt) = new PointLightSource
         {
             Active = true,
             Radius = 260f,
@@ -83,8 +83,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var foodPt = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(foodPt) = Transform.Identity;
-        w.Components<PointLightSource>().GetOrAdd(foodPt) = new PointLightSource
+        w.GetOrAdd<Transform>(foodPt) = Transform.Identity;
+        w.GetOrAdd<PointLightSource>(foodPt) = new PointLightSource
         {
             Active = true,
             Radius = 220f,
@@ -108,7 +108,7 @@ public sealed class Mod : IMod
     private static void ApplyGlobalPost(World world)
     {
         var e = world.CreateEntity();
-        world.Components<GlobalPostProcessSource>().GetOrAdd(e) = new GlobalPostProcessSource
+        world.GetOrAdd<GlobalPostProcessSource>(e) = new GlobalPostProcessSource
         {
             Active = true,
             Priority = 100,

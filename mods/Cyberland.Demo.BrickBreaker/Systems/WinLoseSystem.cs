@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
@@ -13,45 +12,44 @@ public sealed class WinLoseSystem : IParallelSystem, IParallelFixedUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BrickState>();
 
-    private readonly EntityId _stateEntity;
-    private readonly List<MultiComponentChunkView> _chunks = new();
-    private ComponentStore<GameState> _game = default!;
 
+    private World _world = null!;
+    private readonly EntityId _stateEntity;
     public WinLoseSystem(EntityId stateEntity) => _stateEntity = stateEntity;
 
     public void OnStart(World world, ChunkQueryAll query)
     {
-        _game = world.Components<GameState>();
+        _world = world;
         _ = query;
     }
 
     public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
         _ = fixedDeltaSeconds;
-        ref var game = ref _game.Get(_stateEntity);
+        ref var game = ref _world.Get<GameState>(_stateEntity);
         if (game.Phase != Phase.Playing)
             return;
 
-        _chunks.Clear();
-        foreach (var chunk in query)
-            _chunks.Add(chunk);
-
         var activeCount = 0;
-        Parallel.ForEach(
-            _chunks,
-            parallelOptions,
-            chunk =>
-            {
-                var states = chunk.Column<BrickState>(0);
-                var local = 0;
-                for (var i = 0; i < chunk.Count; i++)
+        foreach (var chunk in query)
+        {
+            Parallel.For(
+                0,
+                chunk.Count,
+                parallelOptions,
+                () => 0,
+                (i, _, local) =>
                 {
-                    if (states[i].Active)
+                    if (chunk.Column<BrickState>(0)[i].Active)
                         local++;
-                }
-                if (local != 0)
-                    Interlocked.Add(ref activeCount, local);
-            });
+                    return local;
+                },
+                local =>
+                {
+                    if (local != 0)
+                        Interlocked.Add(ref activeCount, local);
+                });
+        }
 
         if (activeCount > 0)
             return;

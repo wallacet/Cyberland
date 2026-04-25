@@ -19,8 +19,8 @@ public sealed class ChunkQueryAllExtensionsTests
     {
         var w = new World();
         w.CreateEntity();
-        w.Components<PlayerTag>().GetOrAdd(w.CreateEntity()) = default;
-        w.Components<PlayerTag>().GetOrAdd(w.CreateEntity()) = default;
+        w.GetOrAdd<PlayerTag>(w.CreateEntity()) = default;
+        w.GetOrAdd<PlayerTag>(w.CreateEntity()) = default;
         var q = w.QueryChunks(SystemQuerySpec.All<PlayerTag>());
         var ex = Assert.Throws<InvalidOperationException>(() => q.RequireSingleEntityWith<PlayerTag>("player"));
         Assert.Contains("exactly one", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -31,7 +31,7 @@ public sealed class ChunkQueryAllExtensionsTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<PlayerTag>().GetOrAdd(e) = default;
+        w.GetOrAdd<PlayerTag>(e) = default;
         var q = w.QueryChunks(SystemQuerySpec.All<PlayerTag>());
         Assert.Equal(e, q.RequireSingleEntityWith<PlayerTag>("player"));
     }
@@ -42,8 +42,8 @@ public sealed class ChunkQueryAllExtensionsTests
         var w = new World();
         Assert.False(w.QueryChunks(SystemQuerySpec.All<PlayerTag>()).TryGetSingleEntityWith<PlayerTag>(out _));
 
-        w.Components<PlayerTag>().GetOrAdd(w.CreateEntity()) = default;
-        w.Components<PlayerTag>().GetOrAdd(w.CreateEntity()) = default;
+        w.GetOrAdd<PlayerTag>(w.CreateEntity()) = default;
+        w.GetOrAdd<PlayerTag>(w.CreateEntity()) = default;
         Assert.False(w.QueryChunks(SystemQuerySpec.All<PlayerTag>()).TryGetSingleEntityWith<PlayerTag>(out _));
     }
 
@@ -52,7 +52,7 @@ public sealed class ChunkQueryAllExtensionsTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<PlayerTag>().GetOrAdd(e) = default;
+        w.GetOrAdd<PlayerTag>(e) = default;
         Assert.True(w.QueryChunks(SystemQuerySpec.All<PlayerTag>()).TryGetSingleEntityWith<PlayerTag>(out var id));
         Assert.Equal(e, id);
     }
@@ -62,7 +62,7 @@ public sealed class ChunkQueryAllExtensionsTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<PlayerTag>().GetOrAdd(e) = default;
+        w.GetOrAdd<PlayerTag>(e) = default;
         Assert.Equal(e, w.RequireSingleEntityWith<PlayerTag>("player"));
         Assert.True(w.TryGetSingleEntityWith<PlayerTag>(out var id));
         Assert.Equal(e, id);

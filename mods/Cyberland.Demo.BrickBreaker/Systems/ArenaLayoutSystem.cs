@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
@@ -10,20 +9,25 @@ namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
 /// Recomputes arena metrics and brick cell positions when the framebuffer size changes.
-/// Uses <see cref="Parallel.ForEach"/> over ECS chunks so brick transforms update in parallel.
+/// Uses <see cref="Parallel.For"/> over brick rows within each chunk; the scheduler supplies
+/// <see cref="ParallelOptions"/> (single-threaded on <see cref="OnStart"/>, host-capped in early update).
 /// </summary>
 public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Cell>();
+    /// <remarks>Brick cells carry <see cref="Cell"/>, <see cref="Transform"/>, and <see cref="Trigger"/>; layout updates both world placement and trigger AABBs from the same chunk columns.</remarks>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Cell, Transform, Trigger>();
+
+
+    private World _world = null!;
+    /// <summary>
+    /// <see cref="OnStart"/> runs before the parallel early phase; use one worker so layout matches
+    /// the same code path as <see cref="OnParallelEarlyUpdate"/> without racing other startup systems.
+    /// </summary>
+    private static readonly ParallelOptions StartupParallelOptions = new() { MaxDegreeOfParallelism = 1 };
 
     private readonly GameHostServices _host;
     private readonly EntityId _stateEntity;
-    private readonly List<MultiComponentChunkView> _chunks = new();
-    private ComponentStore<GameState> _game = default!;
-    private ComponentStore<Transform> _transforms = default!;
-    private ComponentStore<Trigger> _triggers = default!;
-
     public ArenaLayoutSystem(GameHostServices host, EntityId stateEntity)
     {
         _host = host;
@@ -32,11 +36,9 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
-        _game = world.Components<GameState>();
-        _transforms = world.Components<Transform>();
-        _triggers = world.Components<Trigger>();
+        _world = world;
         EnsureRendererAvailable();
-        UpdateLayoutIfNeeded(archetype, parallelOptions: null);
+        UpdateLayoutIfNeeded(archetype, StartupParallelOptions);
     }
 
     public void OnParallelEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
@@ -57,14 +59,14 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
         throw new InvalidOperationException("ArenaLayoutSystem requires Host.Renderer during OnStart.");
     }
 
-    private void UpdateLayoutIfNeeded(ChunkQueryAll cellArchetype, ParallelOptions? parallelOptions)
+    private void UpdateLayoutIfNeeded(ChunkQueryAll cellArchetype, ParallelOptions parallelOptions)
     {
         // Use the mod's fixed virtual canvas, not IRenderer.ActiveCameraViewportSize, in this parallel *early*
         // pass: cameras are submitted in *late*, so the renderer may still report swapchain size here and the
         // arena would be laid out for the wrong extent relative to Camera2D (Constants.CanvasWidth/Height).
         var fb = new Vector2D<int>(Constants.CanvasWidth, Constants.CanvasHeight);
 
-        ref var game = ref _game.Get(_stateEntity);
+        ref var game = ref _world.Get<GameState>(_stateEntity);
         var layoutChanged = !game.LayoutInitialized || game.LayoutWidth != fb.X || game.LayoutHeight != fb.Y;
         if (!layoutChanged) return;
 
@@ -86,34 +88,19 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
         var brickTopY = game.BrickTopY;
         var brickW = game.BrickW;
         var brickH = game.BrickH;
-        void ApplyChunk(MultiComponentChunkView chunk)
+
+        foreach (var chunk in cellArchetype)
         {
-            var entities = chunk.Entities;
-            var cells = chunk.Column<Cell>(0);
-            for (var i = 0; i < chunk.Count; i++)
+            Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                var entity = entities[i];
-                ref readonly var cell = ref cells[i];
+                ref readonly var cell = ref chunk.Column<Cell>()[i];
                 var bx = brickOriginX + (cell.X + 0.5f) * brickW;
                 var by = brickTopY - (cell.Y + 0.5f) * brickH;
-                ref var transform = ref _transforms.Get(entity);
+                ref var transform = ref chunk.Column<Transform>()[i];
                 transform.LocalPosition = new Vector2D<float>(bx, by);
-                ref var t = ref _triggers.Get(entity);
-                t.HalfExtents = new Vector2D<float>(brickW * 0.46f, brickH * 0.45f);
-            }
-        }
-
-        if (parallelOptions is null)
-        {
-            foreach (var chunk in cellArchetype)
-                ApplyChunk(chunk);
-        }
-        else
-        {
-            _chunks.Clear();
-            foreach (var chunk in cellArchetype)
-                _chunks.Add(chunk);
-            Parallel.ForEach(_chunks, parallelOptions!, ApplyChunk);
+                ref var trigger = ref chunk.Column<Trigger>()[i];
+                trigger.HalfExtents = new Vector2D<float>(brickW * 0.46f, brickH * 0.45f);
+            });
         }
     }
 }

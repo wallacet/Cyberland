@@ -13,6 +13,8 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _session;
     private readonly EntityId _ambient;
@@ -20,8 +22,6 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
     private readonly EntityId _spot;
     private readonly EntityId _ballPoint;
     private readonly EntityId _leftAccentPoint;
-    private World _world = null!;
-
     /// <summary>Creates the system.</summary>
     public PongLightsFillSystem(GameHostServices host, EntityId session, EntityId ambient, EntityId directional, EntityId spot,
         EntityId ballPoint, EntityId leftAccentPoint)
@@ -53,7 +53,6 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
     {
         _ = archetype;
         _ = deltaSeconds;
-        var world = _world;
         var r = _host.Renderer!;
         // Lights match the virtual camera extent (see <see cref="ModLayoutViewport.VirtualSizeForPresentation"/>).
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
@@ -61,20 +60,20 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
         var h = fb.Y;
         if (w <= 0 || h <= 0)
             return;
-        ref readonly var st = ref world.Components<State>().Get(_session);
+        ref readonly var st = ref _world.Get<State>(_session);
         var arenaCx = (st.ArenaMinX + st.ArenaMaxX) * 0.5f;
         var arenaCy = (st.ArenaMinY + st.ArenaMaxY) * 0.5f;
         var center = new Vector2D<float>(arenaCx, arenaCy);
 
-        ref var amb = ref world.Components<AmbientLightSource>().Get(_ambient);
+        ref var amb = ref _world.Get<AmbientLightSource>(_ambient);
         amb.Active = true;
         amb.Color = new Vector3D<float>(0.2f, 0.23f, 0.3f);
         amb.Intensity = 0.12f;
 
-        ref var dirTransform = ref world.Components<Transform>().Get(_directional);
+        ref var dirTransform = ref _world.Get<Transform>(_directional);
         dirTransform.LocalRotationRadians = MathF.Atan2(-0.6f, 0.36f);
         dirTransform.WorldRotationRadians = dirTransform.LocalRotationRadians;
-        ref var dir = ref world.Components<DirectionalLightSource>().Get(_directional);
+        ref var dir = ref _world.Get<DirectionalLightSource>(_directional);
         dir.Active = true;
         dir.Color = new Vector3D<float>(0.52f, 0.5f, 0.46f);
         dir.Intensity = 0.19f;
@@ -86,12 +85,12 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
         var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(1f, 0f);
 
-        ref var spotTransform = ref world.Components<Transform>().Get(_spot);
+        ref var spotTransform = ref _world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;
         spotTransform.WorldPosition = spotPos;
         spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
         spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
-        ref var sp = ref world.Components<SpotLightSource>().Get(_spot);
+        ref var sp = ref _world.Get<SpotLightSource>(_spot);
         sp.Active = true;
         sp.Radius = w * 0.55f;
         sp.InnerConeRadians = MathF.PI / 4f;
@@ -102,10 +101,10 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
 
         var ballPos = st.Phase == Phase.Playing ? st.BallPos : center;
         var ballIntensity = st.Phase == Phase.Playing ? 0.52f : 0.28f;
-        ref var ballTransform = ref world.Components<Transform>().Get(_ballPoint);
+        ref var ballTransform = ref _world.Get<Transform>(_ballPoint);
         ballTransform.LocalPosition = ballPos;
         ballTransform.WorldPosition = ballPos;
-        ref var bp = ref world.Components<PointLightSource>().Get(_ballPoint);
+        ref var bp = ref _world.Get<PointLightSource>(_ballPoint);
         bp.Active = true;
         bp.Radius = w * 0.32f;
         bp.Color = new Vector3D<float>(0.9f, 0.95f, 1f);
@@ -114,10 +113,10 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
         bp.CastsShadow = false;
 
         var leftAccentY = st.Phase == Phase.Playing ? st.LeftPaddleY : arenaCy;
-        ref var leftTransform = ref world.Components<Transform>().Get(_leftAccentPoint);
+        ref var leftTransform = ref _world.Get<Transform>(_leftAccentPoint);
         leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, leftAccentY);
         leftTransform.WorldPosition = leftTransform.LocalPosition;
-        ref var lp = ref world.Components<PointLightSource>().Get(_leftAccentPoint);
+        ref var lp = ref _world.Get<PointLightSource>(_leftAccentPoint);
         lp.Active = true;
         lp.Radius = w * 0.38f;
         lp.Color = new Vector3D<float>(0.25f, 0.75f, 1f);

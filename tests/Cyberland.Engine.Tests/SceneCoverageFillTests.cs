@@ -174,14 +174,14 @@ public sealed class SceneCoverageFillTests
         var r = new RecordingRenderer();
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = MakeTransform(
+        w.GetOrAdd<Transform>(e) = MakeTransform(
             localPos: new Vector2D<float>(1f, 1f),
             worldPos: new Vector2D<float>(1f, 1f),
             localRotation: MathF.PI / 4f,
             worldRotation: MathF.PI / 4f,
             localScale: new Vector2D<float>(2f, 2f),
             worldScale: new Vector2D<float>(2f, 2f));
-        ref var spr = ref w.Components<Sprite>().GetOrAdd(e);
+        ref var spr = ref w.GetOrAdd<Sprite>(e);
         spr = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(5f, 5f));
         spr.Visible = false;
 
@@ -207,8 +207,8 @@ public sealed class SceneCoverageFillTests
         var hNullR = new GameHostServices() { Renderer = null, Tilemaps = tmStore };
         var map = w.CreateEntity();
         tmStore.Register(map, new[] { 1 }, 1, 1);
-        w.Components<Transform>().GetOrAdd(map) = Transform.Identity;
-        w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
+        w.GetOrAdd<Transform>(map) = Transform.Identity;
+        w.GetOrAdd<Tilemap>(map) = new Tilemap
         {
             TileWidth = 8f,
             TileHeight = 8f,
@@ -235,8 +235,8 @@ public sealed class SceneCoverageFillTests
         tm.Register(map, new[] { 0, 1 }, 1, 2);
         var fb = r.SwapchainPixelSize;
         var cornerWorld = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
-        w.Components<Transform>().GetOrAdd(map) = MakeTransform(localPos: cornerWorld, worldPos: cornerWorld);
-        w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
+        w.GetOrAdd<Transform>(map) = MakeTransform(localPos: cornerWorld, worldPos: cornerWorld);
+        w.GetOrAdd<Tilemap>(map) = new Tilemap
         {
             TileWidth = 10f,
             TileHeight = 10f,
@@ -257,8 +257,8 @@ public sealed class SceneCoverageFillTests
         var h = Host(r);
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-        w.Components<ParticleEmitter>().GetOrAdd(e) = new ParticleEmitter { Active = false, MaxParticles = 2 };
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
+        w.GetOrAdd<ParticleEmitter>(e) = new ParticleEmitter { Active = false, MaxParticles = 2 };
 
         var psk = new ParticleSimulationSystem();
         StartEcs(psk, w);
@@ -272,8 +272,8 @@ public sealed class SceneCoverageFillTests
         var h = Host(r);
         var w = new World();
         var emitter = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(emitter) = Transform.Identity;
-        w.Components<ParticleEmitter>().GetOrAdd(emitter) = new ParticleEmitter
+        w.GetOrAdd<Transform>(emitter) = Transform.Identity;
+        w.GetOrAdd<ParticleEmitter>(emitter) = new ParticleEmitter
         {
             Active = true,
             MaxParticles = 2,
@@ -301,11 +301,11 @@ public sealed class SceneCoverageFillTests
         var w = new World();
 
         var noPos = w.CreateEntity();
-        w.Components<ParticleEmitter>().GetOrAdd(noPos) = new ParticleEmitter { Active = false, MaxParticles = 2 };
+        w.GetOrAdd<ParticleEmitter>(noPos) = new ParticleEmitter { Active = false, MaxParticles = 2 };
 
         var emptyBucket = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(emptyBucket) = Transform.Identity;
-        w.Components<ParticleEmitter>().GetOrAdd(emptyBucket) = new ParticleEmitter
+        w.GetOrAdd<Transform>(emptyBucket) = Transform.Identity;
+        w.GetOrAdd<ParticleEmitter>(emptyBucket) = new ParticleEmitter
         {
             Active = true,
             MaxParticles = 2,
@@ -355,8 +355,8 @@ public sealed class SceneCoverageFillTests
         var h = Host(r);
         var w = new World();
         var emitter = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(emitter) = Transform.Identity;
-        w.Components<ParticleEmitter>().GetOrAdd(emitter) = new ParticleEmitter
+        w.GetOrAdd<Transform>(emitter) = Transform.Identity;
+        w.GetOrAdd<ParticleEmitter>(emitter) = new ParticleEmitter
         {
             Active = true,
             MaxParticles = 2,
@@ -373,7 +373,7 @@ public sealed class SceneCoverageFillTests
         var sim = new ParticleSimulationSystem();
         StartEcs(sim, w);
         sim.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<ParticleEmitter>()), 0.1f, ParOpts());
-        Assert.True(w.Components<ParticleEmitter>().Get(emitter).RuntimeCount > 0);
+        Assert.True(w.Get<ParticleEmitter>(emitter).RuntimeCount > 0);
         var prS = new ParticleRenderSystem(h);
         StartEcs(prS, w);
         prS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
@@ -403,7 +403,7 @@ public sealed class SceneCoverageFillTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<SpriteAnimation>().GetOrAdd(e) = new SpriteAnimation
+        w.GetOrAdd<SpriteAnimation>(e) = new SpriteAnimation
         {
             SecondsPerFrame = 1f,
             FrameCount = 1,
@@ -421,8 +421,8 @@ public sealed class SceneCoverageFillTests
     {
         var w = new World();
         var e = w.CreateEntity();
-        w.Components<Sprite>().GetOrAdd(e) = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(4f, 4f));
-        w.Components<SpriteAnimation>().GetOrAdd(e) = new SpriteAnimation
+        w.GetOrAdd<Sprite>(e) = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(4f, 4f));
+        w.GetOrAdd<SpriteAnimation>(e) = new SpriteAnimation
         {
             SecondsPerFrame = 1f,
             FrameCount = 0,
@@ -444,8 +444,8 @@ public sealed class SceneCoverageFillTests
         var map = w.CreateEntity();
         var fb2 = r.SwapchainPixelSize;
         var corner2 = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb2);
-        w.Components<Transform>().GetOrAdd(map) = MakeTransform(localPos: corner2, worldPos: corner2);
-        w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
+        w.GetOrAdd<Transform>(map) = MakeTransform(localPos: corner2, worldPos: corner2);
+        w.GetOrAdd<Tilemap>(map) = new Tilemap
         {
             TileWidth = 8f,
             TileHeight = 8f,
@@ -465,11 +465,11 @@ public sealed class SceneCoverageFillTests
         var w = new World();
         var a = w.CreateEntity();
         var b = w.CreateEntity();
-        ref var ta = ref w.Components<Transform>().GetOrAdd(a);
+        ref var ta = ref w.GetOrAdd<Transform>(a);
         ta = Transform.Identity;
         ta.LocalPosition = new Vector2D<float>(1f, 0f);
         ta.Parent = b;
-        ref var tb = ref w.Components<Transform>().GetOrAdd(b);
+        ref var tb = ref w.GetOrAdd<Transform>(b);
         tb = Transform.Identity;
         tb.LocalPosition = new Vector2D<float>(0f, 1f);
         tb.Parent = a;
@@ -477,8 +477,8 @@ public sealed class SceneCoverageFillTests
         var thc = new TransformHierarchySystem();
         StartEcs(thc, w);
         thc.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
-        Assert.True(w.Components<Transform>().Contains(a));
-        Assert.True(w.Components<Transform>().Contains(b));
+        Assert.True(w.Has<Transform>(a));
+        Assert.True(w.Has<Transform>(b));
     }
 
     [Fact]
@@ -521,8 +521,8 @@ public sealed class SceneCoverageFillTests
     {
         var world = new World();
         var parent = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(parent) = Transform.Identity;
-        world.Components<Trigger>().GetOrAdd(parent) = new Trigger
+        world.GetOrAdd<Transform>(parent) = Transform.Identity;
+        world.GetOrAdd<Trigger>(parent) = new Trigger
         {
             Enabled = true,
             Shape = TriggerShapeKind.Circle,
@@ -530,10 +530,10 @@ public sealed class SceneCoverageFillTests
         };
 
         var child = world.CreateEntity();
-        ref var childTransform = ref world.Components<Transform>().GetOrAdd(child);
+        ref var childTransform = ref world.GetOrAdd<Transform>(child);
         childTransform = Transform.Identity;
         childTransform.Parent = parent;
-        world.Components<Trigger>().GetOrAdd(child) = new Trigger
+        world.GetOrAdd<Trigger>(child) = new Trigger
         {
             Enabled = true,
             Shape = TriggerShapeKind.Circle,
@@ -548,11 +548,10 @@ public sealed class SceneCoverageFillTests
             "IsInHierarchy",
             BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(isInHierarchy);
-        var transformStore = world.Components<Transform>();
         var noTransform = world.CreateEntity();
-        var resultNoTransform = (bool)isInHierarchy!.Invoke(null, new object[] { world, transformStore, noTransform, parent })!;
+        var resultNoTransform = (bool)isInHierarchy!.Invoke(null, new object[] { world, noTransform, parent })!;
         Assert.False(resultNoTransform);
-        var resultChildAncestor = (bool)isInHierarchy.Invoke(null, new object[] { world, transformStore, child, parent })!;
+        var resultChildAncestor = (bool)isInHierarchy.Invoke(null, new object[] { world, child, parent })!;
         Assert.True(resultChildAncestor);
     }
 

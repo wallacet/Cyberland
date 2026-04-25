@@ -36,7 +36,7 @@ public sealed class BootstrapSystem : ISystem
             throw new InvalidOperationException("Tilemap store is required by Snake bootstrap.");
         }
 
-        ref var session = ref world.Components<Session>().Get(_sessionEntity);
+        ref var session = ref world.Get<Session>(_sessionEntity);
         session.EnsureInitialized();
         session.Phase = Phase.Title;
         session.TickAcc = 0f;
@@ -54,7 +54,7 @@ public sealed class BootstrapSystem : ISystem
 
         _host.Tilemaps.Register(_arenaEntity, grid, Constants.GridW, Constants.GridH);
 
-        ref var visuals = ref world.Components<VisualBundle>().Get(_visualsEntity);
+        ref var visuals = ref world.Get<VisualBundle>(_visualsEntity);
         visuals.Segments ??= new EntityId[Constants.GridW * Constants.GridH];
         for (var i = 0; i < visuals.Segments.Length; i++)
             visuals.Segments[i] = world.CreateEntity();

@@ -86,7 +86,7 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        ref var c = ref world.Components<CmpWithFieldInitializer>().GetOrAdd(e);
+        ref var c = ref world.GetOrAdd<CmpWithFieldInitializer>(e);
         Assert.Equal(42, c.V);
     }
 
@@ -126,10 +126,10 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 5;
-        world.Components<CmpB>().GetOrAdd(e).X = 3.5f;
+        world.GetOrAdd<CmpA>(e).V = 5;
+        world.GetOrAdd<CmpB>(e).X = 3.5f;
         world.DestroyEntity(e);
-        Assert.False(world.Components<CmpA>().Contains(e));
+        Assert.False(world.Has<CmpA>(e));
         Assert.False(world.IsAlive(e));
     }
 
@@ -145,11 +145,11 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 7;
-        world.Components<CmpB>().GetOrAdd(e).X = 2.5f;
-        Assert.True(world.Components<CmpA>().TryGet(e, out var a));
+        world.GetOrAdd<CmpA>(e).V = 7;
+        world.GetOrAdd<CmpB>(e).X = 2.5f;
+        Assert.True(world.TryGet<CmpA>(e, out var a));
         Assert.Equal(7, a.V);
-        Assert.True(world.Components<CmpB>().TryGet(e, out var b));
+        Assert.True(world.TryGet<CmpB>(e, out var b));
         Assert.Equal(2.5f, b.X);
     }
 
@@ -158,11 +158,11 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 1;
-        world.Components<CmpB>().GetOrAdd(e).X = 3f;
-        world.Components<CmpB>().Remove(e);
-        Assert.True(world.Components<CmpA>().Contains(e));
-        Assert.False(world.Components<CmpB>().Contains(e));
+        world.GetOrAdd<CmpA>(e).V = 1;
+        world.GetOrAdd<CmpB>(e).X = 3f;
+        world.Remove<CmpB>(e);
+        Assert.True(world.Has<CmpA>(e));
+        Assert.False(world.Has<CmpB>(e));
     }
 
     [Fact]
@@ -170,9 +170,9 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 9;
-        world.Components<CmpA>().Remove(e);
-        Assert.False(world.Components<CmpA>().Contains(e));
+        world.GetOrAdd<CmpA>(e).V = 9;
+        world.Remove<CmpA>(e);
+        Assert.False(world.Has<CmpA>(e));
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 42;
+        world.GetOrAdd<CmpA>(e).V = 42;
 
         var found = false;
         foreach (var chunk in world.QueryChunks<CmpA>())
@@ -199,8 +199,8 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 1;
-        world.Components<CmpB>().GetOrAdd(e).X = 4f;
+        world.GetOrAdd<CmpA>(e).V = 1;
+        world.GetOrAdd<CmpB>(e).X = 4f;
 
         var found = false;
         foreach (var chunk in world.QueryChunks<CmpA, CmpB>())
@@ -220,10 +220,10 @@ public sealed class EcsTests
     {
         var world = new World();
         var onlyA = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(onlyA).V = 9;
+        world.GetOrAdd<CmpA>(onlyA).V = 9;
         var both = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(both).V = 1;
-        world.Components<CmpB>().GetOrAdd(both).X = 2f;
+        world.GetOrAdd<CmpA>(both).V = 1;
+        world.GetOrAdd<CmpB>(both).X = 2f;
 
         var n = 0;
         foreach (var chunk in world.QueryChunks<CmpA, CmpB>())
@@ -342,8 +342,8 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 1;
-        var ex = Assert.Throws<InvalidOperationException>(() => _ = world.Components<CmpB>().Get(e));
+        world.GetOrAdd<CmpA>(e).V = 1;
+        var ex = Assert.Throws<InvalidOperationException>(() => _ = world.Get<CmpB>(e));
         Assert.Contains("archetype", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -352,9 +352,9 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 3;
-        world.Components<CmpB>().Remove(e);
-        Assert.True(world.Components<CmpA>().TryGet(e, out var a) && a.V == 3);
+        world.GetOrAdd<CmpA>(e).V = 3;
+        world.Remove<CmpB>(e);
+        Assert.True(world.TryGet<CmpA>(e, out var a) && a.V == 3);
     }
 
     [Fact]
@@ -362,8 +362,8 @@ public sealed class EcsTests
     {
         var world = new World();
         var far = EntityId.FromParts(50_000u, 1);
-        Assert.False(world.Components<CmpA>().TryGet(far, out _));
-        Assert.False(world.Components<CmpA>().Contains(far));
+        Assert.False(world.TryGet<CmpA>(far, out _));
+        Assert.False(world.Has<CmpA>(far));
     }
 
     [Fact]
@@ -371,8 +371,8 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 1;
-        Assert.False(world.Components<CmpB>().TryGet(e, out _));
+        world.GetOrAdd<CmpA>(e).V = 1;
+        Assert.False(world.TryGet<CmpB>(e, out _));
     }
 
     [Fact]
@@ -380,7 +380,7 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 7;
+        world.GetOrAdd<CmpA>(e).V = 7;
         world.DestroyEntity(e);
 
         var n = 0;
@@ -398,8 +398,8 @@ public sealed class EcsTests
     {
         var world = new World();
         var e = world.CreateEntity();
-        world.Components<CmpA>().GetOrAdd(e).V = 1;
-        world.Components<CmpB>().GetOrAdd(e).X = 2f;
+        world.GetOrAdd<CmpA>(e).V = 1;
+        world.GetOrAdd<CmpB>(e).X = 2f;
         world.DestroyEntity(e);
 
         var n = 0;

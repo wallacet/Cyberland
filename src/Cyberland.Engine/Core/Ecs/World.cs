@@ -54,6 +54,24 @@ public sealed class World
         return (ComponentStore<T>)fac;
     }
 
+    /// <summary>Shorthand for <c>ref Components&lt;T&gt;().Get(entity)</c> when a <see cref="World"/> reference is already cached (e.g. per-system singleton access).</summary>
+    public ref T Get<T>(EntityId entity) where T : struct, IComponent => ref RefGet<T>(entity);
+
+    /// <inheritdoc cref="ComponentStore{T}.TryGet" />
+    public bool TryGet<T>(EntityId entity, out T value) where T : struct, IComponent => TryGetComponent<T>(entity, out value);
+
+    /// <inheritdoc cref="ComponentStore{T}.Contains" />
+    public bool Has<T>(EntityId entity) where T : struct, IComponent => HasComponent<T>(entity);
+
+    /// <inheritdoc cref="ComponentStore{T}.GetOrAdd(EntityId)" />
+    public ref T GetOrAdd<T>(EntityId entity) where T : struct, IComponent => ref RefGetOrAdd<T>(entity);
+
+    /// <inheritdoc cref="ComponentStore{T}.GetOrAdd(EntityId, T)" />
+    public ref T GetOrAdd<T>(EntityId entity, T initial) where T : struct, IComponent => ref RefGetOrAdd(entity, initial);
+
+    /// <inheritdoc cref="ComponentStore{T}.Remove" />
+    public void Remove<T>(EntityId entity) where T : struct, IComponent => RemoveComponent<T>(entity);
+
     /// <summary>
     /// All chunks that store <typeparamref name="T"/> (each chunk yields contiguous spans for SIMD-friendly work).
     /// </summary>

@@ -16,16 +16,16 @@ public sealed class CameraFollowAndLocalizedSpriteTests
     {
         var world = new World();
         var target = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(target) = new Transform
+        world.GetOrAdd<Transform>(target) = new Transform
         {
             LocalPosition = new Vector2D<float>(900f, 900f),
             WorldPosition = new Vector2D<float>(900f, 900f)
         };
 
         var camera = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(camera) = Transform.Identity;
-        world.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(1280, 720));
-        world.Components<CameraFollow2D>().GetOrAdd(camera) = new CameraFollow2D
+        world.GetOrAdd<Transform>(camera) = Transform.Identity;
+        world.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(1280, 720));
+        world.GetOrAdd<CameraFollow2D>(camera) = new CameraFollow2D
         {
             Enabled = true,
             Target = target,
@@ -41,7 +41,7 @@ public sealed class CameraFollowAndLocalizedSpriteTests
         system.OnStart(world, query);
         system.OnParallelFixedUpdate(query, 1f / 60f, new ParallelOptions { MaxDegreeOfParallelism = 1 });
 
-        ref readonly var transform = ref world.Components<Transform>().Get(camera);
+        ref readonly var transform = ref world.Get<Transform>(camera);
         Assert.Equal(new Vector2D<float>(640f, 360f), transform.WorldPosition);
     }
 
@@ -50,13 +50,13 @@ public sealed class CameraFollowAndLocalizedSpriteTests
     {
         var world = new World();
         var camera = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(camera) = new Transform
+        world.GetOrAdd<Transform>(camera) = new Transform
         {
             LocalPosition = new Vector2D<float>(20f, 30f),
             WorldPosition = new Vector2D<float>(20f, 30f)
         };
-        world.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(1280, 720));
-        world.Components<CameraFollow2D>().GetOrAdd(camera) = new CameraFollow2D
+        world.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(1280, 720));
+        world.GetOrAdd<CameraFollow2D>(camera) = new CameraFollow2D
         {
             Enabled = false,
             Target = new EntityId(999),
@@ -68,7 +68,7 @@ public sealed class CameraFollowAndLocalizedSpriteTests
         system.OnStart(world, query);
         system.OnParallelFixedUpdate(query, 1f / 60f, new ParallelOptions { MaxDegreeOfParallelism = 1 });
 
-        ref readonly var transform = ref world.Components<Transform>().Get(camera);
+        ref readonly var transform = ref world.Get<Transform>(camera);
         Assert.Equal(new Vector2D<float>(20f, 30f), transform.WorldPosition);
     }
 
@@ -84,10 +84,10 @@ public sealed class CameraFollowAndLocalizedSpriteTests
 
         var world = new World();
         var spriteEntity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(spriteEntity) = Transform.Identity;
-        world.Components<Sprite>().GetOrAdd(spriteEntity) =
+        world.GetOrAdd<Transform>(spriteEntity) = Transform.Identity;
+        world.GetOrAdd<Sprite>(spriteEntity) =
             Sprite.DefaultWhiteUnlit(renderer.WhiteTextureId, renderer.DefaultNormalTextureId, new Vector2D<float>(8f, 8f));
-        world.Components<SpriteLocalizedAsset>().GetOrAdd(spriteEntity) = new SpriteLocalizedAsset
+        world.GetOrAdd<SpriteLocalizedAsset>(spriteEntity) = new SpriteLocalizedAsset
         {
             CanonicalAlbedoPath = "Textures/Pickups/shard.png",
             ReloadGeneration = 1,
@@ -100,8 +100,8 @@ public sealed class CameraFollowAndLocalizedSpriteTests
         system.OnStart(world, query);
         system.OnLateUpdate(query, 0f);
 
-        ref readonly var sprite = ref world.Components<Sprite>().Get(spriteEntity);
-        ref readonly var localizedAsset = ref world.Components<SpriteLocalizedAsset>().Get(spriteEntity);
+        ref readonly var sprite = ref world.Get<Sprite>(spriteEntity);
+        ref readonly var localizedAsset = ref world.Get<SpriteLocalizedAsset>(spriteEntity);
         Assert.Equal((TextureId)77, sprite.AlbedoTextureId);
         Assert.Equal(1, localizedAsset.LoadedGeneration);
     }
@@ -118,10 +118,10 @@ public sealed class CameraFollowAndLocalizedSpriteTests
 
         var world = new World();
         var spriteEntity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(spriteEntity) = Transform.Identity;
-        world.Components<Sprite>().GetOrAdd(spriteEntity) =
+        world.GetOrAdd<Transform>(spriteEntity) = Transform.Identity;
+        world.GetOrAdd<Sprite>(spriteEntity) =
             Sprite.DefaultWhiteUnlit(renderer.WhiteTextureId, renderer.DefaultNormalTextureId, new Vector2D<float>(8f, 8f));
-        world.Components<SpriteLocalizedAsset>().GetOrAdd(spriteEntity) = new SpriteLocalizedAsset
+        world.GetOrAdd<SpriteLocalizedAsset>(spriteEntity) = new SpriteLocalizedAsset
         {
             CanonicalAlbedoPath = "Textures/Pickups/shard.png",
             ReloadGeneration = 1,
@@ -134,7 +134,7 @@ public sealed class CameraFollowAndLocalizedSpriteTests
         system.OnStart(world, query);
         system.OnLateUpdate(query, 0f);
 
-        ref readonly var sprite = ref world.Components<Sprite>().Get(spriteEntity);
+        ref readonly var sprite = ref world.Get<Sprite>(spriteEntity);
         Assert.Equal(renderer.WhiteTextureId, sprite.AlbedoTextureId);
     }
 
@@ -144,9 +144,9 @@ public sealed class CameraFollowAndLocalizedSpriteTests
         var host = new GameHostServices();
         var world = new World();
         var spriteEntity = world.CreateEntity();
-        world.Components<Transform>().GetOrAdd(spriteEntity) = Transform.Identity;
-        world.Components<Sprite>().GetOrAdd(spriteEntity) = default;
-        world.Components<SpriteLocalizedAsset>().GetOrAdd(spriteEntity) = new SpriteLocalizedAsset
+        world.GetOrAdd<Transform>(spriteEntity) = Transform.Identity;
+        world.GetOrAdd<Sprite>(spriteEntity) = default;
+        world.GetOrAdd<SpriteLocalizedAsset>(spriteEntity) = new SpriteLocalizedAsset
         {
             CanonicalAlbedoPath = "Textures/Pickups/shard.png",
             ReloadGeneration = 3,
@@ -158,7 +158,7 @@ public sealed class CameraFollowAndLocalizedSpriteTests
         system.OnStart(world, query);
         system.OnLateUpdate(query, 0f);
 
-        ref readonly var localized = ref world.Components<SpriteLocalizedAsset>().Get(spriteEntity);
+        ref readonly var localized = ref world.Get<SpriteLocalizedAsset>(spriteEntity);
         Assert.Equal(0, localized.LoadedGeneration);
     }
 

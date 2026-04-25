@@ -30,40 +30,40 @@ public sealed class Mod : IMod
         var camera = w.CreateEntity();
         var camTransform = Transform.Identity;
         camTransform.WorldPosition = new Vector2D<float>(Constants.CanvasWidth * 0.5f, Constants.CanvasHeight * 0.5f);
-        w.Components<Transform>().GetOrAdd(camera) = camTransform;
-        w.Components<Camera2D>().GetOrAdd(camera) = Camera2D.Create(new Vector2D<int>(Constants.CanvasWidth, Constants.CanvasHeight));
+        w.GetOrAdd<Transform>(camera) = camTransform;
+        w.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(Constants.CanvasWidth, Constants.CanvasHeight));
 
         var stateEntity = w.CreateEntity();
-        w.Components<GameState>().GetOrAdd(stateEntity) = new GameState
+        w.GetOrAdd<GameState>(stateEntity) = new GameState
         {
             Phase = Phase.Title,
             Lives = Constants.StartingLives,
             BallDocked = true
         };
         var controlEntity = w.CreateEntity();
-        w.Components<Control>().GetOrAdd(controlEntity);
+        w.GetOrAdd<Control>(controlEntity);
 
         static EntityId Sprite(World world)
         {
             var e = world.CreateEntity();
-            world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-            world.Components<Sprite>().GetOrAdd(e);
+            world.GetOrAdd<Transform>(e) = Transform.Identity;
+            world.GetOrAdd<Sprite>(e);
             return e;
         }
 
         var background = Sprite(w);
         var paddle = Sprite(w);
-        w.Components<Paddle>().GetOrAdd(paddle);
-        w.Components<PaddleBody>().GetOrAdd(paddle) = new PaddleBody { HalfWidth = 72f, HalfHeight = 10f };
-        w.Components<Trigger>().GetOrAdd(paddle) = new Trigger
+        w.GetOrAdd<Paddle>(paddle);
+        w.GetOrAdd<PaddleBody>(paddle) = new PaddleBody { HalfWidth = 72f, HalfHeight = 10f };
+        w.GetOrAdd<Trigger>(paddle) = new Trigger
         {
             Enabled = false,
             Shape = TriggerShapeKind.Rectangle,
             HalfExtents = new Vector2D<float>(72f, 10f)
         };
         var ball = Sprite(w);
-        w.Components<Velocity>().GetOrAdd(ball);
-        w.Components<Trigger>().GetOrAdd(ball) = new Trigger
+        w.GetOrAdd<Velocity>(ball);
+        w.GetOrAdd<Trigger>(ball) = new Trigger
         {
             Enabled = false,
             Shape = TriggerShapeKind.Circle,
@@ -81,9 +81,9 @@ public sealed class Mod : IMod
         for (var cy = 0; cy < Constants.Rows; cy++)
         {
             cells[cx, cy] = Sprite(w);
-            w.Components<Cell>().GetOrAdd(cells[cx, cy]) = new Cell { X = cx, Y = cy };
-            w.Components<BrickState>().GetOrAdd(cells[cx, cy]) = new BrickState { Active = false };
-            w.Components<Trigger>().GetOrAdd(cells[cx, cy]) = new Trigger
+            w.GetOrAdd<Cell>(cells[cx, cy]) = new Cell { X = cx, Y = cy };
+            w.GetOrAdd<BrickState>(cells[cx, cy]) = new BrickState { Active = false };
+            w.GetOrAdd<Trigger>(cells[cx, cy]) = new Trigger
             {
                 Enabled = false,
                 Shape = TriggerShapeKind.Rectangle,
@@ -94,8 +94,8 @@ public sealed class Mod : IMod
         static EntityId HudText(World world, float sortKey)
         {
             var e = world.CreateEntity();
-            world.Components<Transform>().GetOrAdd(e) = Transform.Identity;
-            ref var bt = ref world.Components<BitmapText>().GetOrAdd(e);
+            world.GetOrAdd<Transform>(e) = Transform.Identity;
+            ref var bt = ref world.GetOrAdd<BitmapText>(e);
             bt.Visible = false;
             bt.Content = " ";
             bt.SortKey = sortKey;
@@ -115,15 +115,15 @@ public sealed class Mod : IMod
             HudText(w, 456f));
 
         var amb = w.CreateEntity();
-        w.Components<AmbientLightSource>().GetOrAdd(amb) = new AmbientLightSource
+        w.GetOrAdd<AmbientLightSource>(amb) = new AmbientLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.22f, 0.24f, 0.32f),
             Intensity = 0.14f
         };
         var dirL = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(dirL) = Transform.Identity;
-        w.Components<DirectionalLightSource>().GetOrAdd(dirL) = new DirectionalLightSource
+        w.GetOrAdd<Transform>(dirL) = Transform.Identity;
+        w.GetOrAdd<DirectionalLightSource>(dirL) = new DirectionalLightSource
         {
             Active = true,
             Color = new Vector3D<float>(0.55f, 0.52f, 0.48f),
@@ -131,8 +131,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var spotE = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(spotE) = Transform.Identity;
-        w.Components<SpotLightSource>().GetOrAdd(spotE) = new SpotLightSource
+        w.GetOrAdd<Transform>(spotE) = Transform.Identity;
+        w.GetOrAdd<SpotLightSource>(spotE) = new SpotLightSource
         {
             Active = true,
             Radius = 560f,
@@ -143,8 +143,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var paddlePt = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(paddlePt) = Transform.Identity;
-        w.Components<PointLightSource>().GetOrAdd(paddlePt) = new PointLightSource
+        w.GetOrAdd<Transform>(paddlePt) = Transform.Identity;
+        w.GetOrAdd<PointLightSource>(paddlePt) = new PointLightSource
         {
             Active = true,
             Radius = 280f,
@@ -154,8 +154,8 @@ public sealed class Mod : IMod
             CastsShadow = false
         };
         var ballPt = w.CreateEntity();
-        w.Components<Transform>().GetOrAdd(ballPt) = Transform.Identity;
-        w.Components<PointLightSource>().GetOrAdd(ballPt) = new PointLightSource
+        w.GetOrAdd<Transform>(ballPt) = Transform.Identity;
+        w.GetOrAdd<PointLightSource>(ballPt) = new PointLightSource
         {
             Active = true,
             Radius = 140f,
@@ -195,7 +195,7 @@ public sealed class Mod : IMod
     private static void ApplyBrickGlobalPost(World world)
     {
         var e = world.CreateEntity();
-        world.Components<GlobalPostProcessSource>().GetOrAdd(e) = new GlobalPostProcessSource
+        world.GetOrAdd<GlobalPostProcessSource>(e) = new GlobalPostProcessSource
         {
             Active = true,
             Priority = 100,

@@ -11,13 +11,13 @@ namespace Cyberland.Demo;
 public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag, Transform>();
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private EntityId _volumeEntity;
     private bool _resolved;
-    private World _world;
-
     /// <summary>Creates the system.</summary>
     public HdrPostVolumeFillSystem(GameHostServices host) => _host = host;
 
@@ -40,24 +40,29 @@ public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
         if (!_resolved)
             return;
 
-        var world = _world;
         var renderer = _host.Renderer!;
         var frameBuffer = renderer.ActiveCameraViewportSize;
 
-        var player = archetype.RequireSingleEntityWith<PlayerTag>("player");
-        ref readonly var playerTransform = ref world.Components<Transform>().Get(player);
-        var t = frameBuffer.X > 0 ? playerTransform.WorldPosition.X / frameBuffer.X : 0f;
-        t = Math.Clamp(t, 0f, 1f);
-        var bloomGain = 2.35f - 1.85f * t;
+        var tNorm = 0f;
+        foreach (var chunk in archetype)
+        {
+            if (chunk.Count == 0)
+                continue;
+            tNorm = frameBuffer.X > 0 ? chunk.Column<Transform>()[0].WorldPosition.X / frameBuffer.X : 0f;
+            tNorm = Math.Clamp(tNorm, 0f, 1f);
+            break;
+        }
+
+        var bloomGain = 2.35f - 1.85f * tNorm;
 
         var cx = frameBuffer.X * 0.5f;
         var cy = frameBuffer.Y * 0.5f;
-        ref var tf = ref world.Components<Transform>().Get(_volumeEntity);
+        ref var tf = ref _world.Get<Transform>(_volumeEntity);
         tf.LocalPosition = new Vector2D<float>(cx, cy);
         tf.LocalRotationRadians = 0f;
         tf.LocalScale = new Vector2D<float>(1f, 1f);
 
-        ref var vol = ref world.Components<PostProcessVolumeSource>().Get(_volumeEntity);
+        ref var vol = ref _world.Get<PostProcessVolumeSource>(_volumeEntity);
         vol.Active = true;
         vol.Volume = new PostProcessVolume
         {

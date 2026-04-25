@@ -10,11 +10,11 @@ public sealed class PaddleMoveSystem : ISystem, IFixedUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly EntityId _stateEntity;
     private readonly EntityId _controlEntity;
     private readonly EntityId _paddleEntity;
-    private World _world;
-
     public PaddleMoveSystem(EntityId stateEntity, EntityId controlEntity, EntityId paddleEntity)
     {
         _stateEntity = stateEntity;
@@ -31,14 +31,13 @@ public sealed class PaddleMoveSystem : ISystem, IFixedUpdate
     public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
-        var world = _world;
-        ref var game = ref world.Components<GameState>().Get(_stateEntity);
+        ref var game = ref _world.Get<GameState>(_stateEntity);
         if (game.Phase != Phase.Playing)
             return;
 
-        ref var control = ref world.Components<Control>().Get(_controlEntity);
-        ref var paddleTransform = ref world.Components<Transform>().Get(_paddleEntity);
-        ref var paddleBody = ref world.Components<PaddleBody>().Get(_paddleEntity);
+        ref var control = ref _world.Get<Control>(_controlEntity);
+        ref var paddleTransform = ref _world.Get<Transform>(_paddleEntity);
+        ref var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
 
         var paddlePos = paddleTransform.LocalPosition;
         var move = Constants.PaddleMoveSpeed * fixedDeltaSeconds;

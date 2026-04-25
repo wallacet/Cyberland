@@ -42,7 +42,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     private string _scoreText = "0";
     private string _fpsText = "FPS —";
     private float _fpsSmoothed;
-    private World _world;
+    private World _world = null!;
 
     public VisualSyncSystem(GameHostServices host, EntityId stateEntity, EntityId background, EntityId paddle, EntityId ball, EntityId titleUi, EntityId gameOverPanel, EntityId gameOverBar, EntityId[] lives, EntityId[,] cells, HudTextIds texts)
     {
@@ -79,14 +79,12 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             throw new InvalidOperationException("VisualSyncSystem requires Host.Renderer during OnStart.");
         }
 
-        var sprites = world.Components<Sprite>();
-        InitializeStaticVisualState(sprites, renderer.WhiteTextureId, renderer.DefaultNormalTextureId);
+        InitializeStaticVisualState(_world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId);
     }
 
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
-        var world = _world;
         var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         if (frameSeconds > 1e-6f)
         {
@@ -95,56 +93,53 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             _fpsSmoothed = _fpsSmoothed <= 0f ? instant : _fpsSmoothed + (instant - _fpsSmoothed) * blend;
         }
 
-        ref readonly var s = ref world.Components<GameState>().Get(_stateEntity);
+        ref readonly var s = ref _world.Get<GameState>(_stateEntity);
         // Match the fixed Camera2D viewport (see Constants); late-phase reads of ActiveCameraViewportSize can
         // still be inconsistent with early arena layout on the first frame if keyed off swapchain fallback.
         var fb = new Vector2D<int>(Constants.CanvasWidth, Constants.CanvasHeight);
-        var transforms = world.Components<Transform>();
-        var sprites = world.Components<Sprite>();
-        var brickStates = world.Components<BrickState>();
-        var textStore = world.Components<BitmapText>();
+        var w = _world;
 
         if (_lastFbX != fb.X || _lastFbY != fb.Y)
         {
             _lastFbX = fb.X;
             _lastFbY = fb.Y;
-            UpdateResizeSensitivePositionsAndExtents(transforms, sprites, fb, s.Score);
+            UpdateResizeSensitivePositionsAndExtents(w, fb, s.Score);
         }
         else
         {
-            UpdateGameOverBarExtentOnly(sprites, fb, s.Score);
+            UpdateGameOverBarExtentOnly(w, fb, s.Score);
         }
 
-        UpdateBrickVisuals(sprites, brickStates, s);
+        UpdateBrickVisuals(w, s);
 
-        ref readonly var paddleBody = ref world.Components<PaddleBody>().Get(_paddle);
-        ref var paddleSpr = ref sprites.Get(_paddle);
+        ref readonly var paddleBody = ref w.Get<PaddleBody>(_paddle);
+        ref var paddleSpr = ref w.Get<Sprite>(_paddle);
         paddleSpr.Visible = s.Phase == Phase.Playing;
         paddleSpr.HalfExtents = new Vector2D<float>(paddleBody.HalfWidth, paddleBody.HalfHeight);
 
-        ref var ballSpr = ref sprites.Get(_ball);
+        ref var ballSpr = ref w.Get<Sprite>(_ball);
         ballSpr.Visible = s.Phase == Phase.Playing;
 
-        ref var titleSpr = ref sprites.Get(_titleUi);
+        ref var titleSpr = ref w.Get<Sprite>(_titleUi);
         titleSpr.Visible = s.Phase == Phase.Title;
-        ref var overPanelSpr = ref sprites.Get(_gameOverPanel);
+        ref var overPanelSpr = ref w.Get<Sprite>(_gameOverPanel);
         overPanelSpr.Visible = s.Phase is Phase.GameOver or Phase.Won;
-        ref var overBarSpr = ref sprites.Get(_gameOverBar);
+        ref var overBarSpr = ref w.Get<Sprite>(_gameOverBar);
         overBarSpr.Visible = s.Phase is Phase.GameOver or Phase.Won;
 
         var playing = s.Phase == Phase.Playing;
         for (var i = 0; i < Constants.StartingLives; i++)
         {
-            ref var spr = ref sprites.Get(_lives[i]);
+            ref var spr = ref w.Get<Sprite>(_lives[i]);
             spr.Visible = playing && i < s.Lives;
         }
 
-        SyncHudText(transforms, textStore, fb, in s);
+        SyncHudText(w, fb, in s);
     }
 
-    private void InitializeStaticVisualState(ComponentStore<Sprite> sprites, TextureId white, TextureId normal)
+    private void InitializeStaticVisualState(World w, TextureId white, TextureId normal)
     {
-        ref var bgSpr = ref sprites.Get(_background);
+        ref var bgSpr = ref w.Get<Sprite>(_background);
         bgSpr.Visible = true;
         bgSpr.Layer = (int)SpriteLayer.Background;
         bgSpr.SortKey = 0f;
@@ -153,7 +148,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         bgSpr.ColorMultiply = new Vector4D<float>(0.04f, 0.04f, 0.08f, 1f);
         bgSpr.EmissiveIntensity = 0f;
 
-        ref var paddleSpr = ref sprites.Get(_paddle);
+        ref var paddleSpr = ref w.Get<Sprite>(_paddle);
         paddleSpr.Layer = (int)SpriteLayer.World;
         paddleSpr.SortKey = 5f;
         paddleSpr.AlbedoTextureId = white;
@@ -162,7 +157,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         paddleSpr.EmissiveTint = new Vector3D<float>(0.4f, 0.9f, 1f);
         paddleSpr.EmissiveIntensity = 0.2f;
 
-        ref var ballSpr = ref sprites.Get(_ball);
+        ref var ballSpr = ref w.Get<Sprite>(_ball);
         ballSpr.HalfExtents = new Vector2D<float>(Constants.BallR, Constants.BallR);
         ballSpr.Layer = (int)SpriteLayer.World;
         ballSpr.SortKey = 8f;
@@ -172,7 +167,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         ballSpr.EmissiveTint = new Vector3D<float>(1f, 1f, 1f);
         ballSpr.EmissiveIntensity = 0.7f;
 
-        ref var titleSpr = ref sprites.Get(_titleUi);
+        ref var titleSpr = ref w.Get<Sprite>(_titleUi);
         titleSpr.Layer = (int)SpriteLayer.Ui;
         titleSpr.SortKey = 20f;
         titleSpr.AlbedoTextureId = white;
@@ -181,7 +176,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         titleSpr.EmissiveTint = new Vector3D<float>(0.5f, 0.8f, 1f);
         titleSpr.EmissiveIntensity = 0.5f;
 
-        ref var panelSpr = ref sprites.Get(_gameOverPanel);
+        ref var panelSpr = ref w.Get<Sprite>(_gameOverPanel);
         panelSpr.Layer = (int)SpriteLayer.Ui;
         panelSpr.SortKey = 200f;
         panelSpr.AlbedoTextureId = white;
@@ -191,7 +186,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         panelSpr.Transparent = true;
         panelSpr.EmissiveIntensity = 0f;
 
-        ref var barSpr = ref sprites.Get(_gameOverBar);
+        ref var barSpr = ref w.Get<Sprite>(_gameOverBar);
         barSpr.Layer = (int)SpriteLayer.Ui;
         barSpr.SortKey = 201f;
         barSpr.AlbedoTextureId = white;
@@ -202,7 +197,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
 
         for (var i = 0; i < Constants.StartingLives; i++)
         {
-            ref var life = ref sprites.Get(_lives[i]);
+            ref var life = ref w.Get<Sprite>(_lives[i]);
             life.HalfExtents = new Vector2D<float>(14f, 6f);
             life.Layer = (int)SpriteLayer.Ui;
             life.SortKey = 50f + i;
@@ -216,7 +211,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         for (var cx = 0; cx < Constants.Cols; cx++)
         for (var cy = 0; cy < Constants.Rows; cy++)
         {
-            ref var spr = ref sprites.Get(_cells[cx, cy]);
+            ref var spr = ref w.Get<Sprite>(_cells[cx, cy]);
             var hue = (cx + cy * 0.7f) * 0.08f;
             spr.Layer = (int)SpriteLayer.World;
             spr.SortKey = cx + cy * 0.1f;
@@ -228,7 +223,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         }
     }
 
-    private void UpdateBrickVisuals(ComponentStore<Sprite> sprites, ComponentStore<BrickState> brickStates, in GameState state)
+    private void UpdateBrickVisuals(World w, in GameState state)
     {
         if (_lastBrickW != state.BrickW || _lastBrickH != state.BrickH)
         {
@@ -238,7 +233,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             for (var cx = 0; cx < Constants.Cols; cx++)
             for (var cy = 0; cy < Constants.Rows; cy++)
             {
-                ref var spr = ref sprites.Get(_cells[cx, cy]);
+                ref var spr = ref w.Get<Sprite>(_cells[cx, cy]);
                 spr.HalfExtents = half;
             }
         }
@@ -247,56 +242,55 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         for (var cy = 0; cy < Constants.Rows; cy++)
         {
             var e = _cells[cx, cy];
-            ref var spr = ref sprites.Get(e);
-            spr.Visible = brickStates.TryGet(e, out var bs) && bs.Active;
+            ref var spr = ref w.Get<Sprite>(e);
+            spr.Visible = w.TryGet<BrickState>(e, out var bs) && bs.Active;
         }
     }
 
     private void UpdateResizeSensitivePositionsAndExtents(
-        ComponentStore<Transform> transforms,
-        ComponentStore<Sprite> sprites,
+        World w,
         Vector2D<int> fb,
         int score)
     {
-        ref var bgTransform = ref transforms.Get(_background);
+        ref var bgTransform = ref w.Get<Transform>(_background);
         bgTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
         bgTransform.WorldPosition = bgTransform.LocalPosition;
-        ref var bgSpr = ref sprites.Get(_background);
+        ref var bgSpr = ref w.Get<Sprite>(_background);
         bgSpr.HalfExtents = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
 
-        ref var titleTransform = ref transforms.Get(_titleUi);
+        ref var titleTransform = ref w.Get<Transform>(_titleUi);
         titleTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y - 56f);
         titleTransform.WorldPosition = titleTransform.LocalPosition;
-        ref var titleSpr = ref sprites.Get(_titleUi);
+        ref var titleSpr = ref w.Get<Sprite>(_titleUi);
         titleSpr.HalfExtents = new Vector2D<float>(fb.X * 0.4f, 18f);
 
-        ref var panelTransform = ref transforms.Get(_gameOverPanel);
+        ref var panelTransform = ref w.Get<Transform>(_gameOverPanel);
         panelTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.45f);
         panelTransform.WorldPosition = panelTransform.LocalPosition;
-        ref var panelSpr = ref sprites.Get(_gameOverPanel);
+        ref var panelSpr = ref w.Get<Sprite>(_gameOverPanel);
         panelSpr.HalfExtents = new Vector2D<float>(fb.X * 0.42f, 70f);
 
-        ref var barTransform = ref transforms.Get(_gameOverBar);
+        ref var barTransform = ref w.Get<Transform>(_gameOverBar);
         barTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.45f + 36f);
         barTransform.WorldPosition = barTransform.LocalPosition;
-        UpdateGameOverBarExtentOnly(sprites, fb, score);
+        UpdateGameOverBarExtentOnly(w, fb, score);
 
         for (var i = 0; i < Constants.StartingLives; i++)
         {
-            ref var lifeTransform = ref transforms.Get(_lives[i]);
+            ref var lifeTransform = ref w.Get<Transform>(_lives[i]);
             lifeTransform.LocalPosition = new Vector2D<float>(30f + i * 28f, fb.Y - 28f);
             lifeTransform.WorldPosition = lifeTransform.LocalPosition;
         }
     }
 
-    private void UpdateGameOverBarExtentOnly(ComponentStore<Sprite> sprites, Vector2D<int> fb, int score)
+    private void UpdateGameOverBarExtentOnly(World w, Vector2D<int> fb, int score)
     {
-        ref var bar = ref sprites.Get(_gameOverBar);
+        ref var bar = ref w.Get<Sprite>(_gameOverBar);
         var wBar = fb.X * 0.4f * Math.Min(1f, score / 600f);
         bar.HalfExtents = new Vector2D<float>(Math.Max(8f, wBar * 0.5f), 10f);
     }
 
-    private void SyncHudText(ComponentStore<Transform> transforms, ComponentStore<BitmapText> texts, Vector2D<int> fb, in GameState s)
+    private void SyncHudText(World w, Vector2D<int> fb, in GameState s)
     {
         if (s.Score != _lastScore)
         {
@@ -307,48 +301,47 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         var fpsWhole = _fpsSmoothed > 0f ? (int)MathF.Round(_fpsSmoothed) : -1;
         _fpsText = fpsWhole >= 0 ? $"FPS {fpsWhole}" : "FPS —";
 
-        SetTextVisible(texts, _texts.Title, false);
-        SetTextVisible(texts, _texts.HintTitle, false);
-        SetTextVisible(texts, _texts.GameOver, false);
-        SetTextVisible(texts, _texts.HintGameOver, false);
-        SetTextVisible(texts, _texts.PlayingScore, false);
-        SetTextVisible(texts, _texts.ScoreNum, false);
-        SetTextVisible(texts, _texts.Fps, false);
+        SetTextVisible(w, _texts.Title, false);
+        SetTextVisible(w, _texts.HintTitle, false);
+        SetTextVisible(w, _texts.GameOver, false);
+        SetTextVisible(w, _texts.HintGameOver, false);
+        SetTextVisible(w, _texts.PlayingScore, false);
+        SetTextVisible(w, _texts.ScoreNum, false);
+        SetTextVisible(w, _texts.Fps, false);
 
         if (s.Phase == Phase.Title)
         {
-            SetTextRow(transforms, texts, _texts.Title, _titleStyle, "demo.brick.title", true, 36f, fb.Y - 58f);
-            SetTextRow(transforms, texts, _texts.HintTitle, _hintStyle, "demo.brick.hint_title", true, 36f, 100f);
+            SetTextRow(w, _texts.Title, _titleStyle, "demo.brick.title", true, 36f, fb.Y - 58f);
+            SetTextRow(w, _texts.HintTitle, _hintStyle, "demo.brick.hint_title", true, 36f, 100f);
         }
         else if (s.Phase == Phase.Won)
         {
-            SetTextRow(transforms, texts, _texts.GameOver, _gameOverStyle, "demo.brick.you_win", true, fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
-            SetTextRow(transforms, texts, _texts.HintGameOver, _hintStyle, "demo.brick.hint_win", true, 36f, 118f);
+            SetTextRow(w, _texts.GameOver, _gameOverStyle, "demo.brick.you_win", true, fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
+            SetTextRow(w, _texts.HintGameOver, _hintStyle, "demo.brick.hint_win", true, 36f, 118f);
         }
         else if (s.Phase == Phase.GameOver)
         {
-            SetTextRow(transforms, texts, _texts.GameOver, _gameOverStyle, "demo.brick.game_over", true, fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
-            SetTextRow(transforms, texts, _texts.HintGameOver, _hintStyle, "demo.brick.hint_gameover", true, 36f, 118f);
+            SetTextRow(w, _texts.GameOver, _gameOverStyle, "demo.brick.game_over", true, fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
+            SetTextRow(w, _texts.HintGameOver, _hintStyle, "demo.brick.hint_gameover", true, 36f, 118f);
         }
         else if (s.Phase == Phase.Playing)
         {
-            SetTextRow(transforms, texts, _texts.PlayingScore, _hudStyle, "demo.brick.playing_score", true, 24f, fb.Y - 32f);
-            SetTextRow(transforms, texts, _texts.ScoreNum, _scoreStyle, _scoreText, false, 130f, fb.Y - 32f);
+            SetTextRow(w, _texts.PlayingScore, _hudStyle, "demo.brick.playing_score", true, 24f, fb.Y - 32f);
+            SetTextRow(w, _texts.ScoreNum, _scoreStyle, _scoreText, false, 130f, fb.Y - 32f);
         }
 
         if (fb.X > 0 && fb.Y > 0)
-            SetTextRow(transforms, texts, _texts.Fps, _fpsStyle, _fpsText, false, fb.X - 120f, fb.Y - 26f);
+            SetTextRow(w, _texts.Fps, _fpsStyle, _fpsText, false, fb.X - 120f, fb.Y - 26f);
     }
 
-    private static void SetTextVisible(ComponentStore<BitmapText> texts, EntityId id, bool visible)
+    private static void SetTextVisible(World w, EntityId id, bool visible)
     {
-        ref var bt = ref texts.Get(id);
+        ref var bt = ref w.Get<BitmapText>(id);
         bt.Visible = visible;
     }
 
     private static void SetTextRow(
-        ComponentStore<Transform> transforms,
-        ComponentStore<BitmapText> texts,
+        World w,
         EntityId id,
         TextStyle style,
         string content,
@@ -356,10 +349,10 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         float x,
         float y)
     {
-        ref var transform = ref transforms.Get(id);
+        ref var transform = ref w.Get<Transform>(id);
         transform.LocalPosition = new Vector2D<float>(x, y);
         transform.WorldPosition = transform.LocalPosition;
-        ref var bt = ref texts.Get(id);
+        ref var bt = ref w.Get<BitmapText>(id);
         bt.Visible = true;
         if (bt.Style != style)
             bt.Style = style;

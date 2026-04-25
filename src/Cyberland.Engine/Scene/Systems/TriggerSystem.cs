@@ -15,7 +15,7 @@ namespace Cyberland.Engine.Scene.Systems;
 /// The system runs pair detection and transition classification in parallel. Event ordering inside each entity buffer is not
 /// deterministic, but event membership is deterministic for the same world state.
 /// Pairs are skipped when either entity is in the other entity's transform ancestry chain.
-/// The cached <see cref="World"/> is used for <see cref="TriggerEvents"/> stores and snapshot merge/commit outside the trigger-only chunk query.
+/// The cached <see cref="World"/> is used for component access, hierarchy, and liveness checks.
 /// <para>
 /// With the stock host, this system is registered in the post-mod engine block. Mod fixed-update systems run first,
 /// then trigger overlap is computed from those updated transforms. This makes trigger events reflect post-motion poses
@@ -70,7 +70,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         _snapshots.Clear();
         _activeThisTick.Clear();
 
-        var transformStore = world.Components<Transform>();
+        var w = _world;
 
         foreach (var chunk in query)
         {
@@ -79,7 +79,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             for (var i = 0; i < chunk.Count; i++)
             {
                 var entity = entities[i];
-                if (!transformStore.TryGet(entity, out var transform))
+                if (!w.TryGet<Transform>(entity, out var transform))
                     continue;
 
                 var trigger = triggers[i];
@@ -88,22 +88,22 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             }
         }
 
-        var triggerEventsStore = world.Components<TriggerEvents>();
         for (var i = 0; i < _snapshots.Count; i++)
         {
             var entity = _snapshots[i].Entity;
-            ref var triggerEvents = ref triggerEventsStore.GetOrAdd(entity);
+            ref var triggerEvents = ref w.GetOrAdd<TriggerEvents>(entity);
             triggerEvents.Events ??= new List<TriggerEvent>(4);
         }
     }
 
     private void ClearAllEventBuffers(World world)
     {
-        var triggerEventsStore = world.Components<TriggerEvents>();
+        _ = world;
+        var w = _world;
         for (var idx = 0; idx < _snapshots.Count; idx++)
         {
             var entity = _snapshots[idx].Entity;
-            ref var ev = ref triggerEventsStore.Get(entity);
+            ref var ev = ref w.Get<TriggerEvents>(entity);
             ev.Events?.Clear();
         }
     }
@@ -115,8 +115,6 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             return;
 
         var overlapBatches = new ConcurrentBag<List<TriggerPairKey>>();
-        var transformStore = world.Components<Transform>();
-
         Parallel.ForEach(Partitioner.Create(0, _snapshots.Count), parallelOptions, range =>
         {
             var localPairs = new List<TriggerPairKey>(64);
@@ -132,7 +130,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
                     if (!b.Trigger.Enabled)
                         continue;
 
-                    if (SharesTransformHierarchy(world, transformStore, a.Entity, b.Entity))
+                    if (SharesTransformHierarchy(world, a.Entity, b.Entity))
                         continue;
                     if (!PassesLayerFilter(in a, in b))
                         continue;
@@ -214,7 +212,8 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
 
     private void CommitEventsToBuffers(World world)
     {
-        var triggerEventsStore = world.Components<TriggerEvents>();
+        _ = world;
+        var w = _world;
         _eventEntities.Clear();
         foreach (var kv in _mergedEvents)
         {
@@ -226,7 +225,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         {
             var entity = _eventEntities[idx];
             var events = _mergedEvents[entity];
-            ref var triggerEvents = ref triggerEventsStore.Get(entity);
+            ref var triggerEvents = ref w.Get<TriggerEvents>(entity);
             triggerEvents.Events!.AddRange(events);
         }
     }
@@ -261,18 +260,16 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
 
     private static bool SharesTransformHierarchy(
         World world,
-        ComponentStore<Transform> transformStore,
         EntityId a,
         EntityId b) =>
-        IsInHierarchy(world, transformStore, a, b) || IsInHierarchy(world, transformStore, b, a);
+        IsInHierarchy(world, a, b) || IsInHierarchy(world, b, a);
 
     private static bool IsInHierarchy(
         World world,
-        ComponentStore<Transform> transformStore,
         EntityId entity,
         EntityId maybeAncestor)
     {
-        if (!transformStore.TryGet(entity, out var transform))
+        if (!world.TryGet<Transform>(entity, out var transform))
             return false;
 
         var parent = transform.Parent;
@@ -282,7 +279,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             if (parent == maybeAncestor)
                 return true;
 
-            if (!transformStore.TryGet(parent, out var parentTransform))
+            if (!world.TryGet<Transform>(parent, out var parentTransform))
                 return false;
 
             parent = parentTransform.Parent;

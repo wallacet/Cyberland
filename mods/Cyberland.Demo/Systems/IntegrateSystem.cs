@@ -8,16 +8,15 @@ namespace Cyberland.Demo;
 
 /// <summary>
 /// Places the player once in <see cref="OnStart"/> from the initial framebuffer size, then integrates <see cref="Transform"/>
-/// from <see cref="Velocity"/> and clamps to the playfield each fixed tick. Sequential fixed update (single player entity).
+/// from <see cref="Velocity"/> and clamps to the playfield each fixed tick. Chunk iteration is via
+/// <see cref="SystemQuerySpec.All{PlayerTag,Transform,Velocity}()"/> (single player row).
 /// </summary>
 public sealed class IntegrateSystem : ISystem, IFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag, Transform, Velocity>();
 
     private readonly GameHostServices _host;
-    private World _world;
-    private EntityId _player;
 
     /// <summary>False until <see cref="OnStart"/> places the player.</summary>
     private bool _initialized;
@@ -29,38 +28,49 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
-        _world = world;
-        _ = archetype;
+        _ = world;
         _ = _host.RendererRequired;
-        _player = archetype.RequireSingleEntityWith<PlayerTag>("player");
-
-        ref var transform = ref world.Components<Transform>().Get(_player);
+        _ = archetype.RequireSingleEntityWith<PlayerTag>("player");
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         var p = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.55f, fb.Y / 2f), fb);
-        transform.LocalPosition = p;
-        transform.WorldPosition = p;
+        foreach (var chunk in archetype)
+        {
+            var transforms = chunk.Column<Transform>();
+            for (var i = 0; i < chunk.Count; i++)
+            {
+                ref var transform = ref transforms[i];
+                transform.LocalPosition = p;
+                transform.WorldPosition = p;
+            }
+        }
+
         _initialized = true;
     }
 
     public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
-        _ = archetype;
         if (!_initialized)
             return;
 
-        var world = _world;
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
-        ref var transform = ref world.Components<Transform>().Get(_player);
-        ref var vel = ref world.Components<Velocity>().Get(_player);
+        foreach (var chunk in archetype)
+        {
+            var transforms = chunk.Column<Transform>();
+            var vels = chunk.Column<Velocity>();
+            for (var i = 0; i < chunk.Count; i++)
+            {
+                ref var transform = ref transforms[i];
+                ref var vel = ref vels[i];
+                var pos = transform.LocalPosition;
+                pos.X += vel.X * fixedDeltaSeconds;
+                pos.Y += vel.Y * fixedDeltaSeconds;
 
-        var pos = transform.LocalPosition;
-        pos.X += vel.X * fixedDeltaSeconds;
-        pos.Y += vel.Y * fixedDeltaSeconds;
-
-        var h = Constants.SpriteHalfExtent;
-        pos.X = Math.Clamp(pos.X, h, fb.X - h);
-        pos.Y = Math.Clamp(pos.Y, h, fb.Y - h);
-        transform.LocalPosition = pos;
-        transform.WorldPosition = pos;
+                var h = Constants.SpriteHalfExtent;
+                pos.X = Math.Clamp(pos.X, h, fb.X - h);
+                pos.Y = Math.Clamp(pos.Y, h, fb.Y - h);
+                transform.LocalPosition = pos;
+                transform.WorldPosition = pos;
+            }
+        }
     }
 }

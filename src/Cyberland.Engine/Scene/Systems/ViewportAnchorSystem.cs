@@ -32,14 +32,13 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = deltaSeconds;
-        var world = _world;
         var viewport = _host.CameraRuntimeState.ViewportSizeWorld;
         if ((viewport.X <= 0 || viewport.Y <= 0) && _host.Renderer is not null)
             viewport = _host.Renderer.ActiveCameraViewportSize;
         if (viewport.X <= 0 || viewport.Y <= 0)
             return;
 
-        var sprites = world.Components<Sprite>();
+        var w = _world;
         foreach (var chunk in archetype)
         {
             var ents = chunk.Entities;
@@ -59,9 +58,9 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
                 transform.LocalPosition = p;
                 transform.WorldPosition = p;
 
-                if (a.SyncSpriteHalfExtentsToViewport && sprites.Contains(e))
+                if (a.SyncSpriteHalfExtentsToViewport && w.Has<Sprite>(e))
                 {
-                    ref var s = ref sprites.Get(e);
+                    ref var s = ref w.Get<Sprite>(e);
                     s.HalfExtents = new Vector2D<float>(viewport.X * 0.5f, viewport.Y * 0.5f);
                 }
             }

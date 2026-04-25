@@ -11,11 +11,11 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
 
+
+    private World _world = null!;
     private readonly GameHostServices _host;
     private readonly EntityId _session;
     private readonly SystemScheduler _scheduler;
-    private World _world = null!;
-
     public InputSystem(GameHostServices host, EntityId session, SystemScheduler scheduler) { _host = host; _session = session; _scheduler = scheduler; }
 
     public void OnStart(World world, ChunkQueryAll archetype)
@@ -39,8 +39,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     {
         _ = archetype;
         _ = deltaSeconds;
-        var world = _world;
-        ref var c = ref world.Components<Control>().Get(_session);
+        ref var c = ref _world.Get<Control>(_session);
         // Only reset per-frame movement; StartMatch must survive until Simulation consumes it — at high refresh several
         // Render ticks can occur before the fixed accumulator reaches a substep, and clearing the whole struct would drop the latch.
         c.PaddleUp = false;
@@ -53,7 +52,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
             _scheduler.SetEnabled("cyberland.demo.pong/visual-sync", !syncOn);
         if (input.IsDown("cyberland.common/quit")) { renderer.RequestClose?.Invoke(); return; }
 
-        ref var st = ref world.Components<State>().Get(_session);
+        ref var st = ref _world.Get<State>(_session);
         switch (st.Phase)
         {
             case Phase.Title: if (input.WasPressed("cyberland.demo.pong/start_match") || input.WasPressed("cyberland.common/start")) c.StartMatch = true; break;
