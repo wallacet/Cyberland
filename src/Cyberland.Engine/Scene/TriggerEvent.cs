@@ -12,6 +12,11 @@ namespace Cyberland.Engine.Scene;
 public struct TriggerEvent
 {
     /// <summary>
+    /// The entity that received this event.
+    /// </summary>
+    public EntityId Self;
+
+    /// <summary>
     /// The other trigger entity involved in this transition.
     /// </summary>
     public EntityId Other;
@@ -20,4 +25,9 @@ public struct TriggerEvent
     /// Enter/stay/exit transition kind for this entity against <see cref="Other"/>.
     /// </summary>
     public TriggerEventKind Kind;
+
+    /// <summary>
+    /// The other entity's trigger layer bit used when this event was generated.
+    /// </summary>
+    public uint OtherLayerMask;
 }

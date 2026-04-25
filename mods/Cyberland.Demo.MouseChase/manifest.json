@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.mousechase",
+  "name": "Cyberland Mouse Chase (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.MouseChase.dll",
+  "contentRoot": "Content",
+  "loadOrder": 23,
+  "disabled": true
+}

@@ -219,8 +219,10 @@ public sealed class SilkInputService : IInputService, IDisposable
         _mouseDelta = _hasMousePosition ? now - _mousePosition : Vector2.Zero;
         _mousePosition = now;
         _hasMousePosition = true;
-
-        _mouseWheelDelta = Vector2.Zero;
+        var wheels = mouse.ScrollWheels;
+        _mouseWheelDelta = wheels.Count > 0
+            ? new Vector2(wheels[0].X, wheels[0].Y)
+            : Vector2.Zero;
     }
 
     private Vector2 ConvertMousePosition(Vector2 swapchainPosition, CoordinateSpace space)

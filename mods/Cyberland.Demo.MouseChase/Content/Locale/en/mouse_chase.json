@@ -1,0 +1,11 @@
+{
+  "mousechase.round.title": "Mouse Chase Tutorial Run",
+  "mousechase.round.won": "Extraction complete",
+  "mousechase.round.lost": "Courier down",
+  "mousechase.round.restart": "Press R or Enter to restart.",
+  "mousechase.tutorial.enter": "Step 1: Enter the green zone.",
+  "mousechase.tutorial.stay": "Step 2: Hold inside the blue zone to build score.",
+  "mousechase.tutorial.exit": "Step 3: Cross the red zone and exit it once.",
+  "mousechase.tutorial.locale": "Step 4: Collect the localized shard sprite.",
+  "mousechase.tutorial.complete": "Tutorial complete: hit target score, then enter the bright yellow gate zone at top-right."
+}

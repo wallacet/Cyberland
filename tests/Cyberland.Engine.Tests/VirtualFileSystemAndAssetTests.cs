@@ -1,4 +1,8 @@
 using Cyberland.Engine.Assets;
+using Cyberland.Engine.Rendering;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using TextureId = System.UInt32;
 
 namespace Cyberland.Engine.Tests;
 
@@ -107,6 +111,43 @@ public sealed class VirtualFileSystemAndAssetTests
         var vfs = new VirtualFileSystem();
         var assets = new AssetManager(vfs);
         await Assert.ThrowsAsync<FileNotFoundException>(() => assets.LoadBytesAsync("nope.bin"));
+    }
+
+    [Fact]
+    public void AssetManager_LoadBytes_throws_when_missing()
+    {
+        var assets = new AssetManager(new VirtualFileSystem());
+        Assert.Throws<FileNotFoundException>(() => assets.LoadBytes("nope.bin"));
+    }
+
+    [Fact]
+    public void AssetManager_LoadBytes_and_LoadTexture_roundtrip()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb asset sync " + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+        try
+        {
+            using (var image = new Image<Rgba32>(1, 1))
+            {
+                image[0, 0] = new Rgba32(10, 20, 30, 255);
+                image.SaveAsPng(Path.Combine(root, "1.png"));
+            }
+
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var assets = new AssetManager(vfs);
+            var bytes = assets.LoadBytes("1.png");
+            Assert.True(bytes.Length > 0);
+
+            var renderer = new RecordingRenderer();
+            var id = assets.LoadTexture("1.png", renderer);
+            Assert.NotEqual(TextureId.MaxValue, id);
+            Assert.Equal(1, renderer.RegisterTextureRgbaCallCount);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     [Fact]

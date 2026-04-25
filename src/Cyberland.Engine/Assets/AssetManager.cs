@@ -32,10 +32,27 @@ public sealed class AssetManager
         }
     }
 
-    /// <summary>Load a texture from the VFS into the renderer.</summary>
-    public async Task<TextureId> LoadTextureAsync(string path, IRenderer renderer, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Reads the file synchronously. Prefer <see cref="LoadBytesAsync"/> in async call chains; use this for hot paths that must
+    /// stay on the current thread (for example <see cref="Rendering.IRenderer.RegisterTextureRgba"/> on the window thread).
+    /// </summary>
+    public byte[] LoadBytes(string path)
     {
-        var bytes = await LoadBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        if (!_vfs.TryOpenRead(path, out var stream))
+            throw new FileNotFoundException(path);
+
+        using (stream)
+        {
+            using var ms = new MemoryStream((int)Math.Min(stream.Length, int.MaxValue));
+            stream.CopyTo(ms);
+            return ms.ToArray();
+        }
+    }
+
+    /// <summary>Load a texture from the VFS into the renderer on the calling thread.</summary>
+    public TextureId LoadTexture(string path, IRenderer renderer)
+    {
+        var bytes = LoadBytes(path);
         using var image = Image.Load<Rgba32>(bytes);
         var rgba = new byte[image.Width * image.Height * 4];
         image.CopyPixelDataTo(rgba);

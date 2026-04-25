@@ -1,0 +1,11 @@
+{
+  "mousechase.round.title": "Carrera del Raton",
+  "mousechase.round.won": "Extraccion completa",
+  "mousechase.round.lost": "Mensajero caido",
+  "mousechase.round.restart": "Pulsa R o Enter para reiniciar.",
+  "mousechase.tutorial.enter": "Paso 1: Entra en la zona verde.",
+  "mousechase.tutorial.stay": "Paso 2: Permanece en la zona azul para sumar.",
+  "mousechase.tutorial.exit": "Paso 3: Cruza la zona roja y sal de ella una vez.",
+  "mousechase.tutorial.locale": "Paso 4: Recoge el sprite localizado.",
+  "mousechase.tutorial.complete": "Tutorial completo: alcanza la puntuacion objetivo y entra en la zona de puerta amarilla brillante arriba a la derecha."
+}

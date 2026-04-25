@@ -893,4 +893,42 @@ public sealed class SceneSystemTests
         Assert.NotNull(EventSet(w, chainChild));
         Assert.NotNull(EventSet(w, unrelated));
     }
+
+    [Fact]
+    public void Trigger_layers_filter_overlaps_and_emit_self_payload()
+    {
+        var w = new World();
+        var a = AddTriggerEntity(w, 0f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 8f,
+            LayerMask = 1u,
+            CollidesWithMask = 2u
+        });
+        var b = AddTriggerEntity(w, 2f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 8f,
+            LayerMask = 2u,
+            CollidesWithMask = 1u
+        });
+        var blocked = AddTriggerEntity(w, 2f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 8f,
+            LayerMask = 4u,
+            CollidesWithMask = 1u
+        });
+
+        var sys = new TriggerSystem();
+        StartEcs(sys, w);
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+
+        var events = w.Components<TriggerEvents>().Get(a).Events!;
+        Assert.Contains(events, ev => ev.Self == a && ev.Other == b && ev.OtherLayerMask == 2u);
+        Assert.DoesNotContain(events, ev => ev.Other == blocked);
+    }
 }

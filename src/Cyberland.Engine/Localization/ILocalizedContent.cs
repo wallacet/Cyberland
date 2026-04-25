@@ -42,10 +42,20 @@ public interface ILocalizedContent
     Task<byte[]?> TryLoadLocalizedBytesAsync(string canonicalContentPath,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Loads a texture for the resolved localized path, or <c>null</c> if missing.</summary>
+    /// <summary>Loads a texture for the resolved localized path, or <see cref="TextureId.MaxValue"/> if missing.</summary>
     Task<TextureId> TryLoadLocalizedTextureAsync(string canonicalContentPath,
         IRenderer renderer,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Loads a texture for the resolved localized path on the <strong>calling</strong> thread. Use this when registering into
+    /// <see cref="IRenderer"/> from the host render / window thread; the async path may otherwise continue on a background thread.
+    /// </summary>
+    /// <returns>
+    /// <see cref="TextureId.MaxValue"/> if no file exists. Otherwise a registered id from
+    /// <see cref="IRenderer.RegisterTextureRgba"/> (or <see cref="TextureId.MaxValue"/> on decode/upload failure, matching async behavior).
+    /// </returns>
+    TextureId TryLoadLocalizedTexture(string canonicalContentPath, IRenderer renderer);
 
     /// <summary>Opens a stream for the resolved localized path, or <c>null</c> if missing.</summary>
     Stream? TryOpenLocalizedRead(string canonicalContentPath);

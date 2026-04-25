@@ -17,11 +17,9 @@ namespace Cyberland.Engine.Scene.Systems;
 /// Pairs are skipped when either entity is in the other entity's transform ancestry chain.
 /// The cached <see cref="World"/> is used for <see cref="TriggerEvents"/> stores and snapshot merge/commit outside the trigger-only chunk query.
 /// <para>
-/// With the stock host, this system is registered in the <strong>pre-mod</strong> engine block, so mod
-/// <see cref="IParallelFixedUpdate"/> and <see cref="IFixedUpdate"/> code runs <strong>after</strong> trigger detection for that fixed substep.
-/// Events in <see cref="TriggerEvents"/> were computed from <see cref="Transform"/>s at the start of the substep (plus earlier engine systems
-/// in the pre-mod list). If gameplay moves a body in the <strong>same</strong> substep and you need overlap against that <strong>new</strong> pose,
-/// use geometric tests in your gameplay system instead of trigger events, or a dedicated pre-trigger sim path in the engine.
+/// With the stock host, this system is registered in the post-mod engine block. Mod fixed-update systems run first,
+/// then trigger overlap is computed from those updated transforms. This makes trigger events reflect post-motion poses
+/// from the same fixed substep without a separate gameplay-side overlap pass.
 /// </para>
 /// </remarks>
 [RunAfter("cyberland.engine/transform2d")]
@@ -136,6 +134,8 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
 
                     if (SharesTransformHierarchy(world, transformStore, a.Entity, b.Entity))
                         continue;
+                    if (!PassesLayerFilter(in a, in b))
+                        continue;
 
                     if (!Overlaps(in a, in b))
                         continue;
@@ -157,6 +157,9 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
     private void BuildMergedEvents(ParallelOptions parallelOptions)
     {
         _mergedEvents.Clear();
+        var snapshotByEntity = new Dictionary<EntityId, TriggerSnapshot>(_snapshots.Count);
+        for (var i = 0; i < _snapshots.Count; i++)
+            snapshotByEntity[_snapshots[i].Entity] = _snapshots[i];
 
         var localBuckets = new ConcurrentBag<Dictionary<EntityId, List<TriggerEvent>>>();
 
@@ -172,7 +175,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
                 var kind = _previousOverlaps.Contains(pair)
                     ? TriggerEventKind.OnTriggerStay
                     : TriggerEventKind.OnTriggerEnter;
-                AppendMirrored(local, pair, kind);
+                AppendMirrored(local, snapshotByEntity, pair, kind);
                 return local;
             },
             local => localBuckets.Add(local));
@@ -189,7 +192,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
                 if (_currentOverlaps.Contains(pair))
                     return local;
 
-                AppendMirrored(local, pair, TriggerEventKind.OnTriggerExit);
+                AppendMirrored(local, snapshotByEntity, pair, TriggerEventKind.OnTriggerExit);
                 return local;
             },
             local => localBuckets.Add(local));
@@ -230,13 +233,16 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
 
     private static void AppendMirrored(
         Dictionary<EntityId, List<TriggerEvent>> local,
+        Dictionary<EntityId, TriggerSnapshot> snapshotByEntity,
         TriggerPairKey pair,
         TriggerEventKind kind)
     {
         var a = pair.A;
         var b = pair.B;
-        Append(local, a, new TriggerEvent { Other = b, Kind = kind });
-        Append(local, b, new TriggerEvent { Other = a, Kind = kind });
+        var aLayer = NormalizeLayer(snapshotByEntity[a].Trigger.LayerMask);
+        var bLayer = NormalizeLayer(snapshotByEntity[b].Trigger.LayerMask);
+        Append(local, a, new TriggerEvent { Self = a, Other = b, Kind = kind, OtherLayerMask = bLayer });
+        Append(local, b, new TriggerEvent { Self = b, Other = a, Kind = kind, OtherLayerMask = aLayer });
     }
 
     private static void Append(
@@ -285,6 +291,18 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
 
         return false;
     }
+
+    private static bool PassesLayerFilter(in TriggerSnapshot a, in TriggerSnapshot b)
+    {
+        var aLayer = NormalizeLayer(a.Trigger.LayerMask);
+        var bLayer = NormalizeLayer(b.Trigger.LayerMask);
+        var aMask = NormalizeMask(a.Trigger.CollidesWithMask);
+        var bMask = NormalizeMask(b.Trigger.CollidesWithMask);
+        return (aMask & bLayer) != 0 && (bMask & aLayer) != 0;
+    }
+
+    private static uint NormalizeLayer(uint layerMask) => layerMask == 0 ? 1u : layerMask;
+    private static uint NormalizeMask(uint collidesWithMask) => collidesWithMask == 0 ? uint.MaxValue : collidesWithMask;
 
     private static bool Overlaps(in TriggerSnapshot a, in TriggerSnapshot b)
     {

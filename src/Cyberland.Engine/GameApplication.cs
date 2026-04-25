@@ -141,7 +141,6 @@ public sealed class GameApplication : IDisposable
         try
         {
             _scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
-            _scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
             _scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
             _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
 
@@ -159,6 +158,8 @@ public sealed class GameApplication : IDisposable
                 _host,
                 excludedSet);
 
+            _scheduler.RegisterParallel("cyberland.engine/camera-follow", new CameraFollowSystem());
+            _scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
             // Publish camera runtime state before viewport anchors so gameplay/layout reads deterministic ECS-owned
             // camera data instead of renderer queue snapshots.
             _scheduler.RegisterParallel("cyberland.engine/camera-submit", new CameraSubmitSystem(_host));
@@ -171,6 +172,7 @@ public sealed class GameApplication : IDisposable
             _scheduler.RegisterSequential("cyberland.engine/global-post-process", new GlobalPostProcessSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/post-process-volumes", new PostProcessVolumeSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
+            _scheduler.RegisterSequential("cyberland.engine/sprite-localized-assets", new SpriteLocalizedAssetSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem(_host));

@@ -5,12 +5,12 @@
 param(
     # Use non-mandatory with explicit throw so missing -Demo does not open an interactive prompt in CI / tasks.
     [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet("hdr", "snake", "pong", "brick")]
+    [ValidateSet("hdr", "snake", "pong", "brick", "mousechase")]
     [string] $Demo
 )
 
 if ([string]::IsNullOrEmpty($Demo)) {
-    throw "Required: -Demo (hdr | snake | pong | brick). Example: .\Run-CyberlandDemo-Test.ps1 -Demo hdr"
+    throw "Required: -Demo (hdr | snake | pong | brick | mousechase). Example: .\Run-CyberlandDemo-Test.ps1 -Demo hdr"
 }
 
 Set-StrictMode -Version Latest
@@ -24,6 +24,7 @@ $relManifest = switch ($Demo) {
     "snake" { "mods\Cyberland.Demo.Snake\manifest.json" }
     "pong" { "mods\Cyberland.Demo.Pong\manifest.json" }
     "brick" { "mods\Cyberland.Demo.BrickBreaker\manifest.json" }
+    "mousechase" { "mods\Cyberland.Demo.MouseChase\manifest.json" }
 }
 
 $manifestPath = Join-Path $repoRoot $relManifest

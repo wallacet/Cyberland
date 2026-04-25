@@ -219,7 +219,7 @@ public sealed class KeyBindingAndInputTests
                 Enabled = true,
                 BackgroundColor = new Vector4D<float>(0f, 0f, 0f, 1f)
             });
-        var service = CreateService(pressedKeys, pressedButtons, () => pos, renderer.Object);
+        var service = CreateService(pressedKeys, pressedButtons, () => pos, renderer: renderer.Object);
         service.Bindings.SetBindings("look_x", new[] { new InputBinding(InputControl.MouseAxisControl(MouseAxis.DeltaX)) });
 
         service.BeginFrame();
@@ -242,6 +242,23 @@ public sealed class KeyBindingAndInputTests
         Assert.Equal(195f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.PositionY)));
         Assert.Equal(-5f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.DeltaY)));
         Assert.Equal(0f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.WheelX)));
+    }
+
+    [Fact]
+    public void SilkInputService_reports_mouse_wheel_delta_from_primary_wheel()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var wheel = new[] { new ScrollWheel(0f, 0f) };
+        var service = CreateService(pressedKeys, pressedButtons, () => new Vector2(0f, 0f), () => wheel);
+        service.Bindings.SetBindings("zoom", new[] { new InputBinding(InputControl.MouseAxisControl(MouseAxis.WheelY)) });
+        service.BeginFrame();
+        Assert.Equal(Vector2.Zero, service.MouseWheelDelta);
+
+        wheel = new[] { new ScrollWheel(0f, -1f) };
+        service.BeginFrame();
+        Assert.Equal(new Vector2(0f, -1f), service.MouseWheelDelta);
+        Assert.Equal(-1f, service.ReadAxis("zoom"));
     }
 
     [Fact]
@@ -325,6 +342,7 @@ public sealed class KeyBindingAndInputTests
         HashSet<Key> pressedKeys,
         HashSet<MouseButton> pressedButtons,
         Func<Vector2> mousePosition,
+        Func<IReadOnlyList<ScrollWheel>>? mouseWheels = null,
         IRenderer? renderer = null)
     {
         var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
@@ -333,6 +351,7 @@ public sealed class KeyBindingAndInputTests
         var mouse = new Mock<IMouse>(MockBehavior.Strict);
         mouse.Setup(x => x.IsButtonPressed(It.IsAny<MouseButton>())).Returns<MouseButton>(button => pressedButtons.Contains(button));
         mouse.SetupGet(x => x.Position).Returns(() => mousePosition());
+        mouse.SetupGet(x => x.ScrollWheels).Returns(() => mouseWheels?.Invoke() ?? Array.Empty<ScrollWheel>());
 
         var input = new Mock<IInputContext>(MockBehavior.Strict);
         input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });

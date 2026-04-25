@@ -1,3 +1,4 @@
+using System.Text;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
@@ -369,6 +370,40 @@ public sealed class LocalizedContentTests
         var textureId = await lc.TryLoadLocalizedTextureAsync("Textures/missing.png", renderer);
         Assert.Equal(TextureId.MaxValue, textureId);
         Assert.Equal(0, renderer.RegisterTextureRgbaCallCount);
+    }
+
+    [Fact]
+    public void LocalizedContent_TryLoadLocalizedTexture_missing_matches_async()
+    {
+        var lc = new LocalizedContent(new LocalizationManager(), new VirtualFileSystem(), "en");
+        var renderer = new RecordingRenderer();
+        var textureId = lc.TryLoadLocalizedTexture("Textures/missing.png", renderer);
+        Assert.Equal(TextureId.MaxValue, textureId);
+        Assert.Equal(0, renderer.RegisterTextureRgbaCallCount);
+    }
+
+    [Fact]
+    public void LocalizedContent_TryLoadLocalizedTexture_unreadable_bytes_match_missing()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-loc-tex-bad-" + Guid.NewGuid());
+        Directory.CreateDirectory(Path.Combine(root, "Textures"));
+        var badPng = Path.Combine(root, "Textures", "bad.png");
+        File.WriteAllText(badPng, "not a real png", Encoding.UTF8);
+
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var lc = new LocalizedContent(new LocalizationManager(), vfs, "en");
+            var renderer = new RecordingRenderer();
+            var textureId = lc.TryLoadLocalizedTexture("Textures/bad.png", renderer);
+            Assert.Equal(TextureId.MaxValue, textureId);
+            Assert.Equal(0, renderer.RegisterTextureRgbaCallCount);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     [Fact]

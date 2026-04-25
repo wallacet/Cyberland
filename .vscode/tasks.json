@@ -644,6 +644,34 @@
       }
     },
     {
+      "label": "Cyberland: Test demo (Mouse Chase)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "mousechase"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo.MouseChase, clears artifacts/, runs the host until you exit, then disables the mod again.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
       "label": "build",
       "command": "dotnet",
       "type": "process",

@@ -38,6 +38,16 @@ public struct Trigger : IComponent
     public Vector2D<float> HalfExtents;
 
     /// <summary>
+    /// Layer bit used for filtering. Zero means default layer bit 0.
+    /// </summary>
+    public uint LayerMask;
+
+    /// <summary>
+    /// Bitmask of layers this trigger can collide with. Zero means all layers.
+    /// </summary>
+    public uint CollidesWithMask;
+
+    /// <summary>
     /// Default enabled point trigger at the entity's world position.
     /// </summary>
     public static Trigger DefaultPoint
@@ -49,6 +59,8 @@ public struct Trigger : IComponent
             t.Shape = TriggerShapeKind.Point;
             t.Radius = 0f;
             t.HalfExtents = default;
+            t.LayerMask = 0;
+            t.CollidesWithMask = 0;
             return t;
         }
     }

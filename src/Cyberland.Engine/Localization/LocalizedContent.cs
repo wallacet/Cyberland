@@ -58,8 +58,8 @@ public sealed class LocalizedContent : ILocalizedContent
             if (!_assets.FileSystem.Exists(path))
                 continue;
 
-            // Same IO as <see cref="MergeStringTableAsync"/>, but synchronous for <c>IMod.OnLoad</c> (blocking wait on the load thread).
-            var bytes = _assets.LoadBytesAsync(path, default).GetAwaiter().GetResult();
+            // Same bytes as <see cref="MergeStringTableAsync"/>, but synchronous for <c>IMod.OnLoad</c> (no async hop).
+            var bytes = _assets.LoadBytes(path);
             Strings.MergeJson(bytes);
         }
     }
@@ -93,15 +93,33 @@ public sealed class LocalizedContent : ILocalizedContent
     }
 
     /// <inheritdoc />
-    public async Task<TextureId> TryLoadLocalizedTextureAsync(string canonicalContentPath,
+    public Task<TextureId> TryLoadLocalizedTextureAsync(string canonicalContentPath,
         IRenderer renderer,
         CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Defer to synchronous registration so the caller’s thread (typically the window/render thread) runs
+        // IRenderer.RegisterTextureRgba. Async IO + ConfigureAwait(false) previously risked pool-thread upload (unsafe for Vulkan).
+        return Task.FromResult(TryLoadLocalizedTexture(canonicalContentPath, renderer));
+    }
+
+    /// <inheritdoc />
+    public TextureId TryLoadLocalizedTexture(string canonicalContentPath, IRenderer renderer)
     {
         var path = TryResolveLocalizedPath(canonicalContentPath);
         if (path is null)
             return TextureId.MaxValue;
 
-        return await _assets.LoadTextureAsync(path, renderer, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return _assets.LoadTexture(path, renderer);
+        }
+        // Bad bytes at the resolved VFS path (e.g. corrupt download, LFS pointer, or wrong file) are treated like missing
+        // so <see cref="Scene.SpriteLocalizedAsset.KeepExistingOnMissing"/> and callers can keep a safe fallback albedo.
+        catch (Exception ex) when (ex is InvalidImageContentException or UnknownImageFormatException)
+        {
+            return TextureId.MaxValue;
+        }
     }
 
     /// <inheritdoc />
