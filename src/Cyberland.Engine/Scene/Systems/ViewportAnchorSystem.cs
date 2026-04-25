@@ -56,7 +56,6 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
                     : ComputeWorld(viewport, a);
                 ref var transform = ref transforms[i];
                 transform.LocalPosition = p;
-                transform.WorldPosition = p;
 
                 if (a.SyncSpriteHalfExtentsToViewport && w.Has<Sprite>(e))
                 {

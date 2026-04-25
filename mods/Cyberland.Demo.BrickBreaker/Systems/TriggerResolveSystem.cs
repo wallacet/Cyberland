@@ -68,7 +68,6 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
                 if (len > 1e-3f)
                     ballVel.Value *= Constants.BallSpeed / len;
                 ballTransform.LocalPosition = bp;
-                ballTransform.WorldPosition = bp;
                 ballPos = bp;
                 continue;
             }

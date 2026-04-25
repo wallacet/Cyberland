@@ -43,8 +43,7 @@ public sealed class RoundResetSystem : ISystem, IFixedUpdate
             {
                 MouseChaseRoundLogic.ResetState(ref states[i]);
                 ref var playerTransform = ref w.Get<Transform>(_playerEntity);
-                playerTransform.WorldPosition = new Vector2D<float>(260f, 360f);
-                playerTransform.LocalPosition = playerTransform.WorldPosition;
+                playerTransform.LocalPosition = new Vector2D<float>(260f, 360f);
                 ref var collectibleTransform = ref w.Get<Transform>(_collectibleEntity);
                 MouseChaseRoundLogic.RespawnCollectible(ref collectibleTransform, _rng);
             }

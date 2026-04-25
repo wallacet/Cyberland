@@ -431,18 +431,15 @@ public sealed class SceneSystemTests
     }
 
     [Fact]
-    public void Transform_root_double_assign_LocalPosition_then_WorldPosition_stays_at_target_after_hierarchy()
+    public void Transform_root_LocalPosition_stays_at_target_after_hierarchy()
     {
-        // Regression: mods commonly write `LocalPosition = X; WorldPosition = X;` in late-phase systems so
-        // the render sees the intended world pose this frame AND the pose survives the next frame's hierarchy
-        // recompose. Without the root short-circuit the WorldPosition back-prop reads a stale WorldMatrix
-        // (unchanged by the preceding LocalPosition write) and doubled the translation on the next pass.
+        // Root entity: a single LocalPosition write must update WorldMatrix so the next hierarchy recompose
+        // does not double translation (old bug when WorldMatrix lagged a Local write).
         var w = new World();
         var e = w.CreateEntity();
         var tf = Transform.Identity;
         var target = new Vector2D<float>(640f, 360f);
         tf.LocalPosition = target;
-        tf.WorldPosition = target;
         w.GetOrAdd<Transform>(e) = tf;
 
         // Immediately after the setters: both caches report the requested pose.

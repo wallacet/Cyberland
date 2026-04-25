@@ -102,7 +102,6 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
         ref var transform = ref _world.Get<Transform>(_t.Fps);
         transform.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
-        transform.WorldPosition = transform.LocalPosition;
         ref var text = ref _world.Get<BitmapText>(_t.Fps);
         text.Visible = true;
         text.Content = label;
@@ -131,7 +130,6 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     {
         ref var transform = ref _world.Get<Transform>(entity);
         transform.LocalPosition = new Vector2D<float>(x, y);
-        transform.WorldPosition = transform.LocalPosition;
 
         ref var text = ref _world.Get<BitmapText>(entity);
         text.Visible = true;
@@ -143,7 +141,6 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     {
         ref var transform = ref _world.Get<Transform>(_v.Background);
         transform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
-        transform.WorldPosition = transform.LocalPosition;
 
         ref var spr = ref _world.Get<Sprite>(_v.Background);
         spr.Visible = true;
@@ -157,7 +154,6 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         transform.LocalPosition = new Vector2D<float>(
             fb.X * 0.5f,
             st.Phase == Phase.Playing ? fb.Y - PongLayout.TitleBarYPlaying : fb.Y - PongLayout.TitleBarYMenu);
-        transform.WorldPosition = transform.LocalPosition;
 
         ref var spr = ref _world.Get<Sprite>(_v.TitleBar);
         var widthScale = st.Phase == Phase.Playing ? PongLayout.TitleBarWidthPlaying : PongLayout.TitleBarWidthMenu;
@@ -172,7 +168,6 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         transform.LocalPosition = new Vector2D<float>(
             fb.X * 0.5f,
             st.Phase == Phase.GameOver ? PongLayout.HintSpriteYGameOver : PongLayout.HintSpriteYTitle);
-        transform.WorldPosition = transform.LocalPosition;
 
         ref var spr = ref _world.Get<Sprite>(_v.HintBar);
         spr.Visible = st.Phase is Phase.Title or Phase.GameOver;
@@ -188,14 +183,12 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         ref var ps = ref _world.Get<Sprite>(_v.ScorePlayer);
         ref var playerTransform = ref _world.Get<Transform>(_v.ScorePlayer);
         playerTransform.LocalPosition = new Vector2D<float>(PongLayout.ScoreColumnPlayerX, PongLayout.ScoreBarBaseY + ph * 0.5f);
-        playerTransform.WorldPosition = playerTransform.LocalPosition;
         ps.Visible = playing;
         ps.HalfExtents = new Vector2D<float>(PongLayout.ScoreBarHalfWidth, ph * 0.5f + PongLayout.ScoreBarMinHalfHeight);
 
         ref var cs = ref _world.Get<Sprite>(_v.ScoreCpu);
         ref var cpuTransform = ref _world.Get<Transform>(_v.ScoreCpu);
         cpuTransform.LocalPosition = new Vector2D<float>(fb.X - PongLayout.ScoreColumnPlayerX, PongLayout.ScoreBarBaseY + ch * 0.5f);
-        cpuTransform.WorldPosition = cpuTransform.LocalPosition;
         cs.Visible = playing;
         cs.HalfExtents = new Vector2D<float>(PongLayout.ScoreBarHalfWidth, ch * 0.5f + PongLayout.ScoreBarMinHalfHeight);
     }
@@ -210,21 +203,18 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         var ballY = st.BallPos.Y + st.BallVel.Y * acc;
         ref var leftTransform = ref _world.Get<Transform>(_v.LeftPad);
         leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, leftY);
-        leftTransform.WorldPosition = leftTransform.LocalPosition;
         ref var ls = ref _world.Get<Sprite>(_v.LeftPad);
         ls.Visible = playing;
         ls.HalfExtents = new Vector2D<float>(Constants.PaddleHalfW, Constants.PaddleHalfH);
 
         ref var rightTransform = ref _world.Get<Transform>(_v.RightPad);
         rightTransform.LocalPosition = new Vector2D<float>(st.ArenaMaxX, rightY);
-        rightTransform.WorldPosition = rightTransform.LocalPosition;
         ref var rs = ref _world.Get<Sprite>(_v.RightPad);
         rs.Visible = playing;
         rs.HalfExtents = new Vector2D<float>(Constants.PaddleHalfW, Constants.PaddleHalfH);
 
         ref var ballTransform = ref _world.Get<Transform>(_v.Ball);
         ballTransform.LocalPosition = new Vector2D<float>(ballX, ballY);
-        ballTransform.WorldPosition = ballTransform.LocalPosition;
         ref var bs = ref _world.Get<Sprite>(_v.Ball);
         bs.Visible = playing;
         bs.HalfExtents = new Vector2D<float>(Constants.BallR, Constants.BallR);

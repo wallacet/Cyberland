@@ -40,7 +40,6 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
             {
                 ref var transform = ref transforms[i];
                 transform.LocalPosition = p;
-                transform.WorldPosition = p;
             }
         }
 
@@ -69,7 +68,6 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
                 pos.X = Math.Clamp(pos.X, h, fb.X - h);
                 pos.Y = Math.Clamp(pos.Y, h, fb.Y - h);
                 transform.LocalPosition = pos;
-                transform.WorldPosition = pos;
             }
         }
     }

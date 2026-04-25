@@ -87,7 +87,6 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
 
         ref var spotTransform = ref _world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;
-        spotTransform.WorldPosition = spotPos;
         spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
         spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
         ref var sp = ref _world.Get<SpotLightSource>(_spot);
@@ -103,7 +102,6 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
         var ballIntensity = st.Phase == Phase.Playing ? 0.52f : 0.28f;
         ref var ballTransform = ref _world.Get<Transform>(_ballPoint);
         ballTransform.LocalPosition = ballPos;
-        ballTransform.WorldPosition = ballPos;
         ref var bp = ref _world.Get<PointLightSource>(_ballPoint);
         bp.Active = true;
         bp.Radius = w * 0.32f;
@@ -115,7 +113,6 @@ public sealed class PongLightsFillSystem : ISystem, ILateUpdate
         var leftAccentY = st.Phase == Phase.Playing ? st.LeftPaddleY : arenaCy;
         ref var leftTransform = ref _world.Get<Transform>(_leftAccentPoint);
         leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, leftAccentY);
-        leftTransform.WorldPosition = leftTransform.LocalPosition;
         ref var lp = ref _world.Get<PointLightSource>(_leftAccentPoint);
         lp.Active = true;
         lp.Radius = w * 0.38f;

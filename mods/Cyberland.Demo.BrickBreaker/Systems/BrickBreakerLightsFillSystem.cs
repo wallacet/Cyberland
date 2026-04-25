@@ -89,7 +89,6 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
 
         ref var spotTransform = ref _world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;
-        spotTransform.WorldPosition = spotPos;
         spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
         spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
         ref var sp = ref _world.Get<SpotLightSource>(_spot);
@@ -103,7 +102,6 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
 
         ref var paddlePointTransform = ref _world.Get<Transform>(_paddlePoint);
         paddlePointTransform.LocalPosition = new Vector2D<float>(paddleX, s.PaddleY - 24f);
-        paddlePointTransform.WorldPosition = paddlePointTransform.LocalPosition;
         ref var pp = ref _world.Get<PointLightSource>(_paddlePoint);
         pp.Active = true;
         pp.Radius = w * 0.5f;
@@ -118,7 +116,6 @@ public sealed class BrickBreakerLightsFillSystem : ISystem, ILateUpdate
 
         ref var ballPointTransform = ref _world.Get<Transform>(_ballPoint);
         ballPointTransform.LocalPosition = trackedBallPos;
-        ballPointTransform.WorldPosition = trackedBallPos;
         ref var bp = ref _world.Get<PointLightSource>(_ballPoint);
         bp.Active = true;
         bp.Radius = 140f;

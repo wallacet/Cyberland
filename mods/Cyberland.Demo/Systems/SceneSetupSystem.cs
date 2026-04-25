@@ -207,7 +207,6 @@ public sealed class SceneSetupSystem : ISystem
         // scale is (1,1) rather than the zero-matrix default.
         var bloomTransform = Transform.Identity;
         bloomTransform.LocalPosition = new Vector2D<float>(hx, hy);
-        bloomTransform.WorldPosition = new Vector2D<float>(hx, hy);
         world.GetOrAdd<Transform>(eBloom) = bloomTransform;
         world.GetOrAdd<PostProcessVolumeSource>(eBloom) = new PostProcessVolumeSource
         {

@@ -56,7 +56,6 @@ public sealed class CameraFollowSystem : IParallelSystem, IParallelFixedUpdate
                     currentPos.X + ((desired.X - currentPos.X) * lerp),
                     currentPos.Y + ((desired.Y - currentPos.Y) * lerp));
                 cameraTransform.WorldPosition = next;
-                cameraTransform.LocalPosition = next;
             }
         }
     }

@@ -76,7 +76,6 @@ public sealed class HdrStationaryLightsFillSystem : ISystem, ILateUpdate
 
         ref var warmTransform = ref _world.Get<Transform>(_warmPoint);
         warmTransform.LocalPosition = new Vector2D<float>(w * 0.76f, h * 0.3f);
-        warmTransform.WorldPosition = warmTransform.LocalPosition;
         ref var warm = ref _world.Get<PointLightSource>(_warmPoint);
         warm.Active = true;
         warm.Radius = w * 0.4f;
@@ -94,7 +93,6 @@ public sealed class HdrStationaryLightsFillSystem : ISystem, ILateUpdate
 
         ref var spotTransform = ref _world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;
-        spotTransform.WorldPosition = spotPos;
         spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
         spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
         ref var sp = ref _world.Get<SpotLightSource>(_spot);

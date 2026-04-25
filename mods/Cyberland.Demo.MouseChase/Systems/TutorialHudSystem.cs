@@ -47,7 +47,6 @@ public sealed class TutorialHudSystem : ISystem, ILateUpdate
     private void UpdateHudText(EntityId entity, string text, Vector2D<float> viewportPos, float size)
     {
         ref var transform = ref _world.Get<Transform>(entity);
-        transform.WorldPosition = viewportPos;
         transform.LocalPosition = viewportPos;
 
         ref var bt = ref _world.Get<BitmapText>(entity);

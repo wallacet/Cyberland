@@ -257,32 +257,27 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     {
         ref var bgTransform = ref w.Get<Transform>(_background);
         bgTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
-        bgTransform.WorldPosition = bgTransform.LocalPosition;
         ref var bgSpr = ref w.Get<Sprite>(_background);
         bgSpr.HalfExtents = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
 
         ref var titleTransform = ref w.Get<Transform>(_titleUi);
         titleTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y - 56f);
-        titleTransform.WorldPosition = titleTransform.LocalPosition;
         ref var titleSpr = ref w.Get<Sprite>(_titleUi);
         titleSpr.HalfExtents = new Vector2D<float>(fb.X * 0.4f, 18f);
 
         ref var panelTransform = ref w.Get<Transform>(_gameOverPanel);
         panelTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.45f);
-        panelTransform.WorldPosition = panelTransform.LocalPosition;
         ref var panelSpr = ref w.Get<Sprite>(_gameOverPanel);
         panelSpr.HalfExtents = new Vector2D<float>(fb.X * 0.42f, 70f);
 
         ref var barTransform = ref w.Get<Transform>(_gameOverBar);
         barTransform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.45f + 36f);
-        barTransform.WorldPosition = barTransform.LocalPosition;
         UpdateGameOverBarExtentOnly(w, fb, score);
 
         for (var i = 0; i < Constants.StartingLives; i++)
         {
             ref var lifeTransform = ref w.Get<Transform>(_lives[i]);
             lifeTransform.LocalPosition = new Vector2D<float>(30f + i * 28f, fb.Y - 28f);
-            lifeTransform.WorldPosition = lifeTransform.LocalPosition;
         }
     }
 
@@ -351,7 +346,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     {
         ref var transform = ref w.Get<Transform>(id);
         transform.LocalPosition = new Vector2D<float>(x, y);
-        transform.WorldPosition = transform.LocalPosition;
         ref var bt = ref w.Get<BitmapText>(id);
         bt.Visible = true;
         if (bt.Style != style)

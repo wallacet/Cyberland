@@ -62,15 +62,12 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
 
         ref var leftTransform = ref w.Get<Transform>(_visuals.LeftPad);
         leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, st.LeftPaddleY);
-        leftTransform.WorldPosition = leftTransform.LocalPosition;
 
         ref var rightTransform = ref w.Get<Transform>(_visuals.RightPad);
         rightTransform.LocalPosition = new Vector2D<float>(st.ArenaMaxX, st.RightPaddleY);
-        rightTransform.WorldPosition = rightTransform.LocalPosition;
 
         ref var ballTransform = ref w.Get<Transform>(_visuals.Ball);
         ballTransform.LocalPosition = st.BallPos;
-        ballTransform.WorldPosition = st.BallPos;
     }
 
     private static void StartMatch(ref State st, Vector2D<int> fb)

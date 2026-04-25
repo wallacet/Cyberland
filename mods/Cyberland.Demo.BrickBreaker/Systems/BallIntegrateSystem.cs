@@ -87,6 +87,5 @@ public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
         ballPos.Y = game.PaddleY + paddleBody.HalfHeight + Constants.BallR;
         ballVel.Value = default;
         ballTransform.LocalPosition = ballPos;
-        ballTransform.WorldPosition = ballPos;
     }
 }

@@ -55,7 +55,6 @@ public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
         ref var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
         var paddlePos = new Vector2D<float>(game.LayoutWidth * 0.5f, game.PaddleY);
         paddleTransform.LocalPosition = paddlePos;
-        paddleTransform.WorldPosition = paddlePos;
         paddleBody.HalfWidth = 72f;
         paddleBody.HalfHeight = 10f;
 
@@ -63,7 +62,6 @@ public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
         ref var ballVel = ref _world.Get<Velocity>(_ballEntity);
         var ballPos = new Vector2D<float>(paddlePos.X, game.PaddleY + paddleBody.HalfHeight + Constants.BallR);
         ballTransform.LocalPosition = ballPos;
-        ballTransform.WorldPosition = ballPos;
         ballVel.Value = default;
 
         ref var paddleTrigger = ref _world.Get<Trigger>(_paddleEntity);

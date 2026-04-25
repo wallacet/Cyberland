@@ -93,7 +93,6 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
 
         ref var spotTransform = ref _world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;
-        spotTransform.WorldPosition = spotPos;
         spotTransform.LocalRotationRadians = MathF.Atan2(dirVec.Y, dirVec.X);
         spotTransform.WorldRotationRadians = spotTransform.LocalRotationRadians;
         ref var sp = ref _world.Get<SpotLightSource>(_spot);
@@ -111,7 +110,6 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         var headIntensity = s.Phase == Phase.Playing && s.Snake.Count > 0 ? 0.52f : 0.26f;
         ref var headTransform = ref _world.Get<Transform>(_headPoint);
         headTransform.LocalPosition = headWorld;
-        headTransform.WorldPosition = headWorld;
         ref var hp = ref _world.Get<PointLightSource>(_headPoint);
         hp.Active = true;
         hp.Radius = w * 0.28f;
@@ -126,7 +124,6 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         var foodIntensity = s.Phase == Phase.Playing ? 0.44f : 0.22f;
         ref var foodTransform = ref _world.Get<Transform>(_foodPoint);
         foodTransform.LocalPosition = foodWorld;
-        foodTransform.WorldPosition = foodWorld;
         ref var fp = ref _world.Get<PointLightSource>(_foodPoint);
         fp.Active = true;
         fp.Radius = w * 0.22f;

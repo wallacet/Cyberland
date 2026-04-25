@@ -51,7 +51,6 @@ public sealed class BallLaunchSystem : ISystem, IFixedUpdate
                 paddleTransform.WorldPosition.X,
                 game.PaddleY + paddleBody.HalfHeight + Constants.BallR);
             ballTransform.LocalPosition = dockedPos;
-            ballTransform.WorldPosition = dockedPos;
         }
 
         if (!game.BallDocked)

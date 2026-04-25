@@ -26,9 +26,8 @@ internal static class MouseChaseRoundLogic
 
     public static void RespawnCollectible(ref Transform collectible, Random rng)
     {
-        collectible.WorldPosition = new Vector2D<float>(
+        collectible.LocalPosition = new Vector2D<float>(
             (float)rng.NextDouble() * 980f + 150f,
             (float)rng.NextDouble() * 500f + 120f);
-        collectible.LocalPosition = collectible.WorldPosition;
     }
 }

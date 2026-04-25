@@ -133,7 +133,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
                 var center = session.CellCenterWorld(seg.x, seg.y, fb);
                 ref var transform = ref _world.Get<Transform>(e);
                 transform.LocalPosition = center;
-                transform.WorldPosition = center;
                 ref var spr = ref _world.Get<Sprite>(e);
                 var head = seg.x == headCell.x && seg.y == headCell.y;
                 spr.Visible = true;
@@ -149,7 +148,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         var foodCenter = session.CellCenterWorld(session.Food.x, session.Food.y, fb);
         ref var foodTransform = ref _world.Get<Transform>(visuals.Food);
         foodTransform.LocalPosition = foodCenter;
-        foodTransform.WorldPosition = foodCenter;
         ref var foodSp = ref _world.Get<Sprite>(visuals.Food);
         foodSp.Visible = session.Phase == Phase.Playing;
         foodSp.HalfExtents = new Vector2D<float>(cell * 0.35f, cell * 0.35f);
@@ -160,7 +158,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             var titleBar = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y - 48f), fb);
             ref var titleTransform = ref _world.Get<Transform>(visuals.TitleBar);
             titleTransform.LocalPosition = titleBar;
-            titleTransform.WorldPosition = titleBar;
             titleSp.Visible = true;
             titleSp.HalfExtents = new Vector2D<float>(fb.X * 0.42f, 20f);
         }
@@ -173,7 +170,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             var goPanel = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f), fb);
             ref var gameOverTransform = ref _world.Get<Transform>(visuals.GoPanel);
             gameOverTransform.LocalPosition = goPanel;
-            gameOverTransform.WorldPosition = goPanel;
             gameOverSp.Visible = true;
             gameOverSp.HalfExtents = new Vector2D<float>(fb.X * 0.45f, 80f);
             var scoreW = fb.X * 0.45f * Math.Min(1f, session.FoodsEaten / 30f);
@@ -181,7 +177,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
                 new Vector2D<float>(fb.X * 0.5f - (fb.X * 0.45f - scoreW) * 0.5f, fb.Y * 0.5f + 28f), fb);
             ref var scoreTransform = ref _world.Get<Transform>(visuals.ScoreBar);
             scoreTransform.LocalPosition = scoreBar;
-            scoreTransform.WorldPosition = scoreBar;
             scoreSp.Visible = true;
             scoreSp.HalfExtents = new Vector2D<float>(Math.Max(0.5f, scoreW * 0.5f), 10f);
         }
@@ -200,7 +195,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
         ref var transform = ref _world.Get<Transform>(visuals.TxtFps);
         transform.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
-        transform.WorldPosition = transform.LocalPosition;
         ref var bt = ref _world.Get<BitmapText>(visuals.TxtFps);
         bt.Visible = true;
         bt.Content = label;
@@ -264,7 +258,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     {
         ref var transform = ref _world.Get<Transform>(e);
         transform.LocalPosition = new Vector2D<float>(screenX, screenY);
-        transform.WorldPosition = transform.LocalPosition;
         ref var bt = ref _world.Get<BitmapText>(e);
         bt.Visible = true;
         bt.Style = style;

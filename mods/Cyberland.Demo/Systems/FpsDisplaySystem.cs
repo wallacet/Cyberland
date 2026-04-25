@@ -37,7 +37,6 @@ public sealed class FpsDisplaySystem : ISystem, ILateUpdate
             {
                 ref var t = ref chunk.Column<Transform>()[i];
                 t.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
-                t.WorldPosition = t.LocalPosition;
                 ref var bt = ref chunk.Column<BitmapText>()[i];
                 bt.Visible = true;
                 bt.Content = label;

@@ -41,7 +41,6 @@ public sealed class FpsOverlaySystem : ISystem, ILateUpdate
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
         ref var t = ref _world.Get<Transform>(_fpsText);
         t.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
-        t.WorldPosition = t.LocalPosition;
         ref var bt = ref _world.Get<BitmapText>(_fpsText);
         bt.Visible = true;
         bt.Content = label;

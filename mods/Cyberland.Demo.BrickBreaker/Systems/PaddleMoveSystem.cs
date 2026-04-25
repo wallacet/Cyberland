@@ -52,7 +52,6 @@ public sealed class PaddleMoveSystem : ISystem, IFixedUpdate
             game.ArenaMinX + paddleBody.HalfWidth,
             game.ArenaMaxX - paddleBody.HalfWidth);
         paddleTransform.LocalPosition = paddlePos;
-        paddleTransform.WorldPosition = paddlePos;
 
     }
 }

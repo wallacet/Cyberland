@@ -48,7 +48,6 @@ public sealed class PlayerMovementSystem : IParallelSystem, IParallelFixedUpdate
 
                     var dir = toMouse / len;
                     playerTransform.WorldPosition += dir * speed * fixedDeltaSeconds;
-                    playerTransform.LocalPosition = playerTransform.WorldPosition;
                 }
             });
         }
