@@ -130,6 +130,17 @@ public sealed class SceneSetupSystem : ISystem
             SyncSpriteHalfExtentsToViewport = false
         };
 
+        var hudFps = world.CreateEntity();
+        world.GetOrAdd<HudFpsTag>(hudFps);
+        world.GetOrAdd<Transform>(hudFps) = Transform.Identity;
+        ref var fpsText = ref world.GetOrAdd<BitmapText>(hudFps);
+        fpsText.Visible = true;
+        fpsText.IsLocalizationKey = false;
+        fpsText.Content = "FPS —";
+        fpsText.Style = new TextStyle(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
+        fpsText.SortKey = 452f;
+        fpsText.CoordinateSpace = CoordinateSpace.ViewportSpace;
+
         var eAmb = world.CreateEntity();
         world.GetOrAdd<AmbientLightSource>(eAmb) = new AmbientLightSource
         {

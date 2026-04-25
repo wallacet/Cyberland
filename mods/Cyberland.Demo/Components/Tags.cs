@@ -16,3 +16,6 @@ public struct HudTitleTag : IComponent;
 
 /// <summary>Marks the HUD hint text entity.</summary>
 public struct HudHintTag : IComponent;
+
+/// <summary>Marks the bottom-right FPS overlay text (moving average) entity.</summary>
+public struct HudFpsTag : IComponent;

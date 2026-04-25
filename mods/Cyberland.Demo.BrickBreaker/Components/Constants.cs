@@ -1,7 +1,12 @@
+using Cyberland.Engine;
+
 namespace Cyberland.Demo.BrickBreaker;
 
 public static class Constants
 {
+    /// <summary>Sliding window (seconds) for the FPS HUD moving average. Tunable for debugging.</summary>
+    public const float FpsAverageWindowSeconds = FpsMovingAverage.DefaultWindowSeconds;
+
     /// <summary>
     /// Virtual canvas size in world pixels for this mod's <see cref="Cyberland.Engine.Scene.Camera2D"/> and all arena/HUD layout.
     /// </summary>

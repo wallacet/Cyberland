@@ -69,5 +69,6 @@ public sealed class BootstrapSystem : ISystem
         visuals.TxtHintGo = world.CreateEntity();
         visuals.TxtPlaying = world.CreateEntity();
         visuals.TxtScore = world.CreateEntity();
+        visuals.TxtFps = world.CreateEntity();
     }
 }

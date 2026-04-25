@@ -12,7 +12,8 @@ namespace Cyberland.Demo;
 // late HDR light/post. Integrate first then damp: each step applies motion, then framerate-aware decay on Velocity.
 // Scene setup runs in OnStart only (sequential, no phase).
 //
-// Registration: scene-setup -> hdr fills -> input -> integrate -> tag-query (parallel, teaches chunk query) -> velocity-damp.
+// Registration: scene-setup -> hdr fills -> input -> integrate -> tag-query (parallel, teaches chunk query) ->
+// velocity-damp -> fps-display (late: moving-average FPS on HudFpsTag).
 public sealed class Mod : IMod
 {
     public void OnLoad(ModLoadContext context)
@@ -30,6 +31,7 @@ public sealed class Mod : IMod
         context.RegisterSequential("cyberland.demo/integrate", new IntegrateSystem(host));
         context.RegisterParallel("cyberland.demo/tag-query-showcase", new TagQueryShowcaseSystem());
         context.RegisterParallel("cyberland.demo/velocity-damp", new VelocityDampSystem());
+        context.RegisterSequential("cyberland.demo/fps-display", new FpsDisplaySystem(host));
     }
 
     public void OnUnload()

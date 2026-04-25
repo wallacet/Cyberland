@@ -55,6 +55,7 @@ public sealed class Mod : IMod
             CreateHudTextEntity(world),
             CreateHudTextEntity(world),
             CreateHudTextEntity(world),
+            CreateHudTextEntity(world),
             CreateHudTextEntity(world));
 
         var amb = world.CreateEntity();

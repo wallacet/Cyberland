@@ -10,4 +10,5 @@ public readonly record struct HudTextIds(
     EntityId ScoreYou,
     EntityId ScorePlayerNum,
     EntityId ScoreCpuLabel,
-    EntityId ScoreCpuNum);
+    EntityId ScoreCpuNum,
+    EntityId Fps);

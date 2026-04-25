@@ -59,6 +59,7 @@ public sealed partial class VisualSyncSystem
         ConfigureTextRow(_t.ScorePlayerNum, NumberStyle);
         ConfigureTextRow(_t.ScoreCpuLabel, HudStyle);
         ConfigureTextRow(_t.ScoreCpuNum, NumberStyle);
+        ConfigureTextRow(_t.Fps, FpsStyle);
     }
 
     private void ConfigureTextRow(EntityId entity, TextStyle style)

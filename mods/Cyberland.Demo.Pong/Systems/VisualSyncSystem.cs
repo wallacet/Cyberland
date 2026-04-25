@@ -22,6 +22,7 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     private static readonly TextStyle HudStyle = new(BuiltinFonts.UiSans, 17f, new Vector4D<float>(0.72f, 0.88f, 1f, 1f));
     private static readonly TextStyle NumberStyle = new(BuiltinFonts.Mono, 20f, new Vector4D<float>(0.92f, 0.96f, 1f, 1f));
     private static readonly TextStyle GameOverStyle = new(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.42f, 0.48f, 1f), Underline: true);
+    private static readonly TextStyle FpsStyle = new(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
 
     private readonly GameHostServices _host;
     private readonly EntityId _session;
@@ -31,6 +32,7 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     private int _cachedCpuPoints = int.MinValue;
     private string _cachedPlayerPointsText = "0";
     private string _cachedCpuPointsText = "0";
+    private readonly FpsMovingAverage _fpsAverage = new(FpsMovingAverage.DefaultWindowSeconds);
     private World _world = null!;
 
     public VisualSyncSystem(GameHostServices host, EntityId session, VisualIds visuals, HudTextIds texts)
@@ -59,7 +61,8 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
-        _ = deltaSeconds;
+        var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
+        _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
         var r = _host.Renderer!;
         ref readonly var st = ref _world.Get<State>(_session);
         // Layout on the same virtual rect as the active camera.
@@ -70,6 +73,7 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         SetScores(fb, st);
         SetPlaying(st);
         SyncHudText(fb, in st);
+        UpdateFpsHud(fb);
     }
 
     private void SyncHudText(Vector2D<int> fb, in State st)
@@ -91,6 +95,19 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         SetRow(_t.ScorePlayerNum, _cachedPlayerPointsText, false, 118f, fb.Y - 40f);
         SetRow(_t.ScoreCpuLabel, "demo.pong.score_cpu", true, fb.X - PongLayout.ScoreColumnCpuLabelOffset, fb.Y - 40f);
         SetRow(_t.ScoreCpuNum, _cachedCpuPointsText, false, fb.X - PongLayout.ScoreColumnCpuNumOffset, fb.Y - 40f);
+    }
+
+    private void UpdateFpsHud(Vector2D<int> fb)
+    {
+        var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
+        ref var transform = ref _world.Get<Transform>(_t.Fps);
+        transform.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
+        transform.WorldPosition = transform.LocalPosition;
+        ref var text = ref _world.Get<BitmapText>(_t.Fps);
+        text.Visible = true;
+        text.Content = label;
+        text.IsLocalizationKey = false;
+        text.Style = FpsStyle;
     }
 
     private void HideAllText()

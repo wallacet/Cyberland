@@ -124,6 +124,7 @@ public sealed class Mod : IMod
         var titleText = CreateHudText(world, 800f);
         var detailText = CreateHudText(world, 801f);
         var statusText = CreateHudText(world, 802f);
+        var fpsText = CreateHudText(world, 803f);
 
         var host = context.Host;
         context.RegisterSequential("cyberland.demo.mousechase/input", new InputSystem(host, controlEntity, stateEntity));
@@ -134,6 +135,7 @@ public sealed class Mod : IMod
         context.RegisterParallel("cyberland.demo.mousechase/round-state", new RoundStateSystem());
         context.RegisterSequential("cyberland.demo.mousechase/tutorial-hud",
             new TutorialHudSystem(context.LocalizedContent.Strings, stateEntity, titleText, detailText, statusText));
+        context.RegisterSequential("cyberland.demo.mousechase/fps-overlay", new FpsOverlaySystem(host, fpsText));
 
         ApplyGlobalPost(world);
     }

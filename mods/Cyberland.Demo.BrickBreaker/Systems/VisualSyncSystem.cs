@@ -41,7 +41,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     private int _lastScore = int.MinValue;
     private string _scoreText = "0";
     private string _fpsText = "FPS —";
-    private float _fpsSmoothed;
+    private readonly FpsMovingAverage _fpsAverage = new(Constants.FpsAverageWindowSeconds);
     private World _world = null!;
 
     public VisualSyncSystem(GameHostServices host, EntityId stateEntity, EntityId background, EntityId paddle, EntityId ball, EntityId titleUi, EntityId gameOverPanel, EntityId gameOverBar, EntityId[] lives, EntityId[,] cells, HudTextIds texts)
@@ -86,11 +86,14 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     {
         _ = archetype;
         var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
-        if (frameSeconds > 1e-6f)
+        _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
+        if (_fpsAverage.TryGetAverageFps(out var avgFps))
         {
-            var instant = 1f / frameSeconds;
-            const float blend = 0.15f;
-            _fpsSmoothed = _fpsSmoothed <= 0f ? instant : _fpsSmoothed + (instant - _fpsSmoothed) * blend;
+            _fpsText = $"FPS {MathF.Round(avgFps)}";
+        }
+        else
+        {
+            _fpsText = "FPS —";
         }
 
         ref readonly var s = ref _world.Get<GameState>(_stateEntity);
@@ -297,9 +300,6 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             _lastScore = s.Score;
             _scoreText = s.Score.ToString();
         }
-
-        var fpsWhole = _fpsSmoothed > 0f ? (int)MathF.Round(_fpsSmoothed) : -1;
-        _fpsText = fpsWhole >= 0 ? $"FPS {fpsWhole}" : "FPS —";
 
         SetTextVisible(w, _texts.Title, false);
         SetTextVisible(w, _texts.HintTitle, false);

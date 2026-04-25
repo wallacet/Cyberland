@@ -15,4 +15,5 @@ public struct VisualBundle : IComponent
     public EntityId TxtHintGo;
     public EntityId TxtPlaying;
     public EntityId TxtScore;
+    public EntityId TxtFps;
 }

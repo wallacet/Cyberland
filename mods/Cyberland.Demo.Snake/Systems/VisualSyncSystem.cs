@@ -26,7 +26,9 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     private static readonly TextStyle HudStyle = new(BuiltinFonts.UiSans, 16f, new Vector4D<float>(0.85f, 1f, 0.9f, 1f));
     private static readonly TextStyle ScoreStyle = new(BuiltinFonts.Mono, 18f, new Vector4D<float>(0.95f, 1f, 0.85f, 1f));
     private static readonly TextStyle GameOverStyle = new(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.45f, 0.35f, 1f), Italic: true, Underline: true);
+    private static readonly TextStyle FpsStyle = new(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
 
+    private readonly FpsMovingAverage _fpsAverage = new(FpsMovingAverage.DefaultWindowSeconds);
     private World _world = null!;
 
     public VisualSyncSystem(GameHostServices host, EntityId sessionEntity, EntityId visualsEntity)
@@ -105,12 +107,14 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         InitializeText(visuals.TxtHintGo);
         InitializeText(visuals.TxtPlaying);
         InitializeText(visuals.TxtScore);
+        InitializeText(visuals.TxtFps);
     }
 
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = archetype;
-        _ = deltaSeconds;
+        var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
+        _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
         var renderer = _host.Renderer;
         if (renderer is null) return;
         ref var session = ref _world.Get<Session>(_sessionEntity);
@@ -188,6 +192,20 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         }
 
         SetHudText(visuals, fb, session);
+        UpdateFpsHud(visuals, fb);
+    }
+
+    private void UpdateFpsHud(VisualBundle visuals, Vector2D<int> fb)
+    {
+        var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
+        ref var transform = ref _world.Get<Transform>(visuals.TxtFps);
+        transform.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
+        transform.WorldPosition = transform.LocalPosition;
+        ref var bt = ref _world.Get<BitmapText>(visuals.TxtFps);
+        bt.Visible = true;
+        bt.Content = label;
+        bt.IsLocalizationKey = false;
+        bt.Style = FpsStyle;
     }
 
     private void InitializeSprite(EntityId entity, TextureId whiteTextureId, TextureId normalTextureId)
