@@ -128,9 +128,9 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         ref var titleSpr = ref sprites.Get(_titleUi);
         titleSpr.Visible = s.Phase == Phase.Title;
         ref var overPanelSpr = ref sprites.Get(_gameOverPanel);
-        overPanelSpr.Visible = s.Phase == Phase.GameOver;
+        overPanelSpr.Visible = s.Phase is Phase.GameOver or Phase.Won;
         ref var overBarSpr = ref sprites.Get(_gameOverBar);
-        overBarSpr.Visible = s.Phase == Phase.GameOver;
+        overBarSpr.Visible = s.Phase is Phase.GameOver or Phase.Won;
 
         var playing = s.Phase == Phase.Playing;
         for (var i = 0; i < Constants.StartingLives; i++)
@@ -319,6 +319,11 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         {
             SetTextRow(transforms, texts, _texts.Title, _titleStyle, "demo.brick.title", true, 36f, fb.Y - 58f);
             SetTextRow(transforms, texts, _texts.HintTitle, _hintStyle, "demo.brick.hint_title", true, 36f, 100f);
+        }
+        else if (s.Phase == Phase.Won)
+        {
+            SetTextRow(transforms, texts, _texts.GameOver, _gameOverStyle, "demo.brick.you_win", true, fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
+            SetTextRow(transforms, texts, _texts.HintGameOver, _hintStyle, "demo.brick.hint_win", true, 36f, 118f);
         }
         else if (s.Phase == Phase.GameOver)
         {

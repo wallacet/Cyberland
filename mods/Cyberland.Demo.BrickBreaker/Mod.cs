@@ -20,7 +20,8 @@ public sealed class Mod : IMod
     public void OnLoad(ModLoadContext context)
     {
         context.MountDefaultContent();
-        context.LocalizedContent.MergeStringTableAsync("brick.json").GetAwaiter().GetResult();
+        BrickInputSetup.RegisterDefaultBindings(context);
+        context.LocalizedContent.MergeStringTable("brick.json");
 
         var w = context.World;
 

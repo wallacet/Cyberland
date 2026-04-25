@@ -416,7 +416,7 @@ Use **`world.Components<MyComponent>().GetOrAdd(entity)`** (or **`TryGet`**) to 
 - **`ISystem`** — single-threaded; use for input, gameplay ordering, talking to **`GameHostServices`**, or anything that must not race the ECS stores without care.
 - **`IParallelSystem`** — use for CPU-heavy work over **`QueryChunks<T>()`** (per-chunk spans are safe to split across **`Parallel.For`** / **`Parallel.ForEach`**); see **`VelocityDampSystem`** in **`Cyberland.Demo`**.
 
-### 4. Register in your mod’s `IMod.OnLoad` (e.g. `BaseGameMod`, `DemoMod`)
+### 4. Register in your mod’s `IMod.OnLoad` (e.g. `BaseGameMod`, `Cyberland.Demo.Mod`)
 
 ```csharp
 context.RegisterSequential("my.mod/main", new MySystem(context.Host));
@@ -458,16 +458,16 @@ c = new MyComponent { Value = 1f };
 | Example | Location | Shows |
 |---------|----------|--------|
 | Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
-| Demo mod entry | `mods/Cyberland.Demo/DemoMod.cs` | **`IMod`**, entity spawn, **`RegisterSequential`** / **`RegisterParallel`** with logical ids |
-| Sequential + input | `mods/Cyberland.Demo/DemoInputSystem.cs`, `DemoIntegrateSystem.cs`; background/neon decor applied once in **`DemoMod.OnLoad`**; global HDR in **`OnLoad`**; half-screen bloom volume via **`DelegateSequentialSystem`** (**`post-volumes`**) | **`ISystem`**, **`GameHostServices`**, engine **`Transform`** / **`Sprite`**, **`Velocity`** |
-| Parallel ECS | `mods/Cyberland.Demo/VelocityDampSystem.cs` | **`IParallelSystem`**, **`QueryChunks<Velocity>`**, **`SimdFloat`** on packed floats |
+| Demo mod entry | `mods/Cyberland.Demo/Mod.cs` | **`IMod`**, entity spawn, locale **`MergeStringTable`**, **`ModLoadContext.AddDefaultInputBinding`**, **`RegisterSequential` / `RegisterParallel`** (e.g. **`cyberland.demo/integrate`**, **`cyberland.demo/velocity-damp`**) |
+| Input + sim + tag query | `mods/Cyberland.Demo/Systems/InputSystem.cs`, **`IntegrateSystem`**, **`TagQueryShowcaseSystem`**, `SceneSetupSystem` | **`ISystem` / `IParallelSystem`**, player **`QuerySpec`**, `NeonStripTag` chunk query; HDR in **`SceneSetupSystem`** and **`GameApplication`** baseline |
+| Parallel ECS | `mods/Cyberland.Demo/Systems/VelocityDampSystem.cs` | **`IParallelSystem`**, **`QueryChunks<Velocity>`**, **`SimdFloat`** on packed floats |
 | Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, optional **`--exclude-mods`** |
 
 Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). To run **only** the base game with no samples, you do not need **`--exclude-mods`** (demos are already disabled). To load several mods and drop specific ones, use e.g. `--exclude-mods cyberland.demo,cyberland.demo.pong`.
 
 ### How shipped samples use the engine
 
-**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, **Snake**, and **BrickBreaker** drive **`Transform`** / **`Sprite`** from simulation or layout systems and each create a **`Camera2D`** entity in **`IMod.OnLoad`** (fixed 1280×720 virtual canvas) so gameplay stays the same size regardless of window resolution. Arcade HDR tuning calls **`SetGlobalPostProcess`** once from **`IMod.OnLoad`**. **Cyberland.Demo** also submits a half-screen bloom **volume** each frame so bounds follow **`ActiveCameraViewportSize`** (**`cyberland.demo/post-volumes`**); the volume applies when the camera's world position sits inside its oriented box.
+**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, **Snake**, and **BrickBreaker** drive **`Transform`** / **`Sprite`** from simulation or layout systems and each create a **`Camera2D`** entity in **`IMod.OnLoad`** (fixed 1280×720 virtual canvas) so gameplay stays the same size regardless of window resolution. The host applies a baseline once via **`EngineDefaultGlobalPostProcess`**, and samples add a **`GlobalPostProcessSource`** entity in **`SceneSetupSystem`** (HDR demo) or the arcade mods’ **`OnLoad`** to tune emissive and bloom. **Cyberland.Demo** updates a fullscreen **`PostProcessVolumeSource`** each late tick (**`cyberland.demo/hdr-post-volume`**) so bloom can track the player. Each demo mod registers its default key bindings in **`IMod.OnLoad`** via **`ModLoadContext.AddDefaultInputBinding`**. Use **`ModLayoutViewport.VirtualSizeForSimulation`** / **`VirtualSizeForPresentation`** when you need a consistent virtual canvas read across phases; see in-mod READMEs under **`mods/Cyberland.Demo*`**.
 
 **Cyberland.Demo.Snake** drives **`Sprite`** and **`BitmapText`** entities from a visual sync system (grid-aligned quads); the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Samples use **`GameHostServices.Fonts`** / **`TextGlyphCache`** only when calling **`TextRenderer`** directly for special cases.
 
@@ -475,7 +475,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 
 ## Configuration
 
-- **`input-bindings.json`** — lives next to the host executable (see **`InputBindings.LoadDefaults`** for shipped action ids). First run creates the file if missing.
+- **`input-bindings.json`** — lives next to the host executable. First run creates the file with **`InputBindings.LoadDefaults`**, then enabled mods’ **`IMod.OnLoad`** may add more default actions via **`ModLoadContext.AddDefaultInputBinding`**. A user file, when present, replaces the in-memory table at startup before mods run.
 
 ---
 

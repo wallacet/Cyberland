@@ -20,7 +20,8 @@ public sealed class Mod : IMod
     public void OnLoad(ModLoadContext context)
     {
         context.MountDefaultContent();
-        context.LocalizedContent.MergeStringTableAsync("pong.json").GetAwaiter().GetResult();
+        PongInputSetup.RegisterDefaultBindings(context);
+        context.LocalizedContent.MergeStringTable("pong.json");
         var world = context.World;
         var session = world.CreateEntity();
         world.Components<State>().GetOrAdd(session);

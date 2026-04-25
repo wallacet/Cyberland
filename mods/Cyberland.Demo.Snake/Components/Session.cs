@@ -66,7 +66,18 @@ public struct Session : IComponent
                 return;
             }
         }
-        Food = (0, 0);
+        for (var fy = 0; fy < Constants.GridH; fy++)
+        for (var fx = 0; fx < Constants.GridW; fx++)
+        {
+            if (!IsOccupied(fx, fy))
+            {
+                Food = (fx, fy);
+                return;
+            }
+        }
+        // Board full — session should transition to Phase.Won when length reaches the grid, but this guards mis-ordering.
+        if (Phase == Phase.Playing)
+            Phase = Phase.Won;
     }
     private bool IsOccupied(int x, int y)
     {
@@ -94,6 +105,8 @@ public struct Session : IComponent
             if (s.x == nx && s.y == ny) { Phase = Phase.GameOver; return; }
         }
         Snake.AddFirst((nx, ny));
-        if (willEat) { FoodsEaten++; SpawnFood(); } else Snake.RemoveLast();
+        if (willEat) { FoodsEaten++; } else Snake.RemoveLast();
+        if (Snake.Count == Constants.GridW * Constants.GridH) { Phase = Phase.Won; return; }
+        if (willEat) SpawnFood();
     }
 }

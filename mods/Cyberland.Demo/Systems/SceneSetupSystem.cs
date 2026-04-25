@@ -209,6 +209,7 @@ public sealed class SceneSetupSystem : ISystem
             }
         };
 
+        // Tunes emissive and bloom; stacks with the host’s one-time EngineDefaultGlobalPostProcess.Apply in GameApplication.
         var globalPostEntity = world.CreateEntity();
         world.Components<GlobalPostProcessSource>().GetOrAdd(globalPostEntity) = new GlobalPostProcessSource
         {

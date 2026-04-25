@@ -8,6 +8,8 @@ using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.TestMod;
+using Moq;
+using Silk.NET.Input;
 
 namespace Cyberland.Engine.Tests;
 
@@ -64,6 +66,39 @@ public sealed class ModdingTests
 
         File.WriteAllText(Path.Combine(modDir, "Content", "note.txt"), id);
         return modDir;
+    }
+
+    [Fact]
+    public void ModLoadContext_AddDefaultInputBinding_merges_into_host_bindings()
+    {
+        var mock = new Mock<IInputService>(MockBehavior.Strict);
+        var table = new InputBindings();
+        mock.SetupGet(x => x.Bindings).Returns(table);
+        var host = new GameHostServices { Input = mock.Object };
+        var ctx = new ModLoadContext(
+            new ModManifest { Id = "t", ContentRoot = "Content" },
+            Path.GetTempPath(),
+            new VirtualFileSystem(),
+            TestLoc(new VirtualFileSystem()),
+            new World(),
+            new SystemScheduler(new ParallelismSettings()),
+            host);
+        ctx.AddDefaultInputBinding("mod/a", new InputBinding(InputControl.Keyboard(Key.Space)));
+        Assert.True(table.TryGetBindings("mod/a", out var list) && list.Count == 1);
+    }
+
+    [Fact]
+    public void ModLoadContext_AddDefaultInputBinding_throws_without_host_input()
+    {
+        var ctx = new ModLoadContext(
+            new ModManifest { Id = "t", ContentRoot = "Content" },
+            Path.GetTempPath(),
+            new VirtualFileSystem(),
+            TestLoc(new VirtualFileSystem()),
+            new World(),
+            new SystemScheduler(new ParallelismSettings()),
+            new GameHostServices());
+        Assert.Throws<InvalidOperationException>(() => ctx.AddDefaultInputBinding("x", new InputBinding(InputControl.Keyboard(Key.A))));
     }
 
     [Fact]

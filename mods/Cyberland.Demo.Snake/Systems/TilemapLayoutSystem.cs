@@ -8,7 +8,11 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Snake;
 
-/// <summary>Copies session layout into the arena <see cref="Tilemap"/>. Sequential late update.</summary>
+/// <summary>
+/// Resizes the background <see cref="Tilemap"/> to match the session’s computed cell and positions the map transform.
+/// Snake body is drawn with per-segment <see cref="Sprite"/>s in <see cref="VisualSyncSystem"/>; tile indices are not
+/// used for live gameplay in this sample.
+/// </summary>
 public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
@@ -41,7 +45,7 @@ public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
         _ = archetype;
         _ = deltaSeconds;
         var world = _world;
-        var fb = _host.CameraRuntimeState.ViewportSizeWorld;
+        var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         if (fb.X <= 0 || fb.Y <= 0) return;
         ref var session = ref world.Components<Session>().Get(_sessionEntity);
         session.UpdateLayout(fb.X, fb.Y);

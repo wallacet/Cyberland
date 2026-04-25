@@ -58,7 +58,7 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         var r = _host.Renderer;
         if (r is null)
             return;
-        var fb = r.ActiveCameraViewportSize;
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
         var w = fb.X;
         var h = fb.Y;
         if (w <= 0 || h <= 0)

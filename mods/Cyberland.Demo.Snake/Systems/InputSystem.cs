@@ -47,7 +47,9 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
                 else if (input.WasPressed("cyberland.demo.snake/left") && session.DirX == 0) { session.NextDirX = -1; session.NextDirY = 0; }
                 else if (input.WasPressed("cyberland.demo.snake/right") && session.DirX == 0) { session.NextDirX = 1; session.NextDirY = 0; }
                 break;
-            case Phase.GameOver: if (input.WasPressed("cyberland.demo.snake/start_game") || input.WasPressed("cyberland.common/start")) ctl.StartGame = true; break;
+            case Phase.GameOver:
+            case Phase.Won:
+                if (input.WasPressed("cyberland.demo.snake/start_game") || input.WasPressed("cyberland.common/start")) ctl.StartGame = true; break;
         }
     }
 }

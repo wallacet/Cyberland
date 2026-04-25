@@ -532,6 +532,118 @@
       }
     },
     {
+      "label": "Cyberland: Test demo (HDR / Vulkan intro)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "hdr"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo, clears artifacts/, runs the host until you exit, then disables the mod again in manifest.json.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "Cyberland: Test demo (Snake)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "snake"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo.Snake, clears artifacts/, runs the host until you exit, then disables the mod again.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "Cyberland: Test demo (Pong)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "pong"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo.Pong, clears artifacts/, runs the host until you exit, then disables the mod again.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "Cyberland: Test demo (Brick Breaker)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "brick"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo.BrickBreaker, clears artifacts/, runs the host until you exit, then disables the mod again.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
       "label": "build",
       "command": "dotnet",
       "type": "process",

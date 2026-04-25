@@ -26,6 +26,12 @@ public interface ILocalizedContent
     Task MergeStringTableAsync(string tableFileName, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Synchronous <see cref="MergeStringTableAsync"/> for contexts that are not async (for example
+    /// <c>IMod.OnLoad</c>); reads each locale file with blocking IO.
+    /// </summary>
+    void MergeStringTable(string tableFileName);
+
+    /// <summary>
     /// Resolves a canonical content path (e.g. <c>Textures/Hud/icon.png</c>) to the first existing VFS path among
     /// <c>Locale/&lt;culture&gt;/…</c> (most specific first) and the non-localized <paramref name="canonicalContentPath"/>.
     /// </summary>

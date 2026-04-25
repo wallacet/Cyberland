@@ -32,7 +32,7 @@ public sealed class TickSystem : ISystem, IFixedUpdate
     {
         _ = archetype;
         var world = _world;
-        var fb = _host.CameraRuntimeState.ViewportSizeWorld;
+        var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         if (fb.X <= 0 || fb.Y <= 0) return;
         ref var session = ref world.Components<Session>().Get(_sessionEntity);
         // Idempotent layout: same math as tilemap/lights/visuals so each system can run independently.

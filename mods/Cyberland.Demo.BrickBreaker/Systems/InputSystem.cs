@@ -60,6 +60,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
                     c.StartRound = true;
                 break;
             case Phase.GameOver:
+            case Phase.Won:
                 if (input.WasPressed("cyberland.demo.brickbreaker/start_round") || input.WasPressed("cyberland.common/start"))
                     c.StartRound = true;
                 break;

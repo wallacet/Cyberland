@@ -64,8 +64,8 @@ public sealed class KeyBindingAndInputTests
             var bindings = new InputBindings();
             await bindings.LoadOrCreateUserFileAsync(path);
             Assert.True(File.Exists(path));
-            Assert.True(bindings.TryGetBindings("cyberland.demo/move_x", out var moveX));
-            Assert.NotEmpty(moveX);
+            Assert.True(bindings.TryGetBindings("cyberland.common/quit", out var quit));
+            Assert.NotEmpty(quit);
         }
         finally
         {

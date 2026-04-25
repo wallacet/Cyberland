@@ -2,6 +2,7 @@ using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 
 namespace Cyberland.Engine.Modding;
@@ -47,7 +48,7 @@ public sealed class ModLoadContext
     public string ModDirectory { get; }
     /// <summary>Layered virtual file system; earlier mods may already have mounted content.</summary>
     public VirtualFileSystem VirtualFileSystem { get; }
-    /// <summary>Localized strings and media (merge string tables via <see cref="ILocalizedContent.MergeStringTableAsync"/>).</summary>
+    /// <summary>Localized strings and media (merge string tables via <see cref="ILocalizedContent.MergeStringTableAsync"/> or <see cref="ILocalizedContent.MergeStringTable"/>).</summary>
     public ILocalizedContent LocalizedContent { get; }
 
     /// <summary>Same as <see cref="ILocalizedContent.Strings"/>; merged across mods.</summary>
@@ -100,4 +101,24 @@ public sealed class ModLoadContext
 
     /// <summary>Removes a localization key merged from an earlier mod (see <see cref="LocalizationManager.TryRemoveKey"/>).</summary>
     public bool TryRemoveLocalizationKey(string key) => Localization.TryRemoveKey(key);
+
+    /// <summary>
+    /// Adds a default mapping for a gameplay <paramref name="actionId"/> before the first frame. The host loads
+    /// <c>input-bindings.json</c> before <see cref="IMod.OnLoad"/>, so user files replace the seed first; this call then
+    /// adds (or appends) bindings the mod requires.
+    /// </summary>
+    /// <param name="actionId">Action id for <c>IInputService</c> (e.g. <c>WasPressed</c> / <c>ReadAxis</c>).</param>
+    /// <param name="binding">One physical control (repeat for multiple keys).</param>
+    public void AddDefaultInputBinding(string actionId, InputBinding binding)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actionId);
+        ArgumentNullException.ThrowIfNull(binding);
+        if (Host.Input is null)
+        {
+            throw new InvalidOperationException(
+                "Host.Input is not initialized. Add default input bindings only from IMod.OnLoad after the host wires input.");
+        }
+
+        Host.Input.Bindings.AddBinding(actionId, binding);
+    }
 }

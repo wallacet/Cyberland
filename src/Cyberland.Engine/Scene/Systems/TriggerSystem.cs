@@ -16,6 +16,13 @@ namespace Cyberland.Engine.Scene.Systems;
 /// deterministic, but event membership is deterministic for the same world state.
 /// Pairs are skipped when either entity is in the other entity's transform ancestry chain.
 /// The cached <see cref="World"/> is used for <see cref="TriggerEvents"/> stores and snapshot merge/commit outside the trigger-only chunk query.
+/// <para>
+/// With the stock host, this system is registered in the <strong>pre-mod</strong> engine block, so mod
+/// <see cref="IParallelFixedUpdate"/> and <see cref="IFixedUpdate"/> code runs <strong>after</strong> trigger detection for that fixed substep.
+/// Events in <see cref="TriggerEvents"/> were computed from <see cref="Transform"/>s at the start of the substep (plus earlier engine systems
+/// in the pre-mod list). If gameplay moves a body in the <strong>same</strong> substep and you need overlap against that <strong>new</strong> pose,
+/// use geometric tests in your gameplay system instead of trigger events, or a dedicated pre-trigger sim path in the engine.
+/// </para>
 /// </remarks>
 [RunAfter("cyberland.engine/transform2d")]
 public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate

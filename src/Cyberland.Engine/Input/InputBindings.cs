@@ -63,7 +63,8 @@ public sealed class InputBindings
     }
 
     /// <summary>
-    /// Loads opinionated defaults shared by shipped demos. Mods can rebind or add actions at runtime.
+    /// Loads host-wide defaults. Demo mods add gameplay bindings via
+    /// <c>Cyberland.Engine.Modding.ModLoadContext.AddDefaultInputBinding</c> in <c>IMod.OnLoad</c>.
     /// </summary>
     public void LoadDefaults()
     {
@@ -74,43 +75,6 @@ public sealed class InputBindings
         AddBinding("cyberland.common/start", new InputBinding(InputControl.Keyboard(Key.Enter)));
         AddBinding("cyberland.common/start", new InputBinding(InputControl.Keyboard(Key.KeypadEnter)));
         AddBinding("cyberland.common/start", new InputBinding(InputControl.Keyboard(Key.R)));
-
-        AddBinding("cyberland.demo/move_x", new InputBinding(InputControl.Keyboard(Key.A), -1f));
-        AddBinding("cyberland.demo/move_x", new InputBinding(InputControl.Keyboard(Key.Left), -1f));
-        AddBinding("cyberland.demo/move_x", new InputBinding(InputControl.Keyboard(Key.D), +1f));
-        AddBinding("cyberland.demo/move_x", new InputBinding(InputControl.Keyboard(Key.Right), +1f));
-        AddBinding("cyberland.demo/move_y", new InputBinding(InputControl.Keyboard(Key.S), -1f));
-        AddBinding("cyberland.demo/move_y", new InputBinding(InputControl.Keyboard(Key.Down), -1f));
-        AddBinding("cyberland.demo/move_y", new InputBinding(InputControl.Keyboard(Key.W), +1f));
-        AddBinding("cyberland.demo/move_y", new InputBinding(InputControl.Keyboard(Key.Up), +1f));
-        AddBinding("cyberland.demo/toggle_velocity_damp", new InputBinding(InputControl.Keyboard(Key.F9)));
-
-        AddBinding("cyberland.demo.pong/paddle_y", new InputBinding(InputControl.Keyboard(Key.S), -1f));
-        AddBinding("cyberland.demo.pong/paddle_y", new InputBinding(InputControl.Keyboard(Key.Down), -1f));
-        AddBinding("cyberland.demo.pong/paddle_y", new InputBinding(InputControl.Keyboard(Key.W), +1f));
-        AddBinding("cyberland.demo.pong/paddle_y", new InputBinding(InputControl.Keyboard(Key.Up), +1f));
-        AddBinding("cyberland.demo.pong/toggle_visual_sync", new InputBinding(InputControl.Keyboard(Key.F10)));
-        AddBinding("cyberland.demo.pong/start_match", new InputBinding(InputControl.Keyboard(Key.Enter)));
-        AddBinding("cyberland.demo.pong/start_match", new InputBinding(InputControl.Keyboard(Key.KeypadEnter)));
-        AddBinding("cyberland.demo.pong/start_match", new InputBinding(InputControl.Keyboard(Key.R)));
-
-        AddBinding("cyberland.demo.snake/up", new InputBinding(InputControl.Keyboard(Key.Up)));
-        AddBinding("cyberland.demo.snake/down", new InputBinding(InputControl.Keyboard(Key.Down)));
-        AddBinding("cyberland.demo.snake/left", new InputBinding(InputControl.Keyboard(Key.Left)));
-        AddBinding("cyberland.demo.snake/right", new InputBinding(InputControl.Keyboard(Key.Right)));
-        AddBinding("cyberland.demo.snake/start_game", new InputBinding(InputControl.Keyboard(Key.Enter)));
-        AddBinding("cyberland.demo.snake/start_game", new InputBinding(InputControl.Keyboard(Key.KeypadEnter)));
-        AddBinding("cyberland.demo.snake/start_game", new InputBinding(InputControl.Keyboard(Key.R)));
-
-        AddBinding("cyberland.demo.brickbreaker/move_x", new InputBinding(InputControl.Keyboard(Key.A), -1f));
-        AddBinding("cyberland.demo.brickbreaker/move_x", new InputBinding(InputControl.Keyboard(Key.Left), -1f));
-        AddBinding("cyberland.demo.brickbreaker/move_x", new InputBinding(InputControl.Keyboard(Key.D), +1f));
-        AddBinding("cyberland.demo.brickbreaker/move_x", new InputBinding(InputControl.Keyboard(Key.Right), +1f));
-        AddBinding("cyberland.demo.brickbreaker/launch_ball", new InputBinding(InputControl.Keyboard(Key.Space)));
-        AddBinding("cyberland.demo.brickbreaker/launch_ball", new InputBinding(InputControl.MouseButtonControl(MouseButton.Left)));
-        AddBinding("cyberland.demo.brickbreaker/start_round", new InputBinding(InputControl.Keyboard(Key.Enter)));
-        AddBinding("cyberland.demo.brickbreaker/start_round", new InputBinding(InputControl.Keyboard(Key.KeypadEnter)));
-        AddBinding("cyberland.demo.brickbreaker/start_round", new InputBinding(InputControl.Keyboard(Key.R)));
     }
 
     /// <summary>Loads JSON from disk or seeds defaults and writes a new file.</summary>

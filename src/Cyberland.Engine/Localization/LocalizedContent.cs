@@ -46,6 +46,25 @@ public sealed class LocalizedContent : ILocalizedContent
     }
 
     /// <inheritdoc />
+    public void MergeStringTable(string tableFileName)
+    {
+        if (string.IsNullOrWhiteSpace(tableFileName))
+            return;
+
+        var file = tableFileName.Trim().Replace('\\', '/').TrimStart('/');
+        foreach (var culture in LocalizationCultureChains.StringTableMergeOrder(_primaryCulture))
+        {
+            var path = $"Locale/{culture}/{file}";
+            if (!_assets.FileSystem.Exists(path))
+                continue;
+
+            // Same IO as <see cref="MergeStringTableAsync"/>, but synchronous for <c>IMod.OnLoad</c> (blocking wait on the load thread).
+            var bytes = _assets.LoadBytesAsync(path, default).GetAwaiter().GetResult();
+            Strings.MergeJson(bytes);
+        }
+    }
+
+    /// <inheritdoc />
     public string? TryResolveLocalizedPath(string canonicalContentPath)
     {
         if (string.IsNullOrWhiteSpace(canonicalContentPath))

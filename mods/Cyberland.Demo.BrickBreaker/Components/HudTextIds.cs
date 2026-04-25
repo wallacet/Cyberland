@@ -2,7 +2,7 @@ using Cyberland.Engine.Core.Ecs;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-/// <summary>Engine <see cref="Cyberland.Engine.Scene.BitmapText"/> entities for Brick HUD.</summary>
+/// <summary>BitmapText entity handles for the HUD (not registered as components).</summary>
 public readonly record struct HudTextIds(
     EntityId Title,
     EntityId HintTitle,
@@ -10,4 +10,4 @@ public readonly record struct HudTextIds(
     EntityId HintGameOver,
     EntityId PlayingScore,
     EntityId ScoreNum,
-    EntityId Fps) : IComponent;
+    EntityId Fps);

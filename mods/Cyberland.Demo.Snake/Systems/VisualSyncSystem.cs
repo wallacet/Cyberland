@@ -114,7 +114,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         if (renderer is null) return;
         ref var session = ref world.Components<Session>().Get(_sessionEntity);
         var visuals = world.Components<VisualBundle>().Get(_visualsEntity);
-        var fb = renderer.ActiveCameraViewportSize;
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(renderer);
         if (fb.X <= 0 || fb.Y <= 0) return;
         session.UpdateLayout(fb.X, fb.Y);
         var cell = session.Cell;
@@ -141,7 +141,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         var foodCenter = session.CellCenterWorld(session.Food.x, session.Food.y, fb);
         ref var foodTransform = ref world.Components<Transform>().Get(visuals.Food); foodTransform.LocalPosition = foodCenter; foodTransform.WorldPosition = foodCenter;
         ref var foodSprite = ref world.Components<Sprite>().Get(visuals.Food);
-        foodSprite.Visible = true;
+        foodSprite.Visible = session.Phase == Phase.Playing;
         foodSprite.HalfExtents = new Vector2D<float>(cell * 0.35f, cell * 0.35f);
 
         ref var titleSprite = ref world.Components<Sprite>().Get(visuals.TitleBar);
@@ -156,7 +156,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
 
         ref var gameOverSprite = ref world.Components<Sprite>().Get(visuals.GoPanel);
         ref var scoreSprite = ref world.Components<Sprite>().Get(visuals.ScoreBar);
-        if (session.Phase == Phase.GameOver)
+        if (session.Phase is Phase.GameOver or Phase.Won)
         {
             var goPanel = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f), fb);
             ref var gameOverTransform = ref world.Components<Transform>().Get(visuals.GoPanel); gameOverTransform.LocalPosition = goPanel; gameOverTransform.WorldPosition = goPanel;
@@ -202,10 +202,12 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
             SetHudRow(world, visuals.TxtTitle, TitleStyle, "demo.snake.title", true, 36f, framebufferSize.Y - 50f);
             SetHudRow(world, visuals.TxtHintTitle, HintStyle, "demo.snake.hint_title", true, 36f, 100f);
         }
-        else if (session.Phase == Phase.GameOver)
+        else if (session.Phase is Phase.GameOver or Phase.Won)
         {
-            SetHudRow(world, visuals.TxtGameOver, GameOverStyle, "demo.snake.game_over", true, framebufferSize.X * 0.5f - 120f, framebufferSize.Y * 0.5f + 52f);
-            SetHudRow(world, visuals.TxtHintGo, HintStyle, "demo.snake.hint_gameover", true, 36f, 118f);
+            var titleKey = session.Phase == Phase.Won ? "demo.snake.you_win" : "demo.snake.game_over";
+            SetHudRow(world, visuals.TxtGameOver, GameOverStyle, titleKey, true, framebufferSize.X * 0.5f - 120f, framebufferSize.Y * 0.5f + 52f);
+            var hint = session.Phase == Phase.Won ? "demo.snake.hint_win" : "demo.snake.hint_gameover";
+            SetHudRow(world, visuals.TxtHintGo, HintStyle, hint, true, 36f, 118f);
         }
         else if (session.Phase == Phase.Playing)
         {

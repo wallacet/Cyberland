@@ -7,7 +7,8 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.Pong;
 
 /// <summary>
-/// Fixed-step Pong simulation on the session entity. Sequential: one <see cref="State"/> entity, no chunk parallelism.
+/// Fixed-step Pong on the session entity. Paddle hits use circle-vs-rectangle tests so the step does not depend on
+/// engine trigger events (triggers run before mod <see cref="IFixedUpdate"/>; see <c>cyberland.engine/trigger</c> ordering).
 /// </summary>
 public sealed class SimulationSystem : ISystem, IFixedUpdate
 {
@@ -35,37 +36,13 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
             EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong.SimulationSystem startup failed", "Host.Renderer was null during OnStart.");
             throw new InvalidOperationException("Cyberland.Demo.Pong SimulationSystem requires a renderer.");
         }
-
-        var triggers = world.Components<Trigger>();
-
-        // Trigger shapes are static for this demo; only transforms/enabled state change at runtime.
-        triggers.GetOrAdd(_visuals.LeftPad) = new Trigger
-        {
-            Enabled = false,
-            Shape = TriggerShapeKind.Rectangle,
-            HalfExtents = new Vector2D<float>(Constants.PaddleHalfW, Constants.PaddleHalfH)
-        };
-        triggers.GetOrAdd(_visuals.RightPad) = new Trigger
-        {
-            Enabled = false,
-            Shape = TriggerShapeKind.Rectangle,
-            HalfExtents = new Vector2D<float>(Constants.PaddleHalfW, Constants.PaddleHalfH)
-        };
-        triggers.GetOrAdd(_visuals.Ball) = new Trigger
-        {
-            Enabled = false,
-            Shape = TriggerShapeKind.Circle,
-            Radius = Constants.BallR
-        };
     }
 
     public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
     {
         _ = archetype;
         var world = _world;
-        // Simulation uses the camera's virtual viewport as its fixed arena, so gameplay stays the same size
-        // regardless of the physical window (letterboxed on non-16:9 displays).
-        var fb = _host.CameraRuntimeState.ViewportSizeWorld;
+        var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         ref var st = ref world.Components<State>().Get(_session);
         ref var ctl = ref world.Components<Control>().Get(_session);
         var margin = 32f;
@@ -74,41 +51,36 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
         st.ArenaMinY = margin;
         st.ArenaMaxY = fb.Y - margin;
         st.Pulse += fixedDeltaSeconds * Constants.TitlePulseSpeed;
-        SyncTriggerBodies(world, in st);
+        SyncPaddleAndBallTransforms(world, in st);
         if (ctl.StartMatch) StartMatch(ref st, fb);
         ctl.StartMatch = false;
-        if (st.Phase == Phase.Playing) StepPlaying(world, ref st, fb, ctl.PaddleUp, ctl.PaddleDown, fixedDeltaSeconds);
+        if (st.Phase == Phase.Playing) StepPlaying(ref st, fb, ctl.PaddleUp, ctl.PaddleDown, fixedDeltaSeconds);
     }
 
-    private void SyncTriggerBodies(World world, in State st)
+    private void SyncPaddleAndBallTransforms(World world, in State st)
     {
         var transforms = world.Components<Transform>();
-        var triggers = world.Components<Trigger>();
 
         ref var leftTransform = ref transforms.Get(_visuals.LeftPad);
         leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, st.LeftPaddleY);
         leftTransform.WorldPosition = leftTransform.LocalPosition;
-        ref var leftTrigger = ref triggers.Get(_visuals.LeftPad);
-        leftTrigger.Enabled = st.Phase == Phase.Playing;
 
         ref var rightTransform = ref transforms.Get(_visuals.RightPad);
         rightTransform.LocalPosition = new Vector2D<float>(st.ArenaMaxX, st.RightPaddleY);
         rightTransform.WorldPosition = rightTransform.LocalPosition;
-        ref var rightTrigger = ref triggers.Get(_visuals.RightPad);
-        rightTrigger.Enabled = st.Phase == Phase.Playing;
 
         ref var ballTransform = ref transforms.Get(_visuals.Ball);
         ballTransform.LocalPosition = st.BallPos;
         ballTransform.WorldPosition = st.BallPos;
-        ref var ballTrigger = ref triggers.Get(_visuals.Ball);
-        ballTrigger.Enabled = st.Phase == Phase.Playing;
     }
+
     private static void StartMatch(ref State st, Vector2D<int> fb)
     {
         st.Phase = Phase.Playing; st.PlayerPoints = 0; st.CpuPoints = 0;
         ResetBall(ref st, fb, true);
         st.LeftPaddleY = fb.Y * 0.5f; st.RightPaddleY = st.LeftPaddleY; st.LeftPaddleVelY = 0f; st.RightPaddleVelY = 0f;
     }
+
     private static void ResetBall(ref State st, Vector2D<int> fb, bool playerServes)
     {
         _ = fb;
@@ -118,12 +90,14 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
         NormalizeBallSpeed(ref st);
         st.ServeDelay = Constants.ServeDelaySeconds;
     }
+
     private static void NormalizeBallSpeed(ref State st)
     {
         var len = MathF.Sqrt(st.BallVel.X * st.BallVel.X + st.BallVel.Y * st.BallVel.Y);
         if (len > 1e-3f) st.BallVel *= Constants.BallSpeed / len;
     }
-    private void StepPlaying(World world, ref State st, Vector2D<int> fb, bool paddleUp, bool paddleDown, float dt)
+
+    private void StepPlaying(ref State st, Vector2D<int> fb, bool paddleUp, bool paddleDown, float dt)
     {
         if (st.ServeDelay > 0f) { st.ServeDelay -= dt; st.LeftPaddleVelY = 0f; st.RightPaddleVelY = 0f; return; }
         var prevLeft = st.LeftPaddleY;
@@ -142,30 +116,52 @@ public sealed class SimulationSystem : ISystem, IFixedUpdate
         st.BallPos += st.BallVel * dt;
         if (st.BallPos.Y + Constants.BallR > st.ArenaMaxY) { st.BallPos.Y = st.ArenaMaxY - Constants.BallR; st.BallVel.Y *= -1f; }
         else if (st.BallPos.Y - Constants.BallR < st.ArenaMinY) { st.BallPos.Y = st.ArenaMinY + Constants.BallR; st.BallVel.Y *= -1f; }
-        ApplyTriggerPaddleContacts(world, ref st);
+
+        ResolvePaddleContacts(ref st, fb);
         if (st.BallPos.X < st.ArenaMinX - 40f) { st.CpuPoints++; if (st.CpuPoints >= Constants.WinScore || st.PlayerPoints >= Constants.WinScore) st.Phase = Phase.GameOver; else ResetBall(ref st, fb, false); }
         else if (st.BallPos.X > st.ArenaMaxX + 40f) { st.PlayerPoints++; if (st.CpuPoints >= Constants.WinScore || st.PlayerPoints >= Constants.WinScore) st.Phase = Phase.GameOver; else ResetBall(ref st, fb, true); }
     }
-    private void ApplyTriggerPaddleContacts(World world, ref State st)
+
+    private static void ResolvePaddleContacts(ref State st, Vector2D<int> fb)
     {
-        if (!world.Components<TriggerEvents>().TryGet(_visuals.Ball, out var triggerEvents) || triggerEvents.Events is null) return;
-        foreach (var ev in triggerEvents.Events)
+        _ = fb;
+        var hwx = Constants.PaddleHalfW;
+        var hhy = Constants.PaddleHalfH;
+        var r = Constants.BallR;
+        if (st.BallVel.X < 0f && CircleIntersectsAabb(in st.BallPos, r, st.ArenaMinX, st.LeftPaddleY, hwx, hhy))
         {
-            if (ev.Kind != TriggerEventKind.OnTriggerEnter) continue;
-            if (ev.Other == _visuals.LeftPad && st.BallVel.X < 0f)
-            {
-                st.BallPos.X = st.ArenaMinX + Constants.PaddleHalfW + Constants.BallR;
-                st.BallVel.X = MathF.Abs(st.BallVel.X);
-                st.BallVel.Y += ((st.BallPos.Y - st.LeftPaddleY) / Constants.PaddleHalfH) * Constants.PaddleEnglish;
-                NormalizeBallSpeed(ref st);
-            }
-            else if (ev.Other == _visuals.RightPad && st.BallVel.X > 0f)
-            {
-                st.BallPos.X = st.ArenaMaxX - Constants.PaddleHalfW - Constants.BallR;
-                st.BallVel.X = -MathF.Abs(st.BallVel.X);
-                st.BallVel.Y += ((st.BallPos.Y - st.RightPaddleY) / Constants.PaddleHalfH) * Constants.PaddleEnglish;
-                NormalizeBallSpeed(ref st);
-            }
+            st.BallPos.X = st.ArenaMinX + hwx + r;
+            st.BallVel.X = MathF.Abs(st.BallVel.X);
+            st.BallVel.Y += ((st.BallPos.Y - st.LeftPaddleY) / hhy) * Constants.PaddleEnglish;
+            NormalizeBallSpeed(ref st);
+            return;
         }
+
+        if (st.BallVel.X > 0f && CircleIntersectsAabb(in st.BallPos, r, st.ArenaMaxX, st.RightPaddleY, hwx, hhy))
+        {
+            st.BallPos.X = st.ArenaMaxX - hwx - r;
+            st.BallVel.X = -MathF.Abs(st.BallVel.X);
+            st.BallVel.Y += ((st.BallPos.Y - st.RightPaddleY) / hhy) * Constants.PaddleEnglish;
+            NormalizeBallSpeed(ref st);
+        }
+    }
+
+    private static bool CircleIntersectsAabb(
+        in Vector2D<float> c,
+        float r,
+        float centerX,
+        float centerY,
+        float hwx,
+        float hhy)
+    {
+        var minX = centerX - hwx;
+        var maxX = centerX + hwx;
+        var minY = centerY - hhy;
+        var maxY = centerY + hhy;
+        var qx = Math.Clamp(c.X, minX, maxX);
+        var qy = Math.Clamp(c.Y, minY, maxY);
+        var dx = c.X - qx;
+        var dy = c.Y - qy;
+        return dx * dx + dy * dy < r * r;
     }
 }

@@ -182,7 +182,7 @@ public sealed class GameApplication : IDisposable
             _scheduler.EndDeferExecutionOrderRebuilds();
         }
 
-        _localizedContent.MergeStringTableAsync("strings.json").GetAwaiter().GetResult();
+        _localizedContent.MergeStringTable("strings.json");
     }
 
     private void OnUpdate(double delta)

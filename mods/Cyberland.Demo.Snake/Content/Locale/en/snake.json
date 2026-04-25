@@ -3,5 +3,7 @@
   "demo.snake.hint_title": "Enter / R — start     Q — quit",
   "demo.snake.hint_gameover": "Enter / R — restart     Q — quit",
   "demo.snake.playing": "Foods",
-  "demo.snake.game_over": "GAME OVER"
+  "demo.snake.game_over": "GAME OVER",
+  "demo.snake.you_win": "You cleared the board",
+  "demo.snake.hint_win": "Enter / R — play again     Q — quit"
 }

@@ -7,6 +7,7 @@ namespace Cyberland.Demo.Snake;
 
 /// <summary>
 /// One-shot entity creation for Snake. Registered as <see cref="ISystem"/> (sequential): only <see cref="OnStart"/> runs.
+/// Preallocates <c>GridW*GridH</c> segment entities so the frame path toggles <see cref="Sprite.Visible"/> only.
 /// </summary>
 public sealed class BootstrapSystem : ISystem
 {

@@ -9,17 +9,18 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Snake;
 
-// Snake sample: Control + Session + Tilemap + VisualBundle entities. Simulation is centralized in Session; segment entities are visual only.
-// Pipeline: bootstrap (OnStart only, seq) -> input (early, seq) -> tick (fixed, seq) -> tilemap layout / lights / visual sync (late, seq).
-// manifest.json often sets disabled: true so publish skips this mod unless enabled.
-//
-// MergeStringTableAsync is synchronous here so strings exist before the first RunFrame.
+// Snake sample: Control + Session + Tilemap (background grid) + VisualBundle. Logic lives in Session; one segment
+// sprite per cell (preallocated) avoids per-tick entity churn, not a requirement. Systems are all ISystem
+// (sequential) for clarity; add IParallelSystem when a hot loop is worth partitioning (see cyberland-design-goals).
+// Pipeline: bootstrap (OnStart) -> input (early) -> tick (fixed) -> tilemap layout / lights / visual sync (late).
+// Optional: manifest.json <c>disabled: true</c> so publish omits the DLL unless you enable the mod.
 public sealed class Mod : IMod
 {
     public void OnLoad(ModLoadContext context)
     {
         context.MountDefaultContent();
-        context.LocalizedContent.MergeStringTableAsync("snake.json").GetAwaiter().GetResult();
+        SnakeInputSetup.RegisterDefaultBindings(context);
+        context.LocalizedContent.MergeStringTable("snake.json");
         var w = context.World;
 
         // Camera anchors Snake's gameplay to a fixed 1280x720 canvas; non-matching window sizes letterbox

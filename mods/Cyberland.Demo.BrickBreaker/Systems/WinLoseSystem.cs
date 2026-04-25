@@ -55,6 +55,6 @@ public sealed class WinLoseSystem : IParallelSystem, IParallelFixedUpdate
 
         if (activeCount > 0)
             return;
-        game.Phase = Phase.GameOver;
+        game.Phase = Phase.Won;
     }
 }

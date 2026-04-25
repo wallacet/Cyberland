@@ -61,6 +61,59 @@ public sealed class LocalizedContentTests
     }
 
     [Fact]
+    public void LocalizedContent_MergeStringTable_skips_missing_locale_then_merges()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-loc-skip-culture-" + Guid.NewGuid());
+        Directory.CreateDirectory(Path.Combine(root, "Locale", "de"));
+        File.WriteAllText(Path.Combine(root, "Locale", "de", "only.json"), """{"k":"deval"}""");
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var locMgr = new LocalizationManager();
+            // Merge order is en then de — English table is missing so the first loop iteration hits continue, then "de" loads.
+            var lc = new LocalizedContent(locMgr, vfs, "de");
+            lc.MergeStringTable("only.json");
+            Assert.Equal("deval", locMgr.Get("k"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void LocalizedContent_MergeStringTable_skips_whitespace_name()
+    {
+        var locMgr = new LocalizationManager();
+        var lc = new LocalizedContent(locMgr, new VirtualFileSystem(), "en");
+        locMgr.MergeJson("""{"a":"1"}"""u8.ToArray());
+        lc.MergeStringTable("  ");
+        Assert.Equal("1", locMgr.Get("a"));
+    }
+
+    [Fact]
+    public void LocalizedContent_MergeStringTable_matches_async_merge_results()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-loc-sync-merge-" + Guid.NewGuid());
+        Directory.CreateDirectory(Path.Combine(root, "Locale", "en"));
+        File.WriteAllText(Path.Combine(root, "Locale", "en", "sync.json"), """{"a":"1"}""");
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var locMgr = new LocalizationManager();
+            var lc = new LocalizedContent(locMgr, vfs, "en");
+            lc.MergeStringTable("sync.json");
+            Assert.Equal("1", locMgr.Get("a"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public async Task LocalizedContent_MergeStringTableAsync_skips_missing_english_then_loads_primary()
     {
         var root = Path.Combine(Path.GetTempPath(), "cyb-loc-merge-deonly-" + Guid.NewGuid());
