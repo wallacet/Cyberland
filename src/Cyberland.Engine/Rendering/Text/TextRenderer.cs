@@ -3,6 +3,7 @@ using System.Text;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine;
+using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Rendering.Text;
@@ -14,10 +15,10 @@ namespace Cyberland.Engine.Rendering.Text;
 /// </summary>
 /// <remarks>
 /// The world-space overloads (<c>DrawLiteral</c>, <c>DrawLocalized</c>, <c>DrawRuns</c>) take a baseline-left
-/// in world pixels (+Y up) and submit glyph sprites in <see cref="SpriteCoordinateSpace.World"/>; the renderer
+/// in world pixels (+Y up) and submit glyph sprites in <see cref="CoordinateSpace.WorldSpace"/>; the renderer
 /// applies the active camera transform. The <c>*Screen</c> overloads take a viewport-pixel baseline-left
 /// (+Y down, top-left, extent <see cref="IRenderer.ActiveCameraViewportSize"/>) and submit glyphs in
-/// <see cref="SpriteCoordinateSpace.Viewport"/> so HUD text stays locked to the camera's virtual canvas.
+/// <see cref="CoordinateSpace.ViewportSpace"/> so HUD text stays locked to the camera's virtual canvas.
 /// Localization keys use <see cref="LocalizationManager.Get"/> (missing keys echo the key).
 /// </remarks>
 public static class TextRenderer
@@ -37,7 +38,7 @@ public static class TextRenderer
         string text,
         Vector2D<float> baselineLeftWorld,
         float sortKey = 450f) =>
-        DrawLiteral(renderer, fonts, cache, in style, text, baselineLeftWorld, SpriteCoordinateSpace.World, sortKey);
+        DrawLiteral(renderer, fonts, cache, in style, text, baselineLeftWorld, CoordinateSpace.WorldSpace, sortKey);
 
     /// <summary>Draws a literal string with a single style in <paramref name="space"/> (world or viewport).</summary>
     public static void DrawLiteral(
@@ -47,7 +48,7 @@ public static class TextRenderer
         in TextStyle style,
         string text,
         Vector2D<float> baselineLeft,
-        SpriteCoordinateSpace space,
+        CoordinateSpace space,
         float sortKey = 450f)
     {
         if (renderer is null || string.IsNullOrEmpty(text))
@@ -69,7 +70,7 @@ public static class TextRenderer
         Vector2D<float> baselineLeftWorld,
         float sortKey = 450f) =>
         DrawLocalized(renderer, fonts, cache, localization, in style, key, baselineLeftWorld,
-            SpriteCoordinateSpace.World, sortKey);
+            CoordinateSpace.WorldSpace, sortKey);
 
     /// <summary>Draws a localized string in <paramref name="space"/> (world or viewport).</summary>
     public static void DrawLocalized(
@@ -80,7 +81,7 @@ public static class TextRenderer
         in TextStyle style,
         string key,
         Vector2D<float> baselineLeft,
-        SpriteCoordinateSpace space,
+        CoordinateSpace space,
         float sortKey = 450f)
     {
         if (renderer is null || localization is null || string.IsNullOrEmpty(key))
@@ -108,7 +109,7 @@ public static class TextRenderer
         string text,
         Vector2D<float> baselineLeftScreen,
         float sortKey = 450f) =>
-        DrawLiteral(renderer, fonts, cache, in style, text, baselineLeftScreen, SpriteCoordinateSpace.Viewport, sortKey);
+        DrawLiteral(renderer, fonts, cache, in style, text, baselineLeftScreen, CoordinateSpace.ViewportSpace, sortKey);
 
     /// <summary>Draws a localized string with <paramref name="baselineLeftScreen"/> in viewport pixels (+Y down, top-left).</summary>
     public static void DrawLocalizedScreen(
@@ -121,7 +122,7 @@ public static class TextRenderer
         Vector2D<float> baselineLeftScreen,
         float sortKey = 450f) =>
         DrawLocalized(renderer, fonts, cache, localization, in style, key, baselineLeftScreen,
-            SpriteCoordinateSpace.Viewport, sortKey);
+            CoordinateSpace.ViewportSpace, sortKey);
 
     /// <summary>Draws multiple runs (mixed colors, styles, and localized segments) in world space.</summary>
     public static void DrawRuns(
@@ -132,7 +133,7 @@ public static class TextRenderer
         ReadOnlySpan<TextRun> runs,
         Vector2D<float> baselineLeftWorld,
         float sortKey = 450f) =>
-        DrawRuns(renderer, fonts, cache, localization, runs, baselineLeftWorld, SpriteCoordinateSpace.World, sortKey);
+        DrawRuns(renderer, fonts, cache, localization, runs, baselineLeftWorld, CoordinateSpace.WorldSpace, sortKey);
 
     /// <summary>Draws multiple runs in <paramref name="space"/> (world or viewport).</summary>
     public static void DrawRuns(
@@ -142,7 +143,7 @@ public static class TextRenderer
         LocalizationManager? localization,
         ReadOnlySpan<TextRun> runs,
         Vector2D<float> baselineLeft,
-        SpriteCoordinateSpace space,
+        CoordinateSpace space,
         float sortKey = 450f)
     {
         if (renderer is null || runs.Length == 0)
@@ -176,7 +177,7 @@ public static class TextRenderer
         ReadOnlySpan<TextRun> runs,
         Vector2D<float> baselineLeftScreen,
         float sortKey = 450f) =>
-        DrawRuns(renderer, fonts, cache, localization, runs, baselineLeftScreen, SpriteCoordinateSpace.Viewport, sortKey);
+        DrawRuns(renderer, fonts, cache, localization, runs, baselineLeftScreen, CoordinateSpace.ViewportSpace, sortKey);
 
     /// <summary>
     /// Fills <paramref name="destination"/> with glyph quads (no submit). Returns glyph count and final pen.
@@ -192,7 +193,7 @@ public static class TextRenderer
         float sortKey,
         Span<SpriteDrawRequest> destination,
         out float penAfter,
-        SpriteCoordinateSpace space = SpriteCoordinateSpace.World)
+        CoordinateSpace space = CoordinateSpace.WorldSpace)
     {
         penAfter = initialPen;
         if (string.IsNullOrEmpty(text) || destination.Length == 0)
@@ -204,7 +205,7 @@ public static class TextRenderer
         var pen = initialPen;
         // Viewport space is +Y down: glyph baseline grows down, so the per-glyph Y-offset (which is authored in
         // +Y up "baseline-to-center") must flip sign to land at the correct pixel row.
-        var ySign = space == SpriteCoordinateSpace.Viewport ? -1f : 1f;
+        var ySign = space == CoordinateSpace.ViewportSpace ? -1f : 1f;
         for (var i = 0; i < span.Length;)
         {
             if (Rune.DecodeFromUtf16(span[i..], out var r, out var len) != OperationStatus.Done)
@@ -241,7 +242,7 @@ public static class TextRenderer
         Vector2D<float> baselineLeft,
         float pen,
         float sortKey,
-        SpriteCoordinateSpace space)
+        CoordinateSpace space)
     {
         // Callers skip empty strings; avoid a redundant branch the gate cannot hit.
         var span = text.AsSpan();
@@ -272,7 +273,7 @@ public static class TextRenderer
         float sortKey,
         TextureId whiteTex,
         TextureId defNormal,
-        SpriteCoordinateSpace space = SpriteCoordinateSpace.World) =>
+        CoordinateSpace space = CoordinateSpace.WorldSpace) =>
         AddDecorations(renderer, in style, baselineLeft, penStart, penEnd, sortKey, whiteTex, defNormal, space);
 
     /// <summary>Approximate em advance when a glyph cannot be cached so the rest of the string still lays out.</summary>
@@ -287,7 +288,7 @@ public static class TextRenderer
         float sortKey,
         TextureId defNormal,
         int glyphOrdinalInRun,
-        SpriteCoordinateSpace space)
+        CoordinateSpace space)
     {
         var cm = style.Color;
         return new SpriteDrawRequest
@@ -320,7 +321,7 @@ public static class TextRenderer
         float sortKey,
         TextureId whiteTex,
         TextureId defNormal,
-        SpriteCoordinateSpace space)
+        CoordinateSpace space)
     {
         if (penEnd <= penStart)
             return;
@@ -331,7 +332,7 @@ public static class TextRenderer
         // goes slightly up (smaller Y). World space uses the opposite sign.
         var underlineOffset = MathF.Max(1.5f, style.SizePixels * 0.12f);
         var strikeOffset = style.SizePixels * 0.08f;
-        var ySign = space == SpriteCoordinateSpace.Viewport ? -1f : 1f;
+        var ySign = space == CoordinateSpace.ViewportSpace ? -1f : 1f;
         var underlineY = baselineLeft.Y - underlineOffset * ySign;
         var strikeY = baselineLeft.Y + strikeOffset * ySign;
 
@@ -354,7 +355,7 @@ public static class TextRenderer
         float sortKey,
         TextureId whiteTex,
         TextureId defN,
-        SpriteCoordinateSpace space)
+        CoordinateSpace space)
     {
         var midX = (xStart + xEnd) * 0.5f;
         var halfW = MathF.Max(0.5f, (xEnd - xStart) * 0.5f);

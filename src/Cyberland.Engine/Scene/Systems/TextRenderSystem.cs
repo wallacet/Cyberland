@@ -37,7 +37,9 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
     public void OnLateUpdate(ChunkQueryAll query, float deltaSeconds)
     {
         _ = deltaSeconds;
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
+        if (r is null)
+            return;
 
         foreach (var chunk in query)
         {
@@ -63,11 +65,9 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         ref readonly Transform transform,
         IRenderer renderer)
     {
-        if (!TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, _host, renderer,
-                out var baselineAuthored, out var space))
+        if ((cache.GlyphCount == 0 || cache.CachedGlyphs is null) &&
+            !TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, _host, renderer, out _, out _))
         {
-            cache.GlyphCount = 0;
-            cache.PenAfter = 0f;
             return;
         }
 
@@ -76,6 +76,9 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
 
         if (!bt.Style.Underline && !bt.Style.Strikethrough)
             return;
+
+        var baselineAuthored = cache.BaselineAuthored;
+        var space = cache.Space;
 
         TextRenderer.SubmitTextDecorations(
             renderer,

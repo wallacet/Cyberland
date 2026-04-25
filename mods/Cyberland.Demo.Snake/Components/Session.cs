@@ -36,7 +36,7 @@ public struct Session : IComponent
         var rowFromTop = Constants.GridH - 1 - y;
         return new Vector2D<float>(OriginX + (x + 0.5f) * Cell, OriginY + (rowFromTop + 0.5f) * Cell);
     }
-    public Vector2D<float> CellCenterWorld(int x, int y, Vector2D<int> framebufferSize) => WorldScreenSpace.ScreenPixelToWorldCenter(CellCenterScreen(x, y), framebufferSize);
+    public Vector2D<float> CellCenterWorld(int x, int y, Vector2D<int> framebufferSize) => WorldViewportSpace.ViewportPixelToWorldCenter(CellCenterScreen(x, y), framebufferSize);
     public void StartGame()
     {
         EnsureInitialized();

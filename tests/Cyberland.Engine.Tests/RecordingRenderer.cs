@@ -22,6 +22,7 @@ internal sealed class RecordingRenderer : IRenderer
     /// Tests may override to simulate specific active cameras without submitting a full <see cref="CameraViewRequest"/>.
     /// </summary>
     public Vector2D<int> ActiveCameraViewportSize { get; set; } = new(800, 600);
+    public CameraViewRequest ActiveCameraView { get; set; } = CameraSelection.Default(new Vector2D<int>(800, 600));
     public Action? RequestClose { get; set; }
     public FramePacing FramePacing { get; set; } = FramePacing.VSync;
     public TextureId DefaultNormalTextureId => 1;

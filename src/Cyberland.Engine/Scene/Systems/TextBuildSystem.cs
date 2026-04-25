@@ -29,7 +29,9 @@ public sealed class TextBuildSystem : IParallelSystem, IParallelLateUpdate
     public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions options)
     {
         _ = deltaSeconds;
-        var renderer = _host.Renderer!;
+        var renderer = _host.Renderer;
+        if (renderer is null)
+            return;
 
         foreach (var chunk in query)
         {

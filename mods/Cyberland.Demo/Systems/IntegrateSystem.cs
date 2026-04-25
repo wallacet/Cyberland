@@ -31,13 +31,12 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
     {
         _world = world;
         _ = archetype;
-        var r = _host.Renderer
-                ?? throw new InvalidOperationException("cyberland.demo/integrate requires Host.Renderer during OnStart.");
+        _ = _host.RendererRequired;
         _player = archetype.RequireSingleEntityWith<PlayerTag>("player");
 
         ref var transform = ref world.Components<Transform>().Get(_player);
-        var fb = r.ActiveCameraViewportSize;
-        var p = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(fb.X * 0.55f, fb.Y / 2f), fb);
+        var fb = _host.CameraRuntimeState.ViewportSizeWorld;
+        var p = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.55f, fb.Y / 2f), fb);
         transform.LocalPosition = p;
         transform.WorldPosition = p;
         _initialized = true;
@@ -50,8 +49,7 @@ public sealed class IntegrateSystem : ISystem, IFixedUpdate
             return;
 
         var world = _world;
-        var r = _host.Renderer!;
-        var fb = r.ActiveCameraViewportSize;
+        var fb = _host.CameraRuntimeState.ViewportSizeWorld;
         ref var transform = ref world.Components<Transform>().Get(_player);
         ref var vel = ref world.Components<Velocity>().Get(_player);
 

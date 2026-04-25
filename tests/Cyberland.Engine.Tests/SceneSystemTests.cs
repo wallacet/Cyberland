@@ -475,8 +475,7 @@ public sealed class SceneSystemTests
 
         var sr0 = new SpriteRenderSystem(h);
         StartEcs(sr0, w);
-        Assert.Throws<AggregateException>(() =>
-            sr0.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0f, ParOpts()));
+        sr0.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0f, ParOpts());
     }
 
     [Fact]
@@ -557,7 +556,7 @@ public sealed class SceneSystemTests
         var map = w.CreateEntity();
         tm.Register(map, new[] { 1, 0 }, 1, 2);
         var fb = r.SwapchainPixelSize;
-        var cornerWorld = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
+        var cornerWorld = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
         w.Components<Transform>().GetOrAdd(map) = MakeTransform(localPos: cornerWorld, worldPos: cornerWorld);
         w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
         {

@@ -331,7 +331,7 @@ public sealed class CameraTests
         w.Components<ViewportAnchor2D>().GetOrAdd(e) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = CoordinateSpace.ScreenSpace,
+            ContentSpace = CoordinateSpace.ViewportSpace,
             Anchor = ViewportAnchorPreset.Center
         };
 
@@ -361,7 +361,7 @@ public sealed class CameraTests
         w.Components<ViewportAnchor2D>().GetOrAdd(e) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = CoordinateSpace.ScreenSpace,
+            ContentSpace = CoordinateSpace.ViewportSpace,
             Anchor = ViewportAnchorPreset.TopRight,
             OffsetX = 10f,
             OffsetY = 20f

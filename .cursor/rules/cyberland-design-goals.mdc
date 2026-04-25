@@ -7,7 +7,7 @@ alwaysApply: true
 
 This is a cyberpunk 2D single-player RPG optimized for **low footprint** and **broad hardware**.
 
-**API evolution:** See **cyberland-api-evolution** — breaking changes are acceptable; prefer clean designs over compatibility layers.
+**API evolution:** See **cyberland-api-evolution** — backward compatibility is not a design goal during this phase; prefer breaking changes plus immediate migration to keep APIs clean.
 
 **Technical design pillars:** modularity through **mods** (gameplay, content, and shipped campaign live in mod assemblies and per-mod `Content/`), **predictable performance**, **parallelism / multi-core scaling** (use chunk-parallel ECS passes, parallel-safe shared services on hot paths, and document thread-safety when extending engine APIs), and **asset discipline** (large media outside git, owned per mod).
 

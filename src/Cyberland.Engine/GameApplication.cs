@@ -120,10 +120,11 @@ public sealed class GameApplication : IDisposable
             _audio = null;
         }
 
-        _input = new SilkInputService(_window.CreateInput());
+        _input = new SilkInputService(_window.CreateInput(), _renderer);
         _host.Renderer = _renderer;
         _host.Input = _input;
         _host.Tilemaps ??= new TilemapDataStore();
+        _host.CameraRuntimeState = Hosting.CameraRuntimeState.CreateDefault(_renderer.SwapchainPixelSize);
         _renderer.RequestClose = () => _window?.Close();
 
         EngineDefaultGlobalPostProcess.Apply(_renderer);
@@ -158,15 +159,16 @@ public sealed class GameApplication : IDisposable
                 _host,
                 excludedSet);
 
-            // Camera submits before anchors so the active camera's virtual viewport is resolved before HUD
-            // layout runs; anchors read IRenderer.ActiveCameraViewportSize. The submit itself goes through
-            // IRenderer.SubmitCamera and is drained by the renderer when building the next frame plan.
+            // Publish camera runtime state before viewport anchors so gameplay/layout reads deterministic ECS-owned
+            // camera data instead of renderer queue snapshots.
             _scheduler.RegisterParallel("cyberland.engine/camera-submit", new CameraSubmitSystem(_host));
+            _scheduler.RegisterSequential("cyberland.engine/camera-runtime-state", new CameraRuntimeStateSystem(_host));
             _scheduler.RegisterSequential("cyberland.engine/viewport-layout", new ViewportAnchorSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/lighting-directional", new DirectionalLightSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/lighting-spot", new SpotLightSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/lighting-point", new PointLightSystem(_host));
+            _scheduler.RegisterSequential("cyberland.engine/global-post-process", new GlobalPostProcessSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/post-process-volumes", new PostProcessVolumeSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));

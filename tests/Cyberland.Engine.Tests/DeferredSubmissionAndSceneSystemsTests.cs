@@ -448,7 +448,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<ViewportAnchor2D>().GetOrAdd(screen) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = CoordinateSpace.ScreenSpace,
+            ContentSpace = CoordinateSpace.ViewportSpace,
             Anchor = ViewportAnchorPreset.TopRight,
             OffsetX = 10f,
             OffsetY = 20f
@@ -476,7 +476,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<ViewportAnchor2D>().GetOrAdd(full) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = CoordinateSpace.ScreenSpace,
+            ContentSpace = CoordinateSpace.ViewportSpace,
             Anchor = ViewportAnchorPreset.LeftCenter,
             OffsetX = 0f,
             OffsetY = 0f,
@@ -489,7 +489,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.Components<ViewportAnchor2D>().GetOrAdd(presets) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = CoordinateSpace.ScreenSpace,
+            ContentSpace = CoordinateSpace.ViewportSpace,
             Anchor = (ViewportAnchorPreset)42,
             OffsetX = 1f,
             OffsetY = 2f
@@ -502,7 +502,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             w.Components<ViewportAnchor2D>().GetOrAdd(ent) = new ViewportAnchor2D
             {
                 Active = true,
-                ContentSpace = CoordinateSpace.ScreenSpace,
+                ContentSpace = CoordinateSpace.ViewportSpace,
                 Anchor = anchor,
                 OffsetX = ox,
                 OffsetY = oy

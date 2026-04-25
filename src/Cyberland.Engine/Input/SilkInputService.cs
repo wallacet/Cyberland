@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Scene;
 using Silk.NET.Input;
+using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Input;
 
@@ -17,6 +20,7 @@ namespace Cyberland.Engine.Input;
 public sealed class SilkInputService : IInputService, IDisposable
 {
     private readonly IInputContext _input;
+    private readonly IRenderer? _renderer;
     private readonly Dictionary<string, bool> _actionDown = new(StringComparer.Ordinal);
     private readonly Dictionary<string, bool> _prevActionDown = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float> _axisValues = new(StringComparer.Ordinal);
@@ -29,9 +33,10 @@ public sealed class SilkInputService : IInputService, IDisposable
     private bool _hasMousePosition;
 
     /// <summary>Create a service backed by the provided Silk input context.</summary>
-    public SilkInputService(IInputContext input)
+    public SilkInputService(IInputContext input, IRenderer? renderer = null)
     {
         _input = input ?? throw new ArgumentNullException(nameof(input));
+        _renderer = renderer;
         Bindings = new InputBindings();
         SubscribeExistingKeyboards();
     }
@@ -44,6 +49,14 @@ public sealed class SilkInputService : IInputService, IDisposable
 
     /// <inheritdoc />
     public Vector2 MouseDelta => _mouseDelta;
+
+    /// <inheritdoc />
+    public Vector2 GetMousePosition(CoordinateSpace space = CoordinateSpace.ViewportSpace) =>
+        ConvertMousePosition(_mousePosition, space);
+
+    /// <inheritdoc />
+    public Vector2 GetMouseDelta(CoordinateSpace space = CoordinateSpace.ViewportSpace) =>
+        ConvertMouseDelta(_mouseDelta, space);
 
     /// <inheritdoc />
     public Vector2 MouseWheelDelta => _mouseWheelDelta;
@@ -208,5 +221,88 @@ public sealed class SilkInputService : IInputService, IDisposable
         _hasMousePosition = true;
 
         _mouseWheelDelta = Vector2.Zero;
+    }
+
+    private Vector2 ConvertMousePosition(Vector2 swapchainPosition, CoordinateSpace space)
+    {
+        return space switch
+        {
+            CoordinateSpace.SwapchainSpace => swapchainPosition,
+            CoordinateSpace.ViewportSpace => ConvertSwapchainToViewport(swapchainPosition),
+            CoordinateSpace.WorldSpace => ConvertSwapchainToWorld(swapchainPosition),
+            CoordinateSpace.LocalSpace => throw new NotSupportedException("Mouse coordinates are not defined in LocalSpace without an entity transform."),
+            _ => throw new ArgumentOutOfRangeException(nameof(space), space, "Unsupported coordinate space.")
+        };
+    }
+
+    private Vector2 ConvertMouseDelta(Vector2 swapchainDelta, CoordinateSpace space)
+    {
+        return space switch
+        {
+            CoordinateSpace.SwapchainSpace => swapchainDelta,
+            CoordinateSpace.ViewportSpace => ConvertSwapchainDeltaToViewportDelta(swapchainDelta),
+            CoordinateSpace.WorldSpace => ConvertViewportDeltaToWorldDelta(ConvertSwapchainDeltaToViewportDelta(swapchainDelta)),
+            CoordinateSpace.LocalSpace => throw new NotSupportedException("Mouse delta is not defined in LocalSpace without an entity transform."),
+            _ => throw new ArgumentOutOfRangeException(nameof(space), space, "Unsupported coordinate space.")
+        };
+    }
+
+    private Vector2 ConvertSwapchainToViewport(Vector2 swapchainPosition)
+    {
+        var mapping = ResolveCameraMapping();
+        var viewport = CameraProjection.SwapchainPixelToViewportPixel(
+            new Vector2D<float>(swapchainPosition.X, swapchainPosition.Y),
+            in mapping.Physical);
+        return new Vector2(viewport.X, viewport.Y);
+    }
+
+    private Vector2 ConvertSwapchainToWorld(Vector2 swapchainPosition)
+    {
+        var mapping = ResolveCameraMapping();
+        var viewport = CameraProjection.SwapchainPixelToViewportPixel(
+            new Vector2D<float>(swapchainPosition.X, swapchainPosition.Y),
+            in mapping.Physical);
+        var world = CameraProjection.ViewportPixelToWorld(
+            viewport,
+            mapping.Camera.PositionWorld,
+            mapping.Camera.RotationRadians,
+            new Vector2D<float>(mapping.Camera.ViewportSizeWorld.X, mapping.Camera.ViewportSizeWorld.Y));
+        return new Vector2(world.X, world.Y);
+    }
+
+    private Vector2 ConvertSwapchainDeltaToViewportDelta(Vector2 swapchainDelta)
+    {
+        var mapping = ResolveCameraMapping();
+        var invScale = 1f / mapping.Physical.Scale;
+        return swapchainDelta * invScale;
+    }
+
+    private Vector2 ConvertViewportDeltaToWorldDelta(Vector2 viewportDelta)
+    {
+        var mapping = ResolveCameraMapping();
+        var c = MathF.Cos(mapping.Camera.RotationRadians);
+        var s = MathF.Sin(mapping.Camera.RotationRadians);
+        // Viewport deltas are +Y down; convert to +Y up camera-centered deltas first.
+        var rx = viewportDelta.X;
+        var ry = -viewportDelta.Y;
+        return new Vector2(
+            rx * c - ry * s,
+            rx * s + ry * c);
+    }
+
+    private (CameraViewRequest Camera, PhysicalViewport Physical) ResolveCameraMapping()
+    {
+        if (_renderer is null)
+        {
+            var fallbackSwap = new Vector2D<int>(1, 1);
+            var fallbackCamera = CameraSelection.Default(fallbackSwap);
+            var fallbackPhysical = CameraProjection.ComputePhysicalViewport(fallbackCamera.ViewportSizeWorld, fallbackSwap);
+            return (fallbackCamera, fallbackPhysical);
+        }
+
+        var camera = _renderer.ActiveCameraView;
+        var swapchain = _renderer.SwapchainPixelSize;
+        var physical = CameraProjection.ComputePhysicalViewport(camera.ViewportSizeWorld, swapchain);
+        return (camera, physical);
     }
 }

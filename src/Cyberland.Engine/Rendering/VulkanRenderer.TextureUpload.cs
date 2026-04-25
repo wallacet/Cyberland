@@ -122,9 +122,12 @@ public sealed unsafe partial class VulkanRenderer
                 Height = height
             };
 
-            var id = (TextureId)_r._textureSlots.Count;
-            _r._textureSlots.Add(slot);
-            return id;
+            lock (_r._textureSlotsLock)
+            {
+                var id = (TextureId)_r._textureSlots.Count;
+                _r._textureSlots.Add(slot);
+                return id;
+            }
         }
 
         /// <summary>
@@ -133,12 +136,18 @@ public sealed unsafe partial class VulkanRenderer
         public bool TryUploadTextureRgbaSubregion(TextureId textureId, int dstX, int dstY, int width, int height,
             ReadOnlySpan<byte> rgba)
         {
-            if (_r._vk is null || textureId >= (TextureId)_r._textureSlots.Count)
+            if (_r._vk is null)
                 return false;
             if (width <= 0 || height <= 0 || rgba.Length < width * height * 4)
                 return false;
 
-            var gt = _r._textureSlots[(int)textureId];
+            GpuTexture gt;
+            lock (_r._textureSlotsLock)
+            {
+                if (textureId >= (TextureId)_r._textureSlots.Count)
+                    return false;
+                gt = _r._textureSlots[(int)textureId];
+            }
             if (dstX < 0 || dstY < 0 || dstX + width > gt.Width || dstY + height > gt.Height)
                 return false;
 
@@ -216,6 +225,8 @@ public sealed unsafe partial class VulkanRenderer
 
         public void OneTimeCommands(Action<CommandBuffer> record)
         {
+            lock (_r._uploadCommandLock)
+            {
             CommandBufferAllocateInfo ai = new()
             {
                 SType = StructureType.CommandBufferAllocateInfo,
@@ -256,6 +267,7 @@ public sealed unsafe partial class VulkanRenderer
             _r._vk.WaitForFences(_r._device, 1, in submitFence, true, ulong.MaxValue);
             _r._vk.DestroyFence(_r._device, submitFence, null);
             _r._vk.FreeCommandBuffers(_r._device, _r._commandPool, 1, &cmd);
+            }
         }
 
         public void CreateDefaultTextures()

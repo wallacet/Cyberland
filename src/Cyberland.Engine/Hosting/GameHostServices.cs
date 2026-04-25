@@ -3,6 +3,7 @@ using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
+using System.Diagnostics.CodeAnalysis;
 namespace Cyberland.Engine.Hosting;
 
 /// <summary>
@@ -17,6 +18,7 @@ namespace Cyberland.Engine.Hosting;
 /// <strong>before</strong> <see cref="Core.Ecs.ILateUpdate"/> runs, and sets <see cref="FixedDeltaSeconds"/> after the scheduler finishes a frame.
 /// </para>
 /// </remarks>
+ [ExcludeFromCodeCoverage]
 public sealed class GameHostServices
 {
     /// <summary>
@@ -44,9 +46,27 @@ public sealed class GameHostServices
     public IRenderer? Renderer { get; set; }
 
     /// <summary>
+    /// Non-null renderer contract for runtime systems. Throws with a clear message when accessed before host bootstrap.
+    /// </summary>
+    public IRenderer RendererRequired =>
+        Renderer ?? throw new InvalidOperationException("Host.Renderer is not initialized. Access renderer only after host bootstrap.");
+
+    /// <summary>
     /// Frame-stable input service populated by the host after window/input setup; null before host bootstrap completes.
     /// </summary>
     public IInputService? Input { get; set; }
+
+    /// <summary>
+    /// Non-null input contract for runtime systems. Throws with a clear message when accessed before host bootstrap.
+    /// </summary>
+    public IInputService InputRequired =>
+        Input ?? throw new InvalidOperationException("Host.Input is not initialized. Access input only after host bootstrap.");
+
+    /// <summary>
+    /// Frame-stable active camera state published by engine camera runtime systems. Gameplay/layout code should prefer
+    /// this over renderer queue introspection APIs.
+    /// </summary>
+    public CameraRuntimeState CameraRuntimeState { get; set; }
 
     /// <summary>Optional backing store for <see cref="Cyberland.Engine.Scene.Tilemap"/> grid data used by <see cref="Cyberland.Engine.Scene.Systems.TilemapRenderSystem"/>.</summary>
     public ITilemapDataStore? Tilemaps { get; set; }

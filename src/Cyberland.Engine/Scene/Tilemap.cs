@@ -6,7 +6,7 @@ namespace Cyberland.Engine.Scene;
 /// ECS component describing how to draw one logical tile grid: cell size, texture, and sort layer. Cell indices live in <see cref="ITilemapDataStore"/>.
 /// </summary>
 /// <remarks>
-/// Placement uses <see cref="Transform"/> (pivot at cell (0,0)’s top-left in screen-style local offsets; see <see cref="Systems.TilemapRenderSystem"/>).
+/// Placement uses <see cref="Transform"/> (pivot at cell (0,0)’s top-left in viewport-style local offsets; see <see cref="Systems.TilemapRenderSystem"/>).
 /// </remarks>
 [RequiresComponent<Transform>]
 public struct Tilemap : IComponent
@@ -23,4 +23,10 @@ public struct Tilemap : IComponent
     public float SortKey;
     /// <summary>Minimum tile **value** treated as solid (values below draw empty).</summary>
     public int NonEmptyTileMinIndex;
+
+    /// <summary>Atlas column count for tile-index to UV lookup (values &lt;= 0 mean "single full texture").</summary>
+    public int AtlasColumns;
+
+    /// <summary>Atlas row count for tile-index to UV lookup (values &lt;= 0 mean "single full texture").</summary>
+    public int AtlasRows;
 }

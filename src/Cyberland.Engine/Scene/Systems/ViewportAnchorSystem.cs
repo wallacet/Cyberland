@@ -33,9 +33,9 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
     {
         _ = deltaSeconds;
         var world = _world;
-        var renderer = _host.Renderer!;
-
-        var viewport = renderer.ActiveCameraViewportSize;
+        var viewport = _host.CameraRuntimeState.ViewportSizeWorld;
+        if ((viewport.X <= 0 || viewport.Y <= 0) && _host.Renderer is not null)
+            viewport = _host.Renderer.ActiveCameraViewportSize;
         if (viewport.X <= 0 || viewport.Y <= 0)
             return;
 
@@ -52,7 +52,7 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
                     continue;
 
                 var e = ents[i];
-                var p = a.ContentSpace == CoordinateSpace.ScreenSpace
+                var p = a.ContentSpace == CoordinateSpace.ViewportSpace
                     ? ComputeScreen(viewport, a)
                     : ComputeWorld(viewport, a);
                 ref var transform = ref transforms[i];
@@ -89,6 +89,6 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
     private static Vector2D<float> ComputeWorld(Vector2D<int> viewport, in ViewportAnchor2D a)
     {
         var screen = ComputeScreen(viewport, a);
-        return WorldScreenSpace.ScreenPixelToWorldCenter(screen, viewport);
+        return WorldViewportSpace.ViewportPixelToWorldCenter(screen, viewport);
     }
 }

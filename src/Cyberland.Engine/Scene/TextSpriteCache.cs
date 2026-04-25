@@ -1,5 +1,6 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Rendering;
+using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Scene;
 
@@ -24,4 +25,10 @@ public struct TextSpriteCache : IComponent
 
     /// <summary>Number of valid entries in <see cref="CachedGlyphs"/> for the current cached run.</summary>
     public int GlyphCount;
+
+    /// <summary>Last authored baseline used to build the cached glyph run.</summary>
+    public Vector2D<float> BaselineAuthored;
+
+    /// <summary>Coordinate space used by the current cached glyph run.</summary>
+    public CoordinateSpace Space;
 }

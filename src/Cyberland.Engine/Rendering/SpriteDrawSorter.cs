@@ -41,8 +41,11 @@ public static class SpriteDrawSorter
         }
     }
 
-    private static int CompareIndicesNoAlloc(int ia, int ib) =>
-        Compare(in _compareDraws![ia], in _compareDraws[ib]);
+    private static int CompareIndicesNoAlloc(int ia, int ib)
+    {
+        var c = Compare(in _compareDraws![ia], in _compareDraws[ib]);
+        return c != 0 ? c : ia.CompareTo(ib);
+    }
 
     /// <summary>Comparer used by <see cref="SortByLayerOrder"/>; negative if <paramref name="a"/> should draw before <paramref name="b"/>.</summary>
     public static int Compare(in SpriteDrawRequest a, in SpriteDrawRequest b)

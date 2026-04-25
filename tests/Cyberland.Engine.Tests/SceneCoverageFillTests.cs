@@ -218,9 +218,7 @@ public sealed class SceneCoverageFillTests
             NonEmptyTileMinIndex = 1
         };
         var tmSpec = SystemQuerySpec.All<Tilemap, Transform>();
-        var agg = Assert.Throws<AggregateException>(() =>
-            new TilemapRenderSystem(hNullR).OnParallelLateUpdate(w.QueryChunks(tmSpec), 0f, ParOpts()));
-        Assert.IsType<NullReferenceException>(agg.InnerException);
+        new TilemapRenderSystem(hNullR).OnParallelLateUpdate(w.QueryChunks(tmSpec), 0f, ParOpts());
 
         var r = new RecordingRenderer();
         var hNullTm = new GameHostServices() { Renderer = r, Tilemaps = null };
@@ -236,7 +234,7 @@ public sealed class SceneCoverageFillTests
         var map = w.CreateEntity();
         tm.Register(map, new[] { 0, 1 }, 1, 2);
         var fb = r.SwapchainPixelSize;
-        var cornerWorld = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
+        var cornerWorld = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
         w.Components<Transform>().GetOrAdd(map) = MakeTransform(localPos: cornerWorld, worldPos: cornerWorld);
         w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
         {
@@ -347,8 +345,7 @@ public sealed class SceneCoverageFillTests
         var emptyWorld2 = new World();
         var prNo2 = new ParticleRenderSystem(hNoR);
         StartEcs(prNo2, emptyWorld2);
-        Assert.Throws<NullReferenceException>(() =>
-            prNo2.OnParallelLateUpdate(emptyWorld2.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts()));
+        prNo2.OnParallelLateUpdate(emptyWorld2.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
     }
 
     [Fact]
@@ -446,7 +443,7 @@ public sealed class SceneCoverageFillTests
         var w = new World();
         var map = w.CreateEntity();
         var fb2 = r.SwapchainPixelSize;
-        var corner2 = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb2);
+        var corner2 = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb2);
         w.Components<Transform>().GetOrAdd(map) = MakeTransform(localPos: corner2, worldPos: corner2);
         w.Components<Tilemap>().GetOrAdd(map) = new Tilemap
         {

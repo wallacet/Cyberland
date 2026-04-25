@@ -46,71 +46,15 @@ public sealed unsafe partial class VulkanRenderer
             PostProcessVolumeSubmission[] volumes = [];
             CameraViewRequest[] cameras = [];
             GlobalPostProcessSettings globalPost;
-            lock (_r._recordLock)
+            spriteCount = DrainQueue(_r._spriteQueue, ref _r._frameScratchSprites, out sprites);
+            pointCount = DrainQueue(_r._pointLightQueue, ref _r._frameScratchPointLights, out pointLights);
+            spotCount = DrainQueue(_r._spotLightQueue, ref _r._frameScratchSpotLights, out spotLights);
+            directionalCount = DrainQueue(_r._directionalLightQueue, ref _r._frameScratchDirectionalLights, out directionalLights);
+            ambientCount = DrainQueue(_r._ambientLightQueue, ref _r._frameScratchAmbientLights, out ambientLights);
+            volumeCount = DrainQueue(_r._volumeQueue, ref _r._frameScratchVolumes, out volumes);
+            cameraCount = DrainQueue(_r._cameraQueue, ref _r._frameScratchCameras, out cameras);
+            lock (_r._globalPostLock)
             {
-                spriteCount = _r._spriteQueue.Count;
-                if (spriteCount > 0)
-                {
-                    EnsureFrameScratch(ref _r._frameScratchSprites, spriteCount);
-                    _r._spriteQueue.CopyTo(0, _r._frameScratchSprites!, 0, spriteCount);
-                    sprites = _r._frameScratchSprites!;
-                }
-                _r._spriteQueue.Clear();
-
-                pointCount = _r._pointLightQueue.Count;
-                if (pointCount > 0)
-                {
-                    EnsureFrameScratch(ref _r._frameScratchPointLights, pointCount);
-                    _r._pointLightQueue.CopyTo(0, _r._frameScratchPointLights!, 0, pointCount);
-                    pointLights = _r._frameScratchPointLights!;
-                }
-                _r._pointLightQueue.Clear();
-
-                spotCount = _r._spotLightQueue.Count;
-                if (spotCount > 0)
-                {
-                    EnsureFrameScratch(ref _r._frameScratchSpotLights, spotCount);
-                    _r._spotLightQueue.CopyTo(0, _r._frameScratchSpotLights!, 0, spotCount);
-                    spotLights = _r._frameScratchSpotLights!;
-                }
-                _r._spotLightQueue.Clear();
-
-                directionalCount = _r._directionalLightQueue.Count;
-                if (directionalCount > 0)
-                {
-                    EnsureFrameScratch(ref _r._frameScratchDirectionalLights, directionalCount);
-                    _r._directionalLightQueue.CopyTo(0, _r._frameScratchDirectionalLights!, 0, directionalCount);
-                    directionalLights = _r._frameScratchDirectionalLights!;
-                }
-                _r._directionalLightQueue.Clear();
-
-                ambientCount = _r._ambientLightQueue.Count;
-                if (ambientCount > 0)
-                {
-                    EnsureFrameScratch(ref _r._frameScratchAmbientLights, ambientCount);
-                    _r._ambientLightQueue.CopyTo(0, _r._frameScratchAmbientLights!, 0, ambientCount);
-                    ambientLights = _r._frameScratchAmbientLights!;
-                }
-                _r._ambientLightQueue.Clear();
-
-                volumeCount = _r._volumeQueue.Count;
-                if (volumeCount > 0)
-                {
-                    EnsureFrameScratch(ref _r._frameScratchVolumes, volumeCount);
-                    _r._volumeQueue.CopyTo(0, _r._frameScratchVolumes!, 0, volumeCount);
-                    volumes = _r._frameScratchVolumes!;
-                }
-                _r._volumeQueue.Clear();
-
-                cameraCount = _r._cameraQueue.Count;
-                if (cameraCount > 0)
-                {
-                    EnsureFrameScratch(ref _r._frameScratchCameras, cameraCount);
-                    _r._cameraQueue.CopyTo(0, _r._frameScratchCameras!, 0, cameraCount);
-                    cameras = _r._frameScratchCameras!;
-                }
-                _r._cameraQueue.Clear();
-
                 globalPost = _r._globalPost;
             }
 
@@ -120,8 +64,11 @@ public sealed unsafe partial class VulkanRenderer
             var physical = CameraProjection.ComputePhysicalViewport(camera.ViewportSizeWorld, swapchainPixelSize);
             // Publish the resolved viewport size so the NEXT frame's mod systems (anchors, HUD layout) see the
             // camera chosen for THIS frame — this is the stable "virtual window" size for anchor calculations.
-            lock (_r._recordLock)
+            lock (_r._cameraStateLock)
+            {
                 _r._activeCameraViewportSize = camera.ViewportSizeWorld;
+                _r._activeCameraView = camera;
+            }
 
             var resolvedPost = PostProcessVolumeMerge.ResolveAtPoint(
                 in globalPost,
@@ -169,6 +116,23 @@ public sealed unsafe partial class VulkanRenderer
                 in screen,
                 in camera,
                 in physical);
+        }
+
+        private static int DrainQueue<T>(System.Collections.Concurrent.ConcurrentQueue<T> queue, ref T[]? scratch, out T[] result)
+        {
+            var count = queue.Count;
+            if (count <= 0)
+            {
+                result = [];
+                return 0;
+            }
+
+            EnsureFrameScratch(ref scratch, count);
+            var i = 0;
+            while (i < scratch!.Length && queue.TryDequeue(out var value))
+                scratch[i++] = value;
+            result = scratch!;
+            return i;
         }
     }
 

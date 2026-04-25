@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -81,16 +82,13 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private CommandPool _commandPool;
     private CommandBuffer[]? _commandBuffers;
 
-    /// <summary>Protects sprite/light/volume queues and global post settings for concurrent <see cref="IRenderer"/> submits from parallel systems vs the render thread draining for GPU work.</summary>
-    private readonly object _recordLock = new();
-
-    private readonly List<SpriteDrawRequest> _spriteQueue = new();
-    private readonly List<PointLight> _pointLightQueue = new();
-    private readonly List<SpotLight> _spotLightQueue = new();
-    private readonly List<DirectionalLight> _directionalLightQueue = new();
-    private readonly List<AmbientLight> _ambientLightQueue = new();
-    private readonly List<PostProcessVolumeSubmission> _volumeQueue = new();
-    private readonly List<CameraViewRequest> _cameraQueue = new();
+    private readonly ConcurrentQueue<SpriteDrawRequest> _spriteQueue = new();
+    private readonly ConcurrentQueue<PointLight> _pointLightQueue = new();
+    private readonly ConcurrentQueue<SpotLight> _spotLightQueue = new();
+    private readonly ConcurrentQueue<DirectionalLight> _directionalLightQueue = new();
+    private readonly ConcurrentQueue<AmbientLight> _ambientLightQueue = new();
+    private readonly ConcurrentQueue<PostProcessVolumeSubmission> _volumeQueue = new();
+    private readonly ConcurrentQueue<CameraViewRequest> _cameraQueue = new();
 
     // Grow-only snapshots for FramePlanBuilder.Build — reused each frame to avoid List.ToArray / per-frame int[] allocs.
     private SpriteDrawRequest[]? _frameScratchSprites;
@@ -107,6 +105,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     // cameras are submitted concurrently. Initialized to swapchain size so the first frame's viewport anchors
     // behave like the pre-camera default.
     private Vector2D<int> _activeCameraViewportSize;
+    private CameraViewRequest _activeCameraView;
+    private readonly object _cameraStateLock = new();
+    private readonly object _globalPostLock = new();
 
     private GlobalPostProcessSettings _globalPost = new()
     {
@@ -126,6 +127,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     };
 
     private readonly List<GpuTexture> _textureSlots = new();
+    private readonly object _textureSlotsLock = new();
+    private readonly object _uploadCommandLock = new();
     private TextureId _whiteTextureId = TextureId.MaxValue;
     private TextureId _blackTextureId = TextureId.MaxValue;
     private TextureId _defaultNormalTextureId = TextureId.MaxValue;
@@ -180,24 +183,22 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     {
         get
         {
-            lock (_recordLock)
-            {
-                // Peek (not drain) the camera queue so systems that submit cameras and read back their
-                // viewport in the same frame — e.g. CameraSubmitSystem (parallel late) followed by
-                // ViewportAnchorSystem (sequential late) — see a consistent value. The frame plan builder
-                // still drains and uses the same selection logic later.
-                if (_cameraQueue.Count > 0)
-                {
-                    var pending = InteropMarshal.AsSpan(_cameraQueue);
-                    return CameraSelection.PickActive(pending, SwapchainPixelSize).ViewportSizeWorld;
-                }
-                // No pending submissions this frame yet — return the last frame's resolved viewport so
-                // repeated reads stay stable. Before the first frame this falls back to the swapchain size
-                // (default camera viewport = physical window).
-                if (_activeCameraViewportSize.X > 0 && _activeCameraViewportSize.Y > 0)
-                    return _activeCameraViewportSize;
-                return SwapchainPixelSize;
-            }
+            lock (_cameraStateLock)
+                return _activeCameraViewportSize.X > 0 && _activeCameraViewportSize.Y > 0 ? _activeCameraViewportSize : SwapchainPixelSize;
+        }
+    }
+
+    /// <inheritdoc />
+    public CameraViewRequest ActiveCameraView
+    {
+        get
+        {
+            lock (_cameraStateLock)
+                return _activeCameraView.Enabled &&
+                       _activeCameraView.ViewportSizeWorld.X > 0 &&
+                       _activeCameraView.ViewportSizeWorld.Y > 0
+                    ? _activeCameraView
+                    : CameraSelection.Default(SwapchainPixelSize);
         }
     }
 
@@ -214,67 +215,57 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     void IRenderer.SubmitSprite(in SpriteDrawRequest draw)
     {
-        lock (_recordLock)
-            _spriteQueue.Add(draw);
+        _spriteQueue.Enqueue(draw);
     }
 
     void IRenderer.SubmitSprites(ReadOnlySpan<SpriteDrawRequest> draws)
     {
         if (draws.Length == 0)
             return;
-        lock (_recordLock)
-        {
-            foreach (ref readonly var d in draws)
-                _spriteQueue.Add(d);
-        }
+        foreach (ref readonly var d in draws)
+            _spriteQueue.Enqueue(d);
     }
 
     void IRenderer.SubmitPointLight(in PointLight light)
     {
-        lock (_recordLock)
-            _pointLightQueue.Add(light);
+        _pointLightQueue.Enqueue(light);
     }
 
     void IRenderer.SubmitSpotLight(in SpotLight light)
     {
-        lock (_recordLock)
-            _spotLightQueue.Add(light);
+        _spotLightQueue.Enqueue(light);
     }
 
     void IRenderer.SubmitDirectionalLight(in DirectionalLight light)
     {
-        lock (_recordLock)
-            _directionalLightQueue.Add(light);
+        _directionalLightQueue.Enqueue(light);
     }
 
     void IRenderer.SubmitAmbientLight(in AmbientLight light)
     {
-        lock (_recordLock)
-            _ambientLightQueue.Add(light);
+        _ambientLightQueue.Enqueue(light);
     }
 
     void IRenderer.SubmitPostProcessVolume(in PostProcessVolume volume, Vector2D<float> worldPosition, float worldRotationRadians, Vector2D<float> worldScale)
     {
-        lock (_recordLock)
-            _volumeQueue.Add(new PostProcessVolumeSubmission
-            {
-                Volume = volume,
-                WorldPosition = worldPosition,
-                WorldRotationRadians = worldRotationRadians,
-                WorldScale = worldScale
-            });
+        _volumeQueue.Enqueue(new PostProcessVolumeSubmission
+        {
+            Volume = volume,
+            WorldPosition = worldPosition,
+            WorldRotationRadians = worldRotationRadians,
+            WorldScale = worldScale
+        });
     }
 
     void IRenderer.SetGlobalPostProcess(in GlobalPostProcessSettings settings)
     {
-        lock (_recordLock)
+        lock (_globalPostLock)
             _globalPost = settings;
     }
 
     void IRenderer.SubmitCamera(in CameraViewRequest camera)
     {
-        lock (_recordLock)
-            _cameraQueue.Add(camera);
+        _cameraQueue.Enqueue(camera);
     }
 
     /// <summary>
@@ -1062,4 +1053,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     private static uint MakeVkVersion(uint major, uint minor, uint patch) =>
         (major << 22) | (minor << 12) | patch;
+
+    private GpuTexture? TryGetTextureSlot(TextureId id)
+    {
+        lock (_textureSlotsLock)
+            return id < (TextureId)_textureSlots.Count ? _textureSlots[(int)id] : null;
+    }
 }

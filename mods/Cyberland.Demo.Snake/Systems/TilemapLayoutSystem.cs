@@ -28,12 +28,7 @@ public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
     {
         _world = world;
         _ = archetype;
-        var renderer = _host.Renderer;
-        if (renderer is null)
-        {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake.TilemapLayoutSystem", "Renderer was null during OnStart.");
-            throw new InvalidOperationException("Renderer is required by TilemapLayoutSystem.");
-        }
+        var renderer = _host.RendererRequired;
 
         ref var tilemap = ref world.Components<Tilemap>().Get(_arena);
         tilemap.AtlasAlbedoTextureId = renderer.WhiteTextureId;
@@ -46,9 +41,7 @@ public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
         _ = archetype;
         _ = deltaSeconds;
         var world = _world;
-        var renderer = _host.Renderer;
-        if (renderer is null) return;
-        var fb = renderer.ActiveCameraViewportSize;
+        var fb = _host.CameraRuntimeState.ViewportSizeWorld;
         if (fb.X <= 0 || fb.Y <= 0) return;
         ref var session = ref world.Components<Session>().Get(_sessionEntity);
         session.UpdateLayout(fb.X, fb.Y);
@@ -57,7 +50,7 @@ public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
         tilemap.TileHeight = session.Cell;
 
         ref var tf = ref world.Components<Transform>().Get(_arena);
-        tf.LocalPosition = WorldScreenSpace.ScreenPixelToWorldCenter(
+        tf.LocalPosition = WorldViewportSpace.ViewportPixelToWorldCenter(
             new Vector2D<float>(session.OriginX, session.OriginY),
             fb);
         tf.LocalRotationRadians = 0f;

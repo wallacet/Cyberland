@@ -49,9 +49,9 @@ public struct Sprite : IComponent
     /// <summary>
     /// Whether <see cref="Transform.WorldPosition"/> is interpreted as world (camera-transformed) or viewport
     /// pixels (+Y down, locked to the camera's virtual viewport / HUD). Defaults to
-    /// <see cref="SpriteCoordinateSpace.World"/>.
+    /// <see cref="CoordinateSpace.WorldSpace"/>.
     /// </summary>
-    public SpriteCoordinateSpace Space;
+    public CoordinateSpace Space;
 
     /// <summary>Struct field initializers require an explicit constructor; <see cref="Alpha"/> defaults to 1.</summary>
     public Sprite()

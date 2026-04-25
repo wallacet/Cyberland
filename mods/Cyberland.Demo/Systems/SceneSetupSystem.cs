@@ -99,11 +99,11 @@ public sealed class SceneSetupSystem : ISystem
         titleText.Content = "demo.hdr.title";
         titleText.Style = new TextStyle(BuiltinFonts.UiSans, 22f, new Vector4D<float>(0.85f, 0.95f, 1f, 1f), Bold: true);
         titleText.SortKey = 450f;
-        titleText.CoordinateSpace = CoordinateSpace.ScreenSpace;
+        titleText.CoordinateSpace = CoordinateSpace.ViewportSpace;
         world.Components<ViewportAnchor2D>().GetOrAdd(hudTitle) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = CoordinateSpace.ScreenSpace,
+            ContentSpace = CoordinateSpace.ViewportSpace,
             Anchor = ViewportAnchorPreset.BottomLeft,
             OffsetX = 24f,
             OffsetY = 36f,
@@ -119,11 +119,11 @@ public sealed class SceneSetupSystem : ISystem
         hintText.Content = "demo.hdr.hint";
         hintText.Style = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.55f, 0.65f, 0.75f, 0.9f), Italic: true);
         hintText.SortKey = 451f;
-        hintText.CoordinateSpace = CoordinateSpace.ScreenSpace;
+        hintText.CoordinateSpace = CoordinateSpace.ViewportSpace;
         world.Components<ViewportAnchor2D>().GetOrAdd(hudHint) = new ViewportAnchor2D
         {
             Active = true,
-            ContentSpace = CoordinateSpace.ScreenSpace,
+            ContentSpace = CoordinateSpace.ViewportSpace,
             Anchor = ViewportAnchorPreset.TopLeft,
             OffsetX = 24f,
             OffsetY = 48f,
@@ -189,7 +189,7 @@ public sealed class SceneSetupSystem : ISystem
 
         var eBloom = world.CreateEntity();
         world.Components<HdrBloomVolumeTag>().GetOrAdd(eBloom);
-        var fb = renderer.ActiveCameraViewportSize;
+        var fb = new Vector2D<int>(CanvasWidth, CanvasHeight);
         var hx = fb.X * 0.5f;
         var hy = fb.Y * 0.5f;
         // Transform's property setters rebuild the backing matrix from cached PRS; seed from Identity so the initial
@@ -209,21 +209,27 @@ public sealed class SceneSetupSystem : ISystem
             }
         };
 
-        renderer.SetGlobalPostProcess(new GlobalPostProcessSettings
+        var globalPostEntity = world.CreateEntity();
+        world.Components<GlobalPostProcessSource>().GetOrAdd(globalPostEntity) = new GlobalPostProcessSource
         {
-            BloomEnabled = true,
-            BloomRadius = 1.5f,
-            BloomGain = 1.1f,
-            BloomExtractThreshold = 0.32f,
-            BloomExtractKnee = 0.5f,
-            EmissiveToHdrGain = 0.45f,
-            EmissiveToBloomGain = 0.6f,
-            Exposure = 1f,
-            Saturation = 1.05f,
-            TonemapEnabled = true,
-            ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f),
-            ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f),
-            ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
-        });
+            Active = true,
+            Priority = 100,
+            Settings = new GlobalPostProcessSettings
+            {
+                BloomEnabled = true,
+                BloomRadius = 1.5f,
+                BloomGain = 1.1f,
+                BloomExtractThreshold = 0.32f,
+                BloomExtractKnee = 0.5f,
+                EmissiveToHdrGain = 0.45f,
+                EmissiveToBloomGain = 0.6f,
+                Exposure = 1f,
+                Saturation = 1.05f,
+                TonemapEnabled = true,
+                ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f),
+                ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f),
+                ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
+            }
+        };
     }
 }

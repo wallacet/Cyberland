@@ -101,22 +101,22 @@ public sealed class Mod : IMod
         context.RegisterSequential("cyberland.demo.snake/lights",
             new SnakeLightsFillSystem(host, sessionEntity, amb, dir, spot, headPt, foodPt));
         context.RegisterSequential("cyberland.demo.snake/visual-sync", new VisualSyncSystem(host, sessionEntity, visualsEntity));
-        ApplyGlobalPost(host);
+        ApplyGlobalPost(w);
     }
     public void OnUnload() { }
-    private static void ApplyGlobalPost(GameHostServices host)
+    private static void ApplyGlobalPost(World world)
     {
-        var r = host.Renderer;
-        if (r is null)
+        var e = world.CreateEntity();
+        world.Components<GlobalPostProcessSource>().GetOrAdd(e) = new GlobalPostProcessSource
         {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake — Post-process unavailable", "Host.Renderer was null; global HDR/bloom settings for the demo were not applied.");
-            return;
-        }
-        r.SetGlobalPostProcess(new GlobalPostProcessSettings
-        {
-            BloomEnabled = true, BloomRadius = 1.1f, BloomGain = 0.26f, BloomExtractThreshold = 0.32f, BloomExtractKnee = 0.5f,
-            EmissiveToHdrGain = 0.48f, EmissiveToBloomGain = 0.45f, Exposure = 1f, Saturation = 1.08f, TonemapEnabled = true,
-            ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f), ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f), ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
-        });
+            Active = true,
+            Priority = 100,
+            Settings = new GlobalPostProcessSettings
+            {
+                BloomEnabled = true, BloomRadius = 1.1f, BloomGain = 0.26f, BloomExtractThreshold = 0.32f, BloomExtractKnee = 0.5f,
+                EmissiveToHdrGain = 0.48f, EmissiveToBloomGain = 0.45f, Exposure = 1f, Saturation = 1.08f, TonemapEnabled = true,
+                ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f), ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f), ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
+            }
+        };
     }
 }

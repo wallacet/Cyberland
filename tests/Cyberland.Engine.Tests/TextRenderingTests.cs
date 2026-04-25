@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Collections.Generic;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.Scene;
 using SixLabors.Fonts;
 using Silk.NET.Maths;
 using TextRenderer = Cyberland.Engine.Rendering.Text.TextRenderer;
@@ -115,7 +116,7 @@ public sealed class TextRenderingTests
     {
         var fb = new Vector2D<int>(640, 480);
         var screenBaseline = new Vector2D<float>(10f, 22f);
-        var worldBaseline = WorldScreenSpace.ScreenPixelToWorldCenter(screenBaseline, fb);
+        var worldBaseline = WorldViewportSpace.ViewportPixelToWorldCenter(screenBaseline, fb);
         var a = new RecordingRenderer { SwapchainPixelSize = fb };
         var b = new RecordingRenderer { SwapchainPixelSize = fb };
         var lib = new FontLibrary();
@@ -141,7 +142,7 @@ public sealed class TextRenderingTests
     {
         var fb = new Vector2D<int>(800, 600);
         var screenBaseline = new Vector2D<float>(24f, 100f);
-        var worldBaseline = WorldScreenSpace.ScreenPixelToWorldCenter(screenBaseline, fb);
+        var worldBaseline = WorldViewportSpace.ViewportPixelToWorldCenter(screenBaseline, fb);
 
         var a = new RecordingRenderer { SwapchainPixelSize = fb };
         var b = new RecordingRenderer { SwapchainPixelSize = fb };
@@ -160,8 +161,8 @@ public sealed class TextRenderingTests
         if (a.Sprites.Count > 0)
         {
             Assert.Equal(b.Sprites[0].CenterWorld.X, a.Sprites[0].CenterWorld.X, 5);
-            Assert.Equal(SpriteCoordinateSpace.Viewport, a.Sprites[0].Space);
-            Assert.Equal(SpriteCoordinateSpace.World, b.Sprites[0].Space);
+            Assert.Equal(CoordinateSpace.ViewportSpace, a.Sprites[0].Space);
+            Assert.Equal(CoordinateSpace.WorldSpace, b.Sprites[0].Space);
         }
     }
 

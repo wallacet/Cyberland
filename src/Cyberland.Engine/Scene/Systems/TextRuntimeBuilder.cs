@@ -16,40 +16,52 @@ internal static class TextRuntimeBuilder
         GameHostServices host,
         IRenderer renderer,
         out Vector2D<float> baselineAuthored,
-        out SpriteCoordinateSpace space)
+        out CoordinateSpace space)
     {
         baselineAuthored = default;
-        space = SpriteCoordinateSpace.World;
+        space = CoordinateSpace.WorldSpace;
         if (!ValidateAndResolve(ref bt, host, out var resolved))
             return false;
 
-        ResolveBaseline(in bt, in transform, renderer, out baselineAuthored, out space, out var vpW, out var vpH);
+        ResolveBaseline(in bt, in transform, host, renderer, out baselineAuthored, out space, out var vpW, out var vpH);
 
-        var contentHash = string.GetHashCode(resolved, StringComparison.Ordinal);
+        var contentHash = HashResolvedContent64(resolved);
         var styleHash = bt.Style.GetHashCode();
         var unchanged =
-            fingerprint.ResolvedContentHash == contentHash &&
+            fingerprint.ResolvedContentHash64 == contentHash &&
             fingerprint.StyleHash == styleHash &&
             fingerprint.CoordinateSpace == bt.CoordinateSpace &&
             fingerprint.SortKey == bt.SortKey &&
-            fingerprint.BaselineWorldX == baselineAuthored.X &&
-            fingerprint.BaselineWorldY == baselineAuthored.Y &&
             fingerprint.FramebufferW == vpW &&
             fingerprint.FramebufferH == vpH;
+        cache.BaselineAuthored = baselineAuthored;
+        cache.Space = space;
         if (unchanged)
             return true;
 
-        fingerprint.ResolvedContentHash = contentHash;
+        fingerprint.ResolvedContentHash64 = contentHash;
         fingerprint.StyleHash = styleHash;
         fingerprint.CoordinateSpace = bt.CoordinateSpace;
         fingerprint.SortKey = bt.SortKey;
-        fingerprint.BaselineWorldX = baselineAuthored.X;
-        fingerprint.BaselineWorldY = baselineAuthored.Y;
         fingerprint.FramebufferW = vpW;
         fingerprint.FramebufferH = vpH;
 
         BuildGlyphSprites(ref bt, ref cache, host, renderer, resolved, baselineAuthored, space);
         return true;
+    }
+
+    private static ulong HashResolvedContent64(string value)
+    {
+        const ulong offset = 14695981039346656037UL;
+        const ulong prime = 1099511628211UL;
+        var hash = offset;
+        for (var i = 0; i < value.Length; i++)
+        {
+            hash ^= value[i];
+            hash *= prime;
+        }
+
+        return hash;
     }
 
     private static bool ValidateAndResolve(ref BitmapText bt, GameHostServices host, out string resolved)
@@ -84,9 +96,10 @@ internal static class TextRuntimeBuilder
     private static void ResolveBaseline(
         ref readonly BitmapText bt,
         ref readonly Transform transform,
+        GameHostServices host,
         IRenderer renderer,
         out Vector2D<float> baselineAuthored,
-        out SpriteCoordinateSpace space,
+        out CoordinateSpace space,
         out int vpW,
         out int vpH)
     {
@@ -96,7 +109,7 @@ internal static class TextRuntimeBuilder
         if (bt.CoordinateSpace == CoordinateSpace.WorldSpace)
         {
             baselineAuthored = worldTranslation;
-            space = SpriteCoordinateSpace.World;
+            space = CoordinateSpace.WorldSpace;
             vpW = 0;
             vpH = 0;
             return;
@@ -106,8 +119,8 @@ internal static class TextRuntimeBuilder
         // physical window). Glyphs submit in viewport space; the fingerprint tracks viewport extent so HUD
         // rebuilds when the active camera swaps or its virtual viewport changes.
         baselineAuthored = worldTranslation;
-        space = SpriteCoordinateSpace.Viewport;
-        var viewport = renderer.ActiveCameraViewportSize;
+        space = CoordinateSpace.ViewportSpace;
+        var viewport = host.CameraRuntimeState.ViewportSizeWorld;
         vpW = viewport.X;
         vpH = viewport.Y;
     }
@@ -119,7 +132,7 @@ internal static class TextRuntimeBuilder
         IRenderer renderer,
         string resolved,
         Vector2D<float> baselineAuthored,
-        SpriteCoordinateSpace space)
+        CoordinateSpace space)
     {
         var needed = Math.Max(1, resolved.Length);
         if (cache.CachedGlyphs is null || cache.CachedGlyphs.Length < needed)

@@ -98,7 +98,7 @@ public sealed class Mod : IMod
             bt.Visible = false;
             bt.Content = " ";
             bt.SortKey = sortKey;
-            bt.CoordinateSpace = CoordinateSpace.ScreenSpace;
+            bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
             bt.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
             bt.IsLocalizationKey = false;
             return e;
@@ -184,39 +184,36 @@ public sealed class Mod : IMod
             new VisualSyncSystem(host, stateEntity, background, paddle, ball, titleUi, gameOverPanel, gameOverBar, lives,
                 cells, texts));
 
-        ApplyBrickGlobalPost(host);
+        ApplyBrickGlobalPost(w);
     }
 
     public void OnUnload()
     {
     }
 
-    // Replaces engine baseline HDR for this mod; last writer among mods wins for global post settings.
-    private static void ApplyBrickGlobalPost(GameHostServices host)
+    private static void ApplyBrickGlobalPost(World world)
     {
-        var r = host.Renderer;
-        if (r is null)
+        var e = world.CreateEntity();
+        world.Components<GlobalPostProcessSource>().GetOrAdd(e) = new GlobalPostProcessSource
         {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.BrickBreaker — Post-process unavailable",
-                "Host.Renderer was null; global HDR/bloom settings for the demo were not applied.");
-            return;
-        }
-
-        r.SetGlobalPostProcess(new GlobalPostProcessSettings
-        {
-            BloomEnabled = true,
-            BloomRadius = 1.1f,
-            BloomGain = 0.3f,
-            BloomExtractThreshold = 0.32f,
-            BloomExtractKnee = 0.5f,
-            EmissiveToHdrGain = 0.48f,
-            EmissiveToBloomGain = 0.45f,
-            Exposure = 1f,
-            Saturation = 1.05f,
-            TonemapEnabled = true,
-            ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f),
-            ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f),
-            ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
-        });
+            Active = true,
+            Priority = 100,
+            Settings = new GlobalPostProcessSettings
+            {
+                BloomEnabled = true,
+                BloomRadius = 1.1f,
+                BloomGain = 0.3f,
+                BloomExtractThreshold = 0.32f,
+                BloomExtractKnee = 0.5f,
+                EmissiveToHdrGain = 0.48f,
+                EmissiveToBloomGain = 0.45f,
+                Exposure = 1f,
+                Saturation = 1.05f,
+                TonemapEnabled = true,
+                ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f),
+                ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f),
+                ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
+            }
+        };
     }
 }

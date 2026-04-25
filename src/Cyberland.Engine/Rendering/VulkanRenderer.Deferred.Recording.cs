@@ -309,9 +309,7 @@ public sealed unsafe partial class VulkanRenderer
 
     private void DrawSprite(CommandBuffer cmd, in SpriteDrawRequest s, in FramePlan plan, int mode)
     {
-        var al = s.AlbedoTextureId < (TextureId)_textureSlots.Count
-            ? _textureSlots[(int)s.AlbedoTextureId]
-            : null;
+        var al = TryGetTextureSlot(s.AlbedoTextureId);
         if (al is null)
             return;
 
@@ -321,7 +319,7 @@ public sealed unsafe partial class VulkanRenderer
         var viewportSize = new Vector2D<float>(plan.Camera.ViewportSizeWorld.X, plan.Camera.ViewportSizeWorld.Y);
         Vector2D<float> vpPixel;
         float rotScreen;
-        if (s.Space == SpriteCoordinateSpace.Viewport)
+        if (s.Space == Scene.CoordinateSpace.ViewportSpace)
         {
             vpPixel = s.CenterWorld;
             rotScreen = s.RotationRadians;
@@ -359,9 +357,9 @@ public sealed unsafe partial class VulkanRenderer
 
         if (mode == 0)
         {
-            var useEm = s.EmissiveTextureId < (TextureId)_textureSlots.Count ? 1 : 0;
+            var useEm = TryGetTextureSlot(s.EmissiveTextureId) is not null ? 1 : 0;
             var emTexId = useEm != 0 ? s.EmissiveTextureId : _blackTextureId;
-            var emSlot = emTexId < (TextureId)_textureSlots.Count ? _textureSlots[(int)emTexId] : null;
+            var emSlot = TryGetTextureSlot(emTexId);
             if (emSlot is null)
                 return;
             push.UseEmissiveMap = useEm;
@@ -375,10 +373,12 @@ public sealed unsafe partial class VulkanRenderer
         }
         else if (mode == 1)
         {
-            var nid = s.NormalTextureId < (TextureId)_textureSlots.Count
+            var nid = TryGetTextureSlot(s.NormalTextureId) is not null
                 ? s.NormalTextureId
                 : _defaultNormalTextureId;
-            var nt = _textureSlots[(int)nid];
+            var nt = TryGetTextureSlot(nid);
+            if (nt is null)
+                return;
 
             var setsG = stackalloc DescriptorSet[2];
             setsG[0] = al.DescriptorSet;

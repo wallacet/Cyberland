@@ -1,8 +1,11 @@
 using System.Numerics;
 using System.Reflection;
 using Cyberland.Engine.Input;
+using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Scene;
 using Moq;
 using Silk.NET.Input;
+using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Tests;
 
@@ -205,18 +208,35 @@ public sealed class KeyBindingAndInputTests
         var pressedKeys = new HashSet<Key>();
         var pressedButtons = new HashSet<MouseButton>();
         var pos = new Vector2(100f, 200f);
-        var service = CreateService(pressedKeys, pressedButtons, () => pos);
+        var renderer = CreateRendererForInput(
+            swapchain: new Vector2D<int>(1920, 1080),
+            camera: new CameraViewRequest
+            {
+                PositionWorld = new Vector2D<float>(640f, 360f),
+                RotationRadians = 0f,
+                ViewportSizeWorld = new Vector2D<int>(1280, 720),
+                Priority = 0,
+                Enabled = true,
+                BackgroundColor = new Vector4D<float>(0f, 0f, 0f, 1f)
+            });
+        var service = CreateService(pressedKeys, pressedButtons, () => pos, renderer.Object);
         service.Bindings.SetBindings("look_x", new[] { new InputBinding(InputControl.MouseAxisControl(MouseAxis.DeltaX)) });
 
         service.BeginFrame();
         Assert.Equal(new Vector2(100f, 200f), service.MousePosition);
         Assert.Equal(Vector2.Zero, service.MouseDelta);
         Assert.Equal(Vector2.Zero, service.MouseWheelDelta);
+        AssertVectorNear(new Vector2(66.666664f, 133.33333f), service.GetMousePosition(CoordinateSpace.ViewportSpace), 0.0001f);
+        AssertVectorNear(new Vector2(66.666664f, 586.6667f), service.GetMousePosition(CoordinateSpace.WorldSpace), 0.0001f);
+        Assert.Equal(new Vector2(100f, 200f), service.GetMousePosition(CoordinateSpace.SwapchainSpace));
 
         pos = new Vector2(112f, 195f);
         service.BeginFrame();
         Assert.Equal(new Vector2(12f, -5f), service.MouseDelta);
         Assert.Equal(Vector2.Zero, service.MouseWheelDelta);
+        AssertVectorNear(new Vector2(8f, -3.3333333f), service.GetMouseDelta(CoordinateSpace.ViewportSpace), 0.0001f);
+        AssertVectorNear(new Vector2(8f, 3.3333333f), service.GetMouseDelta(CoordinateSpace.WorldSpace), 0.0001f);
+        Assert.Equal(new Vector2(12f, -5f), service.GetMouseDelta(CoordinateSpace.SwapchainSpace));
         Assert.Equal(12f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.DeltaX)));
         Assert.Equal(112f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.PositionX)));
         Assert.Equal(195f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.PositionY)));
@@ -246,6 +266,23 @@ public sealed class KeyBindingAndInputTests
         Assert.Equal(0f, service.ReadControlValue(invalidAxis));
         service.Dispose();
         input.Verify(x => x.Dispose(), Times.Once);
+    }
+
+    [Fact]
+    public void SilkInputService_mouse_space_queries_cover_fallback_and_invalid_spaces()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var pos = new Vector2(9f, 11f);
+        var service = CreateService(pressedKeys, pressedButtons, () => pos);
+        service.BeginFrame();
+
+        Assert.Equal(pos, service.GetMousePosition());
+        Assert.Equal(Vector2.Zero, service.GetMouseDelta());
+        Assert.Throws<NotSupportedException>(() => service.GetMousePosition(CoordinateSpace.LocalSpace));
+        Assert.Throws<NotSupportedException>(() => service.GetMouseDelta(CoordinateSpace.LocalSpace));
+        Assert.Throws<ArgumentOutOfRangeException>(() => service.GetMousePosition((CoordinateSpace)12345));
+        Assert.Throws<ArgumentOutOfRangeException>(() => service.GetMouseDelta((CoordinateSpace)12345));
     }
 
     [Fact]
@@ -287,7 +324,8 @@ public sealed class KeyBindingAndInputTests
     private static SilkInputService CreateService(
         HashSet<Key> pressedKeys,
         HashSet<MouseButton> pressedButtons,
-        Func<Vector2> mousePosition)
+        Func<Vector2> mousePosition,
+        IRenderer? renderer = null)
     {
         var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
         keyboard.Setup(x => x.IsKeyPressed(It.IsAny<Key>())).Returns<Key>(key => pressedKeys.Contains(key));
@@ -301,7 +339,22 @@ public sealed class KeyBindingAndInputTests
         input.SetupGet(x => x.Mice).Returns(new[] { mouse.Object });
         input.Setup(x => x.Dispose());
 
-        return new SilkInputService(input.Object);
+        return new SilkInputService(input.Object, renderer);
+    }
+
+    private static Mock<IRenderer> CreateRendererForInput(Vector2D<int> swapchain, CameraViewRequest camera)
+    {
+        var renderer = new Mock<IRenderer>(MockBehavior.Strict);
+        renderer.SetupGet(x => x.SwapchainPixelSize).Returns(swapchain);
+        renderer.SetupGet(x => x.ActiveCameraView).Returns(camera);
+        renderer.SetupGet(x => x.ActiveCameraViewportSize).Returns(camera.ViewportSizeWorld);
+        return renderer;
+    }
+
+    private static void AssertVectorNear(Vector2 expected, Vector2 actual, float epsilon)
+    {
+        Assert.InRange(actual.X, expected.X - epsilon, expected.X + epsilon);
+        Assert.InRange(actual.Y, expected.Y - epsilon, expected.Y + epsilon);
     }
 
     private static InputControl CreateControl(InputControlKind kind, Key key, MouseButton button, MouseAxis axis)

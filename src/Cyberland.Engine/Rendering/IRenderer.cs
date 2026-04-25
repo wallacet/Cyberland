@@ -13,10 +13,10 @@ namespace Cyberland.Engine.Rendering;
 /// </para>
 /// <list type="bullet">
 /// <item><b>World</b> (origin bottom-left, +Y up): gameplay, <see cref="SubmitSprite"/> with
-/// <see cref="SpriteCoordinateSpace.World"/>, all <c>*World</c> light / volume positions, and
+/// <see cref="Scene.CoordinateSpace.WorldSpace"/>, all <c>*World</c> light / volume positions, and
 /// <see cref="SubmitCamera"/> position / background.</item>
 /// <item><b>Virtual viewport</b> (top-left, +Y down, extent <see cref="ActiveCameraViewportSize"/>): HUD / UI
-/// sprites submitted with <see cref="SpriteCoordinateSpace.Viewport"/>. Stays locked to the camera's virtual
+/// sprites submitted with <see cref="Scene.CoordinateSpace.ViewportSpace"/>. Stays locked to the camera's virtual
 /// canvas regardless of camera position, rotation, or window size.</item>
 /// <item><b>Swapchain</b> (top-left, +Y down, extent <see cref="SwapchainPixelSize"/>): physical window pixels.
 /// The renderer aspect-preserving letterboxes the virtual viewport into the swapchain; bars fill the unused
@@ -46,6 +46,12 @@ public interface IRenderer
     /// so UI stays the same pixel size regardless of the physical window.
     /// </summary>
     Vector2D<int> ActiveCameraViewportSize { get; }
+
+    /// <summary>
+    /// Active camera snapshot for the next frame (pending submissions win); falls back to
+    /// <see cref="CameraSelection.Default"/> when none are eligible.
+    /// </summary>
+    CameraViewRequest ActiveCameraView { get; }
 
     /// <summary>
     /// Host-driven frame pacing: VSync (mailbox when available, else FIFO), uncapped, or CPU-limited FPS.

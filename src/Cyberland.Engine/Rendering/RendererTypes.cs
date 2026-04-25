@@ -1,5 +1,6 @@
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
+using Cyberland.Engine.Scene;
 
 namespace Cyberland.Engine.Rendering;
 
@@ -30,35 +31,12 @@ public enum SpriteLayer : int
 }
 
 /// <summary>
-/// Which coordinate space a <see cref="SpriteDrawRequest"/> is authored in.
-/// </summary>
-public enum SpriteCoordinateSpace
-{
-    /// <summary>
-    /// <see cref="SpriteDrawRequest.CenterWorld"/> is in world pixels (+Y up). Transformed by the active camera
-    /// (position and rotation) before letterbox mapping into the swapchain.
-    /// </summary>
-    World = 0,
-
-    /// <summary>
-    /// <see cref="SpriteDrawRequest.CenterWorld"/> is in virtual viewport pixels (+Y down, top-left origin, range
-    /// <c>[0, ViewportSizeWorld]</c>). Not transformed by the camera — useful for HUD / UI that should stay locked
-    /// to the camera's virtual viewport regardless of camera position or rotation.
-    /// </summary>
-    Viewport = 1
-}
-
-/// <summary>
 /// Immediate-mode sprite submit (used by <see cref="IRenderer.SubmitSprite"/>): axis-aligned quad with optional rotation, materials, and transparency mode.
 /// </summary>
 /// <remarks>Straight alpha: <see cref="Alpha"/> multiplies RGB after texture sampling.</remarks>
 public struct SpriteDrawRequest
 {
-    /// <summary>
-    /// Center position; interpretation depends on <see cref="Space"/>: world pixels (+Y up) for
-    /// <see cref="SpriteCoordinateSpace.World"/>, virtual viewport pixels (+Y down) for
-    /// <see cref="SpriteCoordinateSpace.Viewport"/>.
-    /// </summary>
+    /// <summary>Center position in either <see cref="CoordinateSpace.WorldSpace"/> or <see cref="CoordinateSpace.ViewportSpace"/>.</summary>
     public Vector2D<float> CenterWorld;
     /// <summary>Half-width / half-height in world / viewport units before rotation (same pixel unit as <see cref="CenterWorld"/>).</summary>
     public Vector2D<float> HalfExtentsWorld;
@@ -95,8 +73,11 @@ public struct SpriteDrawRequest
     /// <summary>Weighted blended transparency path (glass/crystal); skipped in opaque G-buffer.</summary>
     public bool Transparent;
 
-    /// <summary>Whether <see cref="CenterWorld"/> is world-space or viewport-space (HUD); defaults to world.</summary>
-    public SpriteCoordinateSpace Space;
+    /// <summary>
+    /// Coordinate space for <see cref="CenterWorld"/> and <see cref="HalfExtentsWorld"/>:
+    /// <see cref="CoordinateSpace.WorldSpace"/> or <see cref="CoordinateSpace.ViewportSpace"/>.
+    /// </summary>
+    public CoordinateSpace Space;
 }
 
 /// <summary>

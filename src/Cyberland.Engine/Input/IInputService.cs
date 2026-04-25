@@ -1,4 +1,5 @@
 using System.Numerics;
+using Cyberland.Engine.Scene;
 
 namespace Cyberland.Engine.Input;
 
@@ -16,11 +17,21 @@ public interface IInputService
     /// <summary>Mutable action/axis bindings used by this service.</summary>
     InputBindings Bindings { get; }
 
-    /// <summary>Current mouse position in window pixel coordinates.</summary>
+    /// <summary>Current mouse position in swapchain/window pixel coordinates.</summary>
     Vector2 MousePosition { get; }
 
     /// <summary>Mouse position delta since the previous <see cref="BeginFrame"/>.</summary>
     Vector2 MouseDelta { get; }
+
+    /// <summary>
+    /// Gets current mouse position in the requested <paramref name="space"/> (defaults to virtual viewport space).
+    /// </summary>
+    Vector2 GetMousePosition(CoordinateSpace space = CoordinateSpace.ViewportSpace);
+
+    /// <summary>
+    /// Gets mouse movement delta since the previous <see cref="BeginFrame"/> in the requested <paramref name="space"/> (defaults to virtual viewport space).
+    /// </summary>
+    Vector2 GetMouseDelta(CoordinateSpace space = CoordinateSpace.ViewportSpace);
 
     /// <summary>Aggregated wheel delta since the previous <see cref="BeginFrame"/>.</summary>
     Vector2 MouseWheelDelta { get; }

@@ -31,7 +31,9 @@ public sealed class DirectionalLightSystem : IParallelSystem, IParallelLateUpdat
     public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
+        if (r is null)
+            return;
         
         foreach (var chunk in query)
         {

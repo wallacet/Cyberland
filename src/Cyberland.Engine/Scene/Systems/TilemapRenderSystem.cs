@@ -1,5 +1,7 @@
 using System.Numerics;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
@@ -30,7 +32,9 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
     public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
+        if (r is null)
+            return;
         var store = _host.Tilemaps;
         if (store is null)
             return;
@@ -51,6 +55,11 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
                 var tid = tm.AtlasAlbedoTextureId;
                 var minI = tm.NonEmptyTileMinIndex;
                 var defaultNormal = r.DefaultNormalTextureId;
+                var atlasCols = tm.AtlasColumns <= 0 ? 1 : tm.AtlasColumns;
+                var atlasRows = tm.AtlasRows <= 0 ? 1 : tm.AtlasRows;
+                var uvStepX = 1f / atlasCols;
+                var uvStepY = 1f / atlasRows;
+                var batch = new List<SpriteDrawRequest>(Math.Min(cols * rows, 4096));
 
                 // WorldMatrix is already the composed TRS; avoid the old decompose-then-rebuild round trip and pull
                 // scale / rotation for per-tile extents and orientation from one decomposition.
@@ -70,6 +79,9 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
 
                     var hx = tw * 0.48f * worldScale.X;
                     var hy = th * 0.48f * worldScale.Y;
+                    var atlasIndex = ti - minI;
+                    var atlasX = atlasIndex % atlasCols;
+                    var atlasY = (atlasIndex / atlasCols) % atlasRows;
                     var req = new SpriteDrawRequest
                     {
                         CenterWorld = centerWorld,
@@ -85,10 +97,17 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
                         EmissiveTint = default,
                         EmissiveIntensity = 0f,
                         DepthHint = tm.SortKey,
-                        UvRect = default
+                        UvRect = new Vector4D<float>(
+                            atlasX * uvStepX,
+                            atlasY * uvStepY,
+                            (atlasX + 1) * uvStepX,
+                            (atlasY + 1) * uvStepY)
                     };
-                    r.SubmitSprite(in req);
+                    batch.Add(req);
                 }
+
+                if (batch.Count > 0)
+                    r.SubmitSprites(CollectionsMarshal.AsSpan(batch));
             });
         }
     }

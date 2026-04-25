@@ -40,7 +40,9 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
     public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
+        if (r is null)
+            return;
         var defaultNormal = r.DefaultNormalTextureId;
         
         foreach (var chunk in query)

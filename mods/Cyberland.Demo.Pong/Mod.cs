@@ -114,7 +114,7 @@ public sealed class Mod : IMod
             new PongLightsFillSystem(host, session, amb, dir, spot, ballPt, leftPt));
         context.RegisterSequential("cyberland.demo.pong/visual-sync", new VisualSyncSystem(host, session, visuals, texts));
 
-        ApplyGlobalPost(host);
+        ApplyGlobalPost(world);
     }
 
     public void OnUnload() { }
@@ -135,25 +135,25 @@ public sealed class Mod : IMod
         text.Visible = false;
         text.Content = " ";
         text.SortKey = 450f;
-        text.CoordinateSpace = CoordinateSpace.ScreenSpace;
+        text.CoordinateSpace = CoordinateSpace.ViewportSpace;
         text.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
         text.IsLocalizationKey = false;
         return entity;
     }
 
-    private static void ApplyGlobalPost(GameHostServices host)
+    private static void ApplyGlobalPost(World world)
     {
-        var r = host.Renderer;
-        if (r is null)
+        var e = world.CreateEntity();
+        world.Components<GlobalPostProcessSource>().GetOrAdd(e) = new GlobalPostProcessSource
         {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong — Post-process unavailable", "Host.Renderer was null; global HDR/bloom settings for the demo were not applied.");
-            return;
-        }
-        r.SetGlobalPostProcess(new GlobalPostProcessSettings
-        {
+            Active = true,
+            Priority = 100,
+            Settings = new GlobalPostProcessSettings
+            {
             BloomEnabled = true, BloomRadius = 1.1f, BloomGain = 0.3f, BloomExtractThreshold = 0.32f, BloomExtractKnee = 0.5f,
             EmissiveToHdrGain = 0.48f, EmissiveToBloomGain = 0.45f, Exposure = 1f, Saturation = 1.05f, TonemapEnabled = true,
             ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f), ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f), ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
-        });
+            }
+        };
     }
 }

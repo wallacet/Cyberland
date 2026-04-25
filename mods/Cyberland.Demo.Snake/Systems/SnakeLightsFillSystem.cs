@@ -70,7 +70,7 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         var oy = s.OriginY;
         var gridCx = ox + Constants.GridW * 0.5f * cell;
         var gridCy = oy + Constants.GridH * 0.5f * cell;
-        var gridCenterWorld = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(gridCx, gridCy), fb);
+        var gridCenterWorld = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(gridCx, gridCy), fb);
 
         ref var amb = ref world.Components<AmbientLightSource>().Get(_ambient);
         amb.Active = true;
@@ -86,7 +86,7 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
         dir.Intensity = 0.2f;
         dir.CastsShadow = false;
 
-        var spotPos = WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(ox + cell * 2f, oy + cell * 1.5f), fb);
+        var spotPos = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(ox + cell * 2f, oy + cell * 1.5f), fb);
         var dx = gridCenterWorld.X - spotPos.X;
         var dy = gridCenterWorld.Y - spotPos.Y;
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
@@ -123,7 +123,7 @@ public sealed class SnakeLightsFillSystem : ISystem, ILateUpdate
 
         var foodWorld = s.Phase == Phase.Playing
             ? s.CellCenterWorld(s.Food.x, s.Food.y, fb)
-            : WorldScreenSpace.ScreenPixelToWorldCenter(new Vector2D<float>(ox + (Constants.GridW - 0.5f) * cell, oy + cell * 0.5f), fb);
+            : WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(ox + (Constants.GridW - 0.5f) * cell, oy + cell * 0.5f), fb);
         var foodIntensity = s.Phase == Phase.Playing ? 0.44f : 0.22f;
         ref var foodTransform = ref world.Components<Transform>().Get(_foodPoint);
         foodTransform.LocalPosition = foodWorld;
