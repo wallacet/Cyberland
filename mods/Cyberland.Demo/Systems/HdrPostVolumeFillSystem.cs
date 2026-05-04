@@ -7,17 +7,23 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo;
 
-/// <summary>Updates fullscreen <see cref="PostProcessVolumeSource"/> bloom from player horizontal position.</summary>
+/// <summary>
+/// Late update: recenters the fullscreen <see cref="PostProcessVolumeSource"/> on the active camera viewport and drives bloom
+/// gain from how far right the player has moved—cheap HDR “feel” without scripting materials per sprite.
+/// </summary>
+/// <remarks>
+/// Volume authoring is created in <see cref="SceneSetupSystem"/>; this system only mutates what must track resize + gameplay.
+/// Bloom coefficients live on <see cref="HdrDemoBloom"/> next to other HDR tuning constants.
+/// </remarks>
 public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag, Transform>();
 
-
     private World _world = null!;
     private readonly GameHostServices _host;
     private EntityId _volumeEntity;
-    private bool _resolved;
+
     /// <summary>Creates the system.</summary>
     public HdrPostVolumeFillSystem(GameHostServices host) => _host = host;
 
@@ -28,55 +34,39 @@ public sealed class HdrPostVolumeFillSystem : ISystem, ILateUpdate
         _ = archetype;
         _ = _host.Renderer
             ?? throw new InvalidOperationException("cyberland.demo/hdr-post-volume requires Host.Renderer during OnStart.");
+
+        // Tag singleton from SceneSetupSystem so we never depend on entity ids baked into code.
         _volumeEntity = world.QueryChunks(SystemQuerySpec.All<HdrBloomVolumeTag>())
             .RequireSingleEntityWith<HdrBloomVolumeTag>("HDR bloom volume");
-        _resolved = true;
     }
 
     /// <inheritdoc />
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = deltaSeconds;
-        if (!_resolved)
-            return;
 
         var renderer = _host.Renderer!;
         var frameBuffer = renderer.ActiveCameraViewportSize;
+        var width = frameBuffer.X;
+        if (width <= 0)
+            return;
 
-        var tNorm = 0f;
-        foreach (var chunk in archetype)
-        {
-            if (chunk.Count == 0)
-                continue;
-            tNorm = frameBuffer.X > 0 ? chunk.Column<Transform>()[0].WorldPosition.X / frameBuffer.X : 0f;
-            tNorm = Math.Clamp(tNorm, 0f, 1f);
-            break;
-        }
+        // Normalize player X against viewport width for a 0..1 slider (demo assumes one PlayerTag row).
+        var tNorm = Math.Clamp(archetype.GetFirst<Transform>().WorldPosition.X / width, 0f, 1f);
+        var bloomGain = HdrDemoBloom.GainAtPlayerLeft - HdrDemoBloom.GainSpanAcrossPlayfield * tNorm;
 
-        var bloomGain = 2.35f - 1.85f * tNorm;
-
-        var cx = frameBuffer.X * 0.5f;
+        var cx = width * 0.5f;
         var cy = frameBuffer.Y * 0.5f;
+
+        // Volume transform is local space; centering at half extents keeps this quad aligned with the camera target area.
         ref var tf = ref _world.Get<Transform>(_volumeEntity);
         tf.LocalPosition = new Vector2D<float>(cx, cy);
-        tf.LocalRotationRadians = 0f;
-        tf.LocalScale = new Vector2D<float>(1f, 1f);
 
-        ref var vol = ref _world.Get<PostProcessVolumeSource>(_volumeEntity);
-        vol.Active = true;
-        vol.Volume = new PostProcessVolume
-        {
-            HalfExtentsLocal = new Vector2D<float>(cx, cy),
-            Priority = 1,
-            Overrides = new PostProcessOverrides
-            {
-                HasBloomGain = true,
-                BloomGain = bloomGain,
-                HasExposure = false,
-                Exposure = 1f,
-                HasSaturation = false,
-                Saturation = 1f
-            }
-        };
+        // PostProcessVolume is a struct component: copy, edit fields, assign back (same pattern as engine volume producers).
+        ref var volRef = ref _world.Get<PostProcessVolumeSource>(_volumeEntity);
+        var volume = volRef.Volume;
+        volume.HalfExtentsLocal = new Vector2D<float>(cx, cy);
+        volume.Overrides.BloomGain = bloomGain;
+        volRef.Volume = volume;
     }
 }

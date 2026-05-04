@@ -1,22 +1,26 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
-using Cyberland.Engine.Scene;
 using System.Collections.Concurrent;
 
 namespace Cyberland.Demo;
 
 /// <summary>
-/// Parallel fixed update: scales every <see cref="Velocity"/> component by a per-tick factor using <see cref="Parallel.ForEach"/>
-/// over matching chunks. This mod keeps <see cref="IParallelSystem"/> here only—other demo systems are sequential because they
-/// touch singletons or submit lights without chunk work.
+/// Parallel fixed update: gently scales down <see cref="Velocity"/> each tick so keyboard impulse doesn’t cruise forever.
 /// </summary>
+/// <remarks>
+/// Demonstrates <see cref="IParallelSystem"/> + <see cref="Parallel.ForEach"/> over chunk row ranges with host-provided
+/// <see cref="ParallelOptions"/> (see design-goals parallelism). Toggle off at runtime via F9 from <see cref="InputSystem"/>.
+/// The damping factor is framed per-second so changing <c>fixedDeltaSeconds</c> keeps similar feel at different fixed-step counts.
+/// </remarks>
 public sealed class VelocityDampSystem : IParallelSystem, IParallelFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Velocity>();
 
+    /// <inheritdoc />
     public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
     {
+        // ~0.999 per frame at 60Hz fixed step — exponential decay keeps damping stable if the scheduler cadence changes slightly.
         var factor = MathF.Pow(0.999f, fixedDeltaSeconds * 60f);
         foreach (var chunk in query)
         {

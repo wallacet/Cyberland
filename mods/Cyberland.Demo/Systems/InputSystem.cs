@@ -6,9 +6,13 @@ using Cyberland.Engine.Hosting;
 namespace Cyberland.Demo;
 
 /// <summary>
-/// Polls keyboard (sequential early update): writes <see cref="Velocity"/> from keybindings and edge arrow taps, toggles optional
-/// velocity damping (F9), and forwards <c>Q</c> to <see cref="Rendering.IRenderer.RequestClose"/> when set by the host.
+/// Early (sequential) input: maps bound axes to the player’s <see cref="Velocity"/> and exposes a dev toggle for the parallel
+/// damp system. Runs before fixed update so integration always sees the latest intent.
 /// </summary>
+/// <remarks>
+/// Pattern: zero velocity for every row, then set from axes if any. That makes “no keys” unambiguous and keeps multi-entity
+/// queries safe even though this demo only spawns one player.
+/// </remarks>
 public sealed class InputSystem : ISystem, IEarlyUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
@@ -16,14 +20,15 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
 
     private readonly GameHostServices _host;
     private readonly SystemScheduler _scheduler;
-    private bool _initialized;
 
+    /// <summary>Needs <paramref name="scheduler"/> so F9 can enable/disable <c>cyberland.demo/velocity-damp</c> at runtime.</summary>
     public InputSystem(GameHostServices host, SystemScheduler scheduler)
     {
         _host = host;
         _scheduler = scheduler;
     }
 
+    /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll archetype)
     {
         _ = world;
@@ -32,17 +37,16 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
             ?? throw new InvalidOperationException("cyberland.demo/input requires Host.Input during OnStart.");
 
         _ = archetype.RequireSingleEntityWith<PlayerTag>("player");
-        _initialized = true;
     }
 
+    /// <inheritdoc />
     public void OnEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = deltaSeconds;
-        if (!_initialized)
-            return;
 
         var input = _host.Input!;
 
+        // Idle unless movement keys are held: avoids drifting velocity when axes settle near zero.
         foreach (var chunk in archetype)
         {
             var vels = chunk.Column<Velocity>();
@@ -68,6 +72,7 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         if (dx == 0f && dy == 0f)
             return;
 
+        // Diagonal movement matches cardinal speed: normalize before scaling by Constants.MoveSpeed.
         var len = MathF.Sqrt(dx * dx + dy * dy);
         dx /= len;
         dy /= len;

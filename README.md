@@ -459,7 +459,7 @@ c = new MyComponent { Value = 1f };
 |---------|----------|--------|
 | Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
 | Demo mod entry | `mods/Cyberland.Demo/Mod.cs` | **`IMod`**, entity spawn, locale **`MergeStringTable`**, **`ModLoadContext.AddDefaultInputBinding`**, **`RegisterSequential` / `RegisterParallel`** (e.g. **`cyberland.demo/integrate`**, **`cyberland.demo/velocity-damp`**) |
-| Input + sim + tag query | `mods/Cyberland.Demo/Systems/InputSystem.cs`, **`IntegrateSystem`**, **`TagQueryShowcaseSystem`**, `SceneSetupSystem` | **`ISystem` / `IParallelSystem`**, player **`QuerySpec`**, `NeonStripTag` chunk query; HDR in **`SceneSetupSystem`** and **`GameApplication`** baseline |
+| Input + sim | `mods/Cyberland.Demo/Systems/InputSystem.cs`, **`IntegrateSystem`**, `SceneSetupSystem` | **`ISystem`**, player **`QuerySpec`**, scene tags (e.g. `NeonStripTag` on the neon strip); HDR in **`SceneSetupSystem`** and **`GameApplication`** baseline |
 | Parallel ECS | `mods/Cyberland.Demo/Systems/VelocityDampSystem.cs` | **`IParallelSystem`**, **`QueryChunks<Velocity>`**, **`SimdFloat`** on packed floats |
 | Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, optional **`--exclude-mods`** |
 

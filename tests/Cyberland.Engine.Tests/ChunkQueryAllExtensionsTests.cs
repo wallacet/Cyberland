@@ -68,7 +68,33 @@ public sealed class ChunkQueryAllExtensionsTests
         Assert.Equal(e, id);
     }
 
+    [Fact]
+    public void GetFirst_returns_first_component_row()
+    {
+        var w = new World();
+        var e = w.CreateEntity();
+        w.GetOrAdd<PlayerTag>(e) = default;
+        w.GetOrAdd<VelocitySample>(e) = new VelocitySample { X = 3.5f };
+
+        var q = w.QueryChunks(SystemQuerySpec.All<PlayerTag, VelocitySample>());
+        Assert.Equal(3.5f, q.GetFirst<VelocitySample>().X);
+    }
+
+    [Fact]
+    public void GetFirst_throws_when_query_empty()
+    {
+        var w = new World();
+        var q = w.QueryChunks(SystemQuerySpec.All<PlayerTag>());
+        var ex = Assert.Throws<InvalidOperationException>(() => _ = q.GetFirst<PlayerTag>());
+        Assert.Contains("no matching entities", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private struct PlayerTag : IComponent
     {
+    }
+
+    private struct VelocitySample : IComponent
+    {
+        public float X;
     }
 }

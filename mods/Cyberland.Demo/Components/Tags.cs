@@ -2,20 +2,20 @@ using Cyberland.Engine.Core.Ecs;
 
 namespace Cyberland.Demo;
 
-/// <summary>Marks the controllable demo sprite entity.</summary>
+/// <summary>Singleton gameplay sprite driven by <see cref="InputSystem"/> / <see cref="IntegrateSystem"/>.</summary>
 public struct PlayerTag : IComponent;
 
-/// <summary>Marks the full-screen background sprite entity.</summary>
+/// <summary>Backdrop quad stretched via <see cref="ViewportAnchor2D"/>.</summary>
 public struct BackgroundTag : IComponent;
 
-/// <summary>Marks the decorative neon strip sprite entity.</summary>
+/// <summary>Decorative column sprite used only for HDR/emissive teaching—not queried by gameplay systems.</summary>
 public struct NeonStripTag : IComponent;
 
-/// <summary>Marks the HUD title text entity.</summary>
+/// <summary>Localized HUD title row (<c>demo.hdr.title</c>).</summary>
 public struct HudTitleTag : IComponent;
 
-/// <summary>Marks the HUD hint text entity.</summary>
+/// <summary>Localized HUD hint row (<c>demo.hdr.hint</c>).</summary>
 public struct HudHintTag : IComponent;
 
-/// <summary>Marks the bottom-right FPS overlay text (moving average) entity.</summary>
+/// <summary>FPS counter updated by <see cref="FpsDisplaySystem"/>.</summary>
 public struct HudFpsTag : IComponent;

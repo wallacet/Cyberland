@@ -1,10 +1,31 @@
 namespace Cyberland.Engine.Core.Ecs;
 
 /// <summary>
-/// Helpers for singleton-style queries: exactly one entity matching a chunk query.
+/// Helpers for <see cref="ChunkQueryAll"/>: singleton entity resolution and conveniences for the first matching row.
 /// </summary>
 public static class ChunkQueryAllExtensions
 {
+    /// <summary>
+    /// Returns a reference to the first entity's <typeparamref name="T"/> in scheduler chunk iteration order
+    /// (first row of the first non-empty chunk). Use when the query is known to be non-empty or when any first match suffices.
+    /// </summary>
+    /// <param name="query">Scheduler or <see cref="World.QueryChunks(SystemQuerySpec)"/> result.</param>
+    /// <typeparam name="T">A component type included in the query spec.</typeparam>
+    /// <exception cref="InvalidOperationException">No matching chunks or all chunks are empty.</exception>
+    /// <exception cref="ArgumentException"><typeparamref name="T"/> is not part of this query (see <see cref="MultiComponentChunkView.Column{T}()"/>).</exception>
+    public static ref readonly T GetFirst<T>(this ChunkQueryAll query)
+        where T : struct, IComponent
+    {
+        var e = query.GetEnumerator();
+        if (!e.MoveNext())
+        {
+            throw new InvalidOperationException(
+                $"Chunk query has no matching entities; cannot read first {typeof(T).Name}.");
+        }
+
+        return ref e.Current.Column<T>()[0];
+    }
+
     /// <summary>
     /// Returns the sole entity id across all chunks in <paramref name="query"/>, which must be built from a
     /// <see cref="SystemQuerySpec"/> that includes <typeparamref name="TComponent"/> so every row carries that component.
