@@ -6,46 +6,43 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
-/// Resolves paddle and brick hits from <see cref="TriggerEvents"/> on the ball. The engine
-/// <see cref="Scene.Systems.TriggerSystem"/> fills these in fixed update <strong>before</strong> this mod’s systems; brick and
-/// paddle <see cref="Transform"/>s are already updated for this substep by earlier systems in this mod’s fixed chain.
+/// Resolves paddle and brick hits from <see cref="TriggerEvents"/> on the ball.
 /// </summary>
-public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
+/// <remarks>
+/// <see cref="Cyberland.Engine.Scene.Systems.TriggerSystem"/> fills events in fixed update before this mod’s chain.
+/// <see cref="TriggerEvents"/> stays on the ball entity but is not part of <see cref="QuerySpec"/> so the archetype stays stable
+/// before the engine attaches the buffer—resolved via <see cref="World.TryGet{T}"/> on the ball row (see **cyberland-ecs-world-access**).
+/// </remarks>
+public sealed class TriggerResolveSystem : ISingletonSystem, ISingletonFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
-
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BallTag, Transform, Velocity>();
 
     private World _world = null!;
-    private readonly EntityId _stateEntity;
-    private readonly EntityId _paddleEntity;
-    private readonly EntityId _ballEntity;
-    public TriggerResolveSystem(EntityId stateEntity, EntityId paddleEntity, EntityId ballEntity)
+    private EntityId _stateEntity;
+    private EntityId _paddleEntity;
+
+    public void OnSingletonStart(in SingletonEntity ballRow)
     {
-        _stateEntity = stateEntity;
-        _paddleEntity = paddleEntity;
-        _ballEntity = ballEntity;
+        _world = ballRow.World;
+        _stateEntity = Session.RequireStateEntity(_world);
+        _paddleEntity = _world.QueryChunks(SystemQuerySpec.All<Paddle>())
+            .RequireSingleEntityWith<Paddle>("brick paddle");
     }
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    public void OnSingletonFixedUpdate(in SingletonEntity ballRow, float fixedDeltaSeconds)
     {
-        _world = world;
-        _ = archetype;
-    }
-
-    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
-    {
-        _ = archetype;
         _ = fixedDeltaSeconds;
         ref var game = ref _world.Get<GameState>(_stateEntity);
         if (game.Phase != Phase.Playing || game.BallDocked)
             return;
 
-        if (!_world.TryGet<TriggerEvents>(_ballEntity, out var triggerEvents) || triggerEvents.Events is null)
+        var ballEntity = ballRow.Entity;
+        if (!_world.TryGet<TriggerEvents>(ballEntity, out var triggerEvents) || triggerEvents.Events is null)
             return;
 
-        ref var ballTransform = ref _world.Get<Transform>(_ballEntity);
-        ref var ballVel = ref _world.Get<Velocity>(_ballEntity);
+        ref var ballTransform = ref ballRow.Get<Transform>();
+        ref var ballVel = ref ballRow.Get<Velocity>();
         ref readonly var paddleTransform = ref _world.Get<Transform>(_paddleEntity);
         ref var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
         var w = _world;
@@ -74,18 +71,18 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
 
             if (!w.TryGet<Cell>(ev.Other, out var cell))
                 continue;
-            if (!w.TryGet<BrickState>(ev.Other, out var brickState) || !brickState.Active)
+            if (!w.TryGet<ArenaCellState>(ev.Other, out var cellState) || !cellState.Active)
                 continue;
 
-            GetBrickAabb(in game, in cell, out var cbx, out var cby, out var hwx, out var hhy);
-            ref var brSt = ref w.Get<BrickState>(ev.Other);
+            GetCellAabb(in game, in cell, out var cbx, out var cby, out var hwx, out var hhy);
+            ref var brSt = ref w.Get<ArenaCellState>(ev.Other);
             brSt.Active = false;
             ref var tri = ref w.Get<Trigger>(ev.Other);
             tri.Enabled = false;
-            game.Score += Constants.BrickPoints;
+            game.Score += Constants.PointsPerBlock;
             if (!velocityTouched)
             {
-                BrickBounceHeuristic(in ballPos, cbx, cby, hwx, hhy, ref ballVel.Value);
+                BlockBounceHeuristic(in ballPos, cbx, cby, hwx, hhy, ref ballVel.Value);
                 var len2 = MathF.Sqrt(ballVel.Value.X * ballVel.Value.X + ballVel.Value.Y * ballVel.Value.Y);
                 if (len2 > 1e-3f)
                     ballVel.Value *= Constants.BallSpeed / len2;
@@ -94,7 +91,7 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
         }
     }
 
-    private static void GetBrickAabb(in GameState g, in Cell cell, out float cx, out float cy, out float halfW, out float halfH)
+    private static void GetCellAabb(in GameState g, in Cell cell, out float cx, out float cy, out float halfW, out float halfH)
     {
         halfW = g.BrickW * 0.5f;
         halfH = g.BrickH * 0.5f;
@@ -102,7 +99,7 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
         cy = g.BrickTopY - (cell.Y + 0.5f) * g.BrickH;
     }
 
-    private static void BrickBounceHeuristic(
+    private static void BlockBounceHeuristic(
         in Vector2D<float> c,
         float aabbCx,
         float aabbCy,
@@ -110,7 +107,6 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
         float hhy,
         ref Vector2D<float> vel)
     {
-        // Dominant local axis: shallower overlap → flip along that face (AABB in world +Y up).
         var dx = c.X - aabbCx;
         var dy = c.Y - aabbCy;
         var adx = MathF.Abs(dx) / (hwx + 1e-4f);
@@ -120,4 +116,3 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
             vel = new Vector2D<float>(vel.X, -vel.Y);
     }
 }
-

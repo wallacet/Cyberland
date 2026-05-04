@@ -4,8 +4,15 @@ using Silk.NET.Input;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-public static class BrickInputSetup
+/// <summary>
+/// Default keyboard and mouse actions. Keeping bindings here matches how larger mods isolate control schemes
+/// before layering rebinding UI.
+/// </summary>
+public static class InputSetup
 {
+    /// <summary>
+    /// Seeds <c>cyberland.demo.brickbreaker/*</c> actions next to the host’s baseline table.
+    /// </summary>
     public static void RegisterDefaultBindings(ModLoadContext context)
     {
         context.AddDefaultInputBinding("cyberland.demo.brickbreaker/move_x", new InputBinding(InputControl.Keyboard(Key.A), -1f));

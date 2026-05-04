@@ -27,7 +27,7 @@ public interface ILocalizedContent
 
     /// <summary>
     /// Synchronous <see cref="MergeStringTableAsync"/> for contexts that are not async (for example
-    /// <c>IMod.OnLoad</c>); reads each locale file with blocking IO.
+    /// <c>IMod.OnLoadAsync</c>); reads each locale file with blocking IO.
     /// </summary>
     void MergeStringTable(string tableFileName);
 

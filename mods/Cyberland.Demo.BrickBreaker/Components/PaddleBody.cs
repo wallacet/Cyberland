@@ -3,7 +3,7 @@ using Cyberland.Engine.Core.Ecs;
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
-/// Shape data for the BrickBreaker paddle body.
+/// Shape data for the paddle collider / sprite sizing.
 /// </summary>
 public struct PaddleBody : IComponent
 {

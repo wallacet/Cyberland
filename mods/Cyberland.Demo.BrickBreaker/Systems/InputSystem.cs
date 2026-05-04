@@ -4,54 +4,54 @@ using Cyberland.Engine.Hosting;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-/// <summary>Sequential early input: fills <see cref="Control"/> and maps <c>Q</c> to <see cref="IRenderer.RequestClose"/>.</summary>
-public sealed class InputSystem : ISystem, IEarlyUpdate
+/// <summary>
+/// Early update: maps actions to <see cref="Control"/> and forwards common quit to the host renderer’s close request.
+/// </summary>
+/// <remarks>
+/// <see cref="ISingletonSystem"/> on the control row (<see cref="ControlTag"/> + <see cref="Control"/>); session phase is read from the
+/// <see cref="SessionTag"/> entity resolved once at startup.
+/// </remarks>
+public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ControlTag, Control>();
 
-
-    private World _world = null!;
+    private EntityId _stateEntity;
     private readonly GameHostServices _host;
-    private readonly EntityId _stateEntity;
-    private readonly EntityId _controlEntity;
-    public InputSystem(GameHostServices host, EntityId stateEntity, EntityId controlEntity)
+
+    public InputSystem(GameHostServices host) => _host = host;
+
+    public void OnSingletonStart(in SingletonEntity controlRow)
     {
-        _host = host;
-        _stateEntity = stateEntity;
-        _controlEntity = controlEntity;
+        _stateEntity = Session.RequireStateEntity(controlRow.World);
+        _ = _host.Input
+            ?? throw new InvalidOperationException("cyberland.demo.brick/input requires Host.Input during OnSingletonStart.");
+        _ = _host.Renderer
+            ?? throw new InvalidOperationException("cyberland.demo.brick/input requires Host.Renderer during OnSingletonStart.");
     }
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    public void OnSingletonEarlyUpdate(in SingletonEntity controlRow, float deltaSeconds)
     {
-        _world = world;
-        _ = archetype;
-    }
-
-    public void OnEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds)
-    {
-        _ = archetype;
         _ = deltaSeconds;
-        ref var c = ref _world.Get<Control>(_controlEntity);
-        // Preserve latched intents for fixed systems: several Render ticks may occur before the next fixed substep at high refresh.
+        var world = controlRow.World;
+        ref var c = ref controlRow.Get<Control>();
         var pendingStart = c.StartRound;
         var pendingLaunch = c.LaunchBall;
         c.MoveLeft = false;
         c.MoveRight = false;
         c.StartRound = pendingStart;
         c.LaunchBall = pendingLaunch;
-        var r = _host.Renderer;
-        var input = _host.Input;
-        if (r is null)
-            return;
-        if (input is null)
-            return;
+
+        var r = _host.Renderer!;
+        var input = _host.Input!;
+
         if (input.IsDown("cyberland.common/quit"))
         {
             r.RequestClose?.Invoke();
             return;
         }
-        var phase = _world.Get<GameState>(_stateEntity).Phase;
+
+        var phase = world.Get<GameState>(_stateEntity).Phase;
         switch (phase)
         {
             case Phase.Title:

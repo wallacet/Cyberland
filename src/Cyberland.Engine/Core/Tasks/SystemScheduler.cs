@@ -5,8 +5,8 @@ namespace Cyberland.Engine.Core.Tasks;
 /// <summary>
 /// Runs ECS systems in <strong>registration order</strong> by default; optional <see cref="RunBeforeAttribute"/> /
 /// <see cref="RunAfterAttribute"/> on system classes add ordering constraints resolved when the entry list changes.
-/// Each entry is either an <see cref="ISystem"/> or an <see cref="IParallelSystem"/>; chunk iteration uses
-/// <see cref="IEcsQuerySource.QuerySpec"/> from that instance. Optional
+/// Each entry is an <see cref="ISystem"/>, <see cref="IParallelSystem"/>, or <see cref="ISingletonSystem"/>; chunk iteration uses
+/// <see cref="IEcsQuerySource.QuerySpec"/> from that instance (singleton entries resolve one entity instead). Optional
 /// <see cref="IEarlyUpdate"/> / <see cref="IFixedUpdate"/> / <see cref="ILateUpdate"/> (or parallel equivalents) control
 /// which phases run. Phase interfaces are resolved once at <c>Register*</c> so <see cref="RunFrame(World, float)"/> does not
 /// repeat type tests on the hot path.
@@ -36,6 +36,13 @@ public sealed class SystemScheduler
         public Action<World, float, ParallelOptions>? ParallelEarly { get; init; }
         public Action<World, float, ParallelOptions>? ParallelFixed { get; init; }
         public Action<World, float, ParallelOptions>? ParallelLate { get; init; }
+    }
+
+    private sealed class SingletonEntry : Entry
+    {
+        public Action<World, float>? Early { get; init; }
+        public Action<World, float>? Fixed { get; init; }
+        public Action<World, float>? Late { get; init; }
     }
 
     private readonly ParallelismSettings _parallelism;
@@ -161,6 +168,51 @@ public sealed class SystemScheduler
         });
     }
 
+    /// <summary>
+    /// Registers or replaces a singleton system: <paramref name="system"/> must implement <see cref="ISingletonSystem"/> with a non-empty
+    /// <see cref="IEcsQuerySource.QuerySpec"/> that matches exactly one entity when the entry starts.
+    /// </summary>
+    /// <param name="logicalId">Stable id for ordering attributes, enable/disable, and diagnostics.</param>
+    /// <param name="system">Singleton ECS implementation; phase hooks receive <see cref="SingletonEntity"/> instead of chunk iterators.</param>
+    /// <param name="enabled">When false, the entry is registered but skipped until <see cref="SetEnabled"/> enables it.</param>
+    public void RegisterSingleton(string logicalId, ISingletonSystem system, bool enabled = true)
+    {
+        ValidateLogicalId(logicalId);
+        ArgumentNullException.ThrowIfNull(system);
+        var query = system.QuerySpec;
+        if (query.Types.Length == 0)
+        {
+            throw new ArgumentException(
+                "ISingletonSystem.QuerySpec cannot be Empty; specify components that identify the singleton entity.",
+                nameof(system));
+        }
+
+        var idSlot = new EntityId[1];
+        Upsert(logicalId, new SingletonEntry
+        {
+            Id = logicalId,
+            SystemImplementationType = system.GetType(),
+            QuerySpec = query,
+            Enabled = enabled,
+            Started = false,
+            Start = world =>
+            {
+                idSlot[0] = world.QueryChunks(query).RequireSingleEntity(system.SingletonLabel);
+                system.OnSingletonStart(new SingletonEntity(world, idSlot[0]));
+            },
+            Early = system is ISingletonEarlyUpdate early
+                ? (world, deltaSeconds) => early.OnSingletonEarlyUpdate(new SingletonEntity(world, idSlot[0]), deltaSeconds)
+                : null,
+            Fixed = system is ISingletonFixedUpdate fixedUpdate
+                ? (world, fixedDeltaSeconds) =>
+                    fixedUpdate.OnSingletonFixedUpdate(new SingletonEntity(world, idSlot[0]), fixedDeltaSeconds)
+                : null,
+            Late = system is ISingletonLateUpdate late
+                ? (world, deltaSeconds) => late.OnSingletonLateUpdate(new SingletonEntity(world, idSlot[0]), deltaSeconds)
+                : null,
+        });
+    }
+
     /// <summary>Sets whether a registered system runs. Returns false if <paramref name="logicalId"/> is not found.</summary>
     public bool SetEnabled(string logicalId, bool enabled)
     {
@@ -264,6 +316,9 @@ public sealed class SystemScheduler
                 case SerialEntry se:
                     se.Early?.Invoke(world, deltaSeconds);
                     break;
+                case SingletonEntry sing:
+                    sing.Early?.Invoke(world, deltaSeconds);
+                    break;
                 case ParallelEntry pe:
                     pe.ParallelEarly?.Invoke(world, deltaSeconds, opts);
                     break;
@@ -285,6 +340,9 @@ public sealed class SystemScheduler
                 {
                     case SerialEntry se:
                         se.Fixed?.Invoke(world, fixedDt);
+                        break;
+                    case SingletonEntry sing:
+                        sing.Fixed?.Invoke(world, fixedDt);
                         break;
                     case ParallelEntry pe:
                         pe.ParallelFixed?.Invoke(world, fixedDt, opts);
@@ -309,6 +367,9 @@ public sealed class SystemScheduler
             {
                 case SerialEntry se:
                     se.Late?.Invoke(world, deltaSeconds);
+                    break;
+                case SingletonEntry sing:
+                    sing.Late?.Invoke(world, deltaSeconds);
                     break;
                 case ParallelEntry pe:
                     pe.ParallelLate?.Invoke(world, deltaSeconds, opts);

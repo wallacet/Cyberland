@@ -214,7 +214,7 @@ flowchart TB
     ML["ModLoader"]
     GA --> ML
     ML --> MODS["IMod DLLs Game Demo"]
-    MODS --> SYS["ISystem and IParallelSystem"]
+    MODS --> SYS["ISystem, IParallelSystem, ISingletonSystem"]
     SYS --> ECS
     SYS --> SVC["GameHostServices"]
     SVC --> VK
@@ -223,13 +223,13 @@ flowchart TB
 ```
 
 1. **Host** creates the window, graphics, input service, input bindings, ECS world, scheduler, and VFS, then calls **`ModLoader.LoadAll`** on `AppContext.BaseDirectory/Mods`.
-2. Each mod’s **`IMod.OnLoad`** receives a **`ModLoadContext`**: world, scheduler, localization, VFS, and **`Host`** (`GameHostServices`).
+2. For each mod with an entry assembly, **`ModLoader`** runs **`IMod.OnLoadAsync`** (to completion on the load thread) with a **`ModLoadContext`**: world, scheduler, localization, VFS, and **`Host`** (`GameHostServices`).
 3. Mods **register systems** on the scheduler and optionally spawn entities, mount extra paths, etc.
-4. Each presented frame, the window **Render** callback runs **`SystemScheduler.RunFrame(world, dt)`** once (with **`deltaSeconds`** from wall time between draws), then **`VulkanRenderer.DrawFrame`**. **`RunFrame`** walks the **same ordered list** of registrations for three **phases**—**Early** (variable dt), **Fixed** (zero or more substeps at **`FixedDeltaSeconds`**, capped by **`MaxSubstepsPerFrame`**), **Late** (variable dt)—invoking **`IEarlyUpdate`/`IFixedUpdate`/`ILateUpdate`** or **`IParallelEarlyUpdate`/`IParallelFixedUpdate`/`IParallelLateUpdate`** where implemented. The **`Update`** callback is intentionally empty so ECS does not run multiple times per draw. Input and exit behavior are handled inside **mod** systems (the host wires **`Renderer.RequestClose`** to close the window; shipped demos invoke it from input when exiting).
+4. Each presented frame, the window **Render** callback runs **`SystemScheduler.RunFrame(world, dt)`** once (with **`deltaSeconds`** from wall time between draws), then **`VulkanRenderer.DrawFrame`**. **`RunFrame`** walks the **same ordered list** of registrations for three **phases**—**Early** (variable dt), **Fixed** (zero or more substeps at **`FixedDeltaSeconds`**, capped by **`MaxSubstepsPerFrame`**), **Late** (variable dt)—invoking **`IEarlyUpdate`/`IFixedUpdate`/`ILateUpdate`**, **`IParallelEarlyUpdate`/`IParallelFixedUpdate`/`IParallelLateUpdate`**, or **`ISingletonEarlyUpdate`/`ISingletonFixedUpdate`/`ISingletonLateUpdate`** (for **`ISingletonSystem`**) where implemented. The **`Update`** callback is intentionally empty so ECS does not run multiple times per draw. Input and exit behavior are handled inside **mod** systems (the host wires **`Renderer.RequestClose`** to close the window; shipped demos invoke it from input when exiting).
 
 **Rule of thumb:** *If it is gameplay, it belongs in a mod (or a new mod assembly), not in `GameApplication`.*
 
-**Default engine systems (2D):** The host registers systems in a fixed **explicit order**: parallel **transform hierarchy**, **sprite animation**, and **CPU particle simulation**; then **`ModLoader.LoadAll`** (mods append **`RegisterSerial`** / **`RegisterParallel`** in manifest order); then parallel **`CameraFollowSystem`** (**`cyberland.engine/camera-follow`**) for optional **`CameraFollow2D`**, parallel **`TriggerSystem`** (**`cyberland.engine/trigger`**) so trigger events reflect mod-updated fixed-step poses from the same substep, parallel **`CameraSubmitSystem`** (**`cyberland.engine/camera-submit`**) for **`Camera2D`** + **`Transform`**; then serial **`ViewportAnchorSystem`** (**`cyberland.engine/viewport-layout`**) for **`ViewportAnchor2D`** + **`Transform`**; parallel light submitters (**`cyberland.engine/lighting-ambient`**, **`…/lighting-directional`**, **`…/lighting-spot`**, **`…/lighting-point`**) over **`AmbientLightSource`**, **`DirectionalLightSource` + `Transform`**, **`SpotLightSource` + `Transform`**, and **`PointLightSource` + `Transform`**; parallel **`PostProcessVolumeSystem`** (**`cyberland.engine/post-process-volumes`**) for **`PostProcessVolumeSource`**; then parallel **tilemap** submit, serial **`SpriteLocalizedAssetSystem`** (**`cyberland.engine/sprite-localized-assets`**) for **`SpriteLocalizedAsset`** texture resolution, parallel **sprite** and **particle** submit systems; then serial **`TextStagingSystem`** (**`cyberland.engine/text-staging`**) and **`TextRenderSystem`** (**`cyberland.engine/text-render`**) for **`BitmapText`** + **`Transform`** (see **`TextCoordinateSpace`**). Prefer these ECS-driven paths over calling **`Submit*Light`** / **`SubmitPostProcessVolume`** / **`SubmitCamera`** from mod code unless you need a special-case. After **`VulkanRenderer`** initialization, **`GameApplication`** applies baseline HDR globals once via **`EngineDefaultGlobalPostProcess.Apply`** (not every frame). Mods replace or extend those settings by calling **`SetGlobalPostProcess`** from **`IMod.OnLoad`** (later loads win over earlier ones) or from a system when values must track the frame. **`BitmapText`** in **`TextCoordinateSpace.ScreenPixels`** often pairs with **`ViewportAnchor2D`** so HUD labels track **`ActiveCameraViewportSize`** (the camera's virtual canvas, not the letterboxed physical window).
+**Default engine systems (2D):** The host registers systems in a fixed **explicit order**: parallel **transform hierarchy**, **sprite animation**, and **CPU particle simulation**; then **`ModLoader.LoadAll`** (mods append **`RegisterSerial`** / **`RegisterParallel`** in manifest order); then parallel **`CameraFollowSystem`** (**`cyberland.engine/camera-follow`**) for optional **`CameraFollow2D`**, parallel **`TriggerSystem`** (**`cyberland.engine/trigger`**) so trigger events reflect mod-updated fixed-step poses from the same substep, parallel **`CameraSubmitSystem`** (**`cyberland.engine/camera-submit`**) for **`Camera2D`** + **`Transform`**; then serial **`ViewportAnchorSystem`** (**`cyberland.engine/viewport-layout`**) for **`ViewportAnchor2D`** + **`Transform`**; parallel light submitters (**`cyberland.engine/lighting-ambient`**, **`…/lighting-directional`**, **`…/lighting-spot`**, **`…/lighting-point`**) over **`AmbientLightSource`**, **`DirectionalLightSource` + `Transform`**, **`SpotLightSource` + `Transform`**, and **`PointLightSource` + `Transform`**; parallel **`PostProcessVolumeSystem`** (**`cyberland.engine/post-process-volumes`**) for **`PostProcessVolumeSource`**; then parallel **tilemap** submit, serial **`SpriteLocalizedAssetSystem`** (**`cyberland.engine/sprite-localized-assets`**) for **`SpriteLocalizedAsset`** texture resolution, parallel **sprite** and **particle** submit systems; then serial **`TextStagingSystem`** (**`cyberland.engine/text-staging`**) and **`TextRenderSystem`** (**`cyberland.engine/text-render`**) for **`BitmapText`** + **`Transform`** (see **`TextCoordinateSpace`**). Prefer these ECS-driven paths over calling **`Submit*Light`** / **`SubmitPostProcessVolume`** / **`SubmitCamera`** from mod code unless you need a special-case. After **`VulkanRenderer`** initialization, **`GameApplication`** applies baseline HDR globals once via **`EngineDefaultGlobalPostProcess.Apply`** (not every frame). Mods replace or extend those settings by calling **`SetGlobalPostProcess`** from **`IMod.OnLoadAsync`** (later loads win over earlier ones) or from a system when values must track the frame. **`BitmapText`** in **`TextCoordinateSpace.ScreenPixels`** often pairs with **`ViewportAnchor2D`** so HUD labels track **`ActiveCameraViewportSize`** (the camera's virtual canvas, not the letterboxed physical window).
 
 ---
 
@@ -240,17 +240,17 @@ flowchart TB
 - **`World`** — entity creation/destruction; owns an **archetype graph** (entities with the same component *signature* share fixed-size **chunks** with SoA columns for cache-friendly iteration).
 - **`Components<T>()`** / **`ComponentStore<T>`** — **`GetOrAdd`**, **`TryGet`**, **`Get`**, **`Remove`**, **`Contains`** for entity-scoped access.
 - **`QueryChunks<T>()`** / **`QueryChunks<T0, T1>()`** — foreach over **chunks**; each yields contiguous **`Span<T>`** columns (and matching **`EntityId`** rows) for SIMD-friendly inner loops. Helpers such as **`SimdFloat`** operate on those spans.
-- **`ChunkQueryAllExtensions`** / **`WorldQueryExtensions`** — **`RequireSingleEntityWith<TComponent>(label)`** and **`TryGetSingleEntityWith<TComponent>(out EntityId)`** for singleton-style queries (exactly zero or one entity with **`T`**).
+- **`ChunkQueryAllExtensions`** / **`WorldQueryExtensions`** — **`RequireSingleEntity(label)`** (any archetype, exactly one row), **`RequireSingleEntityWith<TComponent>(label)`**, and **`TryGetSingleEntityWith<TComponent>(out EntityId)`** for singleton-style queries.
 - **`EntityId`** — opaque id from **`EntityRegistry`**.
 
 Components are **`struct`** types; define them in your mod assembly (see `Velocity` in **`Cyberland.Demo`**).
 
 ### Task scheduler (`Core/Tasks`)
 
-- **`SystemScheduler`** — one ordered list of **`RegisterSerial`** / **`RegisterParallel`** calls. **`RunFrame`** walks entries in **registration order** within each phase: **Early** (real **`deltaSeconds`**), **Fixed** (constant **`FixedDeltaSeconds`**, accumulator + substeps), **Late** (real **`deltaSeconds`** again). Each enabled entry runs **`ISystem.OnStart`** / **`IParallelSystem.OnStart`** at most **once** per registration (first frame the entry is enabled), with **`World`** (and a matching **chunk** query) passed **only in `OnStart`**. Then the update interfaces the instance implements—**`IEarlyUpdate`**, **`IFixedUpdate`**, **`ILateUpdate`** on serial systems, or **`IParallelEarlyUpdate`**, **`IParallelFixedUpdate`**, **`IParallelLateUpdate`** on parallel systems (with **`ParallelOptions`** from **`ParallelismSettings`**) take the **per-phase chunk iterator** and timing, not **`World`**. Cache **`World` in a field in `OnStart` if a system must call back into the ECS from an update. Optional **`AfterEarlyUpdate`**, **`AfterFixedUpdate`**, **`AfterLateUpdate`** fire once per frame after each phase. Disabled entries are skipped entirely until **`SetEnabled(logicalId, true)`**; re-enabling does **not** run **`OnStart`** again. Replacing a logical id resets lifecycle so the new instance gets **`OnStart`** once. **`SetEnabled`**, **`SystemStarted`**, **`SystemEnabled`**, **`SystemDisabled`**, and **`SystemUnregistered`** (from **`TryUnregister`**) are the hooks for introspection and debugging.
+- **`SystemScheduler`** — one ordered list of **`RegisterSerial`** / **`RegisterParallel`** / **`RegisterSingleton`** calls. **`RunFrame`** walks entries in **registration order** within each phase: **Early** (real **`deltaSeconds`**), **Fixed** (constant **`FixedDeltaSeconds`**, accumulator + substeps), **Late** (real **`deltaSeconds`** again). Serial and parallel entries run **`ISystem.OnStart`** / **`IParallelSystem.OnStart`** at most **once** per registration (first frame the entry is enabled), with **`World`** and a matching **chunk** query passed **only in `OnStart`**. **`ISingletonSystem`** entries resolve **exactly one** entity from **`QuerySpec`** at startup (non-empty spec), then call **`OnSingletonStart(in SingletonEntity)`** once and **`ISingletonEarlyUpdate`** / **`ISingletonFixedUpdate`** / **`ISingletonLateUpdate`** with a **`SingletonEntity`** handle (**`Get<T>()`** / **`TryGet<T>`** on that row) instead of **`ChunkQueryAll`**. Chunk-based systems take the **per-phase chunk iterator** and timing, not **`World`** in the phase signature—cache **`World` in `OnStart`** when needed. Optional **`AfterEarlyUpdate`**, **`AfterFixedUpdate`**, **`AfterLateUpdate`** fire once per frame after each phase. Disabled entries are skipped entirely until **`SetEnabled(logicalId, true)`**; re-enabling does **not** run **`OnStart`** / **`OnSingletonStart`** again. Replacing a logical id resets lifecycle so the new instance gets start once. **`SetEnabled`**, **`SystemStarted`**, **`SystemEnabled`**, **`SystemDisabled`**, and **`SystemUnregistered`** (from **`TryUnregister`**) are the hooks for introspection and debugging.
 - **`ParallelismSettings.MaxConcurrency`** — `0` means use all logical processors.
 
-Within each phase, order is still **global registration order**: each entry is either **`ISystem`** (serial) or **`IParallelSystem`** (parallel), in the order registered. The host registers engine systems first, mods append during **`LoadAll`**, then the host appends render submit systems—so a mod’s systems run **between** pre-mod and post-mod blocks according to **`OnLoad`** registration order, while **Early** vs **Fixed** vs **Late** is determined by which interfaces each system implements.
+Within each phase, order is still **global registration order**: each entry is **`ISystem`** (serial), **`IParallelSystem`** (parallel), or **`ISingletonSystem`** (serial, single-row), in the order registered. The host registers engine systems first, mods append during **`LoadAll`**, then the host appends render submit systems—so a mod’s systems run **between** pre-mod and post-mod blocks according to **`OnLoad`** registration order, while **Early** vs **Fixed** vs **Late** is determined by which interfaces each system implements.
 
 ### Rendering (`Rendering/`)
 
@@ -367,11 +367,11 @@ Example (see `mods/Cyberland.Game/manifest.json`):
 Every ECS system is registered with a **non-empty logical id** (convention: `"<modId>/<purpose>"`, e.g. `cyberland.demo/sprite-move`). Mods load in **`loadOrder`** order; a later mod can:
 
 - **Extend** — register **new** ids.
-- **Replace** — call **`RegisterSerial`** / **`RegisterParallel`** again with an id already used; the implementation is swapped **in place** (frame order among other systems stays the same).
+- **Replace** — call **`RegisterSerial`** / **`RegisterParallel`** / **`RegisterSingleton`** again with an id already used; the implementation is swapped **in place** (frame order among other systems stays the same).
 - **Remove** — **`TryUnregister(logicalId)`** drops that system from the scheduler list.
 - **Toggle without removing** — **`context.SetSystemEnabled(logicalId, …)`** (or **`context.Scheduler.SetEnabled`**) skips per-frame work while keeping registration order and **`OnStart`** semantics (no second **`OnStart`** after re-enable).
 
-Use **`context.RegisterSerial`**, **`context.RegisterParallel`**, **`context.SetSystemEnabled`**, and **`context.TryUnregister`** (wrappers around **`SystemScheduler`**). Do not reuse the same id across serial vs parallel registration.
+Use **`context.RegisterSerial`**, **`context.RegisterParallel`**, **`context.RegisterSingleton`**, **`context.SetSystemEnabled`**, and **`context.TryUnregister`** (wrappers around **`SystemScheduler`**). Do not reuse the same id across **serial** vs **parallel** registration (singleton uses the serial scheduling path; still pick a distinct id if a parallel system occupied it).
 
 ### Content and localization overrides
 
@@ -411,16 +411,26 @@ public struct MyComponent
 
 Use **`world.Components<MyComponent>().GetOrAdd(entity)`** (or **`TryGet`**) to associate state with entities.
 
-### 3. Implement `ISystem` and/or `IParallelSystem`
+### Cold-start scene authoring (convention)
 
-- **`ISystem`** — single-threaded; use for input, gameplay ordering, talking to **`GameHostServices`**, or anything that must not race the ECS stores without care.
+Put **one-off** ECS spawn (camera, session/control tags, playfield, HUD **`BitmapText`** rows, lights, **`GlobalPostProcessSource`**) in a **static** helper beside **`Mod.cs`**—usually **`SceneSetup`** with **`public static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)`**. **`Await`** it from **`IMod.OnLoadAsync`** **before** **`RegisterSerial`** / **`RegisterParallel`** / **`RegisterSingleton`**, so startup ordering is deterministic and the scheduler only lists **runtime** systems.
+
+The method stays **`async`** so you can later **`await`** scene JSON, **`ILocalizedContent.MergeStringTableAsync`**, or other I/O without restructuring **`OnLoadAsync`**. Respect **`cancellationToken`** when you add long-running loads.
+
+**Reference:** **`mods/Cyberland.Demo/SceneSetup.cs`** / **`mods/Cyberland.Demo.BrickBreaker/SceneSetup.cs`** and matching **`Mod.cs`** files—same **`SetupSceneAsync`** + **`OnLoadAsync`** pattern.
+
+### 3. Implement `ISystem`, `IParallelSystem`, and/or `ISingletonSystem`
+
+- **`ISystem`** — single-threaded chunk iteration; use for anything that must stay on one thread (some input flows, strict ordering with **`GameHostServices`**).
 - **`IParallelSystem`** — use for CPU-heavy work over **`QueryChunks<T>()`** (per-chunk spans are safe to split across **`Parallel.For`** / **`Parallel.ForEach`**); see **`VelocityDampSystem`** in **`Cyberland.Demo`**.
+- **`ISingletonSystem`** — exactly **one** entity must match **`QuerySpec`**; phase hooks take **`SingletonEntity`** (**`Get<T>()`** on that row) instead of **`ChunkQueryAll`**. Use for session rows, HUD singletons, or any true single-row driver—see **`IntegrateSystem`** / **`FpsDisplaySystem`** in **`Cyberland.Demo`**.
 
-### 4. Register in your mod’s `IMod.OnLoad` (e.g. `BaseGameMod`, `Cyberland.Demo.Mod`)
+### 4. Register in your mod’s `IMod.OnLoadAsync` (e.g. `BaseGameMod`, `Cyberland.Demo.Mod`)
 
 ```csharp
 context.RegisterSerial("my.mod/main", new MySystem(context.Host));
 context.RegisterParallel("my.mod/batch", new MyParallelSystem());
+context.RegisterSingleton("my.mod/session", new MySingletonSystem());
 ```
 
 First-time registration order is the run order for the scheduler’s single list. Replacing an existing **logical id** keeps that system’s position in the list.
@@ -458,8 +468,9 @@ c = new MyComponent { Value = 1f };
 | Example | Location | Shows |
 |---------|----------|--------|
 | Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
-| Demo mod entry | `mods/Cyberland.Demo/Mod.cs` | **`IMod`**, entity spawn, locale **`MergeStringTable`**, **`ModLoadContext.AddDefaultInputBinding`**, **`RegisterSerial` / `RegisterParallel`** (e.g. **`cyberland.demo/integrate`**, **`cyberland.demo/velocity-damp`**) |
-| Input + sim | `mods/Cyberland.Demo/Systems/InputSystem.cs`, **`IntegrateSystem`**, `SceneSetupSystem` | **`ISystem`**, player **`QuerySpec`**, scene tags (e.g. `NeonStripTag` on the neon strip); HDR in **`SceneSetupSystem`** and **`GameApplication`** baseline |
+| Demo mod entry | `mods/Cyberland.Demo/Mod.cs` | **`IMod.OnLoadAsync`**, locale **`MergeStringTable`**, **`ModLoadContext.AddDefaultInputBinding`**, **`RegisterSerial` / `RegisterParallel` / `RegisterSingleton`** (e.g. **`cyberland.demo/integrate`**, **`cyberland.demo/velocity-damp`**) |
+| BrickBreaker scene | `mods/Cyberland.Demo.BrickBreaker/SceneSetup.cs` | **`SetupSceneAsync`** — cold-start convention (**await** before **`Register*`**); see **`Mod.cs`** |
+| Input + sim | `mods/Cyberland.Demo/Systems/InputSystem.cs`, **`IntegrateSystem`**, **`SceneSetup`** | **`IParallelSystem`** (**`InputSystem`**), **`ISingletonSystem`** (**`IntegrateSystem`**), scene tags; HDR cold start in **`SceneSetup`** and **`GameApplication`** baseline |
 | Parallel ECS | `mods/Cyberland.Demo/Systems/VelocityDampSystem.cs` | **`IParallelSystem`**, **`QueryChunks<Velocity>`**, **`SimdFloat`** on packed floats |
 | Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, optional **`--exclude-mods`** |
 
@@ -467,7 +478,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 
 ### How shipped samples use the engine
 
-**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, **Snake**, and **BrickBreaker** drive **`Transform`** / **`Sprite`** from simulation or layout systems and each create a **`Camera2D`** entity in **`IMod.OnLoad`** (fixed 1280×720 virtual canvas) so gameplay stays the same size regardless of window resolution. The host applies a baseline once via **`EngineDefaultGlobalPostProcess`**, and samples add a **`GlobalPostProcessSource`** entity in **`SceneSetupSystem`** (HDR demo) or the arcade mods’ **`OnLoad`** to tune emissive and bloom. **Cyberland.Demo** updates a fullscreen **`PostProcessVolumeSource`** each late tick (**`cyberland.demo/hdr-post-volume`**) so bloom can track the player. Each demo mod registers its default key bindings in **`IMod.OnLoad`** via **`ModLoadContext.AddDefaultInputBinding`**. Use **`ModLayoutViewport.VirtualSizeForSimulation`** / **`VirtualSizeForPresentation`** when you need a consistent virtual canvas read across phases; see in-mod READMEs under **`mods/Cyberland.Demo*`**.
+**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, **Snake**, and **BrickBreaker** drive **`Transform`** / **`Sprite`** from simulation or layout systems and each create a **`Camera2D`** entity during **`IMod.OnLoadAsync`** (fixed 1280×720 virtual canvas) so gameplay stays the same size regardless of window resolution. **Cyberland.Demo** and **BrickBreaker** await **`SceneSetup.SetupSceneAsync`** before registering systems; other arcade samples author entities inline in **`OnLoadAsync`**. The host applies a baseline once via **`EngineDefaultGlobalPostProcess`**, and samples add a **`GlobalPostProcessSource`** entity from **`SceneSetup`** (HDR + BrickBreaker) or arcade **`OnLoadAsync`** to tune emissive and bloom. **Cyberland.Demo** updates a fullscreen **`PostProcessVolumeSource`** each late tick (**`cyberland.demo/hdr-post-volume`**) so bloom can track the player. Each demo mod registers its default key bindings in **`OnLoadAsync`** via **`ModLoadContext.AddDefaultInputBinding`**. Use **`ModLayoutViewport.VirtualSizeForSimulation`** / **`VirtualSizeForPresentation`** when you need a consistent virtual canvas read across phases; see in-mod READMEs under **`mods/Cyberland.Demo*`**.
 
 **Cyberland.Demo.Snake** drives **`Sprite`** and **`BitmapText`** entities from a visual sync system (grid-aligned quads); the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Samples use **`GameHostServices.Fonts`** / **`TextGlyphCache`** only when calling **`TextRenderer`** directly for special cases.
 
@@ -475,7 +486,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 
 ## Configuration
 
-- **`input-bindings.json`** — lives next to the host executable. First run creates the file with **`InputBindings.LoadDefaults`**, then enabled mods’ **`IMod.OnLoad`** may add more default actions via **`ModLoadContext.AddDefaultInputBinding`**. A user file, when present, replaces the in-memory table at startup before mods run.
+- **`input-bindings.json`** — lives next to the host executable. First run creates the file with **`InputBindings.LoadDefaults`**, then enabled mods’ **`IMod.OnLoadAsync`** may add more default actions via **`ModLoadContext.AddDefaultInputBinding`**. A user file, when present, replaces the in-memory table at startup before mods run.
 
 ---
 

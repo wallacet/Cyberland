@@ -15,7 +15,7 @@ namespace Cyberland.Demo.MouseChase;
 // input -> fixed reset/movement/camera/trigger/round-state -> HUD prompts.
 public sealed class Mod : IMod
 {
-    public void OnLoad(ModLoadContext context)
+    public ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
         MouseChaseInputSetup.RegisterDefaultBindings(context);
@@ -138,6 +138,7 @@ public sealed class Mod : IMod
         context.RegisterSerial("cyberland.demo.mousechase/fps-overlay", new FpsOverlaySystem(host, fpsText));
 
         ApplyGlobalPost(world);
+        return ValueTask.CompletedTask;
     }
 
     public void OnUnload()

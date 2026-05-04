@@ -18,7 +18,7 @@ namespace Cyberland.Engine.Modding;
 /// then apply <see cref="ModManifest.ContentBlocklist"/> via <see cref="VirtualFileSystem.BlockPath"/>. (2) For each entry
 /// with an <see cref="ModManifest.EntryAssembly"/>, load the DLL from disk, resolve a concrete <see cref="IMod"/> (optional
 /// <see cref="ModManifest.EntryType"/> hint, else scan <see cref="Assembly.GetExportedTypes"/>), construct it,
-/// and call <see cref="IMod.OnLoad"/> with a <see cref="ModLoadContext"/>.
+/// and call <see cref="IMod.OnLoadAsync"/> with a <see cref="ModLoadContext"/>.
 /// <para>
 /// Entry assemblies load in <see cref="AssemblyLoadContext.Default"/> so <see cref="IMod"/> matches the host’s
 /// <c>Cyberland.Engine</c> contract. While an entry assembly is loading, <see cref="DefaultLoadContextResolving"/> uses
@@ -82,7 +82,7 @@ public sealed class ModLoader
     }
 
     /// <summary>
-    /// Mounts mod content in load order, applies blocklists, then loads each mod’s <see cref="ModManifest.EntryAssembly"/> and invokes <see cref="IMod.OnLoad"/>.
+    /// Mounts mod content in load order, applies blocklists, then loads each mod’s <see cref="ModManifest.EntryAssembly"/> and invokes <see cref="IMod.OnLoadAsync"/>.
     /// </summary>
     /// <param name="modsRootDirectory">Typically <c>Mods</c> next to the executable.</param>
     /// <param name="vfs">Shared layered file system.</param>
@@ -198,7 +198,7 @@ public sealed class ModLoader
 
                 var mod = (IMod)Activator.CreateInstance(modType)!;
                 var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localizedContent, world, scheduler, host);
-                mod.OnLoad(ctx);
+                mod.OnLoadAsync(ctx).GetAwaiter().GetResult();
                 _instances.Add(mod);
             }
             finally

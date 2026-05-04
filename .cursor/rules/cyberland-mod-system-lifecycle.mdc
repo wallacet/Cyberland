@@ -14,13 +14,14 @@ Use ECS systems with clear lifecycle boundaries and ownership.
 - Keep systems single-purpose and phase-appropriate (input, simulation, presentation, lighting should be separate).
 - Model gameplay state in ECS components (including singleton/state entities) instead of ad-hoc session objects when practical.
 - Favor query/chunk iteration patterns over hard-coded entity wiring when roles can be expressed by components.
+- **Cold-start entities** (camera, static HUD, initial lights) belong in **`SceneSetup.SetupSceneAsync`**—not in `*Update`. See **cyberland-mod-patterns-hdr**.
 - **Prefer `IParallelSystem` + `RegisterParallel`** for simulation and rendering systems; use `IParallelEarlyUpdate` / `IParallelFixedUpdate` / `IParallelLateUpdate` so the host supplies `ParallelOptions`. Keep `ISystem` + `RegisterSerial` when the whole phase callback must be single-threaded. Keyboard/gamepad polling can live **between** inner `Parallel.ForEach` barriers inside `IParallelEarlyUpdate` (scheduler thread); see **`mods/Cyberland.Demo` `InputSystem`**. This aligns with **cyberland-design-goals** parallelism and performance pillars.
 - Design for parallel-friendly execution where safe: avoid hidden shared mutable state and keep write-sets explicit.
 - Use stable naming and folder organization (`Components` / `Systems`) so responsibilities are obvious at a glance.
 
 ## Lifecycle split
 
-- Put one-time setup in `OnStart`: validate dependencies, cache **`World`** when random access is needed, resolve singleton **`EntityId`**s via queries—not **`Components<T>()`** store fields for ongoing iteration (see **cyberland-mod-patterns-hdr** and **cyberland-ecs-world-access**).
+- Put one-time setup in **`OnStart`** / **`OnSingletonStart`**: validate dependencies, cache **`World`** when random access is needed for chunk systems, or use **`ISingletonSystem`** so the primary row is **`SingletonEntity`**—resolve extra **`EntityId`**s via **`World.QueryChunks`** in start only when the system must read a second archetype (see **cyberland-mod-patterns-hdr** and **cyberland-ecs-world-access**).
 - Keep parallel phase methods (`OnParallelEarlyUpdate` / `OnParallelFixedUpdate` / `OnParallelLateUpdate`) or serial phase methods (`OnEarlyUpdate` / `OnFixedUpdate` / `OnLateUpdate`) focused on per-tick state changes only.
 - Do not perform first-frame lazy initialization in `*Update`; no "if not initialized then init" paths. Avoid `_resolved` / `_initialized` gates in phase methods—**`OnStart`** already ran for that registration.
 
@@ -54,4 +55,4 @@ public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, Parall
 
 ## Related rules
 
-- **`cyberland-mod-patterns-hdr`** — scene-setup system, folders, parallel honesty, store vs query usage for mods.
+- **`cyberland-mod-patterns-hdr`** — **`SceneSetup`** / scene authoring, folders, parallel honesty, store vs query usage for mods.

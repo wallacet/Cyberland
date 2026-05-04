@@ -4,43 +4,34 @@ using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-/// <summary>
-/// Integrates ball motion and resolves arena wall and bottom-out outcomes. Sequential fixed (single ball entity).
-/// </summary>
-public sealed class BallIntegrateSystem : ISystem, IFixedUpdate
+/// <summary>Integrates ball motion and resolves arena wall and bottom-out outcomes.</summary>
+public sealed class BallIntegrateSystem : ISingletonSystem, ISingletonFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
-
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BallTag, Transform, Velocity>();
 
     private World _world = null!;
-    private readonly EntityId _stateEntity;
-    private readonly EntityId _paddleEntity;
-    private readonly EntityId _ballEntity;
-    public BallIntegrateSystem(EntityId stateEntity, EntityId paddleEntity, EntityId ballEntity)
+    private EntityId _stateEntity;
+    private EntityId _paddleEntity;
+    private EntityId _ballEntity;
+
+    public void OnSingletonStart(in SingletonEntity ballRow)
     {
-        _stateEntity = stateEntity;
-        _paddleEntity = paddleEntity;
-        _ballEntity = ballEntity;
+        _world = ballRow.World;
+        _ballEntity = ballRow.Entity;
+        _stateEntity = Session.RequireStateEntity(_world);
+        _paddleEntity = _world.QueryChunks(SystemQuerySpec.All<Paddle>())
+            .RequireSingleEntityWith<Paddle>("brick paddle");
     }
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    public void OnSingletonFixedUpdate(in SingletonEntity ballRow, float fixedDeltaSeconds)
     {
-        _world = world;
-        _ = archetype;
-    }
-
-    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
-    {
-        _ = archetype;
         ref var game = ref _world.Get<GameState>(_stateEntity);
         if (game.Phase != Phase.Playing || game.BallDocked)
             return;
 
-        ref var ballTransform = ref _world.Get<Transform>(_ballEntity);
-        ref var ballVel = ref _world.Get<Velocity>(_ballEntity);
-        // Stage the local position in a value, mutate .X / .Y by velocity + wall response, then assign back so the
-        // property setter rebuilds the matrix once per step rather than after every axis tweak.
+        ref var ballTransform = ref ballRow.Get<Transform>();
+        ref var ballVel = ref ballRow.Get<Velocity>();
         var ballPos = ballTransform.LocalPosition;
         ballPos.X += ballVel.Value.X * fixedDeltaSeconds;
         ballPos.Y += ballVel.Value.Y * fixedDeltaSeconds;

@@ -15,8 +15,9 @@ namespace Cyberland.Demo;
 /// falls back to <paramref name="deltaSeconds"/> only when the host has not recorded a present yet (cold start).
 /// Presentation size (<see cref="ModLayoutViewport.VirtualSizeForPresentation"/>) differs from simulation size when letterboxing
 /// or DPI scaling applies—HUD placement should follow presentation pixels for readability.
+/// Registered as <see cref="ISingletonSystem"/> for the single HUD FPS entity (see **cyberland-mod-patterns-hdr**).
 /// </remarks>
-public sealed class FpsDisplaySystem : ISystem, ILateUpdate
+public sealed class FpsDisplaySystem : ISingletonSystem, ISingletonLateUpdate
 {
     /// <inheritdoc />
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<HudFpsTag, Transform, BitmapText>();
@@ -28,10 +29,7 @@ public sealed class FpsDisplaySystem : ISystem, ILateUpdate
     public FpsDisplaySystem(GameHostServices host) => _host = host;
 
     /// <inheritdoc />
-    public void OnStart(World world, ChunkQueryAll query) => _ = (world, query);
-
-    /// <inheritdoc />
-    public void OnLateUpdate(ChunkQueryAll query, float deltaSeconds)
+    public void OnSingletonLateUpdate(in SingletonEntity hud, float deltaSeconds)
     {
         var r = _host.Renderer!;
 
@@ -39,17 +37,11 @@ public sealed class FpsDisplaySystem : ISystem, ILateUpdate
         _fps.AddFrameDeltaSeconds(frame);
         var label = _fps.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
-        foreach (var chunk in query)
-        {
-            for (var i = 0; i < chunk.Count; i++)
-            {
-                ref var t = ref chunk.Column<Transform>()[i];
-                // Bottom-right padding in presentation pixels; BitmapText uses viewport space on this entity.
-                t.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
-                ref var bt = ref chunk.Column<BitmapText>()[i];
-                bt.Visible = true;
-                bt.Content = label;
-            }
-        }
+        ref var t = ref hud.Get<Transform>();
+        // Bottom-right padding in presentation pixels; BitmapText uses viewport space on this entity.
+        t.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
+        ref var bt = ref hud.Get<BitmapText>();
+        bt.Visible = true;
+        bt.Content = label;
     }
 }

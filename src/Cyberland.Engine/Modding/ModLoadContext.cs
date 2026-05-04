@@ -8,7 +8,7 @@ using Cyberland.Engine.Localization;
 namespace Cyberland.Engine.Modding;
 
 /// <summary>
-/// Everything your <see cref="IMod.OnLoad"/> needs to plug into the running game: ECS world, system scheduler, virtual files, locale, and host devices.
+/// Everything your <see cref="IMod.OnLoadAsync"/> needs to plug into the running game: ECS world, system scheduler, virtual files, locale, and host devices.
 /// </summary>
 /// <remarks>
 /// Prefer registering work through this type instead of static globals so load order and tests stay predictable.
@@ -58,7 +58,7 @@ public sealed class ModLoadContext
     /// <summary>Register <see cref="Core.Ecs.ISystem"/> / <see cref="Core.Ecs.IParallelSystem"/> implementations (chunk query from <see cref="Core.Ecs.IEcsQuerySource.QuerySpec"/>).</summary>
     public SystemScheduler Scheduler { get; }
 
-    /// <summary>Renderer, input, optional tilemap/particle stores — assigned by the host before <see cref="IMod.OnLoad"/>.</summary>
+    /// <summary>Renderer, input, optional tilemap/particle stores — assigned by the host before <see cref="IMod.OnLoadAsync"/>.</summary>
     public GameHostServices Host { get; }
 
     /// <summary>Mounts <see cref="ModManifest.ContentRoot"/> under this mod's folder.</summary>
@@ -93,6 +93,10 @@ public sealed class ModLoadContext
     public void RegisterParallel(string logicalId, IParallelSystem system, bool enabled = true) =>
         Scheduler.RegisterParallel(logicalId, system, enabled);
 
+    /// <summary>Registers a singleton ECS system: one entity matching <see cref="Core.Ecs.IEcsQuerySource.QuerySpec"/> (see <see cref="Core.Ecs.ISingletonSystem"/>).</summary>
+    public void RegisterSingleton(string logicalId, ISingletonSystem system, bool enabled = true) =>
+        Scheduler.RegisterSingleton(logicalId, system, enabled);
+
     /// <summary>Enables or disables a registered system without removing it (see <see cref="SystemScheduler.SetEnabled"/>).</summary>
     public bool SetSystemEnabled(string logicalId, bool enabled) => Scheduler.SetEnabled(logicalId, enabled);
 
@@ -104,7 +108,7 @@ public sealed class ModLoadContext
 
     /// <summary>
     /// Adds a default mapping for a gameplay <paramref name="actionId"/> before the first frame. The host loads
-    /// <c>input-bindings.json</c> before <see cref="IMod.OnLoad"/>, so user files replace the seed first; this call then
+    /// <c>input-bindings.json</c> before <see cref="IMod.OnLoadAsync"/>, so user files replace the seed first; this call then
     /// adds (or appends) bindings the mod requires.
     /// </summary>
     /// <param name="actionId">Action id for <c>IInputService</c> (e.g. <c>WasPressed</c> / <c>ReadAxis</c>).</param>
@@ -116,7 +120,7 @@ public sealed class ModLoadContext
         if (Host.Input is null)
         {
             throw new InvalidOperationException(
-                "Host.Input is not initialized. Add default input bindings only from IMod.OnLoad after the host wires input.");
+                "Host.Input is not initialized. Add default input bindings only from IMod.OnLoadAsync after the host wires input.");
         }
 
         Host.Input.Bindings.AddBinding(actionId, binding);

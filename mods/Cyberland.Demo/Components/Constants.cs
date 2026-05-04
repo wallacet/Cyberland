@@ -11,7 +11,7 @@ public static class Constants
 }
 
 /// <summary>
-/// Bloom post-volume tuning shared by <see cref="SceneSetupSystem"/> (initial state) and <see cref="HdrPostVolumeFillSystem"/> (per-frame).
+/// Bloom post-volume tuning shared by <see cref="SceneSetup"/> (initial state) and <see cref="HdrPostVolumeFillSystem"/> (per-frame).
 /// Player horizontal position maps to a bloom mix so the rig feels reactive without extra entities.
 /// </summary>
 public static class HdrDemoBloom

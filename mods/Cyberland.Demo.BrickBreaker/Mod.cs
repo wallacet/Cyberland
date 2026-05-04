@@ -1,220 +1,71 @@
 using Cyberland.Engine;
-using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
-using Cyberland.Engine.Rendering;
-using Cyberland.Engine.Rendering.Text;
-using Cyberland.Engine.Scene;
-using Silk.NET.Maths;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-// BrickBreaker tutorial: session entities for GameState + Control; bricks are Cell-tagged entities laid out by ArenaLayoutSystem.
-// Pipeline: input (early, seq) -> arena layout (early, parallel brick chunks) -> lifecycle + winlose (fixed, parallel brick chunks) ->
-// paddle / launch / ball / triggers (fixed, seq, singleton ball) -> lights + visual sync (late, seq).
-//
-// MergeStringTableAsync blocks synchronously during mod load so locale keys exist before OnStart.
+/// <summary>
+/// Breakout sample: many entities, chunk-parallel layout and win detection, and trigger-based hits after the engine
+/// <c>TriggerSystem</c> runs in the fixed chain.
+/// </summary>
+/// <remarks>
+/// <para><b>Where to read next:</b> registration order mirrors the HDR demo—see <see cref="SceneSetup"/> for the static scene recipe,
+/// then follow phase responsibilities below.</para>
+/// <para><b>Frame flow (simplified):</b>
+/// <see cref="Systems.InputSystem"/> (early singleton) →
+/// <see cref="Systems.ArenaLayoutSystem"/> (early, parallel) →
+/// <see cref="Systems.RoundStartSystem"/> → <see cref="Systems.ReactivateSystem"/> →
+/// <see cref="Systems.PaddleMoveSystem"/> / <see cref="Systems.BallLaunchSystem"/> / <see cref="Systems.BallIntegrateSystem"/> / <see cref="Systems.TriggerResolveSystem"/> →
+/// <see cref="Systems.WinLoseSystem"/> (fixed, parallel) →
+/// <see cref="Systems.LightsFillSystem"/> (late) →
+/// multiple query-driven <c>brick/*</c> late sprite and HUD systems (see individual types).</para>
+/// <para><b>Registration order matters</b> for <see cref="GameState.PendingReactivation"/> and win detection: round start and
+/// block reactivation run before <see cref="Systems.WinLoseSystem"/> in the same fixed pass so a new round is not misread as a clear board.</para>
+/// </remarks>
 public sealed class Mod : IMod
 {
-    public void OnLoad(ModLoadContext context)
+    /// <inheritdoc />
+    public async ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
-        BrickInputSetup.RegisterDefaultBindings(context);
+        InputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("brick.json");
 
-        var w = context.World;
-
-        // Fixed virtual canvas (see Constants.CanvasWidth/Height) so arena layout matches the camera viewport
-        // regardless of physical window size; camera sits at the canvas center.
-        var camera = w.CreateEntity();
-        var camTransform = Transform.Identity;
-        camTransform.WorldPosition = new Vector2D<float>(Constants.CanvasWidth * 0.5f, Constants.CanvasHeight * 0.5f);
-        w.GetOrAdd<Transform>(camera) = camTransform;
-        w.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(Constants.CanvasWidth, Constants.CanvasHeight));
-
-        var stateEntity = w.CreateEntity();
-        w.GetOrAdd<GameState>(stateEntity) = new GameState
-        {
-            Phase = Phase.Title,
-            Lives = Constants.StartingLives,
-            BallDocked = true
-        };
-        var controlEntity = w.CreateEntity();
-        w.GetOrAdd<Control>(controlEntity);
-
-        static EntityId Sprite(World world)
-        {
-            var e = world.CreateEntity();
-            world.GetOrAdd<Transform>(e) = Transform.Identity;
-            world.GetOrAdd<Sprite>(e);
-            return e;
-        }
-
-        var background = Sprite(w);
-        var paddle = Sprite(w);
-        w.GetOrAdd<Paddle>(paddle);
-        w.GetOrAdd<PaddleBody>(paddle) = new PaddleBody { HalfWidth = 72f, HalfHeight = 10f };
-        w.GetOrAdd<Trigger>(paddle) = new Trigger
-        {
-            Enabled = false,
-            Shape = TriggerShapeKind.Rectangle,
-            HalfExtents = new Vector2D<float>(72f, 10f)
-        };
-        var ball = Sprite(w);
-        w.GetOrAdd<Velocity>(ball);
-        w.GetOrAdd<Trigger>(ball) = new Trigger
-        {
-            Enabled = false,
-            Shape = TriggerShapeKind.Circle,
-            Radius = Constants.BallR
-        };
-        var titleUi = Sprite(w);
-        var gameOverPanel = Sprite(w);
-        var gameOverBar = Sprite(w);
-        var lives = new EntityId[Constants.StartingLives];
-        for (var i = 0; i < lives.Length; i++)
-            lives[i] = Sprite(w);
-
-        var cells = new EntityId[Constants.Cols, Constants.Rows];
-        for (var cx = 0; cx < Constants.Cols; cx++)
-        for (var cy = 0; cy < Constants.Rows; cy++)
-        {
-            cells[cx, cy] = Sprite(w);
-            w.GetOrAdd<Cell>(cells[cx, cy]) = new Cell { X = cx, Y = cy };
-            w.GetOrAdd<BrickState>(cells[cx, cy]) = new BrickState { Active = false };
-            w.GetOrAdd<Trigger>(cells[cx, cy]) = new Trigger
-            {
-                Enabled = false,
-                Shape = TriggerShapeKind.Rectangle,
-                HalfExtents = new Vector2D<float>(1f, 1f)
-            };
-        }
-
-        static EntityId HudText(World world, float sortKey)
-        {
-            var e = world.CreateEntity();
-            world.GetOrAdd<Transform>(e) = Transform.Identity;
-            ref var bt = ref world.GetOrAdd<BitmapText>(e);
-            bt.Visible = false;
-            bt.Content = " ";
-            bt.SortKey = sortKey;
-            bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
-            bt.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
-            bt.IsLocalizationKey = false;
-            return e;
-        }
-
-        var texts = new HudTextIds(
-            HudText(w, 450f),
-            HudText(w, 451f),
-            HudText(w, 452f),
-            HudText(w, 453f),
-            HudText(w, 454f),
-            HudText(w, 455f),
-            HudText(w, 456f));
-
-        var amb = w.CreateEntity();
-        w.GetOrAdd<AmbientLightSource>(amb) = new AmbientLightSource
-        {
-            Active = true,
-            Color = new Vector3D<float>(0.22f, 0.24f, 0.32f),
-            Intensity = 0.14f
-        };
-        var dirL = w.CreateEntity();
-        w.GetOrAdd<Transform>(dirL) = Transform.Identity;
-        w.GetOrAdd<DirectionalLightSource>(dirL) = new DirectionalLightSource
-        {
-            Active = true,
-            Color = new Vector3D<float>(0.55f, 0.52f, 0.48f),
-            Intensity = 0.22f,
-            CastsShadow = false
-        };
-        var spotE = w.CreateEntity();
-        w.GetOrAdd<Transform>(spotE) = Transform.Identity;
-        w.GetOrAdd<SpotLightSource>(spotE) = new SpotLightSource
-        {
-            Active = true,
-            Radius = 560f,
-            InnerConeRadians = MathF.PI / 4f,
-            OuterConeRadians = MathF.PI / 2.2f,
-            Color = new Vector3D<float>(0.35f, 0.55f, 0.95f),
-            Intensity = 0.38f,
-            CastsShadow = false
-        };
-        var paddlePt = w.CreateEntity();
-        w.GetOrAdd<Transform>(paddlePt) = Transform.Identity;
-        w.GetOrAdd<PointLightSource>(paddlePt) = new PointLightSource
-        {
-            Active = true,
-            Radius = 280f,
-            Color = new Vector3D<float>(1f, 0.55f, 0.28f),
-            Intensity = 0.32f,
-            FalloffExponent = 2.2f,
-            CastsShadow = false
-        };
-        var ballPt = w.CreateEntity();
-        w.GetOrAdd<Transform>(ballPt) = Transform.Identity;
-        w.GetOrAdd<PointLightSource>(ballPt) = new PointLightSource
-        {
-            Active = true,
-            Radius = 140f,
-            Color = new Vector3D<float>(0.85f, 0.95f, 1f),
-            Intensity = 0.55f,
-            FalloffExponent = 2f,
-            CastsShadow = false
-        };
-
         var host = context.Host;
-        context.RegisterSerial("cyberland.demo.brick/input", new InputSystem(host, stateEntity, controlEntity));
-        context.RegisterParallel("cyberland.demo.brick/layout", new ArenaLayoutSystem(host, stateEntity));
-        context.RegisterParallel("cyberland.demo.brick/lifecycle",
-            new RoundLifecycleSystem(stateEntity, controlEntity, paddle, ball));
-        context.RegisterSerial("cyberland.demo.brick/paddle-move",
-            new PaddleMoveSystem(stateEntity, controlEntity, paddle));
-        context.RegisterSerial("cyberland.demo.brick/ball-launch",
-            new BallLaunchSystem(stateEntity, controlEntity, paddle, ball));
-        context.RegisterSerial("cyberland.demo.brick/ball-integrate",
-            new BallIntegrateSystem(stateEntity, paddle, ball));
-        context.RegisterSerial("cyberland.demo.brick/trigger-resolve",
-            new TriggerResolveSystem(stateEntity, paddle, ball));
-        context.RegisterParallel("cyberland.demo.brick/winlose", new WinLoseSystem(stateEntity));
-        context.RegisterSerial("cyberland.demo.brick/lights",
-            new BrickBreakerLightsFillSystem(host, stateEntity, paddle, ball, amb, dirL, spotE, paddlePt, ballPt));
-        context.RegisterSerial("cyberland.demo.brick/visual-sync",
-            new VisualSyncSystem(host, stateEntity, background, paddle, ball, titleUi, gameOverPanel, gameOverBar, lives,
-                cells, texts));
 
-        ApplyBrickGlobalPost(w);
+        await SceneSetup.SetupSceneAsync(context);
+
+        context.RegisterSingleton("cyberland.demo.brick/input", new InputSystem(host));
+        context.RegisterParallel("cyberland.demo.brick/layout", new ArenaLayoutSystem());
+        context.RegisterSingleton("cyberland.demo.brick/round-start", new RoundStartSystem());
+        context.RegisterParallel("cyberland.demo.brick/brick-reactivate", new ReactivateSystem());
+        context.RegisterSingleton("cyberland.demo.brick/paddle-move", new PaddleMoveSystem());
+        context.RegisterSingleton("cyberland.demo.brick/ball-launch", new BallLaunchSystem());
+        context.RegisterSingleton("cyberland.demo.brick/ball-integrate", new BallIntegrateSystem());
+        context.RegisterSingleton("cyberland.demo.brick/trigger-resolve", new TriggerResolveSystem());
+        context.RegisterParallel("cyberland.demo.brick/winlose", new WinLoseSystem());
+        context.RegisterSingleton("cyberland.demo.brick/lights", new LightsFillSystem());
+
+        context.RegisterParallel("cyberland.demo.brick/cell-sprites", new CellSpriteSyncSystem());
+        context.RegisterParallel("cyberland.demo.brick/background-sprite", new BackgroundSpriteSyncSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/paddle-sprite", new PaddleSpriteSyncSystem());
+        context.RegisterSingleton("cyberland.demo.brick/ball-sprite", new BallSpriteSyncSystem());
+        context.RegisterSingleton("cyberland.demo.brick/title-ui-sprite", new TitleUiSpriteSyncSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/game-over-panel-sprite", new GameOverPanelSpriteSyncSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/game-over-bar-sprite", new GameOverBarSpriteSyncSystem(host));
+        context.RegisterSerial("cyberland.demo.brick/life-sprites", new LifeSpriteSyncSystem(host));
+
+        context.RegisterSingleton("cyberland.demo.brick/hud-title", new HudTitleTextSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/hud-hint-title", new HudHintTitleTextSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/hud-game-over", new HudGameOverTextSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/hud-hint-end", new HudHintEndTextSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/hud-playing-score", new HudPlayingScoreTextSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/hud-score-num", new HudScoreNumTextSystem(host));
+        context.RegisterSingleton("cyberland.demo.brick/fps-hud", new FpsHudSystem(host));
     }
 
+    /// <inheritdoc />
     public void OnUnload()
     {
-    }
-
-    private static void ApplyBrickGlobalPost(World world)
-    {
-        var e = world.CreateEntity();
-        world.GetOrAdd<GlobalPostProcessSource>(e) = new GlobalPostProcessSource
-        {
-            Active = true,
-            Priority = 100,
-            Settings = new GlobalPostProcessSettings
-            {
-                BloomEnabled = true,
-                BloomRadius = 1.1f,
-                BloomGain = 0.3f,
-                BloomExtractThreshold = 0.32f,
-                BloomExtractKnee = 0.5f,
-                EmissiveToHdrGain = 0.48f,
-                EmissiveToBloomGain = 0.45f,
-                Exposure = 1f,
-                Saturation = 1.05f,
-                TonemapEnabled = true,
-                ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f),
-                ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f),
-                ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
-            }
-        };
     }
 }

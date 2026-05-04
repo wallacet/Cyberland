@@ -10,11 +10,12 @@ public sealed class TestModEntry : IMod
     public static int OnUnloadCount;
     public static ModLoadContext? LastContext;
 
-    public void OnLoad(ModLoadContext context)
+    public ValueTask OnLoadAsync(ModLoadContext context)
     {
         OnLoadCount++;
         LastContext = context;
         _ = PluginHelper.Token;
+        return ValueTask.CompletedTask;
     }
 
     public void OnUnload() =>

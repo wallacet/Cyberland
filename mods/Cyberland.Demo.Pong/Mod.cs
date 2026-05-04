@@ -14,10 +14,10 @@ namespace Cyberland.Demo.Pong;
 // Pipeline: sequential early input -> sequential fixed simulation -> sequential late lights + visual sync.
 // All systems are ISystem: this demo has a single gameplay entity, so there is no meaningful ECS chunk parallelism.
 //
-// MergeStringTableAsync blocks here because mod load is synchronous; strings must exist before the first RunFrame.
+// MergeStringTable runs during mod load before the first RunFrame so strings exist when ECS ticks begin.
 public sealed class Mod : IMod
 {
-    public void OnLoad(ModLoadContext context)
+    public ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
         PongInputSetup.RegisterDefaultBindings(context);
@@ -117,6 +117,7 @@ public sealed class Mod : IMod
         context.RegisterSerial("cyberland.demo.pong/visual-sync", new VisualSyncSystem(host, session, visuals, texts));
 
         ApplyGlobalPost(world);
+        return ValueTask.CompletedTask;
     }
 
     public void OnUnload() { }

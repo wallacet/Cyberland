@@ -5,6 +5,37 @@ namespace Cyberland.Engine.Tests;
 public sealed class ChunkQueryAllExtensionsTests
 {
     [Fact]
+    public void RequireSingleEntity_throws_when_missing()
+    {
+        var w = new World();
+        var q = w.QueryChunks(SystemQuerySpec.All<PlayerTag>());
+        var ex = Assert.Throws<InvalidOperationException>(() => q.RequireSingleEntity("player"));
+        Assert.Contains("Missing", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("player", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RequireSingleEntity_throws_when_duplicate()
+    {
+        var w = new World();
+        w.GetOrAdd<PlayerTag>(w.CreateEntity()) = default;
+        w.GetOrAdd<PlayerTag>(w.CreateEntity()) = default;
+        var q = w.QueryChunks(SystemQuerySpec.All<PlayerTag>());
+        var ex = Assert.Throws<InvalidOperationException>(() => q.RequireSingleEntity("player"));
+        Assert.Contains("exactly one", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RequireSingleEntity_returns_entity_when_unique()
+    {
+        var w = new World();
+        var e = w.CreateEntity();
+        w.GetOrAdd<PlayerTag>(e) = default;
+        var q = w.QueryChunks(SystemQuerySpec.All<PlayerTag>());
+        Assert.Equal(e, q.RequireSingleEntity("player"));
+    }
+
+    [Fact]
     public void RequireSingleEntityWith_throws_when_missing()
     {
         var w = new World();

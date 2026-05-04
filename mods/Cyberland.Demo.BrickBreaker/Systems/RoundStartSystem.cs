@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
@@ -6,38 +5,31 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
-/// Starts a round: resets session state and re-enables bricks. Brick reactivation iterates chunks in parallel.
+/// Fixed: consumes <see cref="Control.StartRound"/>, resets session/paddle/ball, and hands off brick reactivation to
+/// <see cref="ReactivateSystem"/> via <see cref="GameState.PendingReactivation"/>.
 /// </summary>
-public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
+public sealed class RoundStartSystem : ISingletonSystem, ISingletonFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BrickState>();
-
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<SessionTag, GameState>();
 
     private World _world = null!;
-    private readonly EntityId _stateEntity;
-    private readonly EntityId _controlEntity;
-    private readonly EntityId _paddleEntity;
-    private readonly EntityId _ballEntity;
-    public RoundLifecycleSystem(
-        EntityId stateEntity,
-        EntityId controlEntity,
-        EntityId paddleEntity,
-        EntityId ballEntity)
+    private EntityId _controlEntity;
+    private EntityId _paddleEntity;
+    private EntityId _ballEntity;
+
+    public void OnSingletonStart(in SingletonEntity session)
     {
-        _stateEntity = stateEntity;
-        _controlEntity = controlEntity;
-        _paddleEntity = paddleEntity;
-        _ballEntity = ballEntity;
+        _world = session.World;
+        _controlEntity = _world.QueryChunks(SystemQuerySpec.All<ControlTag>())
+            .RequireSingleEntityWith<ControlTag>("brick control");
+        _paddleEntity = _world.QueryChunks(SystemQuerySpec.All<Paddle>())
+            .RequireSingleEntityWith<Paddle>("brick paddle");
+        _ballEntity = _world.QueryChunks(SystemQuerySpec.All<BallTag>())
+            .RequireSingleEntityWith<BallTag>("brick ball");
     }
 
-    public void OnStart(World world, ChunkQueryAll query)
-    {
-        _world = world;
-        _ = query;
-    }
-
-    public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+    public void OnSingletonFixedUpdate(in SingletonEntity session, float fixedDeltaSeconds)
     {
         _ = fixedDeltaSeconds;
         ref var control = ref _world.Get<Control>(_controlEntity);
@@ -45,11 +37,12 @@ public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
             return;
 
         control.StartRound = false;
-        ref var game = ref _world.Get<GameState>(_stateEntity);
+        ref var game = ref session.Get<GameState>();
         game.Phase = Phase.Playing;
         game.Lives = Constants.StartingLives;
         game.Score = 0;
         game.BallDocked = true;
+        game.PendingReactivation = true;
 
         ref var paddleTransform = ref _world.Get<Transform>(_paddleEntity);
         ref var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
@@ -70,17 +63,5 @@ public sealed class RoundLifecycleSystem : IParallelSystem, IParallelFixedUpdate
         ref var ballTrigger = ref _world.Get<Trigger>(_ballEntity);
         ballTrigger.Enabled = true;
         ballTrigger.Radius = Constants.BallR;
-        foreach (var chunk in query)
-        {
-            Parallel.For(0, chunk.Count, parallelOptions, i =>
-            {
-                var entities = chunk.Entities;
-                var states = chunk.Column<BrickState>(0);
-                ref var bs = ref states[i];
-                bs.Active = true;
-                ref var t = ref _world.Get<Trigger>(entities[i]);
-                t.Enabled = true;
-            });
-        }
     }
 }

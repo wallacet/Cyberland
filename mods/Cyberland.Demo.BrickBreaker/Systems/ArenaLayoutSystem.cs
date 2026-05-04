@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
@@ -18,26 +17,19 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
     /// <remarks>Brick cells carry <see cref="Cell"/>, <see cref="Transform"/>, and <see cref="Trigger"/>; layout updates both world placement and trigger AABBs from the same chunk columns.</remarks>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Cell, Transform, Trigger>();
 
-
-    private World _world = null!;
     /// <summary>
     /// <see cref="OnStart"/> runs before the parallel early phase; use one worker so layout matches
     /// the same code path as <see cref="OnParallelEarlyUpdate"/> without racing other startup systems.
     /// </summary>
     private static readonly ParallelOptions StartupParallelOptions = new() { MaxDegreeOfParallelism = 1 };
 
-    private readonly GameHostServices _host;
-    private readonly EntityId _stateEntity;
-    public ArenaLayoutSystem(GameHostServices host, EntityId stateEntity)
-    {
-        _host = host;
-        _stateEntity = stateEntity;
-    }
+    private World _world = null!;
+    private EntityId _stateEntity;
 
     public void OnStart(World world, ChunkQueryAll archetype)
     {
         _world = world;
-        EnsureRendererAvailable();
+        _stateEntity = Session.RequireStateEntity(world);
         UpdateLayoutIfNeeded(archetype, StartupParallelOptions);
     }
 
@@ -45,18 +37,6 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
     {
         _ = deltaSeconds;
         UpdateLayoutIfNeeded(archetype, parallelOptions);
-    }
-
-    private void EnsureRendererAvailable()
-    {
-        if (_host.Renderer is not null)
-            return;
-
-        EngineDiagnostics.Report(
-            EngineErrorSeverity.Major,
-            "Cyberland.Demo.BrickBreaker — ArenaLayout init failed",
-            "Host.Renderer was null during ArenaLayoutSystem.OnStart; arena layout requires swapchain size.");
-        throw new InvalidOperationException("ArenaLayoutSystem requires Host.Renderer during OnStart.");
     }
 
     private void UpdateLayoutIfNeeded(ChunkQueryAll cellArchetype, ParallelOptions parallelOptions)

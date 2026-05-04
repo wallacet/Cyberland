@@ -64,7 +64,7 @@ public sealed class InputBindings
 
     /// <summary>
     /// Loads host-wide defaults. Demo mods add gameplay bindings via
-    /// <c>Cyberland.Engine.Modding.ModLoadContext.AddDefaultInputBinding</c> in <c>IMod.OnLoad</c>.
+    /// <c>Cyberland.Engine.Modding.ModLoadContext.AddDefaultInputBinding</c> in <c>IMod.OnLoadAsync</c>.
     /// </summary>
     public void LoadDefaults()
     {

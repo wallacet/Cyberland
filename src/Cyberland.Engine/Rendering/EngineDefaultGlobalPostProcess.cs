@@ -4,7 +4,7 @@ namespace Cyberland.Engine.Rendering;
 
 /// <summary>
 /// Baseline HDR post settings applied when the renderer becomes available. Mods may call
-/// <see cref="IRenderer.SetGlobalPostProcess"/> later (e.g. in <see cref="Modding.IMod.OnLoad"/>) to replace them.
+/// <see cref="IRenderer.SetGlobalPostProcess"/> later (e.g. in <see cref="Modding.IMod.OnLoadAsync"/>) to replace them.
 /// </summary>
 public static class EngineDefaultGlobalPostProcess
 {

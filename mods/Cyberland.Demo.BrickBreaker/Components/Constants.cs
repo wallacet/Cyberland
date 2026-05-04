@@ -8,13 +8,17 @@ public static class Constants
     public const float FpsAverageWindowSeconds = FpsMovingAverage.DefaultWindowSeconds;
 
     /// <summary>
-    /// Virtual canvas size in world pixels for this mod's <see cref="Cyberland.Engine.Scene.Camera2D"/> and all arena/HUD layout.
+    /// Design-time virtual canvas (world pixels) for the mod’s <see cref="Cyberland.Engine.Scene.Camera2D"/> and simulation
+    /// layout (<see cref="GameState"/> arena metrics, <see cref="ArenaLayoutSystem"/>). Matches HDR’s fixed virtual canvas pattern.
     /// </summary>
     /// <remarks>
-    /// Must stay in sync with the camera entity created in <c>Mod.OnLoad</c>. Do not use
-    /// <see cref="Cyberland.Engine.Rendering.IRenderer.ActiveCameraViewportSize"/> from parallel <strong>early</strong> systems: the
-    /// renderer has not ingested camera submissions yet that frame, so that property can still reflect the
-    /// swapchain size and would mis-size the arena relative to the fixed camera viewport.
+    /// <para>Simulation phases should treat this as the playfield extent once the active camera is configured—typically aligned with
+    /// <see cref="Cyberland.Engine.Hosting.ModLayoutViewport.VirtualSizeForSimulation"/> after startup.</para>
+    /// <para>Viewport-space HUD (<see cref="Cyberland.Engine.Rendering.Text.BitmapText"/> in <c>ViewportSpace</c>) belongs in
+    /// <strong>late</strong> update and should use <see cref="Cyberland.Engine.Hosting.ModLayoutViewport.VirtualSizeForPresentation"/>
+    /// so letterboxing and DPI match the HDR demo.</para>
+    /// <para>Do not use <see cref="Cyberland.Engine.Rendering.IRenderer.ActiveCameraViewportSize"/> from parallel <strong>early</strong>
+    /// systems: the renderer may not have applied camera submissions yet.</para>
     /// </remarks>
     public const int CanvasWidth = 1280;
 
@@ -23,7 +27,7 @@ public static class Constants
 
     public const int Cols = 10;
     public const int Rows = 6;
-    public const int BrickPoints = 10;
+    public const int PointsPerBlock = 10;
     public const int StartingLives = 3;
     public const float BallSpeed = 380f;
     public const float BallR = 8f;

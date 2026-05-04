@@ -6,46 +6,58 @@ alwaysApply: false
 
 # Cyberland — Mod patterns (HDR demo baseline)
 
-Ship mods so they read like **`mods/Cyberland.Demo`**: one bootstrap system, query-driven updates, real parallelism only, and clear folder boundaries.
+Ship mods so they read like the repo’s best samples: **cold start** in **`SceneSetup.SetupSceneAsync`**, then query-driven updates, real parallelism only, and clear folder boundaries.
 
-## Scene setup
+## Scene setup (cold start)
 
-- Put **all cold-start entity creation** (camera, playfield, HUD, lights, volumes, global post) in **one** dedicated system (e.g. `SceneSetupSystem`) registered **serial**, **`ISystem` only**—typically **only `OnStart`** runs; avoid registering unused phase interfaces on that system.
-- Split runtime systems by responsibility (input, integrate, post-fill, HUD); **do not** scatter spawn code across multiple systems.
+**Standard (preferred for new and migrated mods):**
+
+- Add a **static** helper beside **`Mod.cs`** (same pattern as **`InputSetup`**) — commonly named **`SceneSetup`** — with **`public static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)`**.
+- **Await it from `OnLoadAsync`** *before* **`context.RegisterSerial` / `RegisterParallel` / `RegisterSingleton`**, so entities exist before any **`OnStart`** runs.
+- Put **all** one-off authoring here: camera, session/control markers, playfield, HUD rows, lights, **`GlobalPostProcessSource`**, tagged singleton rows runtime systems will resolve via **`QuerySpec`**. Use **`context.World`** and **`context.Host`**; **`throw`** if **`Renderer`** (or another required host service) is missing.
+- Keep the method **`async`** even when today’s body is mostly synchronous: reserve **`await`** for loading scene definitions from disk (**`VirtualFileSystem`** / **`File.ReadAllTextAsync`**, etc.), **`MergeStringTableAsync`**, or other I/O you add later. Respect **`cancellationToken`** at boundaries.
+
+**Legacy (avoid for new work):**
+
+- A spawn-only **`ISystem`** with **`OnStart`** and no phase hooks—migrate to **`SceneSetup.SetupSceneAsync`** so the scheduler lists **runtime** systems only.
+
+**Always:**
+
+- Split **runtime** systems by responsibility (input, simulate, lights-fill, HUD); **do not** scatter spawn code across multiple **`OnStart`** handlers or phase updates.
 
 ## Scheduler / host contract
 
-- **`OnStart`** runs **before** phase callbacks for that registration; treat required host services and entities as **available**. Validate impossible configuration with **`throw`** and clear messages—do not soften failures into silent skips.
+- **`OnStart`** / **`OnSingletonStart`** runs **before** phase callbacks for that registration; treat required host services and entities as **available**. Validate impossible configuration with **`throw`** and clear messages—do not soften failures into silent skips.
 - **Do not** use `_initialized` / `_resolved` flags or **phase-update early returns** that mean “maybe not ready yet.” Avoid defensive null checks on host services in hot paths when the mod **requires** those services to function (use non-null assertion when the contract guarantees presence).
 - First-frame lazy init inside **`*Update`** is forbidden (see **cyberland-mod-system-lifecycle**).
 
 ## Queries and stores
 
 - **`IEcsQuerySource.QuerySpec`** / **`SystemQuerySpec`** is the **single declaration** of what the scheduler loads each phase.
-- **Phase updates** iterate **`ChunkQueryAll`** (serial) or the parallel chunk views—**that is the hot path**.
+- **Phase updates** iterate **`ChunkQueryAll`** (serial **`ISystem`**) or parallel chunk views (**`IParallelSystem`**)—**that is the hot path** for multi-row work.
 - **Do not** cache **`Components<T>()`** stores on the system as fields for ongoing use, and **do not** replace scheduler queries with broad store scans unless there is a deliberate, documented reason.
-- **`World`** may be cached in **`OnStart`** when **random access** is required (singleton helpers, `DestroyEntity`, cross-query writes). Follow **cyberland-ecs-world-access**.
+- **`World`** may be cached in **`OnStart`** when **random access** is required (`DestroyEntity`, ad-hoc queries). For **exactly one entity** that owns the system’s work, prefer **`ISingletonSystem`** (below) so phase hooks take **`SingletonEntity`** instead of chunk iteration. Follow **cyberland-ecs-world-access**.
 
-## Singletons (two supported patterns)
+## Singleton rows — prefer `ISingletonSystem`
 
-**A — Cache id + `World` for phase updates**  
-Resolve **`EntityId`** once in **`OnStart`** (`RequireSingleEntityWith` / `QueryChunks` + require). Cache **`World`** when needed. In phase methods, use **`World.Get<T>(entity)`** for **mutable** component access. Use when the system’s **`QuerySpec` does not** cover that entity (e.g. **`SystemQuerySpec.Empty`**) or you need **`World`** for non-query work (`DestroyEntity`, ad-hoc lookups). Example: bloom volume in **`HdrPostVolumeFillSystem`**.
+Use **`context.RegisterSingleton`** with **`ISingletonSystem`** when **exactly one** entity matches **`QuerySpec`** and the system exists to drive **that row** (player, session state, a single HUD **`BitmapText`** row, fullscreen **`PostProcessVolumeSource`**, etc.).
 
-**B — Let the scheduler carry the singleton via `QuerySpec`**  
-Set **`QuerySpec`** to the singleton’s component set (e.g. **`All<PlayerTag, Transform, Velocity>()`**). In **`OnStart`** / phase updates, use the passed **`ChunkQueryAll`**: validate with **`RequireSingleEntityWith<Tag>`** if needed, then use **`GetFirst<T>()`** for a mutable **`ref T`** to the **first matching entity** (iteration order; chunks are storage-only). Prefer this when the system **only** exists to drive that singleton archetype—see **`IntegrateSystem`**. For reads without mutation, **`GetFirst`** is still fine (e.g. **`HdrPostVolumeFillSystem`**).
+- Implement **`ISingletonEarlyUpdate`**, **`ISingletonFixedUpdate`**, and/or **`ISingletonLateUpdate`** as needed; callbacks receive **`in SingletonEntity`** with **`Get<T>()`** / **`TryGet<T>`** for **mutable** component access on the resolved entity—**no** **`ChunkQueryAll`**.
+- **`OnSingletonStart(in SingletonEntity)`** runs once after resolution; use it for one-time placement, validation, and caching **other** **`EntityId`**s only when the system **must** read a second archetype (see **`HdrPostVolumeFillSystem`**: volume is the singleton query; player id resolved once for bloom follow).
+- Do **not** use **`SystemQuerySpec.Empty`** with ad-hoc **`World`** queries for the primary row when a non-empty **`QuerySpec`** + **`ISingletonSystem`** would describe the same entity—register a singleton instead.
 
-Do not cache **`Components<T>()`** store handles as fields—see **Queries and stores** above.
+**Chunk iteration for a single row (legacy / rare):** a serial **`ISystem`** may still set **`QuerySpec`** to the singleton archetype and use **`GetFirst<T>()`** on **`ChunkQueryAll`**—but **`ISingletonSystem`** is clearer and matches engine scheduling docs. Reserve **`ISystem` + chunk `GetFirst`** for cases where you intentionally keep the chunk API without migrating yet.
 
 ## Parallel systems
 
-- Prefer **`IParallelSystem`** when work **partitions rows/chunks** with **`Parallel.ForEach`**, span splitting, or equivalent **real** concurrency (**ParallelOptions** from the host).
-- **Do not** register **`IParallelSystem`** implementations that only use a plain **`foreach`** with no real parallel work—use **`ISystem`** + **`RegisterSerial`** instead (honest scheduling; avoids misleading readers).
+- Prefer **`IParallelSystem`** when work **partitions rows/chunks** with **`Parallel.ForEach`**, span splitting, or equivalent **real** concurrency (**`ParallelOptions`** from the host).
+- **Do not** register **`IParallelSystem`** implementations that only use a plain **`foreach`** with no real parallel work—use **`ISystem`** + **`RegisterSerial`** or **`ISingletonSystem`** + **`RegisterSingleton`** instead (honest scheduling; avoids misleading readers).
 
 ## Folder layout (per mod assembly)
 
 - **`Components/`** — `struct` **`IComponent`** types, tag markers, mod-local tuning/constants structs.
-- **`Systems/`** — **`ISystem`** / **`IParallelSystem`** implementations only (plus nested private helpers if kept tiny).
-- **`Mod.cs`** at mod root; optional **`DemoInputSetup`**-style helpers beside **`IMod`** when bindings stay centralized.
+- **`Systems/`** — **`ISystem`**, **`IParallelSystem`**, and **`ISingletonSystem`** implementations only (plus nested private helpers if kept tiny).
+- **`Mod.cs`** at mod root; optional **`InputSetup`** / **`SceneSetup`**-style helpers beside **`IMod`** when bindings and cold-start authoring stay centralized.
 
 ## Comments and formatting
 
@@ -55,6 +67,6 @@ Do not cache **`Components<T>()`** store handles as fields—see **Queries and s
 
 ## Related rules
 
-- **`cyberland-mod-system-lifecycle`** — phase boundaries, ownership.
-- **`cyberland-ecs-world-access`** — `World` vs chunk queries.
+- **`cyberland-mod-system-lifecycle`** — phase boundaries, ownership (cold start vs per-frame).
+- **`cyberland-ecs-world-access`** — `World` vs chunk queries vs **`SingletonEntity`**.
 - **`cyberland-design-goals`** — parallelism and thread-safety expectations.

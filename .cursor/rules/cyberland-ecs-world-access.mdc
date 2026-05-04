@@ -9,11 +9,13 @@ alwaysApply: false
 ## What the API does
 
 - **`ISystem` / `IParallelSystem`**: **`OnStart(World, …)`** receives **`World` once** per registration lifecycle. Phase updates (**`OnEarlyUpdate`**, **`OnFixedUpdate`**, **`OnLateUpdate`**, and parallel equivalents) take a **pre-built query** (`ChunkQueryAll` or parallel chunk iterator) and timing values only—**not** `World`.
-- If a system must use **`World`** (singleton helpers, `DestroyEntity`, ad-hoc queries), **cache `World` in a field in `OnStart`**. Do not expect `World` in update methods.
+- **`ISingletonSystem`**: **`OnSingletonStart(in SingletonEntity)`** runs once; phase hooks (**`ISingletonEarlyUpdate`**, etc.) take **`in SingletonEntity`** and timing—**not** `ChunkQueryAll`. Use **`singleton.Get<T>()`** / **`TryGet<T>`** for the resolved row, and **`singleton.World`** when a second entity or structural change requires **`World`** APIs.
+- If a system must use **`World`** beyond what **`SingletonEntity`** exposes (`DestroyEntity`, extra queries for *other* entities), **cache `World` in a field in `OnStart`** (chunk systems) or use **`singleton.World`** from **`SingletonEntity`** (singleton systems). Do not expect bare `World` in chunk-system phase parameters.
 
 ## Style for performance and clarity
 
-- **Prefer** iterating the **chunk columns** the scheduler already resolved for the system’s **query**—that is the intended hot path. Stock **lighting** is split into four **query-aligned** parallel submitters (`lighting-ambient`, `lighting-directional`, `lighting-spot`, `lighting-point`) for the same reason.
+- **Prefer** iterating the **chunk columns** the scheduler already resolved for the system’s **query**—that is the intended hot path for multi-row systems. For **one** logical row, prefer **`ISingletonSystem`** + **`SingletonEntity`** instead of **`ChunkQueryAll`** + **`GetFirst`**.
+- Stock **lighting** is split into four **query-aligned** parallel submitters (`lighting-ambient`, `lighting-directional`, `lighting-spot`, `lighting-point`) for the same reason.
 - **Avoid** per-entity or per-chunk `Components<T>()` / broad **`World` lookups in phase updates** unless there is a clear, measured reason. Those paths are easy to overuse and blur “system query” vs “random access.”
 - **`IEcsQuerySource.QuerySpec`**: keep it the single source of truth for what the scheduler queries; do not re-spec ad-hoc queries that fight the same iteration unless intentional.
 

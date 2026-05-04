@@ -58,7 +58,7 @@ public sealed class LocalizedContent : ILocalizedContent
             if (!_assets.FileSystem.Exists(path))
                 continue;
 
-            // Same bytes as <see cref="MergeStringTableAsync"/>, but synchronous for <c>IMod.OnLoad</c> (no async hop).
+            // Same bytes as <see cref="MergeStringTableAsync"/>, but synchronous for <c>IMod.OnLoadAsync</c> (no async hop).
             var bytes = _assets.LoadBytes(path);
             Strings.MergeJson(bytes);
         }

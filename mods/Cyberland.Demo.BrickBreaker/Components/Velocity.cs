@@ -4,7 +4,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
-/// Velocity component for BrickBreaker gameplay entities.
+/// Velocity component for gameplay entities.
 /// </summary>
 public struct Velocity : IComponent
 {

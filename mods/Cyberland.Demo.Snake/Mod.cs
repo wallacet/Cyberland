@@ -16,7 +16,7 @@ namespace Cyberland.Demo.Snake;
 // Optional: manifest.json <c>disabled: true</c> so publish omits the DLL unless you enable the mod.
 public sealed class Mod : IMod
 {
-    public void OnLoad(ModLoadContext context)
+    public ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
         SnakeInputSetup.RegisterDefaultBindings(context);
@@ -103,6 +103,7 @@ public sealed class Mod : IMod
             new SnakeLightsFillSystem(host, sessionEntity, amb, dir, spot, headPt, foodPt));
         context.RegisterSerial("cyberland.demo.snake/visual-sync", new VisualSyncSystem(host, sessionEntity, visualsEntity));
         ApplyGlobalPost(w);
+        return ValueTask.CompletedTask;
     }
     public void OnUnload() { }
     private static void ApplyGlobalPost(World world)

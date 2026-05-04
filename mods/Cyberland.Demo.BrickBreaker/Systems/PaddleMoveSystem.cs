@@ -4,40 +4,36 @@ using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-/// <summary>Applies player horizontal movement to the paddle. Sequential fixed (single paddle).</summary>
-public sealed class PaddleMoveSystem : ISystem, IFixedUpdate
+/// <summary>Applies player horizontal movement to the paddle (singleton paddle row).</summary>
+/// <remarks>
+/// Cross-reads <see cref="Control"/> and <see cref="GameState"/> from tagged session entities (see **cyberland-mod-patterns-hdr**).
+/// </remarks>
+public sealed class PaddleMoveSystem : ISingletonSystem, ISingletonFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Paddle, PaddleBody, Transform>();
 
+    private EntityId _stateEntity;
+    private EntityId _controlEntity;
 
-    private World _world = null!;
-    private readonly EntityId _stateEntity;
-    private readonly EntityId _controlEntity;
-    private readonly EntityId _paddleEntity;
-    public PaddleMoveSystem(EntityId stateEntity, EntityId controlEntity, EntityId paddleEntity)
+    public void OnSingletonStart(in SingletonEntity paddleRow)
     {
-        _stateEntity = stateEntity;
-        _controlEntity = controlEntity;
-        _paddleEntity = paddleEntity;
+        var world = paddleRow.World;
+        _stateEntity = Session.RequireStateEntity(world);
+        _controlEntity = world.QueryChunks(SystemQuerySpec.All<ControlTag>())
+            .RequireSingleEntityWith<ControlTag>("brick control");
     }
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    public void OnSingletonFixedUpdate(in SingletonEntity paddleRow, float fixedDeltaSeconds)
     {
-        _world = world;
-        _ = archetype;
-    }
-
-    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
-    {
-        _ = archetype;
-        ref var game = ref _world.Get<GameState>(_stateEntity);
+        var world = paddleRow.World;
+        ref var game = ref world.Get<GameState>(_stateEntity);
         if (game.Phase != Phase.Playing)
             return;
 
-        ref var control = ref _world.Get<Control>(_controlEntity);
-        ref var paddleTransform = ref _world.Get<Transform>(_paddleEntity);
-        ref var paddleBody = ref _world.Get<PaddleBody>(_paddleEntity);
+        ref var control = ref world.Get<Control>(_controlEntity);
+        ref var paddleTransform = ref paddleRow.Get<Transform>();
+        ref var paddleBody = ref paddleRow.Get<PaddleBody>();
 
         var paddlePos = paddleTransform.LocalPosition;
         var move = Constants.PaddleMoveSpeed * fixedDeltaSeconds;
@@ -52,6 +48,5 @@ public sealed class PaddleMoveSystem : ISystem, IFixedUpdate
             game.ArenaMinX + paddleBody.HalfWidth,
             game.ArenaMaxX - paddleBody.HalfWidth);
         paddleTransform.LocalPosition = paddlePos;
-
     }
 }

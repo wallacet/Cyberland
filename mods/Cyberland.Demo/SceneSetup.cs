@@ -1,6 +1,6 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -10,31 +10,32 @@ using TextureId = System.UInt32;
 namespace Cyberland.Demo;
 
 /// <summary>
-/// One-shot scene bootstrap: camera, gameplay sprites, HUD, stationary lights, follow lights, bloom volume, and global post.
+/// Cold-start authoring for the HDR tutorial: camera, gameplay sprites, HUD, stationary lights, follow lights, bloom volume, and global post.
 /// </summary>
 /// <remarks>
-/// Registered as a sequential <see cref="ISystem"/> with no phase hooks so only <see cref="OnStart"/> runs—everything here is
-/// cold-start authoring. Helpers below mirror “spawn sections” you might split across files in a larger mod.
-/// <see cref="DesignCanvas"/> keeps radii/positions consistent with the virtual 1280×720 simulation space used elsewhere.
+/// Called from <see cref="Mod.OnLoadAsync"/> before ECS systems register. <see cref="DesignCanvas"/> keeps radii/positions consistent with the virtual 1280×720 simulation space used elsewhere.
 /// </remarks>
-public sealed class SceneSetupSystem : ISystem
+public static class SceneSetup
 {
-    private readonly GameHostServices _host;
-
-    public SceneSetupSystem(GameHostServices host) => _host = host;
-
-    /// <inheritdoc />
-    public void OnStart(World world, ChunkQueryAll archetype)
+    /// <summary>
+    /// Spawns the HDR demo ECS scene into <see cref="ModLoadContext.World"/>.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Task.CompletedTask"/> reserves the pipeline for future async authoring I/O (e.g. loading layout from <see cref="ModLoadContext.VirtualFileSystem"/>).
+    /// </remarks>
+    public static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
     {
-        _ = archetype;
-        var renderer = _host.Renderer
-            ?? throw new InvalidOperationException("cyberland.demo/scene-setup requires Host.Renderer during OnStart.");
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.CompletedTask;
 
+        var renderer = context.Host.Renderer
+            ?? throw new InvalidOperationException("Cyberland.Demo scene setup requires Host.Renderer.");
+
+        var world = context.World;
         var white = renderer.WhiteTextureId;
         var defaultNormal = renderer.DefaultNormalTextureId;
         var canvas = DesignCanvas.Demo1280x720;
 
-        // Spawn order is readability-only; ECS does not infer dependencies from creation order. Tags identify singletons for queries.
         SpawnCamera(world, canvas);
         var player = SpawnPlayer(world, white, defaultNormal);
         SpawnBackground(world, white, defaultNormal);
@@ -75,7 +76,6 @@ public sealed class SceneSetupSystem : ISystem
 
     private static void SpawnCamera(World world, in DesignCanvas canvas)
     {
-        // Camera transform sits at canvas center in world units; Camera2D pixel size matches DesignCanvas for 1:1 simulation framing.
         var entity = world.CreateEntity();
         var camTransform = Transform.Identity;
         camTransform.WorldPosition = new Vector2D<float>(canvas.HalfW, canvas.HalfH);
@@ -209,7 +209,6 @@ public sealed class SceneSetupSystem : ISystem
         text.CoordinateSpace = CoordinateSpace.ViewportSpace;
     }
 
-    /// <summary>Non-moving lights; radii/positions scale with the design canvas (same virtual size as the camera).</summary>
     private static void SpawnStationaryHdrLightRig(World world, in DesignCanvas canvas)
     {
         SpawnHdrAmbient(world);
@@ -233,7 +232,6 @@ public sealed class SceneSetupSystem : ISystem
     {
         var entity = world.CreateEntity();
         var transform = Transform.Identity;
-        // Root entity: local rotation is world rotation until a parent exists.
         transform.LocalRotationRadians = MathF.Atan2(-0.55f, 0.4f);
         world.GetOrAdd<Transform>(entity) = transform;
         world.GetOrAdd<DirectionalLightSource>(entity) = new DirectionalLightSource
@@ -248,7 +246,6 @@ public sealed class SceneSetupSystem : ISystem
     private static void SpawnHdrSpot(World world, in DesignCanvas canvas)
     {
         var spotPos = new Vector2D<float>(canvas.W * 0.2f, canvas.H * 0.58f);
-        // Cone aims toward canvas center so the hotspot reads as “into the scene” from the upper-left arc.
         var dx = canvas.HalfW - spotPos.X;
         var dy = canvas.HalfH - spotPos.Y;
         var dLen = MathF.Sqrt(dx * dx + dy * dy);
@@ -294,7 +291,6 @@ public sealed class SceneSetupSystem : ISystem
         var entity = world.CreateEntity();
         world.GetOrAdd<HdrPlayerPointTag>(entity);
         var transform = Transform.Identity;
-        // Follow the player via hierarchy; TransformHierarchySystem + PointLightSystem use world matrix each frame.
         transform.Parent = player;
         world.GetOrAdd<Transform>(entity) = transform;
         world.GetOrAdd<PointLightSource>(entity) = new PointLightSource
@@ -312,11 +308,9 @@ public sealed class SceneSetupSystem : ISystem
     {
         var entity = world.CreateEntity();
         world.GetOrAdd<HdrBloomVolumeTag>(entity);
-        // Seed from Identity so scale is (1,1) rather than a default zero matrix.
         var transform = Transform.Identity;
         transform.LocalPosition = new Vector2D<float>(canvas.HalfW, canvas.HalfH);
         world.GetOrAdd<Transform>(entity) = transform;
-        // Priority/overrides match runtime tuning in HdrPostVolumeFillSystem; bloom gain is driven per frame from player X.
         world.GetOrAdd<PostProcessVolumeSource>(entity) = new PostProcessVolumeSource
         {
             Active = true,

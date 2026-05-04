@@ -28,6 +28,32 @@ public static class ChunkQueryAllExtensions
     }
 
     /// <summary>
+    /// Returns the sole entity id across all chunks in <paramref name="query"/> (any matching archetype).
+    /// </summary>
+    /// <param name="query">Scheduler or <see cref="World.QueryChunks(SystemQuerySpec)"/> result.</param>
+    /// <param name="label">Human-readable name for error messages (e.g. "session state").</param>
+    /// <exception cref="InvalidOperationException">Zero matching entities or more than one.</exception>
+    public static EntityId RequireSingleEntity(this ChunkQueryAll query, string label)
+    {
+        EntityId? found = null;
+        foreach (var chunk in query)
+        {
+            foreach (var entity in chunk.Entities)
+            {
+                if (found.HasValue)
+                {
+                    throw new InvalidOperationException(
+                        $"Expected exactly one entity for {label}.");
+                }
+
+                found = entity;
+            }
+        }
+
+        return found ?? throw new InvalidOperationException($"Missing entity for {label}.");
+    }
+
+    /// <summary>
     /// Returns the sole entity id across all chunks in <paramref name="query"/>, which must be built from a
     /// <see cref="SystemQuerySpec"/> that includes <typeparamref name="TComponent"/> so every row carries that component.
     /// </summary>

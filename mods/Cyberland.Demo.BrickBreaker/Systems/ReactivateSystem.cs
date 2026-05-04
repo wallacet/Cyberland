@@ -1,17 +1,16 @@
-using System.Threading;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
-/// Clears the round when every block is inactive. Counts active cells in parallel over <see cref="ArenaCellState"/> chunks.
+/// Parallel fixed: re-enables all blocks after <see cref="RoundStartSystem"/> sets <see cref="GameState.PendingReactivation"/>.
 /// </summary>
-public sealed class WinLoseSystem : IParallelSystem, IParallelFixedUpdate
+public sealed class ReactivateSystem : IParallelSystem, IParallelFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ArenaCellState>();
-
 
     private World _world = null!;
     private EntityId _stateEntity;
@@ -27,22 +26,22 @@ public sealed class WinLoseSystem : IParallelSystem, IParallelFixedUpdate
     {
         _ = fixedDeltaSeconds;
         ref var game = ref _world.Get<GameState>(_stateEntity);
-        if (game.Phase != Phase.Playing)
+        if (!game.PendingReactivation)
             return;
 
-        var activeCount = 0;
+        game.PendingReactivation = false;
+
         foreach (var chunk in query)
         {
-            // Hoisting `chunk.Column<T>()` into a local would make it a ref local captured by the lambda (CS8175).
             Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                if (chunk.Column<ArenaCellState>()[i].Active)
-                    Interlocked.Increment(ref activeCount);
+                var entities = chunk.Entities;
+                var states = chunk.Column<ArenaCellState>();
+                ref var bs = ref states[i];
+                bs.Active = true;
+                ref var t = ref _world.Get<Trigger>(entities[i]);
+                t.Enabled = true;
             });
         }
-
-        if (activeCount > 0)
-            return;
-        game.Phase = Phase.Won;
     }
 }
