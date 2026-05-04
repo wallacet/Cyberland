@@ -59,12 +59,12 @@ public sealed class SchedulerAndHostTests
     }
 
     [Fact]
-    public void SystemScheduler_runs_in_registration_order_sequential_then_parallel()
+    public void SystemScheduler_runs_in_registration_order_serial_then_parallel()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var s = new TrackSeq();
         var p = new TrackPar();
-        sched.RegisterSequential("test/seq", s);
+        sched.RegisterSerial("test/seq", s);
         sched.RegisterParallel("test/par", p);
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(1, s.Step);
@@ -76,28 +76,28 @@ public sealed class SchedulerAndHostTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<int>();
-        sched.RegisterSequential("s1", new OrderSeqEarly { Order = order, Mark = 1 });
+        sched.RegisterSerial("s1", new OrderSeqEarly { Order = order, Mark = 1 });
         sched.RegisterParallel("p1", new OrderParFixed { Order = order, Mark = 2 });
-        sched.RegisterSequential("s2", new OrderSeqLate { Order = order, Mark = 3 });
+        sched.RegisterSerial("s2", new OrderSeqLate { Order = order, Mark = 3 });
         sched.RegisterParallel("p2", new OrderPar { Order = order, Mark = 4 });
         sched.RunFrame(new World(), 1f / 60f);
         Assert.Equal(new[] { 1, 2, 3, 4 }, order);
     }
 
     [Fact]
-    public void SystemScheduler_RegisterSequential_throws_when_id_empty()
+    public void SystemScheduler_RegisterSerial_throws_when_id_empty()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        Assert.Throws<ArgumentException>(() => sched.RegisterSequential(" ", new TrackSeq()));
+        Assert.Throws<ArgumentException>(() => sched.RegisterSerial(" ", new TrackSeq()));
     }
 
     [Fact]
-    public void SystemScheduler_same_id_RegisterParallel_replaces_RegisterSequential()
+    public void SystemScheduler_same_id_RegisterParallel_replaces_RegisterSerial()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var seq = new TrackSeq();
         var par = new TrackPar();
-        sched.RegisterSequential("shared", seq);
+        sched.RegisterSerial("shared", seq);
         sched.RegisterParallel("shared", par);
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(0, seq.Step);
@@ -108,9 +108,9 @@ public sealed class SchedulerAndHostTests
     public void SystemScheduler_TryUnregister_removes_entries()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("a", new TrackSeq());
+        sched.RegisterSerial("a", new TrackSeq());
         sched.RegisterParallel("b", new TrackPar());
-        sched.RegisterSequential("c", new TrackSeq());
+        sched.RegisterSerial("c", new TrackSeq());
 
         Assert.True(sched.TryUnregister("a"));
         Assert.True(sched.TryUnregister("b"));
@@ -143,14 +143,14 @@ public sealed class SchedulerAndHostTests
     }
 
     [Fact]
-    public void SystemScheduler_replace_sequential_preserves_run_order()
+    public void SystemScheduler_replace_serial_preserves_run_order()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<int>();
-        sched.RegisterSequential("a", new OrderSeqLate { Order = order, Mark = 1 });
-        sched.RegisterSequential("b", new OrderSeqLate { Order = order, Mark = 2 });
-        sched.RegisterSequential("c", new OrderSeqLate { Order = order, Mark = 3 });
-        sched.RegisterSequential("b", new OrderSeqLate { Order = order, Mark = 20 });
+        sched.RegisterSerial("a", new OrderSeqLate { Order = order, Mark = 1 });
+        sched.RegisterSerial("b", new OrderSeqLate { Order = order, Mark = 2 });
+        sched.RegisterSerial("c", new OrderSeqLate { Order = order, Mark = 3 });
+        sched.RegisterSerial("b", new OrderSeqLate { Order = order, Mark = 20 });
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(new[] { 1, 20, 3 }, order);
     }
@@ -160,7 +160,7 @@ public sealed class SchedulerAndHostTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var s = new TrackSeq();
-        sched.RegisterSequential("x", s);
+        sched.RegisterSerial("x", s);
         Assert.True(sched.TryUnregister("x"));
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(0, s.Step);
@@ -181,10 +181,10 @@ public sealed class SchedulerAndHostTests
     }
 
     [Fact]
-    public void SystemScheduler_RegisterSequential_throws_when_system_null()
+    public void SystemScheduler_RegisterSerial_throws_when_system_null()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        Assert.Throws<ArgumentNullException>(() => sched.RegisterSequential("id", null!));
+        Assert.Throws<ArgumentNullException>(() => sched.RegisterSerial("id", null!));
     }
 
     [Fact]
@@ -245,12 +245,12 @@ public sealed class SchedulerAndHostTests
     }
 
     [Fact]
-    public void SystemScheduler_TryUnregister_sequential_rebuilds_index_for_multiple_remaining()
+    public void SystemScheduler_TryUnregister_serial_rebuilds_index_for_multiple_remaining()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("a", new TrackSeq());
-        sched.RegisterSequential("b", new TrackSeq());
-        sched.RegisterSequential("c", new TrackSeq());
+        sched.RegisterSerial("a", new TrackSeq());
+        sched.RegisterSerial("b", new TrackSeq());
+        sched.RegisterSerial("c", new TrackSeq());
         Assert.True(sched.TryUnregister("b"));
         Assert.True(sched.TryUnregister("a"));
         Assert.False(sched.TryUnregister("a"));

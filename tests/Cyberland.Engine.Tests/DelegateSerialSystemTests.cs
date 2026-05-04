@@ -4,14 +4,14 @@ using Cyberland.Engine.Core.Tasks;
 
 namespace Cyberland.Engine.Tests;
 
-public sealed class DelegateSequentialSystemTests
+public sealed class DelegateSerialSystemTests
 {
     [Fact]
     public void OnLateUpdate_invokes_delegate()
     {
         var w = new World();
         var n = 0;
-        var s = new DelegateSequentialSystem(onLateUpdate: (_, dt) =>
+        var s = new DelegateSerialSystem(onLateUpdate: (_, dt) =>
         {
             Assert.Equal(0.05f, dt);
             n++;
@@ -23,7 +23,7 @@ public sealed class DelegateSequentialSystemTests
     [Fact]
     public void Constructor_throws_when_all_delegates_null()
     {
-        Assert.Throws<ArgumentException>(() => new DelegateSequentialSystem());
+        Assert.Throws<ArgumentException>(() => new DelegateSerialSystem());
     }
 
     [Fact]
@@ -31,10 +31,10 @@ public sealed class DelegateSequentialSystemTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var n = 0;
-        var s = new DelegateSequentialSystem(
+        var s = new DelegateSerialSystem(
             onLateUpdate: (_, _) => { },
             onStart: (_, _) => n++);
-        sched.RegisterSequential("x", s);
+        sched.RegisterSerial("x", s);
         sched.RunFrame(new World(), 0.05f);
         Assert.Equal(1, n);
     }

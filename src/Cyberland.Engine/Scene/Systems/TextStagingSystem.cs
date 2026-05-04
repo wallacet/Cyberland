@@ -16,7 +16,7 @@ namespace Cyberland.Engine.Scene.Systems;
 public sealed class TextStagingSystem : IParallelSystem, IParallelLateUpdate, ILateUpdate
 {
     private static int _warnedVisibleEmpty;
-    private static readonly ParallelOptions SequentialCompatParallelOptions = new() { MaxDegreeOfParallelism = 1 };
+    private static readonly ParallelOptions SerialCompatParallelOptions = new() { MaxDegreeOfParallelism = 1 };
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BitmapText, Transform>();
@@ -33,7 +33,7 @@ public sealed class TextStagingSystem : IParallelSystem, IParallelLateUpdate, IL
 
     /// <inheritdoc />
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) =>
-        OnParallelLateUpdate(archetype, deltaSeconds, SequentialCompatParallelOptions);
+        OnParallelLateUpdate(archetype, deltaSeconds, SerialCompatParallelOptions);
 
     /// <inheritdoc />
     public void OnParallelLateUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions options)

@@ -47,9 +47,9 @@ public sealed class SystemSchedulerOrderingTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<string>();
-        sched.RegisterSequential("ordering/c", new LateAfterA { Order = order });
-        sched.RegisterSequential("ordering/a", new LateMark { Order = order, Name = "a" });
-        sched.RegisterSequential("ordering/b", new LateMark { Order = order, Name = "b" });
+        sched.RegisterSerial("ordering/c", new LateAfterA { Order = order });
+        sched.RegisterSerial("ordering/a", new LateMark { Order = order, Name = "a" });
+        sched.RegisterSerial("ordering/b", new LateMark { Order = order, Name = "b" });
         sched.RunFrame(new World(), 0.016f);
         /* c has RunAfter(a) only; among ready nodes after a, tie-break uses registration ordinal (c before b). */
         Assert.Equal(new[] { "a", "c", "b" }, order);
@@ -72,8 +72,8 @@ public sealed class SystemSchedulerOrderingTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<string>();
-        sched.RegisterSequential("orderingLate/mod", new ModLate { Order = order });
-        sched.RegisterSequential("orderingLate/engine", new LateMark { Order = order, Name = "eng" });
+        sched.RegisterSerial("orderingLate/mod", new ModLate { Order = order });
+        sched.RegisterSerial("orderingLate/engine", new LateMark { Order = order, Name = "eng" });
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(new[] { "eng", "mod" }, order);
     }
@@ -95,8 +95,8 @@ public sealed class SystemSchedulerOrderingTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<string>();
-        sched.RegisterSequential("orderingBefore/a", new LateBeforeB { Order = order });
-        sched.RegisterSequential("orderingBefore/b", new LateMark { Order = order, Name = "b" });
+        sched.RegisterSerial("orderingBefore/a", new LateBeforeB { Order = order });
+        sched.RegisterSerial("orderingBefore/b", new LateMark { Order = order, Name = "b" });
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(new[] { "a", "b" }, order);
     }
@@ -117,8 +117,8 @@ public sealed class SystemSchedulerOrderingTests
     public void SystemScheduler_RunAfter_cycle_throws_when_graph_is_complete()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("cycle/a", new CycleA());
-        Assert.Throws<InvalidOperationException>(() => sched.RegisterSequential("cycle/b", new CycleB()));
+        sched.RegisterSerial("cycle/a", new CycleA());
+        Assert.Throws<InvalidOperationException>(() => sched.RegisterSerial("cycle/b", new CycleB()));
     }
 
     [RunAfter("orphan/missing")]
@@ -131,7 +131,7 @@ public sealed class SystemSchedulerOrderingTests
     public void SystemScheduler_unknown_constraint_target_throws_on_first_RunFrame()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("orphan/x", new OrphanRef());
+        sched.RegisterSerial("orphan/x", new OrphanRef());
         Assert.Throws<InvalidOperationException>(() => sched.RunFrame(new World(), 0.016f));
     }
 
@@ -148,7 +148,7 @@ public sealed class SystemSchedulerOrderingTests
         var sched = new SystemScheduler(new ParallelismSettings());
         sched.BeginDeferExecutionOrderRebuilds();
         sched.BeginDeferExecutionOrderRebuilds();
-        sched.RegisterSequential("n1", new LateMark { Order = new List<string>(), Name = "a" });
+        sched.RegisterSerial("n1", new LateMark { Order = new List<string>(), Name = "a" });
         sched.EndDeferExecutionOrderRebuilds();
         sched.EndDeferExecutionOrderRebuilds();
         sched.RunFrame(new World(), 0.016f);
@@ -172,8 +172,8 @@ public sealed class SystemSchedulerOrderingTests
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<string>();
         sched.BeginDeferExecutionOrderRebuilds();
-        sched.RegisterSequential("deferPair/b", new DeferAfterA { Order = order });
-        sched.RegisterSequential("deferPair/a", new LateMark { Order = order, Name = "a" });
+        sched.RegisterSerial("deferPair/b", new DeferAfterA { Order = order });
+        sched.RegisterSerial("deferPair/a", new LateMark { Order = order, Name = "a" });
         sched.EndDeferExecutionOrderRebuilds();
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(new[] { "a", "b" }, order);
@@ -194,9 +194,9 @@ public sealed class SystemSchedulerOrderingTests
     public void SystemScheduler_replace_removes_RunAfter_constraints()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("rep/b", new V1());
-        sched.RegisterSequential("rep/a", new LateMark { Order = new List<string>(), Name = "a" });
-        sched.RegisterSequential("rep/b", new V2());
+        sched.RegisterSerial("rep/b", new V1());
+        sched.RegisterSerial("rep/a", new LateMark { Order = new List<string>(), Name = "a" });
+        sched.RegisterSerial("rep/b", new V2());
         sched.RunFrame(new World(), 0.016f);
     }
 
@@ -245,9 +245,9 @@ public sealed class SystemSchedulerOrderingTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var order = new List<string>();
-        sched.RegisterSequential("mix/c", new MultiAfter { Order = order });
-        sched.RegisterSequential("mix/a", new LateMark { Order = order, Name = "a" });
-        sched.RegisterSequential("mix/b", new LateMark { Order = order, Name = "b" });
+        sched.RegisterSerial("mix/c", new MultiAfter { Order = order });
+        sched.RegisterSerial("mix/a", new LateMark { Order = order, Name = "a" });
+        sched.RegisterSerial("mix/b", new LateMark { Order = order, Name = "b" });
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(new[] { "a", "b", "c" }, order);
     }
@@ -256,7 +256,7 @@ public sealed class SystemSchedulerOrderingTests
     public void SystemScheduler_first_RunFrame_validates_RunBefore_orphan()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("bf/x", new OrphanBefore());
+        sched.RegisterSerial("bf/x", new OrphanBefore());
         Assert.Throws<InvalidOperationException>(() => sched.RunFrame(new World(), 0.016f));
     }
 
@@ -278,8 +278,8 @@ public sealed class SystemSchedulerOrderingTests
     public void SystemScheduler_duplicate_identical_RunAfter_edges_are_deduped()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("dupEdge/b", new DupRunAfter());
-        sched.RegisterSequential("dupEdge/a", new LateMark { Order = new List<string>(), Name = "a" });
+        sched.RegisterSerial("dupEdge/b", new DupRunAfter());
+        sched.RegisterSerial("dupEdge/a", new LateMark { Order = new List<string>(), Name = "a" });
         sched.RunFrame(new World(), 0.016f);
     }
 
@@ -293,8 +293,8 @@ public sealed class SystemSchedulerOrderingTests
     public void SystemScheduler_RunBefore_defers_rebuild_until_target_registered()
     {
         var sched = new SystemScheduler(new ParallelismSettings());
-        sched.RegisterSequential("rbf/a", new RunBeforeNeedsB());
-        sched.RegisterSequential("rbf/b", new LateMark { Order = new List<string>(), Name = "b" });
+        sched.RegisterSerial("rbf/a", new RunBeforeNeedsB());
+        sched.RegisterSerial("rbf/b", new LateMark { Order = new List<string>(), Name = "b" });
         sched.RunFrame(new World(), 0.016f);
     }
 }

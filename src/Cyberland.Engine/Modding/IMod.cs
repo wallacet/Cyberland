@@ -13,7 +13,7 @@ namespace Cyberland.Engine.Modding;
 /// {
 ///     public void OnLoad(ModLoadContext context)
 ///     {
-///         context.RegisterSequential("my.game/tick", new MyTickSystem(context.Host));
+///         context.RegisterSerial("my.game/tick", new MyTickSystem(context.Host));
 ///     }
 ///     public void OnUnload() { }
 /// }

@@ -141,7 +141,7 @@ public sealed class ModdingTests
             Assert.False(vfs.Exists("x.bin"));
 
             var seq = new ModCtxSeq();
-            ctx.RegisterSequential("mod/seq", seq);
+            ctx.RegisterSerial("mod/seq", seq);
             ctx.RegisterParallel("mod/par", new ModCtxPar());
             ctx.Scheduler.RunFrame(world, 0.016f);
             Assert.Equal(1, seq.Calls);

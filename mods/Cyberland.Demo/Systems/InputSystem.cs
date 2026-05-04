@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
@@ -6,14 +7,14 @@ using Cyberland.Engine.Hosting;
 namespace Cyberland.Demo;
 
 /// <summary>
-/// Early (sequential) input: maps bound axes to the player’s <see cref="Velocity"/> and exposes a dev toggle for the parallel
-/// damp system. Runs before fixed update so integration always sees the latest intent.
+/// Early update: clears <see cref="Velocity"/> in parallel, reads axes once (same thread as the scheduler early phase), then
+/// writes velocities in parallel. Matches host <see cref="ParallelOptions"/> for row partitioning.
 /// </summary>
 /// <remarks>
-/// Pattern: zero velocity for every row, then set from axes if any. That makes “no keys” unambiguous and keeps multi-entity
-/// queries safe even though this demo only spawns one player.
+/// <see cref="IParallelEarlyUpdate"/> still runs on the thread that executes <see cref="Tasks.SystemScheduler.RunFrame"/>; inner
+/// <see cref="Parallel.ForEach"/> joins before axis reads so input polling stays ordered after the clear barrier.
 /// </remarks>
-public sealed class InputSystem : ISystem, IEarlyUpdate
+public sealed class InputSystem : IParallelSystem, IParallelEarlyUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag, Velocity>();
@@ -40,19 +41,21 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
     }
 
     /// <inheritdoc />
-    public void OnEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds)
+    public void OnParallelEarlyUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
 
-        var input = _host.Input!;
-
-        // Idle unless movement keys are held: avoids drifting velocity when axes settle near zero.
         foreach (var chunk in archetype)
         {
-            var vels = chunk.Column<Velocity>();
-            for (var i = 0; i < chunk.Count; i++)
-                vels[i] = default;
+            Parallel.ForEach(Partitioner.Create(0, chunk.Count), parallelOptions, range =>
+            {
+                var vels = chunk.Column<Velocity>();
+                for (var i = range.Item1; i < range.Item2; i++)
+                    vels[i] = default;
+            });
         }
+
+        var input = _host.Input!;
 
         if (input.IsDown("cyberland.common/quit"))
         {
@@ -72,20 +75,22 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
         if (dx == 0f && dy == 0f)
             return;
 
-        // Diagonal movement matches cardinal speed: normalize before scaling by Constants.MoveSpeed.
         var len = MathF.Sqrt(dx * dx + dy * dy);
         dx /= len;
         dy /= len;
 
         foreach (var chunk in archetype)
         {
-            var vels = chunk.Column<Velocity>();
-            for (var i = 0; i < chunk.Count; i++)
+            Parallel.ForEach(Partitioner.Create(0, chunk.Count), parallelOptions, range =>
             {
-                ref var v = ref vels[i];
-                v.X = dx * Constants.MoveSpeed;
-                v.Y = dy * Constants.MoveSpeed;
-            }
+                var vels = chunk.Column<Velocity>();
+                for (var i = range.Item1; i < range.Item2; i++)
+                {
+                    ref var v = ref vels[i];
+                    v.X = dx * Constants.MoveSpeed;
+                    v.Y = dy * Constants.MoveSpeed;
+                }
+            });
         }
     }
 }

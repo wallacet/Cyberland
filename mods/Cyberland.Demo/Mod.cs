@@ -14,7 +14,7 @@ namespace Cyberland.Demo;
 /// <see cref="SceneSetupSystem"/> is intentionally large—it is the static scene “recipe.” Other Cyberland demos increase
 /// gameplay scope (Snake, Pong, BrickBreaker) after you understand this pipeline.</para>
 /// <para><b>Frame flow (simplified):</b>
-/// <see cref="InputSystem"/> (early, sequential) clears then sets <see cref="Velocity"/> from axes →
+/// <see cref="InputSystem"/> (early, parallel velocity clears/writes; sequential axis read between barriers) →
 /// <see cref="IntegrateSystem"/> (fixed, sequential) moves <see cref="Scene.Transform"/> and clamps to the virtual canvas →
 /// <see cref="VelocityDampSystem"/> (fixed, parallel) scales velocity down so motion doesn’t feel frictionless →
 /// lighting/post runs in engine/system order →
@@ -36,20 +36,20 @@ public sealed class Mod : IMod
         var host = context.Host;
 
         // One-shot entity creation + HDR rig. Sequential, OnStart only — see SceneSetupSystem remarks.
-        context.RegisterSequential("cyberland.demo/scene-setup", new SceneSetupSystem(host));
+        context.RegisterSerial("cyberland.demo/scene-setup", new SceneSetupSystem(host));
 
         // Late: keeps the authored bloom volume centered on the swapchain viewport and ties bloom strength to player X.
-        context.RegisterSequential("cyberland.demo/hdr-post-volume", new HdrPostVolumeFillSystem(host));
+        context.RegisterSerial("cyberland.demo/hdr-post-volume", new HdrPostVolumeFillSystem(host));
 
-        // Early / fixed simulation stack for the player sprite.
-        context.RegisterSequential("cyberland.demo/input", new InputSystem(host, context.Scheduler));
-        context.RegisterSequential("cyberland.demo/integrate", new IntegrateSystem(host));
+        // Early: parallel velocity SoA updates; axis read runs on the scheduler thread between Parallel.ForEach barriers.
+        context.RegisterParallel("cyberland.demo/input", new InputSystem(host, context.Scheduler));
+        context.RegisterSerial("cyberland.demo/integrate", new IntegrateSystem(host));
 
         // Parallel chunk pass example (same fixed phase as integrate; host supplies ParallelOptions for partitioning).
         context.RegisterParallel("cyberland.demo/velocity-damp", new VelocityDampSystem());
 
         // Late: HUD overlay; uses presentation viewport size so text stays in the corner when the window scales.
-        context.RegisterSequential("cyberland.demo/fps-display", new FpsDisplaySystem(host));
+        context.RegisterSerial("cyberland.demo/fps-display", new FpsDisplaySystem(host));
     }
 
     /// <inheritdoc />

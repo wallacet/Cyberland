@@ -95,13 +95,13 @@ public sealed class Mod : IMod
         };
 
         var host = context.Host;
-        context.RegisterSequential("cyberland.demo.snake/bootstrap", new BootstrapSystem(host, sessionEntity, arena, visualsEntity));
-        context.RegisterSequential("cyberland.demo.snake/input", new InputSystem(host, sessionEntity, controlEntity));
-        context.RegisterSequential("cyberland.demo.snake/tick", new TickSystem(host, sessionEntity, controlEntity));
-        context.RegisterSequential("cyberland.demo.snake/tilemap-layout", new TilemapLayoutSystem(host, sessionEntity, arena));
-        context.RegisterSequential("cyberland.demo.snake/lights",
+        context.RegisterSerial("cyberland.demo.snake/bootstrap", new BootstrapSystem(host, sessionEntity, arena, visualsEntity));
+        context.RegisterSerial("cyberland.demo.snake/input", new InputSystem(host, sessionEntity, controlEntity));
+        context.RegisterSerial("cyberland.demo.snake/tick", new TickSystem(host, sessionEntity, controlEntity));
+        context.RegisterSerial("cyberland.demo.snake/tilemap-layout", new TilemapLayoutSystem(host, sessionEntity, arena));
+        context.RegisterSerial("cyberland.demo.snake/lights",
             new SnakeLightsFillSystem(host, sessionEntity, amb, dir, spot, headPt, foodPt));
-        context.RegisterSequential("cyberland.demo.snake/visual-sync", new VisualSyncSystem(host, sessionEntity, visualsEntity));
+        context.RegisterSerial("cyberland.demo.snake/visual-sync", new VisualSyncSystem(host, sessionEntity, visualsEntity));
         ApplyGlobalPost(w);
     }
     public void OnUnload() { }

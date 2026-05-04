@@ -6,14 +6,15 @@ namespace Cyberland.Engine.Core.Ecs;
 public static class ChunkQueryAllExtensions
 {
     /// <summary>
-    /// Returns a reference to the first entity's <typeparamref name="T"/> in scheduler chunk iteration order
-    /// (first row of the first non-empty chunk). Use when the query is known to be non-empty or when any first match suffices.
+    /// Returns a mutable reference to <typeparamref name="T"/> for the <strong>first entity</strong> matching <paramref name="query"/>
+    /// (scheduler iteration order over non-empty chunks). Chunk boundaries are a storage detail—this targets one logical row for
+    /// singletons or “any first match” workflows.
     /// </summary>
     /// <param name="query">Scheduler or <see cref="World.QueryChunks(SystemQuerySpec)"/> result.</param>
     /// <typeparam name="T">A component type included in the query spec.</typeparam>
     /// <exception cref="InvalidOperationException">No matching chunks or all chunks are empty.</exception>
     /// <exception cref="ArgumentException"><typeparamref name="T"/> is not part of this query (see <see cref="MultiComponentChunkView.Column{T}()"/>).</exception>
-    public static ref readonly T GetFirst<T>(this ChunkQueryAll query)
+    public static ref T GetFirst<T>(this ChunkQueryAll query)
         where T : struct, IComponent
     {
         var e = query.GetEnumerator();

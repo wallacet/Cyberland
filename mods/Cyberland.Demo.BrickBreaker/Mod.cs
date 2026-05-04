@@ -166,22 +166,22 @@ public sealed class Mod : IMod
         };
 
         var host = context.Host;
-        context.RegisterSequential("cyberland.demo.brick/input", new InputSystem(host, stateEntity, controlEntity));
+        context.RegisterSerial("cyberland.demo.brick/input", new InputSystem(host, stateEntity, controlEntity));
         context.RegisterParallel("cyberland.demo.brick/layout", new ArenaLayoutSystem(host, stateEntity));
         context.RegisterParallel("cyberland.demo.brick/lifecycle",
             new RoundLifecycleSystem(stateEntity, controlEntity, paddle, ball));
-        context.RegisterSequential("cyberland.demo.brick/paddle-move",
+        context.RegisterSerial("cyberland.demo.brick/paddle-move",
             new PaddleMoveSystem(stateEntity, controlEntity, paddle));
-        context.RegisterSequential("cyberland.demo.brick/ball-launch",
+        context.RegisterSerial("cyberland.demo.brick/ball-launch",
             new BallLaunchSystem(stateEntity, controlEntity, paddle, ball));
-        context.RegisterSequential("cyberland.demo.brick/ball-integrate",
+        context.RegisterSerial("cyberland.demo.brick/ball-integrate",
             new BallIntegrateSystem(stateEntity, paddle, ball));
-        context.RegisterSequential("cyberland.demo.brick/trigger-resolve",
+        context.RegisterSerial("cyberland.demo.brick/trigger-resolve",
             new TriggerResolveSystem(stateEntity, paddle, ball));
         context.RegisterParallel("cyberland.demo.brick/winlose", new WinLoseSystem(stateEntity));
-        context.RegisterSequential("cyberland.demo.brick/lights",
+        context.RegisterSerial("cyberland.demo.brick/lights",
             new BrickBreakerLightsFillSystem(host, stateEntity, paddle, ball, amb, dirL, spotE, paddlePt, ballPt));
-        context.RegisterSequential("cyberland.demo.brick/visual-sync",
+        context.RegisterSerial("cyberland.demo.brick/visual-sync",
             new VisualSyncSystem(host, stateEntity, background, paddle, ball, titleUi, gameOverPanel, gameOverBar, lives,
                 cells, texts));
 

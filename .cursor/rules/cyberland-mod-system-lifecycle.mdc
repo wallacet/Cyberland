@@ -14,15 +14,15 @@ Use ECS systems with clear lifecycle boundaries and ownership.
 - Keep systems single-purpose and phase-appropriate (input, simulation, presentation, lighting should be separate).
 - Model gameplay state in ECS components (including singleton/state entities) instead of ad-hoc session objects when practical.
 - Favor query/chunk iteration patterns over hard-coded entity wiring when roles can be expressed by components.
-- **Prefer `IParallelSystem` + `RegisterParallel`** for simulation and rendering systems; use `IParallelEarlyUpdate` / `IParallelFixedUpdate` / `IParallelLateUpdate` so the host supplies `ParallelOptions`. Keep `ISystem` + `RegisterSequential` + `IEarlyUpdate` / `IFixedUpdate` / `ILateUpdate` when the work must stay single-threaded (typical example: keyboard/gamepad polling in early update). This aligns with **cyberland-design-goals** parallelism and performance pillars.
+- **Prefer `IParallelSystem` + `RegisterParallel`** for simulation and rendering systems; use `IParallelEarlyUpdate` / `IParallelFixedUpdate` / `IParallelLateUpdate` so the host supplies `ParallelOptions`. Keep `ISystem` + `RegisterSerial` when the whole phase callback must be single-threaded. Keyboard/gamepad polling can live **between** inner `Parallel.ForEach` barriers inside `IParallelEarlyUpdate` (scheduler thread); see **`mods/Cyberland.Demo` `InputSystem`**. This aligns with **cyberland-design-goals** parallelism and performance pillars.
 - Design for parallel-friendly execution where safe: avoid hidden shared mutable state and keep write-sets explicit.
 - Use stable naming and folder organization (`Components` / `Systems`) so responsibilities are obvious at a glance.
 
 ## Lifecycle split
 
-- Put one-time setup in `OnStart` (cache stores, initialize static sprite/text/material state, validate dependencies).
-- Keep parallel phase methods (`OnParallelEarlyUpdate` / `OnParallelFixedUpdate` / `OnParallelLateUpdate`) or sequential phase methods (`OnEarlyUpdate` / `OnFixedUpdate` / `OnLateUpdate`) focused on per-tick state changes only.
-- Do not perform first-frame lazy initialization in `*Update`; no "if not initialized then init" paths.
+- Put one-time setup in `OnStart`: validate dependencies, cache **`World`** when random access is needed, resolve singleton **`EntityId`**s via queries—not **`Components<T>()`** store fields for ongoing iteration (see **cyberland-mod-patterns-hdr** and **cyberland-ecs-world-access**).
+- Keep parallel phase methods (`OnParallelEarlyUpdate` / `OnParallelFixedUpdate` / `OnParallelLateUpdate`) or serial phase methods (`OnEarlyUpdate` / `OnFixedUpdate` / `OnLateUpdate`) focused on per-tick state changes only.
+- Do not perform first-frame lazy initialization in `*Update`; no "if not initialized then init" paths. Avoid `_resolved` / `_initialized` gates in phase methods—**`OnStart`** already ran for that registration.
 
 ## Required init behavior
 
@@ -38,17 +38,20 @@ Use ECS systems with clear lifecycle boundaries and ownership.
 ## Example pattern
 
 ```csharp
-public void OnStart(World world)
+public void OnStart(World world, ChunkQueryAll query)
 {
-    if (_host.Renderer is null)
-        throw new InvalidOperationException("Renderer required for startup init.");
+    _ = query;
+    _ = _host.Renderer ?? throw new InvalidOperationException("Renderer required for startup init.");
     InitializeStaticVisualState(world);
 }
 
-public void OnParallelLateUpdate(World world, ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
 {
     _ = parallelOptions;
-    UpdateDynamicVisibility(world);
-    UpdateRuntimeHudValues(world);
+    foreach (var chunk in query) { /* partition row work when truly parallel */ }
 }
 ```
+
+## Related rules
+
+- **`cyberland-mod-patterns-hdr`** — scene-setup system, folders, parallel honesty, store vs query usage for mods.

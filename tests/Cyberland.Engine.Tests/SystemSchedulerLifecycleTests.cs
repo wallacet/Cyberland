@@ -48,9 +48,9 @@ public sealed class SystemSchedulerLifecycleTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var log = new List<string>();
-        sched.RegisterSequential("a", new LoggingSeq(log, "s1", early: true));
+        sched.RegisterSerial("a", new LoggingSeq(log, "s1", early: true));
         sched.RegisterParallel("b", new LoggingPar(log, "p1", fixedU: true));
-        sched.RegisterSequential("c", new LoggingSeq(log, "s2", late: true));
+        sched.RegisterSerial("c", new LoggingSeq(log, "s2", late: true));
         sched.RunFrame(new World(), 1f / 60f);
         Assert.Equal(new[]
         {
@@ -154,7 +154,7 @@ public sealed class SystemSchedulerLifecycleTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var s = new CountingSeq();
-        sched.RegisterSequential("x", s, enabled: false);
+        sched.RegisterSerial("x", s, enabled: false);
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(0, s.OnStartCount);
         Assert.Equal(0, s.LateCount);
@@ -170,7 +170,7 @@ public sealed class SystemSchedulerLifecycleTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var s = new CountingSeq();
-        sched.RegisterSequential("x", s);
+        sched.RegisterSerial("x", s);
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(1, s.OnStartCount);
         Assert.Equal(1, s.LateCount);
@@ -192,11 +192,11 @@ public sealed class SystemSchedulerLifecycleTests
         var sched = new SystemScheduler(new ParallelismSettings());
         var a = new CountingSeq();
         var b = new CountingSeq();
-        sched.RegisterSequential("x", a);
+        sched.RegisterSerial("x", a);
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(1, a.OnStartCount);
 
-        sched.RegisterSequential("x", b);
+        sched.RegisterSerial("x", b);
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(1, a.OnStartCount);
         Assert.Equal(1, b.OnStartCount);
@@ -208,11 +208,11 @@ public sealed class SystemSchedulerLifecycleTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var a = new CountingSeq();
-        sched.RegisterSequential("x", a);
+        sched.RegisterSerial("x", a);
         sched.RunFrame(new World(), 0.016f);
         Assert.True(sched.TryUnregister("x"));
         var b = new CountingSeq();
-        sched.RegisterSequential("x", b);
+        sched.RegisterSerial("x", b);
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(1, b.OnStartCount);
     }
@@ -230,7 +230,7 @@ public sealed class SystemSchedulerLifecycleTests
         sched.SystemDisabled += id => disabled.Add(id);
         sched.SystemUnregistered += id => unreg.Add(id);
 
-        sched.RegisterSequential("a", new CountingSeq(), enabled: false);
+        sched.RegisterSerial("a", new CountingSeq(), enabled: false);
         sched.RunFrame(new World(), 0.016f);
         Assert.Empty(started);
 
@@ -255,7 +255,7 @@ public sealed class SystemSchedulerLifecycleTests
         var disabled = 0;
         sched.SystemEnabled += _ => enabled++;
         sched.SystemDisabled += _ => disabled++;
-        sched.RegisterSequential("x", new CountingSeq());
+        sched.RegisterSerial("x", new CountingSeq());
         Assert.True(sched.SetEnabled("x", true));
         Assert.Equal(0, enabled);
         Assert.True(sched.SetEnabled("x", false));
@@ -277,7 +277,7 @@ public sealed class SystemSchedulerLifecycleTests
         var sched = new SystemScheduler(new ParallelismSettings());
         Assert.False(sched.IsEnabled("x"));
 
-        sched.RegisterSequential("x", new CountingSeq(), enabled: false);
+        sched.RegisterSerial("x", new CountingSeq(), enabled: false);
         Assert.False(sched.IsEnabled("x"));
 
         sched.SetEnabled("x", true);
@@ -329,7 +329,7 @@ public sealed class SystemSchedulerLifecycleTests
             MaxSubstepsPerFrame = 10
         };
         var h = new IntHolder();
-        sched.RegisterSequential("f", new FixedCounter(h));
+        sched.RegisterSerial("f", new FixedCounter(h));
         sched.RunFrame(new World(), 0.05f);
         Assert.Equal(2, h.N);
         Assert.InRange(sched.FixedAccumulator, 0.009f, 0.011f);
@@ -361,7 +361,7 @@ public sealed class SystemSchedulerLifecycleTests
             MaxSubstepsPerFrame = 2
         };
         var h = new IntHolder();
-        sched.RegisterSequential("f", new FixedCounter(h));
+        sched.RegisterSerial("f", new FixedCounter(h));
         sched.RunFrame(new World(), 1f);
         Assert.Equal(2, h.N);
         Assert.True(sched.FixedAccumulator > 0.9f);
@@ -384,7 +384,7 @@ public sealed class SystemSchedulerLifecycleTests
         sched.AfterEarlyUpdate += (_, _) => e++;
         sched.AfterFixedUpdate += (_, _) => f++;
         sched.AfterLateUpdate += (_, _) => l++;
-        sched.RegisterSequential("x", new CountingSeq());
+        sched.RegisterSerial("x", new CountingSeq());
         sched.RunFrame(new World(), 0.016f);
         Assert.Equal(1, e);
         Assert.Equal(1, f);
@@ -397,7 +397,7 @@ public sealed class SystemSchedulerLifecycleTests
         var sched = new SystemScheduler(new ParallelismSettings()) { FixedDeltaSeconds = 1f / 60f };
         var accFromCallback = -1f;
         var accSeenInLate = -2f;
-        sched.RegisterSequential("capture", new DelegateSequentialSystem(onLateUpdate: (_, _) =>
+        sched.RegisterSerial("capture", new DelegateSerialSystem(onLateUpdate: (_, _) =>
         {
             accSeenInLate = accFromCallback;
         }));

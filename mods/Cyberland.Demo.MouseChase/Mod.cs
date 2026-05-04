@@ -127,15 +127,15 @@ public sealed class Mod : IMod
         var fpsText = CreateHudText(world, 803f);
 
         var host = context.Host;
-        context.RegisterSequential("cyberland.demo.mousechase/input", new InputSystem(host, controlEntity, stateEntity));
-        context.RegisterSequential("cyberland.demo.mousechase/reset", new RoundResetSystem());
+        context.RegisterSerial("cyberland.demo.mousechase/input", new InputSystem(host, controlEntity, stateEntity));
+        context.RegisterSerial("cyberland.demo.mousechase/reset", new RoundResetSystem());
         context.RegisterParallel("cyberland.demo.mousechase/movement", new PlayerMovementSystem());
         context.RegisterParallel("cyberland.demo.mousechase/camera-zoom", new CameraZoomSystem());
-        context.RegisterSequential("cyberland.demo.mousechase/trigger-resolve", new TriggerResolveSystem());
+        context.RegisterSerial("cyberland.demo.mousechase/trigger-resolve", new TriggerResolveSystem());
         context.RegisterParallel("cyberland.demo.mousechase/round-state", new RoundStateSystem());
-        context.RegisterSequential("cyberland.demo.mousechase/tutorial-hud",
+        context.RegisterSerial("cyberland.demo.mousechase/tutorial-hud",
             new TutorialHudSystem(context.LocalizedContent.Strings, stateEntity, titleText, detailText, statusText));
-        context.RegisterSequential("cyberland.demo.mousechase/fps-overlay", new FpsOverlaySystem(host, fpsText));
+        context.RegisterSerial("cyberland.demo.mousechase/fps-overlay", new FpsOverlaySystem(host, fpsText));
 
         ApplyGlobalPost(world);
     }

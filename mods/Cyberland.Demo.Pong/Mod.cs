@@ -110,11 +110,11 @@ public sealed class Mod : IMod
         };
 
         var host = context.Host;
-        context.RegisterSequential("cyberland.demo.pong/input", new InputSystem(host, session, context.Scheduler));
-        context.RegisterSequential("cyberland.demo.pong/simulation", new SimulationSystem(host, session, visuals));
-        context.RegisterSequential("cyberland.demo.pong/lights",
+        context.RegisterSerial("cyberland.demo.pong/input", new InputSystem(host, session, context.Scheduler));
+        context.RegisterSerial("cyberland.demo.pong/simulation", new SimulationSystem(host, session, visuals));
+        context.RegisterSerial("cyberland.demo.pong/lights",
             new PongLightsFillSystem(host, session, amb, dir, spot, ballPt, leftPt));
-        context.RegisterSequential("cyberland.demo.pong/visual-sync", new VisualSyncSystem(host, session, visuals, texts));
+        context.RegisterSerial("cyberland.demo.pong/visual-sync", new VisualSyncSystem(host, session, visuals, texts));
 
         ApplyGlobalPost(world);
     }

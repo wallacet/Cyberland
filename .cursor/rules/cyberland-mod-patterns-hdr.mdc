@@ -1,0 +1,60 @@
+---
+description: Mod ECS/layout conventions aligned with Cyberland.Demo (HDR)—queries, folders, parallelism, setup
+globs: mods/**/*.cs
+alwaysApply: false
+---
+
+# Cyberland — Mod patterns (HDR demo baseline)
+
+Ship mods so they read like **`mods/Cyberland.Demo`**: one bootstrap system, query-driven updates, real parallelism only, and clear folder boundaries.
+
+## Scene setup
+
+- Put **all cold-start entity creation** (camera, playfield, HUD, lights, volumes, global post) in **one** dedicated system (e.g. `SceneSetupSystem`) registered **serial**, **`ISystem` only**—typically **only `OnStart`** runs; avoid registering unused phase interfaces on that system.
+- Split runtime systems by responsibility (input, integrate, post-fill, HUD); **do not** scatter spawn code across multiple systems.
+
+## Scheduler / host contract
+
+- **`OnStart`** runs **before** phase callbacks for that registration; treat required host services and entities as **available**. Validate impossible configuration with **`throw`** and clear messages—do not soften failures into silent skips.
+- **Do not** use `_initialized` / `_resolved` flags or **phase-update early returns** that mean “maybe not ready yet.” Avoid defensive null checks on host services in hot paths when the mod **requires** those services to function (use non-null assertion when the contract guarantees presence).
+- First-frame lazy init inside **`*Update`** is forbidden (see **cyberland-mod-system-lifecycle**).
+
+## Queries and stores
+
+- **`IEcsQuerySource.QuerySpec`** / **`SystemQuerySpec`** is the **single declaration** of what the scheduler loads each phase.
+- **Phase updates** iterate **`ChunkQueryAll`** (serial) or the parallel chunk views—**that is the hot path**.
+- **Do not** cache **`Components<T>()`** stores on the system as fields for ongoing use, and **do not** replace scheduler queries with broad store scans unless there is a deliberate, documented reason.
+- **`World`** may be cached in **`OnStart`** when **random access** is required (singleton helpers, `DestroyEntity`, cross-query writes). Follow **cyberland-ecs-world-access**.
+
+## Singletons (two supported patterns)
+
+**A — Cache id + `World` for phase updates**  
+Resolve **`EntityId`** once in **`OnStart`** (`RequireSingleEntityWith` / `QueryChunks` + require). Cache **`World`** when needed. In phase methods, use **`World.Get<T>(entity)`** for **mutable** component access. Use when the system’s **`QuerySpec` does not** cover that entity (e.g. **`SystemQuerySpec.Empty`**) or you need **`World`** for non-query work (`DestroyEntity`, ad-hoc lookups). Example: bloom volume in **`HdrPostVolumeFillSystem`**.
+
+**B — Let the scheduler carry the singleton via `QuerySpec`**  
+Set **`QuerySpec`** to the singleton’s component set (e.g. **`All<PlayerTag, Transform, Velocity>()`**). In **`OnStart`** / phase updates, use the passed **`ChunkQueryAll`**: validate with **`RequireSingleEntityWith<Tag>`** if needed, then use **`GetFirst<T>()`** for a mutable **`ref T`** to the **first matching entity** (iteration order; chunks are storage-only). Prefer this when the system **only** exists to drive that singleton archetype—see **`IntegrateSystem`**. For reads without mutation, **`GetFirst`** is still fine (e.g. **`HdrPostVolumeFillSystem`**).
+
+Do not cache **`Components<T>()`** store handles as fields—see **Queries and stores** above.
+
+## Parallel systems
+
+- Prefer **`IParallelSystem`** when work **partitions rows/chunks** with **`Parallel.ForEach`**, span splitting, or equivalent **real** concurrency (**ParallelOptions** from the host).
+- **Do not** register **`IParallelSystem`** implementations that only use a plain **`foreach`** with no real parallel work—use **`ISystem`** + **`RegisterSerial`** instead (honest scheduling; avoids misleading readers).
+
+## Folder layout (per mod assembly)
+
+- **`Components/`** — `struct` **`IComponent`** types, tag markers, mod-local tuning/constants structs.
+- **`Systems/`** — **`ISystem`** / **`IParallelSystem`** implementations only (plus nested private helpers if kept tiny).
+- **`Mod.cs`** at mod root; optional **`DemoInputSetup`**-style helpers beside **`IMod`** when bindings stay centralized.
+
+## Comments and formatting
+
+- Type-level **`///`** summaries + **`remarks`** where they teach **why** and **phase ordering** (see HDR **`Mod.cs`** and motion/post systems).
+- **Inline `//`** for non-obvious intent, coordinate conventions, struct copy-back, or threading—not narration of syntax.
+- Keep formatting consistent with solution defaults (readable wraps, no cramped one-liners for multi-step logic).
+
+## Related rules
+
+- **`cyberland-mod-system-lifecycle`** — phase boundaries, ownership.
+- **`cyberland-ecs-world-access`** — `World` vs chunk queries.
+- **`cyberland-design-goals`** — parallelism and thread-safety expectations.

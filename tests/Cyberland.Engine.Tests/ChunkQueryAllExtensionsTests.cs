@@ -89,6 +89,19 @@ public sealed class ChunkQueryAllExtensionsTests
         Assert.Contains("no matching entities", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void GetFirst_returns_mutable_ref_to_storage()
+    {
+        var w = new World();
+        var e = w.CreateEntity();
+        w.GetOrAdd<PlayerTag>(e) = default;
+        w.GetOrAdd<VelocitySample>(e) = new VelocitySample { X = 1f };
+
+        var q = w.QueryChunks(SystemQuerySpec.All<PlayerTag, VelocitySample>());
+        q.GetFirst<VelocitySample>().X = 99f;
+        Assert.Equal(99f, w.Get<VelocitySample>(e).X);
+    }
+
     private struct PlayerTag : IComponent
     {
     }

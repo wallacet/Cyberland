@@ -571,6 +571,6 @@ public sealed class SceneCoverageFillTests
         sched.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(host));
         sched.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(host));
         sched.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(host));
-        sched.RegisterSequential("cyberland.engine/text-render", new TextRenderSystem(host));
+        sched.RegisterSerial("cyberland.engine/text-render", new TextRenderSystem(host));
     }
 }

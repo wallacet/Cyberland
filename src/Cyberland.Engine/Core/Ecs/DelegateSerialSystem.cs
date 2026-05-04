@@ -4,7 +4,7 @@ namespace Cyberland.Engine.Core.Ecs;
 /// Wraps delegates as <see cref="ISystem"/> for lightweight registration (e.g. mod bootstrap that
 /// does not warrant a dedicated type). Set <see cref="QuerySpec"/> via the overload that takes <see cref="SystemQuerySpec"/> when delegates iterate chunks.
 /// </summary>
-public sealed class DelegateSequentialSystem : ISystem, IEarlyUpdate, IFixedUpdate, ILateUpdate
+public sealed class DelegateSerialSystem : ISystem, IEarlyUpdate, IFixedUpdate, ILateUpdate
 {
     private readonly SystemQuerySpec _querySpec;
     private readonly Action<ChunkQueryAll, float>? _onEarlyUpdate;
@@ -16,7 +16,7 @@ public sealed class DelegateSequentialSystem : ISystem, IEarlyUpdate, IFixedUpda
     public SystemQuerySpec QuerySpec => _querySpec;
 
     /// <summary>Delegates only; uses <see cref="SystemQuerySpec.Empty"/>.</summary>
-    public DelegateSequentialSystem(
+    public DelegateSerialSystem(
         Action<ChunkQueryAll, float>? onEarlyUpdate = null,
         Action<ChunkQueryAll, float>? onFixedUpdate = null,
         Action<ChunkQueryAll, float>? onLateUpdate = null,
@@ -31,7 +31,7 @@ public sealed class DelegateSequentialSystem : ISystem, IEarlyUpdate, IFixedUpda
     /// <param name="onFixedUpdate">Optional fixed timestep callback.</param>
     /// <param name="onLateUpdate">Optional per-frame callback after fixed simulation.</param>
     /// <param name="onStart">Optional one-time setup (see <see cref="ISystem.OnStart"/>).</param>
-    public DelegateSequentialSystem(
+    public DelegateSerialSystem(
         SystemQuerySpec querySpec,
         Action<ChunkQueryAll, float>? onEarlyUpdate = null,
         Action<ChunkQueryAll, float>? onFixedUpdate = null,

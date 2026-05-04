@@ -79,12 +79,12 @@ public sealed class ModLoadContext
     public void HideContentPath(string relativePath) =>
         VirtualFileSystem.BlockPath(relativePath);
 
-    /// <summary>Registers or replaces a sequential ECS system under <paramref name="logicalId"/>.</summary>
+    /// <summary>Registers or replaces a serial (single-threaded) ECS system under <paramref name="logicalId"/>.</summary>
     /// <param name="logicalId">Stable id for this system (enable/disable, diagnostics).</param>
-    /// <param name="system">Sequential system instance.</param>
+    /// <param name="system">Serial system instance.</param>
     /// <param name="enabled">Initial enabled flag; use <see cref="SetSystemEnabled"/> to toggle later.</param>
-    public void RegisterSequential(string logicalId, ISystem system, bool enabled = true) =>
-        Scheduler.RegisterSequential(logicalId, system, enabled);
+    public void RegisterSerial(string logicalId, ISystem system, bool enabled = true) =>
+        Scheduler.RegisterSerial(logicalId, system, enabled);
 
     /// <summary>Registers or replaces a parallel ECS system under <paramref name="logicalId"/>.</summary>
     /// <param name="logicalId">Stable id for this system (enable/disable, diagnostics).</param>

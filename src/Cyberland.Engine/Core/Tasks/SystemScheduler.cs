@@ -24,7 +24,7 @@ public sealed class SystemScheduler
         public required Action<World> Start { get; init; }
     }
 
-    private sealed class SequentialEntry : Entry
+    private sealed class SerialEntry : Entry
     {
         public Action<World, float>? Early { get; init; }
         public Action<World, float>? Fixed { get; init; }
@@ -103,16 +103,16 @@ public sealed class SystemScheduler
     }
 
 
-    /// <summary>Registers or replaces a sequential system. Execution order follows registration order unless constrained by attributes.</summary>
+    /// <summary>Registers or replaces a serial (single-threaded) system. Execution order follows registration order unless constrained by attributes.</summary>
     /// <param name="logicalId">Stable id for ordering attributes, enable/disable, and diagnostics.</param>
-    /// <param name="system">Sequential ECS system implementation; chunk query comes from <see cref="IEcsQuerySource.QuerySpec"/>.</param>
+    /// <param name="system">Serial ECS system implementation; chunk query comes from <see cref="IEcsQuerySource.QuerySpec"/>.</param>
     /// <param name="enabled">When false, the entry is registered but skipped until <see cref="SetEnabled"/> enables it.</param>
-    public void RegisterSequential(string logicalId, ISystem system, bool enabled = true)
+    public void RegisterSerial(string logicalId, ISystem system, bool enabled = true)
     {
         ValidateLogicalId(logicalId);
         ArgumentNullException.ThrowIfNull(system);
         var query = system.QuerySpec;
-        Upsert(logicalId, new SequentialEntry
+        Upsert(logicalId, new SerialEntry
         {
             Id = logicalId,
             SystemImplementationType = system.GetType(),
@@ -261,7 +261,7 @@ public sealed class SystemScheduler
 
             switch (e)
             {
-                case SequentialEntry se:
+                case SerialEntry se:
                     se.Early?.Invoke(world, deltaSeconds);
                     break;
                 case ParallelEntry pe:
@@ -283,7 +283,7 @@ public sealed class SystemScheduler
 
                 switch (e)
                 {
-                    case SequentialEntry se:
+                    case SerialEntry se:
                         se.Fixed?.Invoke(world, fixedDt);
                         break;
                     case ParallelEntry pe:
@@ -307,7 +307,7 @@ public sealed class SystemScheduler
 
             switch (e)
             {
-                case SequentialEntry se:
+                case SerialEntry se:
                     se.Late?.Invoke(world, deltaSeconds);
                     break;
                 case ParallelEntry pe:
