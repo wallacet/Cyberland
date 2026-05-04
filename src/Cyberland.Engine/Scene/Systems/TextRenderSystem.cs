@@ -65,6 +65,10 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
         ref readonly Transform transform,
         IRenderer renderer)
     {
+        // Must run before the glyph-cache replay path: invisible rows still hold last frame's TextSpriteCache.
+        if (!bt.Visible)
+            return;
+
         if ((cache.GlyphCount == 0 || cache.CachedGlyphs is null) &&
             !TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, _host, renderer, out _, out _))
         {

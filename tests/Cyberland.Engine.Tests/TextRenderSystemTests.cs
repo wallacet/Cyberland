@@ -303,6 +303,35 @@ public sealed class TextRenderSystemTests
     }
 
     [Fact]
+    public void TextRenderSystem_does_not_submit_cached_glyphs_when_visible_becomes_false()
+    {
+        var r = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var sys = new TextRenderSystem(host);
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "Hello";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        ref var transform = ref world.Get<Transform>(e);
+        transform.WorldPosition = new Vector2D<float>(1f, 2f);
+
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+        Assert.NotEmpty(r.Sprites);
+
+        bt.Visible = false;
+        r.Sprites.Clear();
+        sys.OnLateUpdate(q, 0.016f);
+        Assert.Empty(r.Sprites);
+    }
+
+    [Fact]
     public void TextRenderSystem_prunes_cache_when_entity_destroyed()
     {
         var r = new RecordingRenderer();
