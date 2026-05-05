@@ -31,14 +31,13 @@ public sealed class HudTitleTextSystem : ISingletonSystem, ISingletonLateUpdate
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/hud-title requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var show = game.Phase == Phase.Title;
@@ -77,14 +76,13 @@ public sealed class HudHintTitleTextSystem : ISingletonSystem, ISingletonLateUpd
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/hud-hint-title requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var show = game.Phase == Phase.Title;
@@ -111,14 +109,13 @@ public sealed class HudGameOverTextSystem : ISingletonSystem, ISingletonLateUpda
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/hud-game-over requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var end = game.Phase is Phase.GameOver or Phase.Won;
@@ -146,14 +143,13 @@ public sealed class HudHintEndTextSystem : ISingletonSystem, ISingletonLateUpdat
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/hud-hint-end requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var end = game.Phase is Phase.GameOver or Phase.Won;
@@ -181,14 +177,13 @@ public sealed class HudPlayingScoreTextSystem : ISingletonSystem, ISingletonLate
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/hud-playing-score requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var playing = game.Phase == Phase.Playing;
@@ -217,14 +212,13 @@ public sealed class HudScoreNumTextSystem : ISingletonSystem, ISingletonLateUpda
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/hud-score-num requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         if (game.Score != _lastScore)
         {
             _lastScore = game.Score;

@@ -462,7 +462,7 @@ public sealed class SceneSystemTests
     [Fact]
     public void SpriteRenderSystem_noop_when_renderer_null()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var w = new World();
         var e = w.CreateEntity();
         w.GetOrAdd<Transform>(e) = MakeTransform(

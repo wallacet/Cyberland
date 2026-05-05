@@ -5,7 +5,7 @@ using Cyberland.Engine.Modding;
 namespace Cyberland.Demo.MouseChase;
 
 /// <summary>
-/// Tutorial game: input → fixed simulation (movement, camera zoom, triggers, round state, restart) → HUD + FPS overlay.
+/// Tutorial game: input → fixed simulation (movement, camera zoom, triggers, round state, restart) → retained HUD document updates.
 /// </summary>
 /// <remarks>
 /// <para><b>Where to read next:</b> <see cref="SceneSetup.SetupSceneAsync"/> for entities and HUD tags; this file lists scheduler registration only.</para>
@@ -20,7 +20,7 @@ public sealed class Mod : IMod
         MouseChaseInputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("mouse_chase.json");
 
-        await SceneSetup.SetupSceneAsync(context);
+        var hud = await SceneSetup.SetupSceneAsync(context);
 
         var host = context.Host;
         context.RegisterSingleton("cyberland.demo.mousechase/input", new InputSystem(host));
@@ -29,9 +29,8 @@ public sealed class Mod : IMod
         context.RegisterSingleton("cyberland.demo.mousechase/camera-zoom", new CameraZoomSystem(host));
         context.RegisterSerial("cyberland.demo.mousechase/trigger-resolve", new TriggerResolveSystem());
         context.RegisterSingleton("cyberland.demo.mousechase/round-state", new RoundStateSystem());
-        context.RegisterSingleton("cyberland.demo.mousechase/tutorial-hud",
-            new TutorialHudSystem(context.LocalizedContent.Strings));
-        context.RegisterSingleton("cyberland.demo.mousechase/fps-overlay", new FpsOverlaySystem(host));
+        context.RegisterSingleton("cyberland.demo.mousechase/hud-ui",
+            new HudUiSystem(context.LocalizedContent.Strings, host, hud));
     }
 
     /// <inheritdoc />

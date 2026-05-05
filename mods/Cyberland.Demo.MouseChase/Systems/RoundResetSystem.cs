@@ -38,9 +38,6 @@ public sealed class RoundResetSystem : ISingletonSystem, ISingletonFixedUpdate
             return;
 
         var input = _host.Input;
-        if (input is null)
-            return;
-
         if (!input.ConsumePressed("cyberland.demo.mousechase/restart") &&
             !input.ConsumePressed("cyberland.common/start"))
             return;

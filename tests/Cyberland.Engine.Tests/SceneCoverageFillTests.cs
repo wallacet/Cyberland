@@ -204,7 +204,7 @@ public sealed class SceneCoverageFillTests
     {
         var w = new World();
         var tmStore = new TilemapDataStore();
-        var hNullR = new GameHostServices() { Renderer = null, Tilemaps = tmStore };
+        var hNullR = new GameHostServices() { Renderer = new RecordingRenderer(), Tilemaps = tmStore };
         var map = w.CreateEntity();
         tmStore.Register(map, new[] { 1 }, 1, 1);
         w.GetOrAdd<Transform>(map) = Transform.Identity;
@@ -341,7 +341,7 @@ public sealed class SceneCoverageFillTests
         StartEcs(prNo, emptyWorld);
         prNo.OnParallelLateUpdate(emptyWorld.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
 
-        var hNoR = new GameHostServices() { Renderer = null };
+        var hNoR = new GameHostServices() { Renderer = new RecordingRenderer() };
         var emptyWorld2 = new World();
         var prNo2 = new ParticleRenderSystem(hNoR);
         StartEcs(prNo2, emptyWorld2);

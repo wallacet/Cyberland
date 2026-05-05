@@ -30,7 +30,7 @@ public sealed class GlobalPostProcessSystem : ISystem, ILateUpdate
     public void OnLateUpdate(ChunkQueryAll query, float deltaSeconds)
     {
         _ = deltaSeconds;
-        var renderer = _host.RendererRequired;
+        var renderer = _host.Renderer;
         var found = false;
         var bestPriority = int.MinValue;
         GlobalPostProcessSettings best = default;

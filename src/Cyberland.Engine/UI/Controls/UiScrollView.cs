@@ -1,0 +1,80 @@
+using Cyberland.Engine.UI.Core;
+using Silk.NET.Maths;
+
+namespace Cyberland.Engine.UI.Controls;
+
+/// <summary>
+/// Vertical scroll container with viewport clipping and wheel routing from <see cref="Cyberland.Engine.Scene.Systems.UiDocumentFrameSystem"/>.
+/// </summary>
+public class UiScrollView : UiElement
+{
+    /// <summary>Hosted content (stack rows inside this panel).</summary>
+    public UiPanel Content { get; }
+
+    /// <summary>Vertical scroll offset in pixels (+Y down content moves up when positive).</summary>
+    public Vector2D<float> ContentOffset { get; set; }
+
+    /// <summary>Pixels per wheel notch applied along Y.</summary>
+    public float WheelScrollPixels { get; set; } = 32f;
+
+    /// <summary>Creates a clipped viewport with an inner vertical stack host.</summary>
+    public UiScrollView()
+    {
+        ClipMode = UiClipMode.IntersectParent;
+        Content = new UiPanel();
+        AddChild(Content);
+    }
+
+    /// <summary>
+    /// Applies a wheel delta before the next layout pass (positive deltas increase offset, revealing lower content).
+    /// </summary>
+    public void ApplyWheel(float wheelY) =>
+        ContentOffset = new Vector2D<float>(ContentOffset.X, ContentOffset.Y + wheelY * WheelScrollPixels);
+
+    /// <summary>Clamps <see cref="ContentOffset"/> after measurement so content cannot scroll past its extents.</summary>
+    public void ClampContentOffset()
+    {
+        var inner = ComputedBounds.Deflate(Padding);
+        var contentH = Content.MeasuredSize.Y + Content.Margin.Vertical;
+        var maxOff = MathF.Max(0f, contentH - inner.Height);
+        ContentOffset = new Vector2D<float>(0f, Math.Clamp(ContentOffset.Y, 0f, maxOff));
+    }
+
+    /// <inheritdoc />
+    protected override Vector2D<float> MeasureCore(in UiSizeConstraints constraints)
+    {
+        const float eps = 1e-4f;
+        var stretchX = AnchorMax.X - AnchorMin.X > eps;
+        var stretchY = AnchorMax.Y - AnchorMin.Y > eps;
+
+        var innerMaxW = constraints.MaxWidth - Padding.Horizontal - Margin.Horizontal;
+
+        var cw = MathF.Max(0f, innerMaxW - Content.Margin.Horizontal);
+        Content.Measure(UiSizeConstraints.Loose(cw, float.PositiveInfinity));
+
+        var dw = stretchX
+            ? constraints.MaxWidth
+            : Content.MeasuredSize.X + Padding.Horizontal + Margin.Horizontal + Content.Margin.Horizontal;
+
+        var dh = stretchY
+            ? constraints.MaxHeight
+            : Content.MeasuredSize.Y + Padding.Vertical + Margin.Vertical + Content.Margin.Vertical;
+
+        return constraints.ClampSize(new Vector2D<float>(dw, dh));
+    }
+
+    /// <inheritdoc />
+    public override void Arrange(in UiRect allocationMarginBoxAbsolute)
+    {
+        base.Arrange(allocationMarginBoxAbsolute);
+        if (!Visible)
+            return;
+
+        ClampContentOffset();
+
+        var inner = ComputedBounds.Deflate(Padding);
+        var contentW = MathF.Max(0f, inner.Width - Content.Margin.Horizontal);
+        var contentH = Content.MeasuredSize.Y + Content.Margin.Vertical;
+        Content.Arrange(new UiRect(inner.X - ContentOffset.X, inner.Y - ContentOffset.Y, contentW, contentH));
+    }
+}

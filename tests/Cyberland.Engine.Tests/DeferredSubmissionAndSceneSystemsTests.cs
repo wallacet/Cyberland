@@ -57,7 +57,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void PointLightSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new PointLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
@@ -66,7 +66,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void AmbientLightSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new AmbientLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
@@ -75,7 +75,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void DirectionalLightSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new DirectionalLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
@@ -84,7 +84,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void SpotLightSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new SpotLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
@@ -93,7 +93,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void PostProcessVolumeSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new PostProcessVolumeSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PostProcessVolumeSource, Transform>()));
@@ -102,7 +102,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void ViewportAnchorSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new ViewportAnchorSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<ViewportAnchor2D, Transform>()));
@@ -313,7 +313,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var sys = new PointLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
-        h.Renderer = null;
+        h.Renderer = new RecordingRenderer();
         sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()), 0f, ParOpts());
     }
 
@@ -324,7 +324,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var sys = new AmbientLightSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
-        h.Renderer = null;
+        h.Renderer = new RecordingRenderer();
         sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()), 0f, ParOpts());
     }
 
@@ -347,7 +347,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var w = new World();
         var dSpec = SystemQuerySpec.All<DirectionalLightSource, Transform>();
         sys.OnStart(w, w.QueryChunks(dSpec));
-        h.Renderer = null;
+        h.Renderer = new RecordingRenderer();
         sys.OnParallelLateUpdate(w.QueryChunks(dSpec), 0f, ParOpts());
     }
 
@@ -371,7 +371,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var w = new World();
         var sSpec = SystemQuerySpec.All<SpotLightSource, Transform>();
         sys.OnStart(w, w.QueryChunks(sSpec));
-        h.Renderer = null;
+        h.Renderer = new RecordingRenderer();
         sys.OnParallelLateUpdate(w.QueryChunks(sSpec), 0f, ParOpts());
     }
 
@@ -430,7 +430,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var w = new World();
         var vSpec = SystemQuerySpec.All<PostProcessVolumeSource, Transform>();
         sys.OnStart(w, w.QueryChunks(vSpec));
-        h.Renderer = null;
+        h.Renderer = new RecordingRenderer();
         sys.OnParallelLateUpdate(w.QueryChunks(vSpec), 0f, ParOpts());
     }
 
@@ -563,7 +563,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     [Fact]
     public void TextStagingSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new TextStagingSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()));

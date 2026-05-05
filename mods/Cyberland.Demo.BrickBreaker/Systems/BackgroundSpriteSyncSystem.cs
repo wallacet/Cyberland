@@ -20,13 +20,12 @@ public sealed class BackgroundSpriteSyncSystem : IParallelSystem, IParallelLateU
     {
         _ = world;
         _ = archetype;
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/background-sprite requires Host.Renderer.");
     }
 
     public void OnParallelLateUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
         foreach (var chunk in archetype)
         {

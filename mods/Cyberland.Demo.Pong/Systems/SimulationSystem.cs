@@ -1,6 +1,5 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
@@ -29,11 +28,6 @@ public sealed class SimulationSystem : ISingletonSystem, ISingletonFixedUpdate
     public void OnSingletonStart(in SingletonEntity sessionRow)
     {
         _ = sessionRow;
-        if (_host.Renderer is null)
-        {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong.SimulationSystem startup failed", "Host.Renderer was null during OnSingletonStart.");
-            throw new InvalidOperationException("Cyberland.Demo.Pong SimulationSystem requires a renderer.");
-        }
     }
 
     /// <inheritdoc />

@@ -1,6 +1,5 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -47,12 +46,6 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
     {
         _world = sessionRow.World;
         var renderer = _host.Renderer;
-        if (renderer is null)
-        {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong.VisualSyncSystem startup failed", "Host.Renderer was null during OnStart.");
-            throw new InvalidOperationException("Cyberland.Demo.Pong VisualSyncSystem requires a renderer.");
-        }
-
         ConfigureSpritesOnStart(renderer.WhiteTextureId, renderer.DefaultNormalTextureId);
         ConfigureTextRowsOnStart();
     }
@@ -63,7 +56,7 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
         _world = sessionRow.World;
         var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
         ref readonly var st = ref sessionRow.Get<State>();
         // Layout on the same virtual rect as the active camera.
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);

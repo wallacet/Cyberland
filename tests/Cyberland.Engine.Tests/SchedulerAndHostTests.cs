@@ -262,8 +262,12 @@ public sealed class SchedulerAndHostTests
         var host = new GameHostServices();
         Assert.Null(host.Renderer);
         Assert.Null(host.Input);
-        host.Renderer = null;
-        host.Input = null;
+        var renderer = new RecordingRenderer();
+        var input = new NoopInputService();
+        host.Renderer = renderer;
+        host.Input = input;
+        Assert.Same(renderer, host.Renderer);
+        Assert.Same(input, host.Input);
 
         Assert.Equal(0f, host.LastPresentDeltaSeconds);
         host.LastPresentDeltaSeconds = 1f / 60f;
@@ -290,5 +294,25 @@ public sealed class SchedulerAndHostTests
         };
         Assert.Equal(sched.FixedAccumulator, host.FixedAccumulatorSeconds);
         Assert.Equal(sched.FixedDeltaSeconds, host.FixedDeltaSeconds);
+    }
+
+    private sealed class NoopInputService : IInputService
+    {
+        public InputBindings Bindings { get; } = new();
+        public System.Numerics.Vector2 MousePosition => default;
+        public System.Numerics.Vector2 MouseDelta => default;
+        public System.Numerics.Vector2 GetMousePosition(Scene.CoordinateSpace space = Scene.CoordinateSpace.ViewportSpace) => default;
+        public System.Numerics.Vector2 GetMouseDelta(Scene.CoordinateSpace space = Scene.CoordinateSpace.ViewportSpace) => default;
+        public System.Numerics.Vector2 MouseWheelDelta => default;
+        public void BeginFrame() { }
+        public bool IsDown(string actionId) => false;
+        public bool WasPressed(string actionId) => false;
+        public bool WasReleased(string actionId) => false;
+        public float ReadAxis(string axisId) => 0f;
+        public bool ConsumePressed(string actionId) => false;
+        public bool ConsumeReleased(string actionId) => false;
+        public float ConsumeAxisDelta(string axisId) => 0f;
+        public bool IsControlDown(InputControl control) => false;
+        public float ReadControlValue(InputControl control) => 0f;
     }
 }

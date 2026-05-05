@@ -37,8 +37,6 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
         // Render ticks before the next fixed substep; ctl = default would erase an unconsumed StartGame before Tick runs.
         var r = _host.Renderer;
         var input = _host.Input;
-        if (r is null) return;
-        if (input is null) return;
         if (input.IsDown("cyberland.common/quit")) { r.RequestClose?.Invoke(); return; }
         ref var session = ref world.Get<Session>(_sessionEntity);
         switch (session.Phase)

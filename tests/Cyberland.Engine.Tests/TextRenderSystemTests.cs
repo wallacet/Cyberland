@@ -19,7 +19,7 @@ public sealed class TextRenderSystemTests
     [Fact]
     public void TextRenderSystem_throws_when_renderer_null()
     {
-        var host = new GameHostServices() { Renderer = null, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = new RecordingRenderer(), LocalizedContent = null };
         var world = new World();
         var e = world.CreateEntity();
         world.GetOrAdd<Transform>(e) = Transform.Identity;
@@ -374,7 +374,7 @@ public sealed class TextRenderSystemTests
         var q = world.QueryChunks(TextRowQuery);
         sys.OnStart(world, q);
         sys.OnLateUpdate(q, 0.016f);
-        host.Renderer = null;
+        host.Renderer = new RecordingRenderer();
         sys.OnLateUpdate(q, 0.016f);
     }
 
@@ -493,7 +493,7 @@ public sealed class TextRenderSystemTests
     [Fact]
     public void TextRuntimeBuilder_TryPrepare_returns_false_without_throw_when_renderer_null()
     {
-        var host = new GameHostServices() { Renderer = null, LocalizedContent = null };
+        var host = new GameHostServices() { Renderer = new RecordingRenderer(), LocalizedContent = null };
         var world = new World();
         var e = world.CreateEntity();
         world.GetOrAdd<Transform>(e) = Transform.Identity;
@@ -603,7 +603,7 @@ public sealed class TextRenderSystemTests
         var cacheAfterShort = world.Get<TextSpriteCache>(e);
         Assert.Equal(1, cacheAfterShort.GlyphCount);
         Assert.NotNull(cacheAfterShort.CachedGlyphs);
-        Assert.Equal(1, cacheAfterShort.CachedGlyphs.Length);
+        Assert.Single(cacheAfterShort.CachedGlyphs);
         Assert.Single(r.Sprites);
     }
 

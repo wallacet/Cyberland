@@ -37,7 +37,7 @@ public sealed class PlayerMovementSystem : ISingletonSystem, ISingletonFixedUpda
             return;
 
         var mouseWorld = control.MouseWorld;
-        var speed = _host.Input?.IsDown("cyberland.demo.mousechase/primary") == true ? 420f : 300f;
+        var speed = _host.Input.IsDown("cyberland.demo.mousechase/primary") ? 420f : 300f;
 
         var toMouse = mouseWorld - transform.WorldPosition;
         var len = MathF.Sqrt(toMouse.X * toMouse.X + toMouse.Y * toMouse.Y);

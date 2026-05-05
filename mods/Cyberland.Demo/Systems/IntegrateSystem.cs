@@ -27,7 +27,6 @@ public sealed class IntegrateSystem : ISingletonSystem, ISingletonFixedUpdate
     /// <inheritdoc />
     public void OnSingletonStart(in SingletonEntity player)
     {
-        _ = _host.RendererRequired;
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         // Slightly right of center—room to showcase HDR bloom shifting as you walk toward the neon side.
         var p = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.55f, fb.Y / 2f), fb);

@@ -227,7 +227,7 @@ public sealed class CameraTests
     [Fact]
     public void CameraSubmitSystem_OnStart_allows_null_renderer()
     {
-        var h = new GameHostServices() { Renderer = null };
+        var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new CameraSubmitSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Camera2D, Transform>()));
@@ -240,7 +240,7 @@ public sealed class CameraTests
         var sys = new CameraSubmitSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Camera2D, Transform>()));
-        h.Renderer = null;
+        h.Renderer = new RecordingRenderer();
         sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Camera2D, Transform>()), 0f, ParOpts());
     }
 

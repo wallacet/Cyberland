@@ -15,6 +15,10 @@ namespace Cyberland.Engine.Scene;
 /// Screen-space rows often pair with <see cref="ViewportAnchor2D"/> so <see cref="Transform.WorldPosition"/> tracks resize.
 /// </para>
 /// <para>
+/// For retained-mode UI (panels, buttons, multi-line wrapped copy), use <see cref="UI.Text.UiTextBlock"/> inside a
+/// <see cref="UI.Core.UiDocument"/> driven by <see cref="Systems.UiDocumentFrameSystem"/> instead of attaching this component.
+/// </para>
+/// <para>
 /// Recommended <see cref="SortKey"/> bands: lower values for world text, higher (e.g. 400+) for UI so HUD stacks above gameplay.
 /// </para>
 /// <para>

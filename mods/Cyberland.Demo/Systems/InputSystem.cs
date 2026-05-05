@@ -34,8 +34,6 @@ public sealed class InputSystem : IParallelSystem, IParallelEarlyUpdate
     {
         _ = world;
         _ = archetype;
-        _ = _host.Input
-            ?? throw new InvalidOperationException("cyberland.demo/input requires Host.Input during OnStart.");
 
         _ = archetype.RequireSingleEntityWith<PlayerTag>("player");
     }
@@ -59,7 +57,7 @@ public sealed class InputSystem : IParallelSystem, IParallelEarlyUpdate
 
         if (input.IsDown("cyberland.common/quit"))
         {
-            _host.Renderer?.RequestClose?.Invoke();
+            _host.Renderer.RequestClose?.Invoke();
             return;
         }
 

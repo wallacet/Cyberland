@@ -28,7 +28,7 @@ public sealed class TilemapLayoutSystem : ISingletonSystem, ISingletonLateUpdate
     public void OnSingletonStart(in SingletonEntity tilemapRow)
     {
         _sessionEntity = tilemapRow.World.RequireSingleEntityWith<Session>("Snake session");
-        var renderer = _host.RendererRequired;
+        var renderer = _host.Renderer;
 
         ref var tilemap = ref tilemapRow.Get<Tilemap>();
         tilemap.AtlasAlbedoTextureId = renderer.WhiteTextureId;

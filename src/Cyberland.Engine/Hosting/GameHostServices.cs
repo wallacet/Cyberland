@@ -29,6 +29,8 @@ public sealed class GameHostServices
         Fonts = new FontLibrary();
         BuiltinFonts.AddTo(Fonts);
         TextGlyphCache = new TextGlyphCache();
+        UiDocuments = new UiDocumentRegistry();
+        UiCommands = new UiCommandQueue();
     }
 
     /// <summary>Localized strings + media resolution; set by the host before <see cref="Modding.ModLoader.LoadAll"/>.</summary>
@@ -40,27 +42,26 @@ public sealed class GameHostServices
     /// <summary>Shared glyph atlas for bitmap text (thread-safe internal locking).</summary>
     public TextGlyphCache TextGlyphCache { get; }
 
+    /// <summary>Maps ECS entities to retained UI documents processed by <see cref="Scene.Systems.UiDocumentFrameSystem"/>.</summary>
+    public UiDocumentRegistry UiDocuments { get; }
+
+    /// <summary>Queued gameplay intents produced during UI dispatch; drained by <see cref="Scene.Systems.UiCommandDrainSystem"/>.</summary>
+    public IUiCommandQueue UiCommands { get; }
+
+    /// <summary>Optional hook invoked once per dequeued command after UI input runs on the render tick.</summary>
+    public Action<object?>? UiCommandDispatcher { get; set; }
+
     /// <summary>
     /// Draw and lighting submit API. In the stock host this is a <see cref="Rendering.VulkanRenderer"/>; depend on <see cref="Rendering.IRenderer"/> in mods.
+    /// Set during host bootstrap before mods run.
     /// </summary>
-    public IRenderer? Renderer { get; set; }
+    public IRenderer Renderer { get; set; } = null!;
 
     /// <summary>
-    /// Non-null renderer contract for runtime systems. Throws with a clear message when accessed before host bootstrap.
+    /// Frame-stable input service populated by the host after window/input setup.
+    /// Set during host bootstrap before mods run.
     /// </summary>
-    public IRenderer RendererRequired =>
-        Renderer ?? throw new InvalidOperationException("Host.Renderer is not initialized. Access renderer only after host bootstrap.");
-
-    /// <summary>
-    /// Frame-stable input service populated by the host after window/input setup; null before host bootstrap completes.
-    /// </summary>
-    public IInputService? Input { get; set; }
-
-    /// <summary>
-    /// Non-null input contract for runtime systems. Throws with a clear message when accessed before host bootstrap.
-    /// </summary>
-    public IInputService InputRequired =>
-        Input ?? throw new InvalidOperationException("Host.Input is not initialized. Access input only after host bootstrap.");
+    public IInputService Input { get; set; } = null!;
 
     /// <summary>
     /// Frame-stable active camera state published by engine camera runtime systems. Gameplay/layout code should prefer

@@ -4,6 +4,9 @@ using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
+using Cyberland.Engine.UI.Core;
+using Cyberland.Engine.UI.Ecs;
+using Cyberland.Engine.UI.Text;
 using Silk.NET.Maths;
 using TextureId = System.UInt32;
 
@@ -14,18 +17,15 @@ namespace Cyberland.Demo.MouseChase;
 /// </summary>
 public static class SceneSetup
 {
-    public static readonly Vector2D<float> TutorialTitleHudPos = new(40f, 36f);
-    public static readonly Vector2D<float> TutorialDetailHudPos = new(40f, 74f);
-    public static readonly Vector2D<float> TutorialStatusHudPos = new(40f, 108f);
     public const float TutorialTitleHudSize = 24f;
     public const float TutorialDetailHudSize = 18f;
     public const float TutorialStatusHudSize = 18f;
 
     /// <summary>Builds the scene; <see cref="IRenderer"/> is required for default white/normal texture ids on sprites.</summary>
-    public static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
+    public static async ValueTask<HudDocumentRefs> SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
     {
         _ = cancellationToken;
-        var renderer = context.Host.RendererRequired;
+        var renderer = context.Host.Renderer;
         var world = context.World;
 
         var cameraEntity = world.CreateEntity();
@@ -123,14 +123,12 @@ public static class SceneSetup
             CastsShadow = false
         };
 
-        CreateHudText<TutorialTitleHudTag>(world, 800f, TutorialTitleHudPos, TutorialTitleHudSize);
-        CreateHudText<TutorialDetailHudTag>(world, 801f, TutorialDetailHudPos, TutorialDetailHudSize);
-        CreateHudText<TutorialStatusHudTag>(world, 802f, TutorialStatusHudPos, TutorialStatusHudSize);
-        CreateHudText<FpsHudTag>(world, 803f);
+        var hud = CreateHudDocument(world, context);
 
         ApplyGlobalPost(world);
 
         await Task.CompletedTask.ConfigureAwait(false);
+        return hud;
     }
 
     private static EntityId CreateSprite(World world, TextureId whiteTextureId, TextureId defaultNormalTextureId,
@@ -162,25 +160,66 @@ public static class SceneSetup
         return entity;
     }
 
-    private static void CreateHudText<TTag>(World world, float sortKey)
-        where TTag : struct, IComponent =>
-        CreateHudText<TTag>(world, sortKey, viewportPos: default, sizePixels: 20f);
-
-    private static void CreateHudText<TTag>(World world, float sortKey, Vector2D<float> viewportPos, float sizePixels)
-        where TTag : struct, IComponent
+    private static HudDocumentRefs CreateHudDocument(World world, ModLoadContext context)
     {
-        var e = world.CreateEntity();
-        var transform = Transform.Identity;
-        transform.LocalPosition = viewportPos;
-        world.GetOrAdd<Transform>(e) = transform;
-        world.GetOrAdd<TTag>(e);
-        ref var bt = ref world.GetOrAdd<BitmapText>(e);
-        bt.Visible = true;
-        bt.Content = " ";
-        bt.SortKey = sortKey;
-        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
-        bt.Style = new TextStyle(BuiltinFonts.UiSans, sizePixels, new Vector4D<float>(1f, 1f, 1f, 1f));
-        bt.IsLocalizationKey = false;
+        var rootEntity = world.CreateEntity();
+        world.GetOrAdd<MouseChaseHudRootTag>(rootEntity);
+        world.GetOrAdd<UiDocumentRoot>(rootEntity) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 800f
+        };
+
+        var doc = new UiDocument();
+
+        var title = new UiTextBlock
+        {
+            Text = " ",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, TutorialTitleHudSize, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        UiLayoutPresets.TopLeftFixed(title, 740f, 32f);
+        title.AnchoredPosition = new Vector2D<float>(40f, 36f);
+
+        var detail = new UiTextBlock
+        {
+            Text = " ",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, TutorialDetailHudSize, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        UiLayoutPresets.TopLeftFixed(detail, 860f, 28f);
+        detail.AnchoredPosition = new Vector2D<float>(40f, 74f);
+
+        var status = new UiTextBlock
+        {
+            Text = " ",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, TutorialStatusHudSize, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        UiLayoutPresets.TopLeftFixed(status, 900f, 24f);
+        status.AnchoredPosition = new Vector2D<float>(40f, 108f);
+
+        var fps = new UiTextBlock
+        {
+            Text = "FPS -",
+            DefaultStyle = new TextStyle(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f))
+        };
+        UiLayoutPresets.TopRightFixed(fps, 120f, 22f, 14f);
+
+        doc.Root.AddChild(title);
+        doc.Root.AddChild(detail);
+        doc.Root.AddChild(status);
+        doc.Root.AddChild(fps);
+
+        context.Host.UiDocuments.Register(rootEntity, doc);
+
+        return new HudDocumentRefs
+        {
+            RootEntity = rootEntity,
+            Title = title,
+            Detail = detail,
+            Status = status,
+            Fps = fps
+        };
     }
 
     private static void ApplyGlobalPost(World world)

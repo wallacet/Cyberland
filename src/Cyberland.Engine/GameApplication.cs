@@ -178,6 +178,8 @@ public sealed class GameApplication : IDisposable
             _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem(_host));
             // Bitmap text build is folded into TextRenderSystem (serial late) so TryPrepare runs immediately before submit.
             _scheduler.RegisterSerial("cyberland.engine/text-render", new TextRenderSystem(_host));
+            _scheduler.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(_host));
+            _scheduler.RegisterSerial("cyberland.engine/ui-command-drain", new UiCommandDrainSystem(_host));
         }
         finally
         {

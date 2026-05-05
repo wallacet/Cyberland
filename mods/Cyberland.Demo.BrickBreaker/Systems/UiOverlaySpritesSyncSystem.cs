@@ -19,14 +19,13 @@ public sealed class TitleUiSpriteSyncSystem : ISingletonSystem, ISingletonLateUp
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/title-ui-sprite requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         ref var t = ref row.Get<Transform>();
         ref var spr = ref row.Get<Sprite>();
         spr.Visible = game.Phase == Phase.Title;
@@ -49,14 +48,13 @@ public sealed class GameOverPanelSpriteSyncSystem : ISingletonSystem, ISingleton
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/game-over-panel-sprite requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         ref var t = ref row.Get<Transform>();
         ref var spr = ref row.Get<Sprite>();
         spr.Visible = game.Phase is Phase.GameOver or Phase.Won;
@@ -79,14 +77,13 @@ public sealed class GameOverBarSpriteSyncSystem : ISingletonSystem, ISingletonLa
     public void OnSingletonStart(in SingletonEntity row)
     {
         _sessionEntity = Session.RequireStateEntity(row.World);
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/game-over-bar-sprite requires Host.Renderer.");
     }
 
     public void OnSingletonLateUpdate(in SingletonEntity row, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         ref var t = ref row.Get<Transform>();
         ref var spr = ref row.Get<Sprite>();
         spr.Visible = game.Phase is Phase.GameOver or Phase.Won;

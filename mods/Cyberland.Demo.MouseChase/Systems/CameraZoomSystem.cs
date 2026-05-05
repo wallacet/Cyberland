@@ -25,7 +25,7 @@ public sealed class CameraZoomSystem : ISingletonSystem, ISingletonFixedUpdate
     public void OnSingletonFixedUpdate(in SingletonEntity camera, float fixedDeltaSeconds)
     {
         _ = fixedDeltaSeconds;
-        var zoomDelta = _host.Input?.ConsumeAxisDelta("cyberland.demo.mousechase/zoom") ?? 0f;
+        var zoomDelta = _host.Input.ConsumeAxisDelta("cyberland.demo.mousechase/zoom");
         if (MathF.Abs(zoomDelta) <= 0.001f)
             return;
 

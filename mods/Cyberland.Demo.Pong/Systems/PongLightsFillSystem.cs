@@ -1,5 +1,4 @@
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
@@ -28,13 +27,6 @@ public sealed class PongLightsFillSystem : ISingletonSystem, ISingletonLateUpdat
     /// <inheritdoc />
     public void OnSingletonStart(in SingletonEntity sessionRow)
     {
-        if (_host.Renderer is null)
-        {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong.PongLightsFillSystem",
-                "Host.Renderer was null during OnSingletonStart.");
-            throw new InvalidOperationException("PongLightsFillSystem requires a renderer.");
-        }
-
         var world = sessionRow.World;
         _ambient = world.RequireSingleEntityWith<AmbientLightSource>("Pong ambient");
         _directional = world.RequireSingleEntityWith<DirectionalLightSource>("Pong directional");
@@ -48,7 +40,7 @@ public sealed class PongLightsFillSystem : ISingletonSystem, ISingletonLateUpdat
     {
         _ = deltaSeconds;
         var world = sessionRow.World;
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
         var w = fb.X;
         var h = fb.Y;

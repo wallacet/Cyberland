@@ -1,6 +1,5 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
@@ -29,13 +28,6 @@ public sealed class SnakeLightsFillSystem : ISingletonSystem, ISingletonLateUpda
     /// <inheritdoc />
     public void OnSingletonStart(in SingletonEntity sessionRow)
     {
-        if (_host.Renderer is null)
-        {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake.SnakeLightsFillSystem",
-                "Renderer was null during OnSingletonStart.");
-            throw new InvalidOperationException("Renderer is required by SnakeLightsFillSystem.");
-        }
-
         var world = sessionRow.World;
         _ambient = world.RequireSingleEntityWith<AmbientLightSource>("Snake ambient");
         _directional = world.RequireSingleEntityWith<DirectionalLightSource>("Snake directional");
@@ -50,8 +42,6 @@ public sealed class SnakeLightsFillSystem : ISingletonSystem, ISingletonLateUpda
         _ = deltaSeconds;
         var world = sessionRow.World;
         var r = _host.Renderer;
-        if (r is null)
-            return;
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
         var w = fb.X;
         var h = fb.Y;

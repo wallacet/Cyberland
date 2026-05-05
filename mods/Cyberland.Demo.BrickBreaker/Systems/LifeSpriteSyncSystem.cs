@@ -22,14 +22,13 @@ public sealed class LifeSpriteSyncSystem : ISystem, ILateUpdate
         _world = world;
         _sessionEntity = Session.RequireStateEntity(world);
         _ = archetype;
-        _ = _host.Renderer ?? throw new InvalidOperationException("brick/life-sprites requires Host.Renderer.");
     }
 
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = deltaSeconds;
         ref readonly var game = ref _world.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer!);
+        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
         var playing = game.Phase == Phase.Playing;
         foreach (var chunk in archetype)
         {
