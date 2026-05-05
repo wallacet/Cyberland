@@ -29,6 +29,13 @@ public static class TextRenderer
     /// </summary>
     private const float GlyphOrdinalDepthHintEpsilon = 1e-5f;
 
+    /// <summary>
+    /// Baseline-relative glyph offsets from the atlas are authored in a +Y-up sense; screen-locked spaces store positions
+    /// with +Y down (must match the active camera / swapchain projection in the renderer).
+    /// </summary>
+    private static bool ScreenSpaceYDown(CoordinateSpace space) =>
+        space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace;
+
     /// <summary>Draws a literal string with a single style in world space.</summary>
     public static void DrawLiteral(
         IRenderer renderer,
@@ -182,6 +189,17 @@ public static class TextRenderer
     /// <summary>
     /// Fills <paramref name="destination"/> with glyph quads (no submit). Returns glyph count and final pen.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// At most one emitted quad per successful <see cref="Rune.DecodeFromUtf16"/> step when the glyph raster/cache hits — so
+    /// <c>return value ≤ text.Length</c> and <c>return value ≤ destination.Length</c> (whichever is tighter). BitmapText always
+    /// passes <c>destination.Length == text.Length</c> from <see cref="Scene.Systems.TextRuntimeBuilder.BuildGlyphSprites"/>.
+    /// </para>
+    /// <para>
+    /// If <paramref name="destination"/> is shorter than <c>text.Length</c>, layout stops once the buffer fills (tests rely on
+    /// that); do not use a shorter span in production paths.
+    /// </para>
+    /// </remarks>
     internal static int FillGlyphRunSprites(
         IRenderer renderer,
         FontLibrary fonts,
@@ -203,9 +221,12 @@ public static class TextRenderer
         var span = text.AsSpan();
         var n = 0;
         var pen = initialPen;
-        // Viewport space is +Y down: glyph baseline grows down, so the per-glyph Y-offset (which is authored in
-        // +Y up "baseline-to-center") must flip sign to land at the correct pixel row.
-        var ySign = space == CoordinateSpace.ViewportSpace ? -1f : 1f;
+        // BitmapText passes CoordinateSpace through to SpriteDrawRequest.Space.
+        // SwapchainSpace uses the same +Y-down authoring convention as ViewportSpace (see CameraProjection); mixing it
+        // with world-style +Y up here doubled vertical spacing vs DrawSpriteSwapchainUi and could leave junk outside clip.
+        var ySign = ScreenSpaceYDown(space) ? -1f : 1f;
+        // DecodeFromUtf16 (not EnumerateRunes): ill-formed UTF-16 stops decoding without emitting a replacement glyph —
+        // EnumerateRunes would substitute U+FFFD and change golden tests / lone-surrogate behavior.
         for (var i = 0; i < span.Length;)
         {
             if (Rune.DecodeFromUtf16(span[i..], out var r, out var len) != OperationStatus.Done)
@@ -213,6 +234,8 @@ public static class TextRenderer
             var g = span.Slice(i, len);
             i += len;
 
+            // Raster/cache miss: advance pen so the rest of the line lays out; do NOT increment n — no quad is emitted.
+            // Decoration paths using penAfter can therefore extend past the last visible glyph (underline longer than ink).
             if (!cache.TryGetGlyph(renderer, fonts, in style, r.Value, g, out var cg))
             {
                 pen += FallbackAdvanceWhenGlyphUnavailable(in style);
@@ -280,6 +303,14 @@ public static class TextRenderer
     private static float FallbackAdvanceWhenGlyphUnavailable(in TextStyle style) =>
         MathF.Max(4f, style.SizePixels * 0.35f);
 
+    /// <summary>
+    /// Viewport/swapchain HUD uses the opaque sprite path (G-buffer) so glyph stacks do not pass through WBOIT.
+    /// Weighted OIT + overlapping semi-transparent quads produced persistent HUD smear in practice; world/local text
+    /// stays on the transparent path for correct compositing over the lit scene.
+    /// </summary>
+    private static bool TransparentSpriteForSpace(CoordinateSpace space) =>
+        space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace;
+
     private static SpriteDrawRequest CreateGlyphSpriteRequest(
         TextGlyphCache.CachedGlyph g,
         float centerX,
@@ -307,7 +338,7 @@ public static class TextRenderer
             EmissiveIntensity = 0f,
             DepthHint = glyphOrdinalInRun * GlyphOrdinalDepthHintEpsilon,
             UvRect = g.UvRect,
-            Transparent = true,
+            Transparent = TransparentSpriteForSpace(space),
             Space = space
         };
     }
@@ -332,7 +363,7 @@ public static class TextRenderer
         // goes slightly up (smaller Y). World space uses the opposite sign.
         var underlineOffset = MathF.Max(1.5f, style.SizePixels * 0.12f);
         var strikeOffset = style.SizePixels * 0.08f;
-        var ySign = space == CoordinateSpace.ViewportSpace ? -1f : 1f;
+        var ySign = ScreenSpaceYDown(space) ? -1f : 1f;
         var underlineY = baselineLeft.Y - underlineOffset * ySign;
         var strikeY = baselineLeft.Y + strikeOffset * ySign;
 
@@ -375,7 +406,7 @@ public static class TextRenderer
             EmissiveIntensity = 0f,
             DepthHint = 0f,
             UvRect = default,
-            Transparent = true,
+            Transparent = TransparentSpriteForSpace(space),
             Space = space
         };
         renderer.SubmitSprite(in req);

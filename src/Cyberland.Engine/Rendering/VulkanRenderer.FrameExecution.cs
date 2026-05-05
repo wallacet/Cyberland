@@ -1,14 +1,29 @@
+using System.Collections.Concurrent;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 
 namespace Cyberland.Engine.Rendering;
 
-// Purpose: Frame plan construction (sprite/light queues → merged post), post-process graph (bloom + composite), and thin effect adapters.
-// Threading: FramePlanBuilder reads queues under _recordLock; GPU Record methods run on the render thread.
+// -----------------------------------------------------------------------------
+// Frame execution bridge (this file)
+// -----------------------------------------------------------------------------
+// After ECS submits sprites/lights/cameras into ConcurrentQueues, DrawFrame calls RecordFullFrameCore →
+//   1) FramePlanBuilder.Build() — drains every queue into grow-only scratch arrays, resolves camera + letterbox,
+//      sorts deferred sprites and viewport-overlay sprites separately (SpriteDrawSorter uses explicit counts!).
+//   2) RenderBackendExecutor.Record → ExecuteFramePlanCore in Deferred.Recording.cs — Vulkan passes from the plan.
+// PostProcessGraph here owns bloom + fullscreen composite to the swapchain (HDR pipeline earlier in Recording).
+//
+// Threading: Build runs on the window thread immediately before GPU encode; queues are concurrent-safe so parallel
+// ECS workers can still be submitting until RunFrame returns — the host orders RunFrame before DrawFrame.
 
-/// <summary>ECS-to-GPU bridge: builds <see cref="FramePlan"/> and records bloom/composite passes.</summary>
+/// <summary>Partial <see cref="VulkanRenderer"/>: constructs <see cref="FramePlan"/> and hosts bloom/composite helpers.</summary>
 public sealed unsafe partial class VulkanRenderer
 {
+    /// <summary>
+    /// Ensures <paramref name="buffer"/> can hold at least <paramref name="requiredLength"/> elements (grow-only — never shrinks).
+    /// Pair with <see cref="SpriteDrawSorter.SortByLayerOrder(int[], SpriteDrawRequest[], int)"/> using the drained count,
+    /// not <c>buffer.Length</c>.
+    /// </summary>
     private static void EnsureFrameScratch<T>(ref T[]? buffer, int requiredLength)
     {
         if (requiredLength == 0)
@@ -26,15 +41,21 @@ public sealed unsafe partial class VulkanRenderer
 
         public RenderFrameRecorder(VulkanRenderer renderer) => _r = renderer;
 
-        public void Record(CommandBuffer cmd, Framebuffer swapFb) => _r.RecordFullFrameCore(cmd, swapFb);
+        public void Record(CommandBuffer cmd, Framebuffer swapFb, Framebuffer swapUiOverlayFb) =>
+            _r.RecordFullFrameCore(cmd, swapFb, swapUiOverlayFb);
     }
 
+    /// <summary>
+    /// Drains all renderer submission queues into reusable scratch, computes camera + post merge + sort keys,
+    /// publishes <see cref="VulkanRenderer.ActiveCameraViewportSize"/> for the <i>next</i> ECS tick.
+    /// </summary>
     private sealed class FramePlanBuilder : IFramePlanBuilder
     {
         private readonly VulkanRenderer _r;
 
         public FramePlanBuilder(VulkanRenderer renderer) => _r = renderer;
 
+        /// <inheritdoc cref="IFramePlanBuilder.Build"/>
         public FramePlan Build()
         {
             int spriteCount, pointCount, spotCount, directionalCount, ambientCount, volumeCount, cameraCount;
@@ -62,8 +83,9 @@ public sealed unsafe partial class VulkanRenderer
             var swapchainPixelSize = new Vector2D<int>((int)_r._swapchainExtent.Width, (int)_r._swapchainExtent.Height);
             var camera = CameraSelection.PickActive(cameras.AsSpan(0, cameraCount), swapchainPixelSize);
             var physical = CameraProjection.ComputePhysicalViewport(camera.ViewportSizeWorld, swapchainPixelSize);
-            // Publish the resolved viewport size so the NEXT frame's mod systems (anchors, HUD layout) see the
-            // camera chosen for THIS frame — this is the stable "virtual window" size for anchor calculations.
+
+            // Publish the resolved viewport size so the NEXT RunFrame's mod systems (anchors, HUD layout) see the
+            // camera chosen for THIS DrawFrame — stable virtual canvas size even under concurrent SubmitCamera races.
             lock (_r._cameraStateLock)
             {
                 _r._activeCameraViewportSize = camera.ViewportSizeWorld;
@@ -82,8 +104,8 @@ public sealed unsafe partial class VulkanRenderer
             {
                 EnsureFrameScratch(ref _r._frameScratchSortIndices, spriteCount);
                 sortIndices = _r._frameScratchSortIndices!;
-                // Scratch arrays are resized to exact spriteCount so SortByLayerOrder avoids partial-range Array.Sort overload ambiguity.
-                SpriteDrawSorter.SortByLayerOrder(sortIndices, sprites);
+                // Grow-only scratch may be longer than spriteCount; sort only [0, spriteCount) so stale tail slots are not compared.
+                SpriteDrawSorter.SortByLayerOrder(sortIndices, sprites, spriteCount);
             }
 
             var transparentSpriteCount = 0;
@@ -94,6 +116,19 @@ public sealed unsafe partial class VulkanRenderer
                     if (sprites[sortIndices[i]].Transparent)
                         transparentSpriteCount++;
                 }
+            }
+
+            int voCount;
+            SpriteDrawRequest[] voSprites;
+            voCount = DrainQueue(_r._viewportUiOverlayQueue, ref _r._frameScratchViewportUiOverlay, out voSprites);
+            int[] voSort;
+            if (voCount == 0)
+                voSort = [];
+            else
+            {
+                EnsureFrameScratch(ref _r._frameScratchViewportUiSortIndices, voCount);
+                voSort = _r._frameScratchViewportUiSortIndices!;
+                SpriteDrawSorter.SortByLayerOrder(voSort, voSprites, voCount);
             }
 
             return new FramePlan(
@@ -115,25 +150,15 @@ public sealed unsafe partial class VulkanRenderer
                 transparentSpriteCount,
                 in screen,
                 in camera,
-                in physical);
+                in physical,
+                voSprites,
+                voCount,
+                voSort);
         }
 
-        private static int DrainQueue<T>(System.Collections.Concurrent.ConcurrentQueue<T> queue, ref T[]? scratch, out T[] result)
-        {
-            var count = queue.Count;
-            if (count <= 0)
-            {
-                result = [];
-                return 0;
-            }
-
-            EnsureFrameScratch(ref scratch, count);
-            var i = 0;
-            while (i < scratch!.Length && queue.TryDequeue(out var value))
-                scratch[i++] = value;
-            result = scratch!;
-            return i;
-        }
+        /// <summary>Thin wrapper so <see cref="ConcurrentQueueDrain.DrainToScratch{T}"/> stays testable in isolation.</summary>
+        private static int DrainQueue<T>(ConcurrentQueue<T> queue, ref T[]? scratch, out T[] result) =>
+            ConcurrentQueueDrain.DrainToScratch(queue, ref scratch, out result);
     }
 
     private sealed class RenderBackendExecutor : IRenderBackendExecutor
@@ -142,8 +167,8 @@ public sealed unsafe partial class VulkanRenderer
 
         public RenderBackendExecutor(VulkanRenderer renderer) => _r = renderer;
 
-        public void Record(CommandBuffer cmd, Framebuffer swapFb, in FramePlan framePlan) =>
-            _r.ExecuteFramePlanCore(cmd, swapFb, in framePlan);
+        public void Record(CommandBuffer cmd, Framebuffer swapFb, Framebuffer swapUiOverlayFb, in FramePlan framePlan) =>
+            _r.ExecuteFramePlanCore(cmd, swapFb, swapUiOverlayFb, in framePlan);
     }
 
     private sealed class PostProcessGraph

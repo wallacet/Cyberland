@@ -26,6 +26,19 @@ internal static unsafe class VulkanGraphicsPipelineHelpers
             ColorWriteMask = ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit
         };
 
+        /// <summary>Standard straight-alpha over: fragment outputs non-premultiplied RGB and A.</summary>
+        internal static PipelineColorBlendAttachmentState StraightAlphaOver => new()
+        {
+            BlendEnable = true,
+            SrcColorBlendFactor = BlendFactor.SrcAlpha,
+            DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
+            ColorBlendOp = BlendOp.Add,
+            SrcAlphaBlendFactor = BlendFactor.One,
+            DstAlphaBlendFactor = BlendFactor.OneMinusSrcAlpha,
+            AlphaBlendOp = BlendOp.Add,
+            ColorWriteMask = ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit
+        };
+
         /// <summary>Sprite emissive path: additive RGBA (differs from HDR RGB-only add).</summary>
         internal static PipelineColorBlendAttachmentState SpriteEmissiveAdditive => new()
         {

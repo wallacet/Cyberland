@@ -35,12 +35,8 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
         _ = deltaSeconds;
         var world = controlRow.World;
         ref var c = ref controlRow.Get<Control>();
-        var pendingStart = c.StartRound;
-        var pendingLaunch = c.LaunchBall;
         c.MoveLeft = false;
         c.MoveRight = false;
-        c.StartRound = pendingStart;
-        c.LaunchBall = pendingLaunch;
 
         var r = _host.Renderer!;
         var input = _host.Input!;
@@ -55,12 +51,12 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
         switch (phase)
         {
             case Phase.Title:
-                if (input.WasPressed("cyberland.demo.brickbreaker/start_round") || input.WasPressed("cyberland.common/start"))
+                if (input.ConsumePressed("cyberland.demo.brickbreaker/start_round") || input.ConsumePressed("cyberland.common/start"))
                     c.StartRound = true;
                 break;
             case Phase.GameOver:
             case Phase.Won:
-                if (input.WasPressed("cyberland.demo.brickbreaker/start_round") || input.WasPressed("cyberland.common/start"))
+                if (input.ConsumePressed("cyberland.demo.brickbreaker/start_round") || input.ConsumePressed("cyberland.common/start"))
                     c.StartRound = true;
                 break;
             case Phase.Playing:
@@ -69,7 +65,7 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
                     c.MoveLeft = true;
                 if (move > 0f)
                     c.MoveRight = true;
-                if (input.WasPressed("cyberland.demo.brickbreaker/launch_ball"))
+                if (input.ConsumePressed("cyberland.demo.brickbreaker/launch_ball"))
                     c.LaunchBall = true;
                 break;
         }

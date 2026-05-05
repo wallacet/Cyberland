@@ -7,16 +7,15 @@ using Cyberland.Engine.Hosting;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Validates and prepares <see cref="BitmapText"/> rows before <see cref="TextBuildSystem"/> and <see cref="TextRenderSystem"/>.
+/// Cheap validation pass for <see cref="BitmapText"/> rows (visible + empty content). Does not touch glyph caches.
 /// </summary>
 /// <remarks>
-/// Reports a diagnostic once per problematic configuration: <see cref="BitmapText.Visible"/> with null/empty
-/// <see cref="BitmapText.Content"/> (localization resolution happens in <see cref="TextBuildSystem"/> / <see cref="TextRenderSystem"/>).
+/// Runs as <see cref="IParallelLateUpdate"/> in parallel with other late systems; it only walks BitmapText/Transform and
+/// may emit a one-time diagnostic. All glyph layout happens in <see cref="TextRenderSystem"/>.
 /// </remarks>
-public sealed class TextStagingSystem : IParallelSystem, IParallelLateUpdate, ILateUpdate
+public sealed class TextStagingSystem : IParallelSystem, IParallelLateUpdate
 {
     private static int _warnedVisibleEmpty;
-    private static readonly ParallelOptions SerialCompatParallelOptions = new() { MaxDegreeOfParallelism = 1 };
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BitmapText, Transform>();
@@ -30,10 +29,6 @@ public sealed class TextStagingSystem : IParallelSystem, IParallelLateUpdate, IL
         _ = world;
         _ = archetype;
     }
-
-    /// <inheritdoc />
-    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds) =>
-        OnParallelLateUpdate(archetype, deltaSeconds, SerialCompatParallelOptions);
 
     /// <inheritdoc />
     public void OnParallelLateUpdate(ChunkQueryAll archetype, float deltaSeconds, ParallelOptions options)

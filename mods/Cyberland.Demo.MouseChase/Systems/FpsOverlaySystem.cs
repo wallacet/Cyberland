@@ -1,5 +1,7 @@
+using Cyberland.Demo.MouseChase.Components;
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -7,41 +9,34 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.MouseChase.Systems;
 
-/// <summary>Viewport FPS readout (moving average) in the bottom-right; independent of tutorial HUD lines.</summary>
-public sealed class FpsOverlaySystem : ISystem, ILateUpdate
+/// <summary>
+/// Viewport FPS readout (moving average) in the bottom-right; singleton row is the entity tagged <see cref="FpsHudTag"/>.
+/// </summary>
+/// <remarks>Same ordering constraint as <see cref="TutorialHudSystem"/> — update <see cref="BitmapText"/> before <see cref="TextRenderSystem"/>.</remarks>
+[RunBefore("cyberland.engine/text-render")]
+public sealed class FpsOverlaySystem : ISingletonSystem, ISingletonLateUpdate
 {
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<FpsHudTag, Transform, BitmapText>();
 
     private readonly GameHostServices _host;
-    private readonly EntityId _fpsText;
     private readonly FpsMovingAverage _fps = new(FpsMovingAverage.DefaultWindowSeconds);
-    private World _world = null!;
 
-    public FpsOverlaySystem(GameHostServices host, EntityId fpsText)
-    {
-        _host = host;
-        _fpsText = fpsText;
-    }
+    /// <summary>Creates the overlay; no entity ids — the tagged HUD row is the singleton query.</summary>
+    public FpsOverlaySystem(GameHostServices host) => _host = host;
 
-    public void OnStart(World world, ChunkQueryAll query)
+    /// <inheritdoc />
+    public void OnSingletonLateUpdate(in SingletonEntity fpsRow, float deltaSeconds)
     {
-        _world = world;
-        _ = query;
-    }
+        var r = _host.Renderer!;
 
-    public void OnLateUpdate(ChunkQueryAll query, float deltaSeconds)
-    {
-        _ = query;
-        var r = _host.Renderer;
-        if (r is null)
-            return;
         var frame = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         _fps.AddFrameDeltaSeconds(frame);
         var label = _fps.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
-        ref var t = ref _world.Get<Transform>(_fpsText);
+        ref var t = ref fpsRow.Get<Transform>();
         t.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
-        ref var bt = ref _world.Get<BitmapText>(_fpsText);
+        ref var bt = ref fpsRow.Get<BitmapText>();
         bt.Visible = true;
         bt.Content = label;
         bt.IsLocalizationKey = false;

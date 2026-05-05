@@ -1,6 +1,5 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
@@ -9,51 +8,49 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.Snake;
 
 /// <summary>
-/// Resizes the background <see cref="Tilemap"/> to match the session’s computed cell and positions the map transform.
-/// Snake body is drawn with per-segment <see cref="Sprite"/>s in <see cref="VisualSyncSystem"/>; tile indices are not
-/// used for live gameplay in this sample.
+/// Resizes the background <see cref="Tilemap"/> to match the session’s computed cell size and positions the map transform.
 /// </summary>
-public sealed class TilemapLayoutSystem : ISystem, ILateUpdate
+/// <remarks>
+/// Snake body uses per-cell <see cref="Sprite"/>s in <see cref="VisualSyncSystem"/>; tile indices are decorative background only.
+/// </remarks>
+public sealed class TilemapLayoutSystem : ISingletonSystem, ISingletonLateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Tilemap>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Tilemap, Transform>();
 
-
-    private World _world = null!;
+    private EntityId _sessionEntity;
     private readonly GameHostServices _host;
-    private readonly EntityId _sessionEntity;
-    private readonly EntityId _arena;
-    public TilemapLayoutSystem(GameHostServices host, EntityId sessionEntity, EntityId arena)
+
+    /// <summary>Creates the tilemap layout pass.</summary>
+    public TilemapLayoutSystem(GameHostServices host) => _host = host;
+
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity tilemapRow)
     {
-        _host = host;
-        _sessionEntity = sessionEntity;
-        _arena = arena;
-    }
-    public void OnStart(World world, ChunkQueryAll archetype)
-    {
-        _world = world;
-        _ = archetype;
+        _sessionEntity = tilemapRow.World.RequireSingleEntityWith<Session>("Snake session");
         var renderer = _host.RendererRequired;
 
-        ref var tilemap = ref _world.Get<Tilemap>(_arena);
+        ref var tilemap = ref tilemapRow.Get<Tilemap>();
         tilemap.AtlasAlbedoTextureId = renderer.WhiteTextureId;
         tilemap.Layer = (int)SpriteLayer.Background;
         tilemap.SortKey = 0f;
         tilemap.NonEmptyTileMinIndex = 1;
     }
-    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
+
+    /// <inheritdoc />
+    public void OnSingletonLateUpdate(in SingletonEntity tilemapRow, float deltaSeconds)
     {
-        _ = archetype;
         _ = deltaSeconds;
+        var world = tilemapRow.World;
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         if (fb.X <= 0 || fb.Y <= 0) return;
-        ref var session = ref _world.Get<Session>(_sessionEntity);
+        ref var session = ref world.Get<Session>(_sessionEntity);
         session.UpdateLayout(fb.X, fb.Y);
-        ref var tilemap = ref _world.Get<Tilemap>(_arena);
+        ref var tilemap = ref tilemapRow.Get<Tilemap>();
         tilemap.TileWidth = session.Cell;
         tilemap.TileHeight = session.Cell;
 
-        ref var tf = ref _world.Get<Transform>(_arena);
+        ref var tf = ref tilemapRow.Get<Transform>();
         tf.LocalPosition = WorldViewportSpace.ViewportPixelToWorldCenter(
             new Vector2D<float>(session.OriginX, session.OriginY),
             fb);

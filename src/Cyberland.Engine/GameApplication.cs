@@ -176,7 +176,7 @@ public sealed class GameApplication : IDisposable
             _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
             _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/text-build", new TextBuildSystem(_host));
+            // Bitmap text build is folded into TextRenderSystem (serial late) so TryPrepare runs immediately before submit.
             _scheduler.RegisterSerial("cyberland.engine/text-render", new TextRenderSystem(_host));
         }
         finally
@@ -208,6 +208,10 @@ public sealed class GameApplication : IDisposable
         // made each tick contribute at least 2 ms to the fixed accumulator → simulation faster than wall time (~2× near ~1 kHz ticks).
         if (dt > 0f)
             dt = Math.Min(dt, 0.25f);
+
+        // Render tick order (see IRenderer remarks): discard stale CPU submits first so a missed DrawFrame cannot merge
+        // with this tick's Submit*, then simulate + submit sprites/lights/camera, then encode/present.
+        _renderer?.ResetPendingSubmissionsForNewTick();
 
         _host.Input?.BeginFrame();
         // Publish fixed-step remainder before ILateUpdate so visual extrapolation (e.g. pos + vel * acc) uses this frame's alpha.

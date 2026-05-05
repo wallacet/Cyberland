@@ -5,37 +5,29 @@ using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.MouseChase.Systems;
 
-public sealed class InputSystem : ISystem, IEarlyUpdate
+/// <summary>Publishes mouse-world pointer into <see cref="ControlState"/>.</summary>
+public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
 {
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ControlState>();
 
-
-    private World _world = null!;
     private readonly GameHostServices _host;
-    private readonly EntityId _controlEntity;
-    private readonly EntityId _stateEntity;
-    public InputSystem(GameHostServices host, EntityId controlEntity, EntityId stateEntity)
+
+    /// <summary>Creates the input driver (singleton control row; state row resolved at startup).</summary>
+    public InputSystem(GameHostServices host) => _host = host;
+
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity controlRow)
     {
-        _host = host;
-        _controlEntity = controlEntity;
-        _stateEntity = stateEntity;
+        _ = controlRow;
     }
 
-    public void OnStart(World world, ChunkQueryAll query)
+    /// <inheritdoc />
+    public void OnSingletonEarlyUpdate(in SingletonEntity controlRow, float deltaSeconds)
     {
-        _world = world;
-        _ = query;
-    }
-
-    public void OnEarlyUpdate(ChunkQueryAll query, float deltaSeconds)
-    {
-        _ = query;
         _ = deltaSeconds;
-
         var input = _host.Input;
         var renderer = _host.Renderer;
-        if (input is null || renderer is null)
-            return;
 
         if (input.IsDown("cyberland.common/quit"))
         {
@@ -43,16 +35,9 @@ public sealed class InputSystem : ISystem, IEarlyUpdate
             return;
         }
 
-        ref var control = ref _world.Get<ControlState>(_controlEntity);
-        ref readonly var state = ref _world.Get<GameState>(_stateEntity);
+        ref var control = ref controlRow.Get<ControlState>();
 
         var mouse = input.GetMousePosition(CoordinateSpace.WorldSpace);
         control.MouseWorld = new Silk.NET.Maths.Vector2D<float>(mouse.X, mouse.Y);
-        control.ZoomDelta = input.ReadAxis("cyberland.demo.mousechase/zoom");
-        control.PrimaryPressed = input.WasPressed("cyberland.demo.mousechase/primary");
-        control.RestartPressed = input.WasPressed("cyberland.demo.mousechase/restart");
-
-        if (state.Phase is RoundPhase.Won or RoundPhase.Lost && input.WasPressed("cyberland.common/start"))
-            control.RestartPressed = true;
     }
 }

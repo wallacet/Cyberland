@@ -7,6 +7,9 @@ namespace Cyberland.Demo.BrickBreaker;
 /// <summary>
 /// Clears the round when every block is inactive. Counts active cells in parallel over <see cref="ArenaCellState"/> chunks.
 /// </summary>
+/// <remarks>
+/// Stays <see cref="IParallelSystem"/> — many brick rows justify <c>Parallel.For</c> over indices; not a single-row singleton driver.
+/// </remarks>
 public sealed class WinLoseSystem : IParallelSystem, IParallelFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>

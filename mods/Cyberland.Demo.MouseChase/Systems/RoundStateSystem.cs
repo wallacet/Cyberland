@@ -1,48 +1,35 @@
 using Cyberland.Demo.MouseChase.Components;
-using System.Collections.Concurrent;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Core.Tasks;
 
 namespace Cyberland.Demo.MouseChase.Systems;
 
-public sealed class RoundStateSystem : IParallelSystem, IParallelFixedUpdate
+/// <summary>
+/// Timer, health, and tutorial→playing transition for the lone <see cref="GameState"/> row.
+/// </summary>
+public sealed class RoundStateSystem : ISingletonSystem, ISingletonFixedUpdate
 {
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<GameState>();
 
-    public void OnStart(World world, ChunkQueryAll query)
+    /// <inheritdoc />
+    public void OnSingletonFixedUpdate(in SingletonEntity singleton, float fixedDeltaSeconds)
     {
-        _ = world;
-        _ = query;
-    }
+        ref var state = ref singleton.Get<GameState>();
+        if (state.Phase is RoundPhase.Won or RoundPhase.Lost)
+            return;
 
-    public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
-    {
-        foreach (var chunk in query)
+        state.TimerSeconds -= fixedDeltaSeconds;
+        if (state.TimerSeconds <= 0f || state.Health <= 0f)
         {
-            Parallel.ForEach(Partitioner.Create(0, chunk.Count), parallelOptions, range =>
-            {
-                var states = chunk.Column<GameState>();
-                for (var i = range.Item1; i < range.Item2; i++)
-                {
-                    ref var state = ref states[i];
-                    if (state.Phase is RoundPhase.Won or RoundPhase.Lost)
-                        continue;
-
-                    state.TimerSeconds -= fixedDeltaSeconds;
-                    if (state.TimerSeconds <= 0f || state.Health <= 0f)
-                    {
-                        state.Phase = RoundPhase.Lost;
-                        continue;
-                    }
-
-                    if (state.Phase == RoundPhase.Tutorial
-                        && state.Score >= state.TargetScore
-                        && state.EnterZoneSeen
-                        && state.StayZoneSeen
-                        && state.ExitZoneSeen)
-                        state.Phase = RoundPhase.Playing;
-                }
-            });
+            state.Phase = RoundPhase.Lost;
+            return;
         }
+
+        if (state.Phase == RoundPhase.Tutorial
+            && state.Score >= state.TargetScore
+            && state.EnterZoneSeen
+            && state.StayZoneSeen
+            && state.ExitZoneSeen)
+            state.Phase = RoundPhase.Playing;
     }
 }

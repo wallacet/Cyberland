@@ -96,6 +96,11 @@ internal sealed class RecordingRenderer : IRenderer
         }
     }
 
+    /// <inheritdoc />
+    public void ResetPendingSubmissionsForNewTick()
+    {
+    }
+
     public void SubmitPointLight(in PointLight light)
     {
         lock (_lock)

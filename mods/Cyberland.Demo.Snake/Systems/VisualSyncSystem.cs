@@ -11,16 +11,15 @@ using TextureId = System.UInt32;
 namespace Cyberland.Demo.Snake;
 
 /// <summary>
-/// Positions segment sprites, food, and HUD from <see cref="Session"/>. Sequential late update; uses explicit entity ids, not chunk iteration.
+/// Late phase: positions segment sprites, food, and HUD from <see cref="Session"/>; uses the singleton <see cref="VisualBundle"/> row.
 /// </summary>
-public sealed class VisualSyncSystem : ISystem, ILateUpdate
+public sealed class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<VisualBundle>();
 
+    private EntityId _sessionEntity;
     private readonly GameHostServices _host;
-    private readonly EntityId _sessionEntity;
-    private readonly EntityId _visualsEntity;
     private static readonly TextStyle TitleStyle = new(BuiltinFonts.UiSans, 24f, new Vector4D<float>(0.25f, 1f, 0.45f, 1f), Bold: true);
     private static readonly TextStyle HintStyle = new(BuiltinFonts.UiSans, 14f, new Vector4D<float>(0.55f, 0.65f, 0.6f, 0.9f));
     private static readonly TextStyle HudStyle = new(BuiltinFonts.UiSans, 16f, new Vector4D<float>(0.85f, 1f, 0.9f, 1f));
@@ -31,32 +30,30 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
     private readonly FpsMovingAverage _fpsAverage = new(FpsMovingAverage.DefaultWindowSeconds);
     private World _world = null!;
 
-    public VisualSyncSystem(GameHostServices host, EntityId sessionEntity, EntityId visualsEntity)
-    {
-        _host = host;
-        _sessionEntity = sessionEntity;
-        _visualsEntity = visualsEntity;
-    }
+    /// <summary>Creates the visual / HUD sync pass.</summary>
+    public VisualSyncSystem(GameHostServices host) => _host = host;
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity visualsRow)
     {
-        _world = world;
-        _ = archetype;
+        _world = visualsRow.World;
+        _sessionEntity = _world.RequireSingleEntityWith<Session>("Snake session");
+        var world = _world;
         var renderer = _host.Renderer;
         if (renderer is null)
         {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake.VisualSyncSystem", "Renderer was null during OnStart.");
+            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake.VisualSyncSystem", "Renderer was null during OnSingletonStart.");
             throw new InvalidOperationException("Renderer is required by VisualSyncSystem.");
         }
 
-        var visuals = _world.Get<VisualBundle>(_visualsEntity);
+        var visuals = world.Get<VisualBundle>(visualsRow.Entity);
         var white = renderer.WhiteTextureId;
         var normal = renderer.DefaultNormalTextureId;
 
         for (var i = 0; i < visuals.Segments.Length; i++)
         {
             InitializeSprite(visuals.Segments[i], white, normal);
-            ref var segmentSprite = ref _world.Get<Sprite>(visuals.Segments[i]);
+            ref var segmentSprite = ref world.Get<Sprite>(visuals.Segments[i]);
             segmentSprite.Layer = (int)SpriteLayer.World;
             segmentSprite.EmissiveTint = new Vector3D<float>(0.2f, 1f, 0.4f);
             segmentSprite.Transparent = false;
@@ -64,7 +61,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         }
 
         InitializeSprite(visuals.Food, white, normal);
-        ref var foodSprite = ref _world.Get<Sprite>(visuals.Food);
+        ref var foodSprite = ref world.Get<Sprite>(visuals.Food);
         foodSprite.Layer = (int)SpriteLayer.World;
         foodSprite.SortKey = 50f;
         foodSprite.ColorMultiply = new Vector4D<float>(1f, 0.2f, 0.25f, 1f);
@@ -74,7 +71,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         foodSprite.Transparent = false;
 
         InitializeSprite(visuals.TitleBar, white, normal);
-        ref var titleSprite = ref _world.Get<Sprite>(visuals.TitleBar);
+        ref var titleSprite = ref world.Get<Sprite>(visuals.TitleBar);
         titleSprite.Layer = (int)SpriteLayer.Ui;
         titleSprite.SortKey = 100f;
         titleSprite.ColorMultiply = new Vector4D<float>(0.3f, 1f, 0.5f, 1f);
@@ -84,7 +81,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         titleSprite.Transparent = false;
 
         InitializeSprite(visuals.GoPanel, white, normal);
-        ref var gameOverSprite = ref _world.Get<Sprite>(visuals.GoPanel);
+        ref var gameOverSprite = ref world.Get<Sprite>(visuals.GoPanel);
         gameOverSprite.Layer = (int)SpriteLayer.Ui;
         gameOverSprite.SortKey = 200f;
         gameOverSprite.ColorMultiply = new Vector4D<float>(0.15f, 0.15f, 0.18f, 1f);
@@ -93,7 +90,7 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         gameOverSprite.Transparent = true;
 
         InitializeSprite(visuals.ScoreBar, white, normal);
-        ref var scoreSprite = ref _world.Get<Sprite>(visuals.ScoreBar);
+        ref var scoreSprite = ref world.Get<Sprite>(visuals.ScoreBar);
         scoreSprite.Layer = (int)SpriteLayer.Ui;
         scoreSprite.SortKey = 201f;
         scoreSprite.ColorMultiply = new Vector4D<float>(1f, 0.85f, 0.2f, 1f);
@@ -110,15 +107,16 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
         InitializeText(visuals.TxtFps);
     }
 
-    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
+    /// <inheritdoc />
+    public void OnSingletonLateUpdate(in SingletonEntity visualsRow, float deltaSeconds)
     {
-        _ = archetype;
+        _world = visualsRow.World;
         var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
         var renderer = _host.Renderer;
         if (renderer is null) return;
         ref var session = ref _world.Get<Session>(_sessionEntity);
-        var visuals = _world.Get<VisualBundle>(_visualsEntity);
+        var visuals = _world.Get<VisualBundle>(visualsRow.Entity);
         var fb = ModLayoutViewport.VirtualSizeForPresentation(renderer);
         if (fb.X <= 0 || fb.Y <= 0) return;
         session.UpdateLayout(fb.X, fb.Y);
@@ -204,16 +202,18 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
 
     private void InitializeSprite(EntityId entity, TextureId whiteTextureId, TextureId normalTextureId)
     {
-        _world.GetOrAdd<Transform>(entity) = Transform.Identity;
-        ref var sprite = ref _world.GetOrAdd<Sprite>(entity);
+        var world = _world;
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        ref var sprite = ref world.GetOrAdd<Sprite>(entity);
         sprite = Sprite.DefaultWhiteUnlit(whiteTextureId, normalTextureId, new Vector2D<float>(1f, 1f));
         sprite.Visible = false;
     }
 
     private void InitializeText(EntityId entity)
     {
-        _world.GetOrAdd<Transform>(entity) = Transform.Identity;
-        ref var text = ref _world.GetOrAdd<BitmapText>(entity);
+        var world = _world;
+        world.GetOrAdd<Transform>(entity) = Transform.Identity;
+        ref var text = ref world.GetOrAdd<BitmapText>(entity);
         text.Visible = false;
         text.Content = " ";
         text.SortKey = 450f;
@@ -224,41 +224,41 @@ public sealed class VisualSyncSystem : ISystem, ILateUpdate
 
     private void SetHudText(VisualBundle visuals, Vector2D<int> framebufferSize, Session session)
     {
-        HideAllHudText(visuals);
+        HideAllHudText(_world, visuals);
         if (session.Phase == Phase.Title)
         {
-            SetHudRow(visuals.TxtTitle, TitleStyle, "demo.snake.title", true, 36f, framebufferSize.Y - 50f);
-            SetHudRow(visuals.TxtHintTitle, HintStyle, "demo.snake.hint_title", true, 36f, 100f);
+            SetHudRow(_world, visuals.TxtTitle, TitleStyle, "demo.snake.title", true, 36f, framebufferSize.Y - 50f);
+            SetHudRow(_world, visuals.TxtHintTitle, HintStyle, "demo.snake.hint_title", true, 36f, 100f);
         }
         else if (session.Phase is Phase.GameOver or Phase.Won)
         {
             var titleKey = session.Phase == Phase.Won ? "demo.snake.you_win" : "demo.snake.game_over";
-            SetHudRow(visuals.TxtGameOver, GameOverStyle, titleKey, true, framebufferSize.X * 0.5f - 120f, framebufferSize.Y * 0.5f + 52f);
+            SetHudRow(_world, visuals.TxtGameOver, GameOverStyle, titleKey, true, framebufferSize.X * 0.5f - 120f, framebufferSize.Y * 0.5f + 52f);
             var hint = session.Phase == Phase.Won ? "demo.snake.hint_win" : "demo.snake.hint_gameover";
-            SetHudRow(visuals.TxtHintGo, HintStyle, hint, true, 36f, 118f);
+            SetHudRow(_world, visuals.TxtHintGo, HintStyle, hint, true, 36f, 118f);
         }
         else if (session.Phase == Phase.Playing)
         {
-            SetHudRow(visuals.TxtPlaying, HudStyle, "demo.snake.playing", true, 24f, framebufferSize.Y - 36f);
-            SetHudRow(visuals.TxtScore, ScoreStyle, session.FoodsEaten.ToString(), false, 110f, framebufferSize.Y - 36f);
+            SetHudRow(_world, visuals.TxtPlaying, HudStyle, "demo.snake.playing", true, 24f, framebufferSize.Y - 36f);
+            SetHudRow(_world, visuals.TxtScore, ScoreStyle, session.FoodsEaten.ToString(), false, 110f, framebufferSize.Y - 36f);
         }
     }
 
-    private void HideAllHudText(VisualBundle v)
+    private static void HideAllHudText(World world, VisualBundle v)
     {
-        _world.Get<BitmapText>(v.TxtTitle).Visible = false;
-        _world.Get<BitmapText>(v.TxtHintTitle).Visible = false;
-        _world.Get<BitmapText>(v.TxtGameOver).Visible = false;
-        _world.Get<BitmapText>(v.TxtHintGo).Visible = false;
-        _world.Get<BitmapText>(v.TxtPlaying).Visible = false;
-        _world.Get<BitmapText>(v.TxtScore).Visible = false;
+        world.Get<BitmapText>(v.TxtTitle).Visible = false;
+        world.Get<BitmapText>(v.TxtHintTitle).Visible = false;
+        world.Get<BitmapText>(v.TxtGameOver).Visible = false;
+        world.Get<BitmapText>(v.TxtHintGo).Visible = false;
+        world.Get<BitmapText>(v.TxtPlaying).Visible = false;
+        world.Get<BitmapText>(v.TxtScore).Visible = false;
     }
 
-    private void SetHudRow(EntityId e, TextStyle style, string content, bool isKey, float screenX, float screenY)
+    private static void SetHudRow(World world, EntityId e, TextStyle style, string content, bool isKey, float screenX, float screenY)
     {
-        ref var transform = ref _world.Get<Transform>(e);
+        ref var transform = ref world.Get<Transform>(e);
         transform.LocalPosition = new Vector2D<float>(screenX, screenY);
-        ref var bt = ref _world.Get<BitmapText>(e);
+        ref var bt = ref world.Get<BitmapText>(e);
         bt.Visible = true;
         bt.Style = style;
         bt.Content = content;

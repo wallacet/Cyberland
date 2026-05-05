@@ -15,6 +15,7 @@ using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
 using Cyberland.Engine;
+using Cyberland.Engine.Scene;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 using VkBuffer = Silk.NET.Vulkan.Buffer;
 
@@ -25,6 +26,12 @@ namespace Cyberland.Engine.Rendering;
 /// weighted-blended transparency, bloom, and tonemapped composite to sRGB.
 /// </summary>
 /// <remarks>
+/// <para>
+/// <b>CPU-side frame lifecycle:</b> parallel ECS systems enqueue into thread-safe <see cref="ConcurrentQueue{T}"/> fields below.
+/// Nothing hits the GPU until <see cref="DrawFrame"/> runs the frame-plan builder (<c>VulkanRenderer.FrameExecution.cs</c>), which <see cref="ConcurrentQueueDrain"/>
+/// drains each queue exactly once per successful frame (grow-only scratch buffers hold the snapshot).
+/// If <see cref="DrawFrame"/> aborts before that drain, callers must drop queues — see <see cref="IRenderer.ResetPendingSubmissionsForNewTick"/>.
+/// </para>
 /// <para>
 /// <b>Partial layout:</b> <c>VulkanRenderer.cs</c> (swapchain, present, queues, <see cref="DrawFrame"/>);
 /// <c>DeferredRenderingConstants</c> (HDR/bloom topology constants);
@@ -37,6 +44,11 @@ namespace Cyberland.Engine.Rendering;
 /// </para>
 /// <para>
 /// <b>Frame order (recording):</b> emissive sprites → G-buffer (opaque) → deferred lighting → WBOIT (transparent) → resolve → bloom → composite to swapchain.
+/// </para>
+/// <para>
+/// <b>HUD text:</b> ECS submits viewport UI into <c>_viewportUiOverlayQueue</c> (see <see cref="IsViewportUiOverlaySprite"/>).
+/// CPU-side glyph caches live in <see cref="Scene.Systems.TextRenderSystem"/>; GPU blending cannot erase “extra” quads —
+/// if RenderDoc shows duplicate draws, diagnosis stays on the CPU submit path first.
 /// </para>
 /// <para>
 /// <b>Threading:</b> <see cref="IRenderer"/> submit APIs are synchronized for parallel ECS; Vulkan recording and <see cref="DrawFrame"/> run on the window thread.
@@ -73,6 +85,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private Image[]? _swapchainImages;
     private ImageView[]? _swapchainImageViews;
     private Framebuffer[]? _swapchainFramebuffers;
+    private Framebuffer[]? _swapchainUiOverlayFramebuffers;
 
     private VkBuffer _vertexBuffer;
     private DeviceMemory _vertexBufferMemory;
@@ -83,6 +96,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private CommandBuffer[]? _commandBuffers;
 
     private readonly ConcurrentQueue<SpriteDrawRequest> _spriteQueue = new();
+    private readonly ConcurrentQueue<SpriteDrawRequest> _viewportUiOverlayQueue = new();
     private readonly ConcurrentQueue<PointLight> _pointLightQueue = new();
     private readonly ConcurrentQueue<SpotLight> _spotLightQueue = new();
     private readonly ConcurrentQueue<DirectionalLight> _directionalLightQueue = new();
@@ -90,7 +104,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private readonly ConcurrentQueue<PostProcessVolumeSubmission> _volumeQueue = new();
     private readonly ConcurrentQueue<CameraViewRequest> _cameraQueue = new();
 
-    // Grow-only snapshots for FramePlanBuilder.Build — reused each frame to avoid List.ToArray / per-frame int[] allocs.
+    // Grow-only scratch filled by ConcurrentQueueDrain during FramePlanBuilder.Build. Length often exceeds this frame's
+    // SpriteCount / ViewportUiOverlaySpriteCount — sorters must use the counts (see SpriteDrawSorter.SortByLayerOrder(..., count)).
     private SpriteDrawRequest[]? _frameScratchSprites;
     private PointLight[]? _frameScratchPointLights;
     private SpotLight[]? _frameScratchSpotLights;
@@ -99,6 +114,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private PostProcessVolumeSubmission[]? _frameScratchVolumes;
     private CameraViewRequest[]? _frameScratchCameras;
     private int[]? _frameScratchSortIndices;
+    private SpriteDrawRequest[]? _frameScratchViewportUiOverlay;
+    private int[]? _frameScratchViewportUiSortIndices;
 
     // Selected camera viewport size for the NEXT frame; resolved under _recordLock so mod systems can read
     // ActiveCameraViewportSize safely from parallel workers and layout against a stable value even if multiple
@@ -215,7 +232,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     void IRenderer.SubmitSprite(in SpriteDrawRequest draw)
     {
-        _spriteQueue.Enqueue(draw);
+        if (IsViewportUiOverlaySprite(in draw))
+            _viewportUiOverlayQueue.Enqueue(draw);
+        else
+            _spriteQueue.Enqueue(draw);
     }
 
     void IRenderer.SubmitSprites(ReadOnlySpan<SpriteDrawRequest> draws)
@@ -223,8 +243,42 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         if (draws.Length == 0)
             return;
         foreach (ref readonly var d in draws)
-            _spriteQueue.Enqueue(d);
+        {
+            if (IsViewportUiOverlaySprite(in d))
+                _viewportUiOverlayQueue.Enqueue(d);
+            else
+                _spriteQueue.Enqueue(d);
+        }
     }
+
+    /// <inheritdoc />
+    public void ResetPendingSubmissionsForNewTick() => DiscardAllPendingSubmissions();
+
+    /// <summary>
+    /// Drops every pending enqueue across sprite/light/camera queues — used when <see cref="DrawFrame"/> fails before
+    /// the frame plan is built (queues drained into <see cref="FramePlan"/>), and proactively at the start of each render tick
+    /// via <see cref="IRenderer.ResetPendingSubmissionsForNewTick"/> so undrained work cannot merge with the next ECS submit batch.
+    /// </summary>
+    private void DiscardAllPendingSubmissions()
+    {
+        ConcurrentQueueDrain.DiscardAll(_spriteQueue);
+        ConcurrentQueueDrain.DiscardAll(_viewportUiOverlayQueue);
+        ConcurrentQueueDrain.DiscardAll(_pointLightQueue);
+        ConcurrentQueueDrain.DiscardAll(_spotLightQueue);
+        ConcurrentQueueDrain.DiscardAll(_directionalLightQueue);
+        ConcurrentQueueDrain.DiscardAll(_ambientLightQueue);
+        ConcurrentQueueDrain.DiscardAll(_volumeQueue);
+        ConcurrentQueueDrain.DiscardAll(_cameraQueue);
+    }
+
+    /// <summary>
+    /// Routes viewport/swapchain HUD to the post-composite overlay pass (straight-alpha on the swapchain image).
+    /// Do not gate on <see cref="SpriteDrawRequest.Transparent"/>: misclassified viewport UI used to land in weighted OIT,
+    /// which smears semi-transparent glyph stacks and reads like persistent HUD tails after copy changes.
+    /// </summary>
+    internal static bool IsViewportUiOverlaySprite(in SpriteDrawRequest d) =>
+        d.Layer >= (int)SpriteLayer.Ui &&
+        (d.Space == CoordinateSpace.ViewportSpace || d.Space == CoordinateSpace.SwapchainSpace);
 
     void IRenderer.SubmitPointLight(in PointLight light)
     {
@@ -315,76 +369,93 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         if (_framePacing.Mode == FramePacingMode.Limited)
             _limitedFrameTimer.Restart();
 
-        _vk.WaitForFences(_device, 1, in _inFlightFences![_currentFrame], true, ulong.MaxValue);
-
-        uint imageIndex = 0;
-        var acquire = _khrSwapchain!.AcquireNextImage(
-            _device,
-            _swapchain,
-            ulong.MaxValue,
-            _imageAvailableSemaphores![_currentFrame],
-            default,
-            ref imageIndex);
-
-        if (acquire == Result.ErrorOutOfDateKhr)
+        try
         {
-            RecreateSwapchain();
-            return;
+            _vk.WaitForFences(_device, 1, in _inFlightFences![_currentFrame], true, ulong.MaxValue);
+
+            uint imageIndex = 0;
+            var acquire = _khrSwapchain!.AcquireNextImage(
+                _device,
+                _swapchain,
+                ulong.MaxValue,
+                _imageAvailableSemaphores![_currentFrame],
+                default,
+                ref imageIndex);
+
+            if (acquire == Result.ErrorOutOfDateKhr)
+            {
+                RecreateSwapchain();
+                // RunFrame() already enqueued this tick's work, but we never reach FramePlanBuilder.Build() to drain
+                // queues. Without discarding, the next successful DrawFrame would merge submissions from multiple ECS ticks
+                // (extra vkCmdDraw vs current HUD copy — stale long-string sprites stacked with new short-string submits).
+                DiscardAllPendingSubmissions();
+                return;
+            }
+
+            if (acquire != Result.Success && acquire != Result.SuboptimalKhr)
+                throw new InvalidOperationException($"AcquireNextImage failed: {acquire}");
+
+            if (_imagesInFlight![imageIndex].Handle != default)
+                _vk.WaitForFences(_device, 1, in _imagesInFlight[imageIndex], true, ulong.MaxValue);
+
+            _imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
+
+            var waitSemaphores = stackalloc[] { _imageAvailableSemaphores[_currentFrame] };
+            var waitStages = stackalloc[] { PipelineStageFlags.ColorAttachmentOutputBit };
+            var buffer = _commandBuffers![_currentFrame];
+
+            RecordCommandBuffer(buffer, _swapchainFramebuffers![imageIndex], _swapchainUiOverlayFramebuffers![imageIndex]);
+
+            var signalSemaphores = stackalloc[] { _renderFinishedSemaphores![_currentFrame] };
+
+            SubmitInfo submitInfo = new()
+            {
+                SType = StructureType.SubmitInfo,
+                WaitSemaphoreCount = 1,
+                PWaitSemaphores = waitSemaphores,
+                PWaitDstStageMask = waitStages,
+                CommandBufferCount = 1,
+                PCommandBuffers = &buffer,
+                SignalSemaphoreCount = 1,
+                PSignalSemaphores = signalSemaphores
+            };
+
+            _vk.ResetFences(_device, 1, in _inFlightFences[_currentFrame]);
+
+            if (_vk.QueueSubmit(_graphicsQueue, 1, in submitInfo, _inFlightFences[_currentFrame]) != Result.Success)
+                throw new InvalidOperationException("QueueSubmit failed.");
+
+            var swapChains = stackalloc[] { _swapchain };
+            PresentInfoKHR presentInfo = new()
+            {
+                SType = StructureType.PresentInfoKhr,
+                WaitSemaphoreCount = 1,
+                PWaitSemaphores = signalSemaphores,
+                SwapchainCount = 1,
+                PSwapchains = swapChains,
+                PImageIndices = &imageIndex
+            };
+
+            var present = _khrSwapchain.QueuePresent(_presentQueue, &presentInfo);
+
+            if (present == Result.ErrorOutOfDateKhr || present == Result.SuboptimalKhr)
+                _resizePending = true;
+            else if (present != Result.Success)
+                throw new InvalidOperationException($"QueuePresent failed: {present}");
+
+            ApplyLimitedCpuPacingIfNeeded();
+
+            _currentFrame = (_currentFrame + 1) % MaxFramesInFlight;
         }
-
-        if (acquire != Result.Success && acquire != Result.SuboptimalKhr)
-            throw new InvalidOperationException($"AcquireNextImage failed: {acquire}");
-
-        if (_imagesInFlight![imageIndex].Handle != default)
-            _vk.WaitForFences(_device, 1, in _imagesInFlight[imageIndex], true, ulong.MaxValue);
-
-        _imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
-
-        var waitSemaphores = stackalloc[] { _imageAvailableSemaphores[_currentFrame] };
-        var waitStages = stackalloc[] { PipelineStageFlags.ColorAttachmentOutputBit };
-        var buffer = _commandBuffers![_currentFrame];
-        RecordCommandBuffer(buffer, _swapchainFramebuffers![imageIndex]);
-
-        var signalSemaphores = stackalloc[] { _renderFinishedSemaphores![_currentFrame] };
-
-        SubmitInfo submitInfo = new()
+        catch
         {
-            SType = StructureType.SubmitInfo,
-            WaitSemaphoreCount = 1,
-            PWaitSemaphores = waitSemaphores,
-            PWaitDstStageMask = waitStages,
-            CommandBufferCount = 1,
-            PCommandBuffers = &buffer,
-            SignalSemaphoreCount = 1,
-            PSignalSemaphores = signalSemaphores
-        };
-
-        _vk.ResetFences(_device, 1, in _inFlightFences[_currentFrame]);
-
-        if (_vk.QueueSubmit(_graphicsQueue, 1, in submitInfo, _inFlightFences[_currentFrame]) != Result.Success)
-            throw new InvalidOperationException("QueueSubmit failed.");
-
-        var swapChains = stackalloc[] { _swapchain };
-        PresentInfoKHR presentInfo = new()
-        {
-            SType = StructureType.PresentInfoKhr,
-            WaitSemaphoreCount = 1,
-            PWaitSemaphores = signalSemaphores,
-            SwapchainCount = 1,
-            PSwapchains = swapChains,
-            PImageIndices = &imageIndex
-        };
-
-        var present = _khrSwapchain.QueuePresent(_presentQueue, &presentInfo);
-
-        if (present == Result.ErrorOutOfDateKhr || present == Result.SuboptimalKhr)
-            _resizePending = true;
-        else if (present != Result.Success)
-            throw new InvalidOperationException($"QueuePresent failed: {present}");
-
-        ApplyLimitedCpuPacingIfNeeded();
-
-        _currentFrame = (_currentFrame + 1) % MaxFramesInFlight;
+            // RunFrame already submitted sprites/lights to ConcurrentQueues. FramePlanBuilder.Build drains them only after
+            // RecordCommandBuffer starts. Any failure before that (WaitForFences, AcquireNextImage, invalid acquire result)
+            // or during encode/submit/present without draining leaves queued work — drop it so the next DrawFrame cannot merge
+            // multiple ECS ticks (extra vkCmdDraw / stale HUD glyphs).
+            DiscardAllPendingSubmissions();
+            throw;
+        }
     }
 
     private void ApplyLimitedCpuPacingIfNeeded()
@@ -788,8 +859,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         }
     }
 
-    private void RecordCommandBuffer(CommandBuffer commandBuffer, Framebuffer framebuffer) =>
-        RecordFullFrame(commandBuffer, framebuffer);
+    private void RecordCommandBuffer(CommandBuffer commandBuffer, Framebuffer framebuffer, Framebuffer swapchainUiOverlayFramebuffer) =>
+        RecordFullFrame(commandBuffer, framebuffer, swapchainUiOverlayFramebuffer);
 
     private void CreateSpriteQuadMesh()
     {
@@ -984,6 +1055,14 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
                 _vk.DestroyFramebuffer(_device, fb, null);
 
             _swapchainFramebuffers = null;
+        }
+
+        if (_swapchainUiOverlayFramebuffers is not null)
+        {
+            foreach (var fb in _swapchainUiOverlayFramebuffers)
+                _vk.DestroyFramebuffer(_device, fb, null);
+
+            _swapchainUiOverlayFramebuffers = null;
         }
 
         if (_swapchainImageViews is not null)

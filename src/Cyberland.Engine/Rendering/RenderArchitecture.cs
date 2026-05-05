@@ -1,3 +1,6 @@
+// Purpose: Immutable snapshot structs consumed by Vulkan recording after FramePlanBuilder.Build().
+// FramePlan splits deferred sprites from viewport/swapchain HUD overlay sprites — same SpriteDrawRequest type, different queues/passes.
+
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 
@@ -11,8 +14,20 @@ internal struct PostProcessVolumeSubmission
     public Vector2D<float> WorldScale;
 }
 
+/// <summary>
+/// Immutable snapshot of everything needed to encode one presented frame: drained sprite/light queues, resolved camera,
+/// letterbox mapping, and sort permutations. Built once per <see cref="VulkanRenderer.DrawFrame"/> by the nested <c>FramePlanBuilder</c>
+/// in <c>VulkanRenderer.FrameExecution.cs</c>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="SpriteCount"/> / <see cref="ViewportUiOverlaySpriteCount"/> are authoritative batch sizes — backing arrays can be
+/// longer (grow-only scratch); iterators must stop at the counts.
+/// </para>
+/// </remarks>
 internal readonly struct FramePlan
 {
+    /// <summary>Deferred / world-sprites queue drain (not viewport HUD overlay).</summary>
     public readonly SpriteDrawRequest[] Sprites;
     /// <summary>Logical sprite count; backing <see cref="Sprites"/> may be a reused scratch buffer longer than this.</summary>
     public readonly int SpriteCount;
@@ -38,6 +53,13 @@ internal readonly struct FramePlan
     /// <summary>Letterbox mapping from the camera's virtual viewport to the swapchain.</summary>
     public readonly PhysicalViewport Physical;
 
+    /// <summary>Opaque viewport/swapchain-space UI sprites composited after HDR (straight-alpha), separate from deferred G-buffer sprites.</summary>
+    public readonly SpriteDrawRequest[] ViewportUiOverlaySprites;
+
+    public readonly int ViewportUiOverlaySpriteCount;
+
+    public readonly int[] ViewportUiOverlaySortIndices;
+
     public FramePlan(
         SpriteDrawRequest[] sprites,
         int spriteCount,
@@ -57,7 +79,10 @@ internal readonly struct FramePlan
         int transparentSpriteCount,
         in Vector2D<float> screen,
         in CameraViewRequest camera,
-        in PhysicalViewport physical)
+        in PhysicalViewport physical,
+        SpriteDrawRequest[]? viewportUiOverlaySprites = null,
+        int viewportUiOverlaySpriteCount = 0,
+        int[]? viewportUiOverlaySortIndices = null)
     {
         Sprites = sprites;
         SpriteCount = spriteCount;
@@ -78,17 +103,21 @@ internal readonly struct FramePlan
         Screen = screen;
         Camera = camera;
         Physical = physical;
+        ViewportUiOverlaySprites = viewportUiOverlaySprites ?? [];
+        ViewportUiOverlaySpriteCount = viewportUiOverlaySpriteCount;
+        ViewportUiOverlaySortIndices = viewportUiOverlaySortIndices ?? [];
     }
 }
 
 internal interface IFramePlanBuilder
 {
+    /// <summary>Dequeues all pending work and returns an immutable <see cref="FramePlan"/> for GPU recording this frame.</summary>
     FramePlan Build();
 }
 
 internal interface IRenderBackendExecutor
 {
-    void Record(CommandBuffer cmd, Framebuffer swapFb, in FramePlan framePlan);
+    void Record(CommandBuffer cmd, Framebuffer swapFb, Framebuffer swapUiOverlayFb, in FramePlan framePlan);
 }
 
 internal readonly struct PostEffectContext

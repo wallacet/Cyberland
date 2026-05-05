@@ -8,6 +8,7 @@ internal static class EngineShaderSources
     public const string SpriteVert = "sprite_vert.glsl";
     public const string SpriteEmissiveFrag = "sprite_emissive.frag.glsl";
     public const string SpriteGbufferFrag = "sprite_gbuffer.frag.glsl";
+    public const string SpriteSwapchainUiFrag = "sprite_swapchain_ui.frag.glsl";
     public const string DeferredBaseFrag = "deferred_base.frag.glsl";
     public const string DeferredPointVert = "deferred_point.vert.glsl";
     public const string DeferredPointFrag = "deferred_point.frag.glsl";

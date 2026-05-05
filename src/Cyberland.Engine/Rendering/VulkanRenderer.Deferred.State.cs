@@ -20,6 +20,7 @@ public sealed unsafe partial class VulkanRenderer
 
     private RenderPass _rpOffscreenInitialShaderRead = default;
     private RenderPass _rpComposite = default;
+    private RenderPass _rpSwapchainUiOverlay = default;
     private RenderPass _rpGbufferUndefined = default;
     private RenderPass _rpGbufferShaderRead = default;
     private RenderPass _rpWboitUndefined = default;
@@ -144,6 +145,7 @@ public sealed unsafe partial class VulkanRenderer
     private ShaderModule _modVertSprite = default;
     private ShaderModule _modFragEmissive = default;
     private ShaderModule _modFragGbuffer = default;
+    private ShaderModule _modFragSwapchainUi = default;
     private ShaderModule _modFragDeferredBase = default;
     private ShaderModule _modVertDeferredPoint = default;
     private ShaderModule _modFragDeferredPoint = default;
@@ -160,6 +162,7 @@ public sealed unsafe partial class VulkanRenderer
 
     private Pipeline _pipeEmissive = default;
     private Pipeline _pipeSpriteGbuffer = default;
+    private Pipeline _pipeSwapchainUiOverlay = default;
     private Pipeline _pipeDeferredBase = default;
     private Pipeline _pipeDeferredPoint = default;
     private Pipeline _pipeDeferredBleed = default;

@@ -262,6 +262,103 @@ public sealed class KeyBindingAndInputTests
     }
 
     [Fact]
+    public void SilkInputService_ConsumePressed_persists_until_consumed()
+    {
+        Action<IKeyboard, Key, int>? onKeyDown = null;
+        var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
+        keyboard.Setup(k => k.IsKeyPressed(It.IsAny<Key>())).Returns(false);
+        keyboard.SetupAdd(k => k.KeyDown += It.IsAny<Action<IKeyboard, Key, int>>())
+            .Callback((Action<IKeyboard, Key, int> h) => onKeyDown = h);
+        keyboard.SetupRemove(k => k.KeyDown -= It.IsAny<Action<IKeyboard, Key, int>>());
+
+        var input = new Mock<IInputContext>(MockBehavior.Strict);
+        input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });
+        input.SetupGet(x => x.Mice).Returns(Array.Empty<IMouse>());
+        input.Setup(x => x.Dispose());
+
+        var service = new SilkInputService(input.Object);
+        service.Bindings.SetBindings("fire", new[] { new InputBinding(InputControl.Keyboard(Key.Space)) });
+
+        Assert.NotNull(onKeyDown);
+        onKeyDown!(keyboard.Object, Key.Space, 0);
+        service.BeginFrame();
+        Assert.True(service.WasPressed("fire"));
+        Assert.True(service.IsDown("fire"));
+
+        // Release in the next sampled frame; ConsumePressed should still see the pending press.
+        service.BeginFrame();
+        Assert.False(service.IsDown("fire"));
+        Assert.True(service.ConsumePressed("fire"));
+        Assert.False(service.ConsumePressed("fire"));
+        Assert.True(service.ConsumeReleased("fire"));
+        Assert.False(service.ConsumeReleased("fire"));
+
+        service.Dispose();
+    }
+
+    [Fact]
+    public void SilkInputService_ConsumeAxisDelta_accumulates_across_frames_until_consumed()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var wheel = new[] { new ScrollWheel(0f, 0f) };
+        var service = CreateService(pressedKeys, pressedButtons, () => new Vector2(0f, 0f), () => wheel);
+        service.Bindings.SetBindings("zoom", new[] { new InputBinding(InputControl.MouseAxisControl(MouseAxis.WheelY)) });
+
+        wheel = new[] { new ScrollWheel(0f, -1f) };
+        service.BeginFrame();
+        wheel = new[] { new ScrollWheel(0f, -2f) };
+        service.BeginFrame();
+        wheel = new[] { new ScrollWheel(0f, 0f) };
+        service.BeginFrame();
+
+        Assert.Equal(-3f, service.ConsumeAxisDelta("zoom"));
+        Assert.Equal(0f, service.ConsumeAxisDelta("zoom"));
+    }
+
+    [Fact]
+    public void SilkInputService_ConsumeAxisDelta_ignores_non_delta_mouse_axes()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var service = CreateService(pressedKeys, pressedButtons, () => new Vector2(123f, 45f));
+        service.Bindings.SetBindings("mouse_pos", new[] { new InputBinding(InputControl.MouseAxisControl(MouseAxis.PositionX)) });
+
+        service.BeginFrame();
+        Assert.Equal(1f, service.ReadAxis("mouse_pos"));
+        Assert.Equal(0f, service.ConsumeAxisDelta("mouse_pos"));
+    }
+
+    [Fact]
+    public void SilkInputService_ConsumePressed_supports_multiple_pending_events()
+    {
+        Action<IKeyboard, Key, int>? onKeyDown = null;
+        var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
+        keyboard.Setup(k => k.IsKeyPressed(It.IsAny<Key>())).Returns(false);
+        keyboard.SetupAdd(k => k.KeyDown += It.IsAny<Action<IKeyboard, Key, int>>())
+            .Callback((Action<IKeyboard, Key, int> h) => onKeyDown = h);
+        keyboard.SetupRemove(k => k.KeyDown -= It.IsAny<Action<IKeyboard, Key, int>>());
+
+        var input = new Mock<IInputContext>(MockBehavior.Strict);
+        input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });
+        input.SetupGet(x => x.Mice).Returns(Array.Empty<IMouse>());
+        input.Setup(x => x.Dispose());
+        var service = new SilkInputService(input.Object);
+        service.Bindings.SetBindings("fire", new[] { new InputBinding(InputControl.Keyboard(Key.Space)) });
+
+        Assert.NotNull(onKeyDown);
+        onKeyDown!(keyboard.Object, Key.Space, 0);
+        service.BeginFrame(); // first press
+        service.BeginFrame(); // release
+        onKeyDown!(keyboard.Object, Key.Space, 0);
+        service.BeginFrame(); // second press
+
+        Assert.True(service.ConsumePressed("fire"));
+        Assert.True(service.ConsumePressed("fire"));
+        Assert.False(service.ConsumePressed("fire"));
+    }
+
+    [Fact]
     public void SilkInputService_handles_missing_devices_and_dispose()
     {
         var input = new Mock<IInputContext>(MockBehavior.Strict);

@@ -78,6 +78,9 @@ public sealed class RenderingArchitectureContractsTests
         Assert.Equal(physical.OffsetPixels, plan.Physical.OffsetPixels);
         Assert.Equal(physical.SizePixels, plan.Physical.SizePixels);
         Assert.Equal(physical.Scale, plan.Physical.Scale);
+        Assert.Equal(0, plan.ViewportUiOverlaySpriteCount);
+        Assert.Empty(plan.ViewportUiOverlaySprites);
+        Assert.Empty(plan.ViewportUiOverlaySortIndices);
     }
 
     [Fact]

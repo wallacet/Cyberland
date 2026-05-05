@@ -204,6 +204,49 @@ public sealed class RenderingHelpersTests
     }
 
     [Fact]
+    public void SpriteDrawSorter_sorts_only_active_count_when_indices_buffer_is_grow_only_scratch()
+    {
+        var draws = new SpriteDrawRequest[64];
+        draws[0] = new SpriteDrawRequest { Layer = (int)SpriteLayer.Ui, SortKey = 2f, DepthHint = 0f };
+        draws[1] = new SpriteDrawRequest { Layer = (int)SpriteLayer.Ui, SortKey = 1f, DepthHint = 0f };
+        draws[2] = new SpriteDrawRequest { Layer = (int)SpriteLayer.World, SortKey = 0f, DepthHint = 0f };
+        // Stale trailing scratch from a prior larger batch — must not participate when count is 3.
+        draws[50] = new SpriteDrawRequest { Layer = (int)SpriteLayer.Background, SortKey = -1f, DepthHint = 0f };
+
+        var idx = new int[64];
+        SpriteDrawSorter.SortByLayerOrder(idx, draws, 3);
+
+        // World before Ui; Ui by SortKey ascending.
+        Assert.Equal(2, idx[0]);
+        Assert.Equal(1, idx[1]);
+        Assert.Equal(0, idx[2]);
+    }
+
+    [Fact]
+    public void SortByLayerOrder_count_throws_when_greater_than_indices_length()
+    {
+        var draws = new SpriteDrawRequest[2];
+        var idx = new int[1];
+        Assert.Throws<ArgumentOutOfRangeException>(() => SpriteDrawSorter.SortByLayerOrder(idx, draws, 2));
+    }
+
+    [Fact]
+    public void SortByLayerOrder_count_throws_when_greater_than_draws_length()
+    {
+        var draws = new SpriteDrawRequest[1];
+        var idx = new int[4];
+        Assert.Throws<ArgumentOutOfRangeException>(() => SpriteDrawSorter.SortByLayerOrder(idx, draws, 2));
+    }
+
+    [Fact]
+    public void SortByLayerOrder_count_throws_when_negative()
+    {
+        var draws = new SpriteDrawRequest[1];
+        var idx = new int[1];
+        Assert.Throws<ArgumentOutOfRangeException>(() => SpriteDrawSorter.SortByLayerOrder(idx, draws, -1));
+    }
+
+    [Fact]
     public void PostProcessVolumeMerge_higher_priority_overrides_and_AABB_gate()
     {
         var g = new GlobalPostProcessSettings

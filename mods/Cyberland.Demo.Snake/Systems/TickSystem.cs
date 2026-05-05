@@ -1,43 +1,39 @@
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 
 namespace Cyberland.Demo.Snake;
 
 /// <summary>
-/// Fixed-step Snake simulation on the <see cref="Session"/> component. Sequential: game logic lives in <see cref="Session.Step"/>.
+/// Fixed-step Snake simulation on the <see cref="Session"/> row. Game rules are centralized in <see cref="Session.Step"/>.
 /// </summary>
-public sealed class TickSystem : ISystem, IFixedUpdate
+public sealed class TickSystem : ISingletonSystem, ISingletonFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Session>();
 
-
-    private World _world = null!;
+    private EntityId _controlEntity;
     private readonly GameHostServices _host;
-    private readonly EntityId _sessionEntity;
-    private readonly EntityId _controlEntity;
-    public TickSystem(GameHostServices host, EntityId sessionEntity, EntityId controlEntity)
+
+    /// <summary>Creates the tick driver.</summary>
+    public TickSystem(GameHostServices host) => _host = host;
+
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity sessionRow)
     {
-        _host = host;
-        _sessionEntity = sessionEntity;
-        _controlEntity = controlEntity;
+        _controlEntity = sessionRow.World.RequireSingleEntityWith<Control>("Snake control");
     }
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    /// <inheritdoc />
+    public void OnSingletonFixedUpdate(in SingletonEntity sessionRow, float fixedDeltaSeconds)
     {
-        _world = world;
-        _ = archetype;
-    }
-
-    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
-    {
-        _ = archetype;
+        var world = sessionRow.World;
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
         if (fb.X <= 0 || fb.Y <= 0) return;
-        ref var session = ref _world.Get<Session>(_sessionEntity);
+        ref var session = ref sessionRow.Get<Session>();
         // Idempotent layout: same math as tilemap/lights/visuals so each system can run independently.
         session.UpdateLayout(fb.X, fb.Y);
-        ref var ctl = ref _world.Get<Control>(_controlEntity);
+        ref var ctl = ref world.Get<Control>(_controlEntity);
         if (ctl.StartGame) { ctl.StartGame = false; session.StartGame(); }
         if (session.Phase != Phase.Playing) return;
         session.TickAcc += fixedDeltaSeconds;

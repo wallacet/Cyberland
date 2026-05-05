@@ -3,6 +3,7 @@ using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Localization;
+using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
@@ -469,35 +470,30 @@ public sealed class TextRenderSystemTests
     }
 
     [Fact]
-    public void TextBuildSystem_builds_runtime_sprites_in_parallel()
+    public void TextRuntimeBuilder_TryPrepare_fills_glyph_cache_without_TextRenderSystem()
     {
         var r = new RecordingRenderer();
         var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
-        var sys = new TextBuildSystem(host);
         var world = new World();
         var e = world.CreateEntity();
         world.GetOrAdd<Transform>(e) = Transform.Identity;
         ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
-        bt.Content = "parallel";
+        bt.Content = "direct";
         bt.IsLocalizationKey = false;
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
-
-        var q = world.QueryChunks(TextRowQuery);
-        Assert.Equal(TextRowQuery, sys.QuerySpec);
-        sys.OnStart(world, q);
-        sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions());
-
+        ref var fp = ref world.Get<TextBuildFingerprint>(e);
         ref var cache = ref world.Get<TextSpriteCache>(e);
-        Assert.True(cache.GlyphCount >= 0);
+        ref readonly var tf = ref world.Get<Transform>(e);
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fp, ref cache, in tf, host, r, out _, out _));
+        Assert.True(cache.GlyphCount > 0);
     }
 
     [Fact]
-    public void TextBuildSystem_throws_when_renderer_null()
+    public void TextRuntimeBuilder_TryPrepare_returns_false_without_throw_when_renderer_null()
     {
         var host = new GameHostServices() { Renderer = null, LocalizedContent = null };
-        var sys = new TextBuildSystem(host);
         var world = new World();
         var e = world.CreateEntity();
         world.GetOrAdd<Transform>(e) = Transform.Identity;
@@ -507,18 +503,18 @@ public sealed class TextRenderSystemTests
         bt.IsLocalizationKey = false;
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
-
-        var q = world.QueryChunks(TextRowQuery);
-        sys.OnStart(world, q);
-        sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions());
+        ref var fp = ref world.Get<TextBuildFingerprint>(e);
+        ref var cache = ref world.Get<TextSpriteCache>(e);
+        ref readonly var tf = ref world.Get<Transform>(e);
+        Assert.False(TextRuntimeBuilder.TryPrepare(ref bt, ref fp, ref cache, in tf, host, null, out _, out _));
+        Assert.Equal(0, fp.ResolvedCharCount);
     }
 
     [Fact]
-    public void TextBuildSystem_second_pass_uses_fingerprint_unchanged_fast_path()
+    public void TextRuntimeBuilder_second_prepare_keeps_array_when_capacity_still_fits()
     {
         var r = new RecordingRenderer();
         var host = new GameHostServices { Renderer = r, LocalizedContent = null };
-        var sys = new TextBuildSystem(host);
         var world = new World();
         var e = world.CreateEntity();
         world.GetOrAdd<Transform>(e) = Transform.Identity;
@@ -529,17 +525,223 @@ public sealed class TextRenderSystemTests
         bt.CoordinateSpace = CoordinateSpace.WorldSpace;
         bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
 
+        ref var fp = ref world.Get<TextBuildFingerprint>(e);
+        ref var cache = ref world.Get<TextSpriteCache>(e);
+        ref readonly var tf = ref world.Get<Transform>(e);
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fp, ref cache, in tf, host, r, out _, out _));
+        var firstHash = fp.ResolvedContentHash64;
+        var firstArray = cache.CachedGlyphs;
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fp, ref cache, in tf, host, r, out _, out _));
+        Assert.Equal(firstHash, fp.ResolvedContentHash64);
+        Assert.Same(firstArray, cache.CachedGlyphs);
+    }
+
+    [Fact]
+    public void TextRuntimeBuilder_fingerprint_tracks_baseline_when_transform_moves_with_same_content()
+    {
+        var r = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var tf0 = ref world.Get<Transform>(e);
+        tf0.LocalPosition = new Vector2D<float>(10f, 20f);
+
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "same";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        ref var fp = ref world.Get<TextBuildFingerprint>(e);
+        ref var cache = ref world.Get<TextSpriteCache>(e);
+        ref readonly var tf = ref world.Get<Transform>(e);
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fp, ref cache, in tf, host, r, out _, out _));
+        Assert.Equal(10f, fp.BaselineWorldX, 3);
+        Assert.Equal(20f, fp.BaselineWorldY, 3);
+
+        ref var tf1 = ref world.Get<Transform>(e);
+        tf1.LocalPosition = new Vector2D<float>(90f, 120f);
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fp, ref cache, in tf, host, r, out _, out _));
+        Assert.Equal(90f, fp.BaselineWorldX, 3);
+        Assert.Equal(120f, fp.BaselineWorldY, 3);
+    }
+
+    [Fact]
+    public void TextRenderSystem_zeros_trailing_cached_glyph_slots_when_content_shortens()
+    {
+        var r = new RecordingRenderer();
+        var host = new GameHostServices() { Renderer = r, LocalizedContent = null };
+        var sys = new TextRenderSystem(host);
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "ABCDEFGHIJ";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        ref var transform = ref world.Get<Transform>(e);
+        transform.WorldPosition = new Vector2D<float>(0f, 0f);
+
         var q = world.QueryChunks(TextRowQuery);
         sys.OnStart(world, q);
-        sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions());
-        var firstHash = world.Get<TextBuildFingerprint>(e).ResolvedContentHash64;
-        var firstArray = world.Get<TextSpriteCache>(e).CachedGlyphs;
+        sys.OnLateUpdate(q, 0.016f);
+        var cacheAfterLong = world.Get<TextSpriteCache>(e);
+        Assert.NotNull(cacheAfterLong.CachedGlyphs);
+        Assert.True(cacheAfterLong.CachedGlyphs!.Length >= cacheAfterLong.GlyphCount);
 
-        sys.OnParallelLateUpdate(q, 0.016f, new ParallelismSettings().CreateParallelOptions());
-        var second = world.Get<TextBuildFingerprint>(e);
-        var secondArray = world.Get<TextSpriteCache>(e).CachedGlyphs;
+        bt.Content = "A";
+        r.Sprites.Clear();
+        sys.OnLateUpdate(q, 0.016f);
+        var cacheAfterShort = world.Get<TextSpriteCache>(e);
+        Assert.Equal(1, cacheAfterShort.GlyphCount);
+        Assert.NotNull(cacheAfterShort.CachedGlyphs);
+        Assert.Equal(1, cacheAfterShort.CachedGlyphs.Length);
+        Assert.Single(r.Sprites);
+    }
 
-        Assert.Equal(firstHash, second.ResolvedContentHash64);
-        Assert.Same(firstArray, secondArray);
+    [Fact]
+    public void TextRenderSystem_viewport_space_zeros_trailing_cached_glyph_slots_when_content_shortens()
+    {
+        var r = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(new Vector2D<int>(800, 600));
+
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var transform = ref world.Get<Transform>(e);
+        transform.LocalPosition = new Vector2D<float>(4f, 8f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "ABCDEFGHIJ";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        var sys = new TextRenderSystem(host);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+        var cacheLong = world.Get<TextSpriteCache>(e);
+        Assert.True(cacheLong.GlyphCount > 1);
+
+        bt.Content = "A";
+        r.Sprites.Clear();
+        sys.OnLateUpdate(q, 0.016f);
+        var cacheShort = world.Get<TextSpriteCache>(e);
+        Assert.True(cacheShort.GlyphCount < cacheLong.GlyphCount);
+        Assert.Equal(cacheShort.GlyphCount, cacheShort.CachedGlyphs!.Length);
+        Assert.Single(r.Sprites);
+    }
+
+    [Fact]
+    public void TextRenderSystem_viewport_shrink_replaces_oversized_glyph_buffer_after_long_tutorial_style_run()
+    {
+        // Mirrors HUD swapping a long localized line for a short one (MouseChase tutorial.complete → Step 1…).
+        var r = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(new Vector2D<int>(1280, 720));
+
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var transform = ref world.Get<Transform>(e);
+        transform.LocalPosition = new Vector2D<float>(40f, 74f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content =
+            "Tutorial complete: hit target score, then enter the bright yellow gate zone at top-right.";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        bt.SortKey = 801f;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 18f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        var sys = new TextRenderSystem(host);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+        var nLong = r.Sprites.Count;
+        var lenLongBuf = world.Get<TextSpriteCache>(e).CachedGlyphs!.Length;
+
+        bt.Content = "Step 1: Enter the green zone.";
+        r.Sprites.Clear();
+        sys.OnLateUpdate(q, 0.016f);
+
+        var cache = world.Get<TextSpriteCache>(e);
+        Assert.True(r.Sprites.Count < nLong);
+        Assert.Equal(cache.GlyphCount, r.Sprites.Count);
+        Assert.True(cache.CachedGlyphs!.Length < lenLongBuf);
+        Assert.Equal(bt.Content.Length, cache.CachedGlyphs.Length);
+    }
+
+    [Fact]
+    public void TextRenderSystem_clears_tail_of_nonshrunk_glyph_buffer_when_run_shortens_moderately()
+    {
+        // shorter resolved copy invalidates the prepared pipeline → discard resizes the backing array to the new run.
+        // FillGlyphRunSprites still clears unused indices within the new capacity.
+        var r = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var tf = ref world.Get<Transform>(e);
+        tf.WorldPosition = new Vector2D<float>(0f, 0f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "ABCDEFGHIJKLMNOPQRSTUVWXY";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        var sys = new TextRenderSystem(host);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+        Assert.Equal(25, world.Get<TextSpriteCache>(e).CachedGlyphs!.Length);
+
+        bt.Content = "ABCDEFGHIJKLMNOPQRST";
+        r.Sprites.Clear();
+        sys.OnLateUpdate(q, 0.016f);
+        var cache = world.Get<TextSpriteCache>(e);
+        Assert.Equal(20, cache.CachedGlyphs!.Length);
+        Assert.Equal(20, cache.GlyphCount);
+        Assert.Equal(20, r.Sprites.Count);
+    }
+
+    [Fact]
+    public void TextRenderSystem_discards_glyph_cache_when_row_turns_invisible_after_being_visible()
+    {
+        var r = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "HUD";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        var sys = new TextRenderSystem(host);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+        Assert.True(world.Get<TextSpriteCache>(e).GlyphCount > 0);
+
+        bt.Visible = false;
+        sys.OnLateUpdate(q, 0.016f);
+        Assert.Equal(0, world.Get<TextSpriteCache>(e).GlyphCount);
+        Assert.Null(world.Get<TextSpriteCache>(e).CachedGlyphs);
+        Assert.Equal(0, world.Get<TextBuildFingerprint>(e).ResolvedCharCount);
     }
 }

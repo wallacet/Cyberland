@@ -9,6 +9,19 @@ namespace Cyberland.Engine.Rendering;
 /// </summary>
 /// <remarks>
 /// <para>
+/// <b>Maintainer reading order (how one frame reaches the screen):</b>
+/// </para>
+/// <list type="number">
+/// <item><description><see cref="Cyberland.Engine.GameApplication"/> <c>OnRender</c>:
+/// <see cref="ResetPendingSubmissionsForNewTick"/> (drops prior tick’s queues if <see cref="VulkanRenderer.DrawFrame"/> never drained),
+/// ECS <c>RunFrame</c> (systems call <see cref="SubmitSprite"/> / <see cref="SubmitSprites"/> / lights / camera),
+/// then <see cref="VulkanRenderer.DrawFrame"/>.</description></item>
+/// <item><description><c>VulkanRenderer.FrameExecution.cs</c> builds a frame plan snapshot once per <see cref="VulkanRenderer.DrawFrame"/>:
+/// drains concurrent queues, picks camera, merges post volumes, sorts draws (<c>FramePlanBuilder.Build</c>).</description></item>
+/// <item><description><c>VulkanRenderer.Deferred.Recording</c>: encodes the deferred/HDR/bloom/composite passes from that plan,
+/// then draws viewport UI overlay on the swapchain.</description></item>
+/// </list>
+/// <para>
 /// <b>Coordinate spaces:</b>
 /// </para>
 /// <list type="bullet">
@@ -98,6 +111,14 @@ public interface IRenderer
     /// <see cref="SubmitSprite"/> once per glyph).
     /// </summary>
     void SubmitSprites(ReadOnlySpan<SpriteDrawRequest> draws);
+
+    /// <summary>
+    /// Drops all pending CPU-side sprite/light/camera/post queues before the next simulation tick enqueues work.
+    /// The stock host calls this once per render callback <strong>before</strong> the ECS scheduler runs <c>RunFrame</c>
+    /// so a failed or skipped <c>DrawFrame</c> (swapchain out-of-date, recording exception, etc.) cannot leave undrained
+    /// submissions that merge with the following tick — which otherwise produces extra <c>vkCmdDraw</c> for stale HUD glyphs.
+    /// </summary>
+    void ResetPendingSubmissionsForNewTick();
 
     /// <summary>Queues a radial point light (cleared/rebuilt each frame by the caller’s systems).</summary>
     void SubmitPointLight(in PointLight light);

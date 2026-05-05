@@ -1,3 +1,4 @@
+using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
@@ -7,59 +8,54 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.Pong;
 
 /// <summary>
-/// Fixed-step Pong on the session entity. Paddle hits use circle-vs-rectangle tests so the step does not depend on
-/// engine trigger events (triggers run before mod <see cref="IFixedUpdate"/>; see <c>cyberland.engine/trigger</c> ordering).
+/// Fixed-step Pong on the session row. Paddle hits use circle-vs-rectangle tests (triggers are not used for this sample).
 /// </summary>
-public sealed class SimulationSystem : ISystem, IFixedUpdate
+public sealed class SimulationSystem : ISingletonSystem, ISingletonFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<State, Control>();
 
-
-    private World _world = null!;
     private readonly GameHostServices _host;
-    private readonly EntityId _session;
     private readonly VisualIds _visuals;
-    public SimulationSystem(GameHostServices host, EntityId session, VisualIds visuals)
+
+    /// <summary>Sprite entity ids come from <see cref="SceneSetup"/>; state/control are the singleton row.</summary>
+    public SimulationSystem(GameHostServices host, VisualIds visuals)
     {
         _host = host;
-        _session = session;
         _visuals = visuals;
     }
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity sessionRow)
     {
-        _world = world;
-        _ = archetype;
+        _ = sessionRow;
         if (_host.Renderer is null)
         {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong.SimulationSystem startup failed", "Host.Renderer was null during OnStart.");
+            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Pong.SimulationSystem startup failed", "Host.Renderer was null during OnSingletonStart.");
             throw new InvalidOperationException("Cyberland.Demo.Pong SimulationSystem requires a renderer.");
         }
     }
 
-    public void OnFixedUpdate(ChunkQueryAll archetype, float fixedDeltaSeconds)
+    /// <inheritdoc />
+    public void OnSingletonFixedUpdate(in SingletonEntity sessionRow, float fixedDeltaSeconds)
     {
-        _ = archetype;
         var fb = ModLayoutViewport.VirtualSizeForSimulation(_host);
-        ref var st = ref _world.Get<State>(_session);
-        ref var ctl = ref _world.Get<Control>(_session);
+        ref var st = ref sessionRow.Get<State>();
+        ref var ctl = ref sessionRow.Get<Control>();
         var margin = 32f;
         st.ArenaMinX = margin + Constants.PaddleHalfW + 8f;
         st.ArenaMaxX = fb.X - margin - Constants.PaddleHalfW - 8f;
         st.ArenaMinY = margin;
         st.ArenaMaxY = fb.Y - margin;
         st.Pulse += fixedDeltaSeconds * Constants.TitlePulseSpeed;
-        SyncPaddleAndBallTransforms(in st);
+        SyncPaddleAndBallTransforms(sessionRow.World, in st);
         if (ctl.StartMatch) StartMatch(ref st, fb);
         ctl.StartMatch = false;
         if (st.Phase == Phase.Playing) StepPlaying(ref st, fb, ctl.PaddleUp, ctl.PaddleDown, fixedDeltaSeconds);
     }
 
-    private void SyncPaddleAndBallTransforms(in State st)
+    private void SyncPaddleAndBallTransforms(World w, in State st)
     {
-        var w = _world;
-
         ref var leftTransform = ref w.Get<Transform>(_visuals.LeftPad);
         leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, st.LeftPaddleY);
 

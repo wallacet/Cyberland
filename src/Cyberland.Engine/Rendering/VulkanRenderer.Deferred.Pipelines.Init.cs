@@ -14,6 +14,7 @@ public sealed unsafe partial class VulkanRenderer
         CreateOffscreenRenderPasses();
         CreateGbufferAndWboitRenderPasses();
         CreateCompositeRenderPass();
+        CreateSwapchainUiOverlayRenderPass();
         CreateOffscreenImagesAndFramebuffers();
         CreateSwapchainFramebuffers();
         CreateDescriptorLayoutsAndPool();
@@ -36,6 +37,7 @@ public sealed unsafe partial class VulkanRenderer
     private void CreateSwapchainFramebuffers()
     {
         _swapchainFramebuffers = new Framebuffer[_swapchainImageViews!.Length];
+        _swapchainUiOverlayFramebuffers = new Framebuffer[_swapchainImageViews.Length];
 
         for (var i = 0; i < _swapchainImageViews.Length; i++)
         {
@@ -54,6 +56,10 @@ public sealed unsafe partial class VulkanRenderer
 
             if (_vk!.CreateFramebuffer(_device, in framebufferInfo, null, out _swapchainFramebuffers[i]) != Result.Success)
                 throw new GraphicsInitializationException("vkCreateFramebuffer (swapchain) failed.");
+
+            framebufferInfo.RenderPass = _rpSwapchainUiOverlay;
+            if (_vk.CreateFramebuffer(_device, in framebufferInfo, null, out _swapchainUiOverlayFramebuffers[i]) != Result.Success)
+                throw new GraphicsInitializationException("vkCreateFramebuffer (swapchain UI overlay) failed.");
         }
     }
 

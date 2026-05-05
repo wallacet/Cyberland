@@ -16,6 +16,8 @@ namespace Cyberland.Engine.Input;
 /// <see cref="IKeyboard.IsKeyPressed"/> is used — the key is down and released before the next snapshot.
 /// We therefore latch <see cref="IKeyboard.KeyDown"/> edges into <see cref="_keyboardPulseDown"/> and OR them into
 /// the same-frame poll so <see cref="WasPressed"/> and <see cref="IsDown"/> still observe the press.
+/// Event/delta consumers should prefer <see cref="ConsumePressed"/>, <see cref="ConsumeReleased"/>, and
+/// <see cref="ConsumeAxisDelta"/> so fixed-phase gameplay does not lose intent when a render frame has zero fixed substeps.
 /// </remarks>
 public sealed class SilkInputService : IInputService, IDisposable
 {
@@ -24,6 +26,9 @@ public sealed class SilkInputService : IInputService, IDisposable
     private readonly Dictionary<string, bool> _actionDown = new(StringComparer.Ordinal);
     private readonly Dictionary<string, bool> _prevActionDown = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float> _axisValues = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _pendingPressCounts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _pendingReleaseCounts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, float> _pendingAxisDelta = new(StringComparer.Ordinal);
     private readonly object _keyboardPulseLock = new();
     private readonly HashSet<Key> _keyboardPulseDown = new();
     private readonly List<(IKeyboard Keyboard, Action<IKeyboard, Key, int> Handler)> _keyboardSubscriptions = new();
@@ -88,6 +93,19 @@ public sealed class SilkInputService : IInputService, IDisposable
 
             _actionDown[actionId] = down;
             _axisValues[actionId] = Math.Clamp(axis, -1f, 1f);
+
+            var before = _prevActionDown.TryGetValue(actionId, out var prevDown) && prevDown;
+            if (down && !before)
+                IncrementCounter(_pendingPressCounts, actionId);
+            else if (!down && before)
+                IncrementCounter(_pendingReleaseCounts, actionId);
+
+            var axisDelta = AccumulateDeltaAxis(bindings);
+            if (axisDelta != 0f)
+            {
+                _pendingAxisDelta.TryGetValue(actionId, out var pending);
+                _pendingAxisDelta[actionId] = pending + axisDelta;
+            }
         }
 
         lock (_keyboardPulseLock)
@@ -115,6 +133,21 @@ public sealed class SilkInputService : IInputService, IDisposable
 
     /// <inheritdoc />
     public float ReadAxis(string axisId) => _axisValues.TryGetValue(axisId, out var value) ? value : 0f;
+
+    /// <inheritdoc />
+    public bool ConsumePressed(string actionId) => ConsumeCounter(_pendingPressCounts, actionId);
+
+    /// <inheritdoc />
+    public bool ConsumeReleased(string actionId) => ConsumeCounter(_pendingReleaseCounts, actionId);
+
+    /// <inheritdoc />
+    public float ConsumeAxisDelta(string axisId)
+    {
+        if (!_pendingAxisDelta.TryGetValue(axisId, out var pending))
+            return 0f;
+        _pendingAxisDelta.Remove(axisId);
+        return pending;
+    }
 
     /// <inheritdoc />
     public bool IsControlDown(InputControl control) => ReadControlValue(control) > 0f;
@@ -223,6 +256,45 @@ public sealed class SilkInputService : IInputService, IDisposable
         _mouseWheelDelta = wheels.Count > 0
             ? new Vector2(wheels[0].X, wheels[0].Y)
             : Vector2.Zero;
+    }
+
+    private float AccumulateDeltaAxis(IReadOnlyList<InputBinding> bindings)
+    {
+        var sum = 0f;
+        for (var i = 0; i < bindings.Count; i++)
+        {
+            var binding = bindings[i];
+            if (binding.Control.Kind is not InputControlKind.MouseAxis)
+                continue;
+
+            var axis = binding.Control.MouseAxis;
+            if (!IsDeltaMouseAxis(axis))
+                continue;
+
+            sum += ReadMouseAxis(axis) * binding.Scale;
+        }
+
+        return sum;
+    }
+
+    private static bool IsDeltaMouseAxis(MouseAxis axis) =>
+        axis is MouseAxis.DeltaX or MouseAxis.DeltaY or MouseAxis.WheelX or MouseAxis.WheelY;
+
+    private static void IncrementCounter(Dictionary<string, int> table, string key)
+    {
+        table.TryGetValue(key, out var count);
+        table[key] = count + 1;
+    }
+
+    private static bool ConsumeCounter(Dictionary<string, int> table, string key)
+    {
+        if (!table.TryGetValue(key, out var count) || count <= 0)
+            return false;
+        if (count == 1)
+            table.Remove(key);
+        else
+            table[key] = count - 1;
+        return true;
     }
 
     private Vector2 ConvertMousePosition(Vector2 swapchainPosition, CoordinateSpace space)

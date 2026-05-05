@@ -1,124 +1,35 @@
-using Cyberland.Engine;
-using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
-using Cyberland.Engine.Rendering;
-using Cyberland.Engine.Scene;
-using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Snake;
 
-// Snake sample: Control + Session + Tilemap (background grid) + VisualBundle. Logic lives in Session; one segment
-// sprite per cell (preallocated) avoids per-tick entity churn, not a requirement. Systems are all ISystem
-// (sequential) for clarity; add IParallelSystem when a hot loop is worth partitioning (see cyberland-design-goals).
-// Pipeline: bootstrap (OnStart) -> input (early) -> tick (fixed) -> tilemap layout / lights / visual sync (late).
-// Optional: manifest.json <c>disabled: true</c> so publish omits the DLL unless you enable the mod.
+/// <summary>
+/// Snake sample: Control + Session + Tilemap + VisualBundle; simulation lives in <see cref="Session.Step"/>.
+/// </summary>
+/// <remarks>
+/// <para><b>Where to read next:</b> <see cref="SceneSetup.SetupSceneAsync"/> for cold start; this file is scheduler registration only.</para>
+/// <para>Gameplay systems use <see cref="ISingletonSystem"/> for single-row archetypes (session, control, tilemap, visuals — see individual <c>QuerySpec</c>s).</para>
+/// </remarks>
 public sealed class Mod : IMod
 {
-    public ValueTask OnLoadAsync(ModLoadContext context)
+    /// <inheritdoc />
+    public async ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
         SnakeInputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("snake.json");
-        var w = context.World;
 
-        // Camera anchors Snake's gameplay to a fixed 1280x720 canvas; non-matching window sizes letterbox
-        // instead of exposing more tiles. The camera sits at the canvas center so world-space sprites keep
-        // the legacy "fb.Y - offset = near top" convention from before cameras were introduced.
-        const int CanvasWidth = 1280;
-        const int CanvasHeight = 720;
-        var camera = w.CreateEntity();
-        var camTransform = Transform.Identity;
-        camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
-        w.GetOrAdd<Transform>(camera) = camTransform;
-        w.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
-
-        var controlEntity = w.CreateEntity();
-        w.GetOrAdd<Control>(controlEntity);
-        var sessionEntity = w.CreateEntity();
-        w.GetOrAdd<Session>(sessionEntity);
-        var arena = w.CreateEntity();
-        w.GetOrAdd<Tilemap>(arena);
-        var visualsEntity = w.CreateEntity();
-        w.GetOrAdd<VisualBundle>(visualsEntity);
-
-        var amb = w.CreateEntity();
-        w.GetOrAdd<AmbientLightSource>(amb) = new AmbientLightSource
-        {
-            Active = true,
-            Color = new Vector3D<float>(0.22f, 0.26f, 0.32f),
-            Intensity = 0.13f
-        };
-        var dir = w.CreateEntity();
-        w.GetOrAdd<Transform>(dir) = Transform.Identity;
-        w.GetOrAdd<DirectionalLightSource>(dir) = new DirectionalLightSource
-        {
-            Active = true,
-            Color = new Vector3D<float>(0.52f, 0.5f, 0.46f),
-            Intensity = 0.2f,
-            CastsShadow = false
-        };
-        var spot = w.CreateEntity();
-        w.GetOrAdd<Transform>(spot) = Transform.Identity;
-        w.GetOrAdd<SpotLightSource>(spot) = new SpotLightSource
-        {
-            Active = true,
-            Radius = 500f,
-            InnerConeRadians = MathF.PI / 4f,
-            OuterConeRadians = MathF.PI / 2.15f,
-            Color = new Vector3D<float>(0.35f, 0.72f, 1f),
-            Intensity = 0.36f,
-            CastsShadow = false
-        };
-        var headPt = w.CreateEntity();
-        w.GetOrAdd<Transform>(headPt) = Transform.Identity;
-        w.GetOrAdd<PointLightSource>(headPt) = new PointLightSource
-        {
-            Active = true,
-            Radius = 260f,
-            Color = new Vector3D<float>(0.35f, 1f, 0.55f),
-            Intensity = 0.52f,
-            FalloffExponent = 2f,
-            CastsShadow = false
-        };
-        var foodPt = w.CreateEntity();
-        w.GetOrAdd<Transform>(foodPt) = Transform.Identity;
-        w.GetOrAdd<PointLightSource>(foodPt) = new PointLightSource
-        {
-            Active = true,
-            Radius = 220f,
-            Color = new Vector3D<float>(1f, 0.45f, 0.28f),
-            Intensity = 0.44f,
-            FalloffExponent = 2.2f,
-            CastsShadow = false
-        };
+        await SceneSetup.SetupSceneAsync(context);
 
         var host = context.Host;
-        context.RegisterSerial("cyberland.demo.snake/bootstrap", new BootstrapSystem(host, sessionEntity, arena, visualsEntity));
-        context.RegisterSerial("cyberland.demo.snake/input", new InputSystem(host, sessionEntity, controlEntity));
-        context.RegisterSerial("cyberland.demo.snake/tick", new TickSystem(host, sessionEntity, controlEntity));
-        context.RegisterSerial("cyberland.demo.snake/tilemap-layout", new TilemapLayoutSystem(host, sessionEntity, arena));
-        context.RegisterSerial("cyberland.demo.snake/lights",
-            new SnakeLightsFillSystem(host, sessionEntity, amb, dir, spot, headPt, foodPt));
-        context.RegisterSerial("cyberland.demo.snake/visual-sync", new VisualSyncSystem(host, sessionEntity, visualsEntity));
-        ApplyGlobalPost(w);
-        return ValueTask.CompletedTask;
+        context.RegisterSingleton("cyberland.demo.snake/bootstrap", new BootstrapSystem(host));
+        context.RegisterSingleton("cyberland.demo.snake/input", new InputSystem(host));
+        context.RegisterSingleton("cyberland.demo.snake/tick", new TickSystem(host));
+        context.RegisterSingleton("cyberland.demo.snake/tilemap-layout", new TilemapLayoutSystem(host));
+        context.RegisterSingleton("cyberland.demo.snake/lights", new SnakeLightsFillSystem(host));
+        context.RegisterSingleton("cyberland.demo.snake/visual-sync", new VisualSyncSystem(host));
     }
+
+    /// <inheritdoc />
     public void OnUnload() { }
-    private static void ApplyGlobalPost(World world)
-    {
-        var e = world.CreateEntity();
-        world.GetOrAdd<GlobalPostProcessSource>(e) = new GlobalPostProcessSource
-        {
-            Active = true,
-            Priority = 100,
-            Settings = new GlobalPostProcessSettings
-            {
-                BloomEnabled = true, BloomRadius = 1.1f, BloomGain = 0.26f, BloomExtractThreshold = 0.32f, BloomExtractKnee = 0.5f,
-                EmissiveToHdrGain = 0.48f, EmissiveToBloomGain = 0.45f, Exposure = 1f, Saturation = 1.08f, TonemapEnabled = true,
-                ColorGradingShadows = new Vector3D<float>(1f, 1f, 1f), ColorGradingMidtones = new Vector3D<float>(1f, 1f, 1f), ColorGradingHighlights = new Vector3D<float>(1f, 1f, 1f)
-            }
-        };
-    }
 }

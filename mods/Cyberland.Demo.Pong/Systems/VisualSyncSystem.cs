@@ -9,13 +9,13 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.Pong;
 
 /// <summary>
-/// Keeps sprites and HUD text aligned with <see cref="State"/> each frame. Sequential late update (session + explicit entity ids).
-/// Static sprite/text setup lives in the <c>VisualSyncSystem.Bootstrap.cs</c> partial.
+/// Keeps sprites and HUD text aligned with <see cref="State"/> each frame. Uses the singleton session row plus explicit sprite/HUD ids from <see cref="SceneSetup"/>.
 /// </summary>
-public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
+/// <remarks>Static sprite/text setup lives in the <c>VisualSyncSystem.Bootstrap.cs</c> partial.</remarks>
+public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.Empty;
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<State, Control>();
 
     private static readonly TextStyle TitleStyle = new(BuiltinFonts.UiSans, 26f, new Vector4D<float>(0.25f, 0.92f, 1f, 1f), Bold: true);
     private static readonly TextStyle HintStyle = new(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.52f, 0.58f, 0.68f, 0.92f));
@@ -25,7 +25,6 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     private static readonly TextStyle FpsStyle = new(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
 
     private readonly GameHostServices _host;
-    private readonly EntityId _session;
     private readonly VisualIds _v;
     private readonly HudTextIds _t;
     private int _cachedPlayerPoints = int.MinValue;
@@ -35,18 +34,18 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
     private readonly FpsMovingAverage _fpsAverage = new(FpsMovingAverage.DefaultWindowSeconds);
     private World _world = null!;
 
-    public VisualSyncSystem(GameHostServices host, EntityId session, VisualIds visuals, HudTextIds texts)
+    /// <summary>Sprite/HUD ids are authored in <see cref="SceneSetup"/>; session row is the singleton query.</summary>
+    public VisualSyncSystem(GameHostServices host, VisualIds visuals, HudTextIds texts)
     {
         _host = host;
-        _session = session;
         _v = visuals;
         _t = texts;
     }
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity sessionRow)
     {
-        _world = world;
-        _ = archetype;
+        _world = sessionRow.World;
         var renderer = _host.Renderer;
         if (renderer is null)
         {
@@ -58,13 +57,14 @@ public sealed partial class VisualSyncSystem : ISystem, ILateUpdate
         ConfigureTextRowsOnStart();
     }
 
-    public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
+    /// <inheritdoc />
+    public void OnSingletonLateUpdate(in SingletonEntity sessionRow, float deltaSeconds)
     {
-        _ = archetype;
+        _world = sessionRow.World;
         var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
         var r = _host.Renderer!;
-        ref readonly var st = ref _world.Get<State>(_session);
+        ref readonly var st = ref sessionRow.Get<State>();
         // Layout on the same virtual rect as the active camera.
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
         SetBg(fb);

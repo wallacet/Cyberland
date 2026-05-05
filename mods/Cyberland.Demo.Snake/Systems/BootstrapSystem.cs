@@ -6,37 +6,35 @@ using Cyberland.Engine.Scene;
 namespace Cyberland.Demo.Snake;
 
 /// <summary>
-/// One-shot entity creation for Snake. Registered as <see cref="ISystem"/> (sequential): only <see cref="OnStart"/> runs.
-/// Preallocates <c>GridW*GridH</c> segment entities so the frame path toggles <see cref="Sprite.Visible"/> only.
+/// One-shot bootstrap on the singleton <see cref="Session"/> row: registers the tilemap grid and allocates segment/HUD entities referenced by <see cref="VisualBundle"/>.
 /// </summary>
-public sealed class BootstrapSystem : ISystem
+/// <remarks>
+/// Registered as <see cref="ISingletonSystem"/> so resolution happens once via <see cref="OnSingletonStart"/>—no empty <see cref="SystemQuerySpec"/> spawn-only system.
+/// </remarks>
+public sealed class BootstrapSystem : ISingletonSystem
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Session>();
 
     private readonly GameHostServices _host;
-    private readonly EntityId _sessionEntity;
-    private readonly EntityId _arenaEntity;
-    private readonly EntityId _visualsEntity;
 
-    public BootstrapSystem(GameHostServices host, EntityId sessionEntity, EntityId arenaEntity, EntityId visualsEntity)
-    {
-        _host = host;
-        _sessionEntity = sessionEntity;
-        _arenaEntity = arenaEntity;
-        _visualsEntity = visualsEntity;
-    }
+    /// <summary>Creates the bootstrap entry (cold start already ran in <see cref="SceneSetup"/>).</summary>
+    public BootstrapSystem(GameHostServices host) => _host = host;
 
-    public void OnStart(World world, ChunkQueryAll archetype)
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity sessionRow)
     {
-        _ = archetype;
+        var world = sessionRow.World;
         if (_host.Tilemaps is null)
         {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake.BootstrapSystem", "GameHostServices.Tilemaps was null during OnStart.");
+            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake.BootstrapSystem", "GameHostServices.Tilemaps was null during OnSingletonStart.");
             throw new InvalidOperationException("Tilemap store is required by Snake bootstrap.");
         }
 
-        ref var session = ref world.Get<Session>(_sessionEntity);
+        var arena = world.RequireSingleEntityWith<Tilemap>("Snake arena tilemap");
+        var visualsEntity = world.RequireSingleEntityWith<VisualBundle>("Snake visuals bundle");
+
+        ref var session = ref sessionRow.Get<Session>();
         session.EnsureInitialized();
         session.Phase = Phase.Title;
         session.TickAcc = 0f;
@@ -52,9 +50,9 @@ public sealed class BootstrapSystem : ISystem
         for (var i = 0; i < grid.Length; i++)
             grid[i] = 1;
 
-        _host.Tilemaps.Register(_arenaEntity, grid, Constants.GridW, Constants.GridH);
+        _host.Tilemaps.Register(arena, grid, Constants.GridW, Constants.GridH);
 
-        ref var visuals = ref world.Get<VisualBundle>(_visualsEntity);
+        ref var visuals = ref world.Get<VisualBundle>(visualsEntity);
         visuals.Segments ??= new EntityId[Constants.GridW * Constants.GridH];
         for (var i = 0; i < visuals.Segments.Length; i++)
             visuals.Segments[i] = world.CreateEntity();

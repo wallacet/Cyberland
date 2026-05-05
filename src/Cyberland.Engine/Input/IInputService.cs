@@ -8,9 +8,16 @@ namespace Cyberland.Engine.Input;
 /// </summary>
 /// <remarks>
 /// Call <see cref="BeginFrame"/> once per presented frame on the window thread before ECS updates run.
-/// Query methods are then stable for the rest of that frame. The stock <see cref="SilkInputService"/> also merges
-/// keyboard <c>KeyDown</c> edges into that snapshot so brief taps are not lost when the game loop runs at present
-/// rate rather than input poll rate.
+/// Query methods are then stable for the rest of that frame.
+/// </remarks>
+/// <remarks>
+/// Input semantics split into two categories:
+/// <list type="bullet">
+/// <item><description><b>Level reads</b> (<see cref="IsDown"/>, <see cref="ReadAxis"/>, mouse position/delta properties) are frame snapshots and may be read in early/fixed/late without consuming state.</description></item>
+/// <item><description><b>Event/delta reads</b> (<see cref="ConsumePressed"/>, <see cref="ConsumeReleased"/>, <see cref="ConsumeAxisDelta"/>) are buffered across frames until consumed. Use these for one-shot gameplay intents consumed from fixed update.</description></item>
+/// </list>
+/// The stock <see cref="SilkInputService"/> merges keyboard <c>KeyDown</c> pulses into the sampled state so brief taps are not
+/// lost when ECS runs at present rate.
 /// </remarks>
 public interface IInputService
 {
@@ -43,13 +50,46 @@ public interface IInputService
     bool IsDown(string actionId);
 
     /// <summary>True only on the frame where <paramref name="actionId"/> transitions from up to down.</summary>
+    /// <remarks>
+    /// This is a frame-edge snapshot helper (non-consuming). For fixed-phase one-shot intent handling, prefer
+    /// <see cref="ConsumePressed"/> so zero-fixed-substep frames cannot drop the event.
+    /// </remarks>
     bool WasPressed(string actionId);
 
     /// <summary>True only on the frame where <paramref name="actionId"/> transitions from down to up.</summary>
+    /// <remarks>
+    /// This is a frame-edge snapshot helper (non-consuming). For fixed-phase one-shot intent handling, prefer
+    /// <see cref="ConsumeReleased"/> so zero-fixed-substep frames cannot drop the event.
+    /// </remarks>
     bool WasReleased(string actionId);
 
     /// <summary>Reads the composed axis value for <paramref name="axisId"/> in [-1, 1].</summary>
+    /// <remarks>
+    /// Returns the frame-stable level value. For event-style axes (for example wheel/delta bindings), use
+    /// <see cref="ConsumeAxisDelta"/> when your simulation should apply each delta once.
+    /// </remarks>
     float ReadAxis(string axisId);
+
+    /// <summary>
+    /// Consumes one buffered press event for <paramref name="actionId"/>. Returns <see langword="true"/> when an unconsumed
+    /// press exists.
+    /// </summary>
+    bool ConsumePressed(string actionId);
+
+    /// <summary>
+    /// Consumes one buffered release event for <paramref name="actionId"/>. Returns <see langword="true"/> when an
+    /// unconsumed release exists.
+    /// </summary>
+    bool ConsumeReleased(string actionId);
+
+    /// <summary>
+    /// Returns and clears buffered axis delta for <paramref name="axisId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Delta buffering currently applies to bindings backed by mouse delta/wheel controls. Position-like axis bindings
+    /// return 0 here and should be read via <see cref="ReadAxis"/>.
+    /// </remarks>
+    float ConsumeAxisDelta(string axisId);
 
     /// <summary>Reads whether a raw physical <paramref name="control"/> is active in the current frame.</summary>
     bool IsControlDown(InputControl control);

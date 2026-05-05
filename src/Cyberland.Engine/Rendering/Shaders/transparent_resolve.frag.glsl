@@ -14,7 +14,8 @@ void main() {
     vec4 accum = texture(accumTex, uv);
     float reveal = texture(revealTex, uv).r;
     reveal = clamp(reveal, 0.0, 1.0);
-    vec3 transCol = accum.rgb / max(accum.a, 1e-4);
+    // Avoid dividing tiny/noisy accum.a (could inflate transCol and leave smears next to clears edges).
+    vec3 transCol = accum.a > 1e-4 ? (accum.rgb / accum.a) : vec3(0.0);
     vec3 c = transCol * (1.0 - reveal) + opaqueCol * reveal;
     outHdr = vec4(c, 1.0);
 }

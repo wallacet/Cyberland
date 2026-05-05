@@ -393,6 +393,7 @@ public sealed unsafe partial class VulkanRenderer
     private void CompileDeferredShaderModules()
     {
         var fragGb = EngineShaderSources.Load(EngineShaderSources.SpriteGbufferFrag);
+        var fragSwapUi = EngineShaderSources.Load(EngineShaderSources.SpriteSwapchainUiFrag);
         var fragDb = EngineShaderSources.Load(EngineShaderSources.DeferredBaseFrag);
         var vertDp = EngineShaderSources.Load(EngineShaderSources.DeferredPointVert);
         var fragDp = EngineShaderSources.Load(EngineShaderSources.DeferredPointFrag);
@@ -401,6 +402,7 @@ public sealed unsafe partial class VulkanRenderer
         var fragTr = EngineShaderSources.Load(EngineShaderSources.TransparentResolveFrag);
 
         _modFragGbuffer = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragGb, ShaderStage.Fragment));
+        _modFragSwapchainUi = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragSwapUi, ShaderStage.Fragment));
         _modFragDeferredBase = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragDb, ShaderStage.Fragment));
         _modVertDeferredPoint = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(vertDp, ShaderStage.Vertex));
         _modFragDeferredPoint = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragDp, ShaderStage.Fragment));
@@ -498,6 +500,13 @@ public sealed unsafe partial class VulkanRenderer
             SType = StructureType.PipelineShaderStageCreateInfo,
             Stage = ShaderStageFlags.FragmentBit,
             Module = _modFragGbuffer,
+            PName = (byte*)mainName
+        };
+        PipelineShaderStageCreateInfo fragSwapUiSt = new()
+        {
+            SType = StructureType.PipelineShaderStageCreateInfo,
+            Stage = ShaderStageFlags.FragmentBit,
+            Module = _modFragSwapchainUi,
             PName = (byte*)mainName
         };
         PipelineShaderStageCreateInfo vertCompSt = new()
@@ -604,6 +613,7 @@ public sealed unsafe partial class VulkanRenderer
         };
 
         var premul = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.PremultipliedAlpha;
+        var straightOver = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.StraightAlphaOver;
         var off = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.Off;
         var hdrAdd = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.HdrRgbAdditive;
         var wAccum = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.WboitAccum;
@@ -625,6 +635,9 @@ public sealed unsafe partial class VulkanRenderer
 
         var cbRes = stackalloc PipelineColorBlendAttachmentState[1];
         cbRes[0] = off;
+
+        var cbUi = stackalloc PipelineColorBlendAttachmentState[1];
+        cbUi[0] = straightOver;
 
         PipelineColorBlendStateCreateInfo cbsGb = new()
         {
@@ -655,6 +668,12 @@ public sealed unsafe partial class VulkanRenderer
             SType = StructureType.PipelineColorBlendStateCreateInfo,
             AttachmentCount = 1,
             PAttachments = cbRes
+        };
+        PipelineColorBlendStateCreateInfo cbsUi = new()
+        {
+            SType = StructureType.PipelineColorBlendStateCreateInfo,
+            AttachmentCount = 1,
+            PAttachments = cbUi
         };
 
         DynamicState[] dyn = [DynamicState.Viewport, DynamicState.Scissor];
@@ -688,6 +707,28 @@ public sealed unsafe partial class VulkanRenderer
             };
             if (_vk.CreateGraphicsPipelines(_device, default, 1, in gpGb, null, out _pipeSpriteGbuffer) != Result.Success)
                 throw new GraphicsInitializationException("pipe gbuffer failed.");
+
+            var stUi = stackalloc PipelineShaderStageCreateInfo[2];
+            stUi[0] = vertSt;
+            stUi[1] = fragSwapUiSt;
+            GraphicsPipelineCreateInfo gpUi = new()
+            {
+                SType = StructureType.GraphicsPipelineCreateInfo,
+                StageCount = 2,
+                PStages = stUi,
+                PVertexInputState = &vi,
+                PInputAssemblyState = &ia,
+                PViewportState = &vpSt,
+                PRasterizationState = &rs,
+                PMultisampleState = &ms,
+                PColorBlendState = &cbsUi,
+                PDynamicState = &ds,
+                Layout = _plSpriteEmissive,
+                RenderPass = _rpSwapchainUiOverlay,
+                Subpass = 0
+            };
+            if (_vk.CreateGraphicsPipelines(_device, default, 1, in gpUi, null, out _pipeSwapchainUiOverlay) != Result.Success)
+                throw new GraphicsInitializationException("pipe swapchain UI overlay failed.");
 
             var stDb = stackalloc PipelineShaderStageCreateInfo[2];
             stDb[0] = vertCompSt;

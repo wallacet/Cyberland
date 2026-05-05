@@ -1,55 +1,50 @@
 using Cyberland.Demo.MouseChase.Components;
-using System.Collections.Concurrent;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Core.Tasks;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.MouseChase.Systems;
 
-public sealed class PlayerMovementSystem : IParallelSystem, IParallelFixedUpdate
+/// <summary>
+/// Moves the player toward the mouse (faster when primary is held). Exactly one <see cref="PlayerTag"/> row — registered as a singleton.
+/// </summary>
+public sealed class PlayerMovementSystem : ISingletonSystem, ISingletonFixedUpdate
 {
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PlayerTag, Transform>();
 
-    private World _world = null!;
     private EntityId _controlEntity;
     private EntityId _stateEntity;
+    private readonly GameHostServices _host;
 
-    public void OnStart(World world, ChunkQueryAll query)
+    public PlayerMovementSystem(GameHostServices host) => _host = host;
+
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity player)
     {
-        _world = world;
-        _ = query;
-        _controlEntity = world.QueryChunks(SystemQuerySpec.All<ControlState>())
-            .RequireSingleEntityWith<ControlState>("control state");
-        _stateEntity = world.QueryChunks(SystemQuerySpec.All<GameState>())
-            .RequireSingleEntityWith<GameState>("game state");
+        var world = player.World;
+        _controlEntity = world.RequireSingleEntityWith<ControlState>("control state");
+        _stateEntity = world.RequireSingleEntityWith<GameState>("game state");
     }
 
-    public void OnParallelFixedUpdate(ChunkQueryAll query, float fixedDeltaSeconds, ParallelOptions parallelOptions)
+    /// <inheritdoc />
+    public void OnSingletonFixedUpdate(in SingletonEntity player, float fixedDeltaSeconds)
     {
-        ref readonly var control = ref _world.Get<ControlState>(_controlEntity);
-        ref readonly var state = ref _world.Get<GameState>(_stateEntity);
+        ref var transform = ref player.Get<Transform>();
+        ref readonly var control = ref player.World.Get<ControlState>(_controlEntity);
+        ref readonly var state = ref player.World.Get<GameState>(_stateEntity);
         if (state.Phase is RoundPhase.Won or RoundPhase.Lost)
             return;
+
         var mouseWorld = control.MouseWorld;
-        var speed = control.PrimaryPressed ? 420f : 300f;
+        var speed = _host.Input?.IsDown("cyberland.demo.mousechase/primary") == true ? 420f : 300f;
 
-        foreach (var chunk in query)
-        {
-            Parallel.ForEach(Partitioner.Create(0, chunk.Count), parallelOptions, range =>
-            {
-                var transforms = chunk.Column<Transform>();
-                for (var i = range.Item1; i < range.Item2; i++)
-                {
-                    ref var playerTransform = ref transforms[i];
-                    var toMouse = mouseWorld - playerTransform.WorldPosition;
-                    var len = MathF.Sqrt(toMouse.X * toMouse.X + toMouse.Y * toMouse.Y);
-                    if (len <= 1f)
-                        continue;
+        var toMouse = mouseWorld - transform.WorldPosition;
+        var len = MathF.Sqrt(toMouse.X * toMouse.X + toMouse.Y * toMouse.Y);
+        if (len <= 1f)
+            return;
 
-                    var dir = toMouse / len;
-                    playerTransform.WorldPosition += dir * speed * fixedDeltaSeconds;
-                }
-            });
-        }
+        var dir = toMouse / len;
+        transform.WorldPosition += dir * speed * fixedDeltaSeconds;
     }
 }

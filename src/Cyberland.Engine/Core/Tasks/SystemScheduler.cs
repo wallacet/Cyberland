@@ -266,6 +266,10 @@ public sealed class SystemScheduler
     /// <paramref name="deltaSeconds"/> is small relative to <see cref="FixedDeltaSeconds"/> (common at high refresh). Input
     /// written in early is visible to every fixed substep in that frame — avoid resetting entire input components in early
     /// before fixed has a chance to consume latched intents (e.g. one-shot start flags).
+    /// Also avoid <c>boolFlag = input.WasPressed(...)</c> for flags consumed in fixed: when substeps are zero, the next early
+    /// pass clears <c>WasPressed</c> to false and drops the intent before fixed runs.
+    /// Prefer buffered consume APIs on <see cref="Input.IInputService"/> (<c>ConsumePressed</c>, <c>ConsumeReleased</c>,
+    /// <c>ConsumeAxisDelta</c>) or explicit ECS latches consumed in fixed.
     /// After the fixed loop, <see cref="FixedAccumulator"/> holds the remainder for optional render extrapolation.
     /// The stock host passes a callback into the three-parameter <c>RunFrame</c> overload so
     /// <see cref="Hosting.GameHostServices.FixedAccumulatorSeconds"/> is updated <strong>before</strong> late phase, allowing

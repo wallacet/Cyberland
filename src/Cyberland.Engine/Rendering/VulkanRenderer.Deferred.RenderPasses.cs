@@ -87,11 +87,15 @@ public sealed unsafe partial class VulkanRenderer
 
     private void CreateCompositeRenderPass()
     {
+        // Must use Clear (not DontCare): the composite draw is scissored to the letterboxed drawable rect; bar regions and
+        // any pixels the fullscreen tri does not rewrite must still take the clear color. DontCare leaves attachment
+        // contents undefined where fragments do not run — typical drivers retain prior swapchain pixels → HUD glyph “tails”
+        // and digit fragments persist after shorter strings / layout changes.
         AttachmentDescription swapColor = new()
         {
             Format = _swapchainImageFormat,
             Samples = SampleCountFlags.Count1Bit,
-            LoadOp = AttachmentLoadOp.DontCare,
+            LoadOp = AttachmentLoadOp.Clear,
             StoreOp = AttachmentStoreOp.Store,
             StencilLoadOp = AttachmentLoadOp.DontCare,
             StencilStoreOp = AttachmentStoreOp.DontCare,
@@ -131,6 +135,59 @@ public sealed unsafe partial class VulkanRenderer
 
         if (_vk!.CreateRenderPass(_device, in rpci, null, out _rpComposite) != Result.Success)
             throw new GraphicsInitializationException("vkCreateRenderPass (composite) failed.");
+    }
+
+    /// <summary>
+    /// Second pass on the swapchain image: load the tonemapped composite, draw HUD sprites with straight-alpha.
+    /// Load preserves the composite output from the composite render pass (full-surface clear + scissored fullscreen draw) —
+    /// we blend UI on top of fresh tonemap output, not an accumulation buffer that holds last frame’s HUD alone.
+    /// </summary>
+    private void CreateSwapchainUiOverlayRenderPass()
+    {
+        AttachmentDescription swapColor = new()
+        {
+            Format = _swapchainImageFormat,
+            Samples = SampleCountFlags.Count1Bit,
+            LoadOp = AttachmentLoadOp.Load,
+            StoreOp = AttachmentStoreOp.Store,
+            StencilLoadOp = AttachmentLoadOp.DontCare,
+            StencilStoreOp = AttachmentStoreOp.DontCare,
+            InitialLayout = ImageLayout.PresentSrcKhr,
+            FinalLayout = ImageLayout.PresentSrcKhr
+        };
+
+        AttachmentReference swapRef = new() { Attachment = 0, Layout = ImageLayout.ColorAttachmentOptimal };
+
+        SubpassDescription sub = new()
+        {
+            PipelineBindPoint = PipelineBindPoint.Graphics,
+            ColorAttachmentCount = 1,
+            PColorAttachments = &swapRef
+        };
+
+        SubpassDependency dep = new()
+        {
+            SrcSubpass = Vk.SubpassExternal,
+            DstSubpass = 0,
+            SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+            DstStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+            SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+            DstAccessMask = AccessFlags.ColorAttachmentWriteBit | AccessFlags.ColorAttachmentReadBit
+        };
+
+        RenderPassCreateInfo rpci = new()
+        {
+            SType = StructureType.RenderPassCreateInfo,
+            AttachmentCount = 1,
+            PAttachments = &swapColor,
+            SubpassCount = 1,
+            PSubpasses = &sub,
+            DependencyCount = 1,
+            PDependencies = &dep
+        };
+
+        if (_vk!.CreateRenderPass(_device, in rpci, null, out _rpSwapchainUiOverlay) != Result.Success)
+            throw new GraphicsInitializationException("vkCreateRenderPass (swapchain UI overlay) failed.");
     }
 
     private void CreateGbufferAndWboitRenderPasses()

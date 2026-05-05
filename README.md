@@ -250,7 +250,7 @@ Components are **`struct`** types; define them in your mod assembly (see `Veloci
 - **`SystemScheduler`** — one ordered list of **`RegisterSerial`** / **`RegisterParallel`** / **`RegisterSingleton`** calls. **`RunFrame`** walks entries in **registration order** within each phase: **Early** (real **`deltaSeconds`**), **Fixed** (constant **`FixedDeltaSeconds`**, accumulator + substeps), **Late** (real **`deltaSeconds`** again). Serial and parallel entries run **`ISystem.OnStart`** / **`IParallelSystem.OnStart`** at most **once** per registration (first frame the entry is enabled), with **`World`** and a matching **chunk** query passed **only in `OnStart`**. **`ISingletonSystem`** entries resolve **exactly one** entity from **`QuerySpec`** at startup (non-empty spec), then call **`OnSingletonStart(in SingletonEntity)`** once and **`ISingletonEarlyUpdate`** / **`ISingletonFixedUpdate`** / **`ISingletonLateUpdate`** with a **`SingletonEntity`** handle (**`Get<T>()`** / **`TryGet<T>`** on that row) instead of **`ChunkQueryAll`**. Chunk-based systems take the **per-phase chunk iterator** and timing, not **`World`** in the phase signature—cache **`World` in `OnStart`** when needed. Optional **`AfterEarlyUpdate`**, **`AfterFixedUpdate`**, **`AfterLateUpdate`** fire once per frame after each phase. Disabled entries are skipped entirely until **`SetEnabled(logicalId, true)`**; re-enabling does **not** run **`OnStart`** / **`OnSingletonStart`** again. Replacing a logical id resets lifecycle so the new instance gets start once. **`SetEnabled`**, **`SystemStarted`**, **`SystemEnabled`**, **`SystemDisabled`**, and **`SystemUnregistered`** (from **`TryUnregister`**) are the hooks for introspection and debugging.
 - **`ParallelismSettings.MaxConcurrency`** — `0` means use all logical processors.
 
-Within each phase, order is still **global registration order**: each entry is **`ISystem`** (serial), **`IParallelSystem`** (parallel), or **`ISingletonSystem`** (serial, single-row), in the order registered. The host registers engine systems first, mods append during **`LoadAll`**, then the host appends render submit systems—so a mod’s systems run **between** pre-mod and post-mod blocks according to **`OnLoad`** registration order, while **Early** vs **Fixed** vs **Late** is determined by which interfaces each system implements.
+Within each phase, order is still **global registration order**: each entry is **`ISystem`** (serial), **`IParallelSystem`** (parallel), or **`ISingletonSystem`** (serial, single-row), in the order registered. The host registers engine systems first, mods append during **`LoadAll`**, then the host appends render submit systems—so a mod’s systems run **between** pre-mod and post-mod blocks according to **`OnLoadAsync`** registration order, while **Early** vs **Fixed** vs **Late** is determined by which interfaces each system implements.
 
 ### Rendering (`Rendering/`)
 
@@ -290,9 +290,9 @@ Within each phase, order is still **global registration order**: each entry is *
 
 ### Modding (`Modding/`)
 
-- **`IMod`** — **`OnLoad(ModLoadContext)`**, **`OnUnload()`**.
+- **`IMod`** — **`OnLoadAsync(ModLoadContext)`**, **`OnUnload()`**.
 - **`ModManifest`** — id, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, optional **`disabled`**, optional **`contentBlocklist`** (see `manifest.json`).
-- **`ModLoader`** — discovers `Mods/*/manifest.json`, skips mods with **`disabled`**: **`true`** or ids listed in the optional **CLI exclude set**, mounts remaining content (then applies each mod’s blocklist), loads **`entryAssembly`** in the default assembly load context with a **`Resolving`** hook so satellite **`.dll`** files resolve from the mod folder (and optional **`lib/`**), finds one concrete **`IMod`**, invokes **`OnLoad`**.
+- **`ModLoader`** — discovers `Mods/*/manifest.json`, skips mods with **`disabled`**: **`true`** or ids listed in the optional **CLI exclude set**, mounts remaining content (then applies each mod’s blocklist), loads **`entryAssembly`** in the default assembly load context with a **`Resolving`** hook so satellite **`.dll`** files resolve from the mod folder (and optional **`lib/`**), finds one concrete **`IMod`**, awaits **`OnLoadAsync`** to completion.
 
 ### Hosting (`Hosting/`)
 
@@ -359,8 +359,8 @@ Example (see `mods/Cyberland.Game/manifest.json`):
 ### `IMod` implementation
 
 - Ship a **public non-abstract class** implementing **`IMod`** (the loader picks the first exported type assignable to **`IMod`**).
-- **`manifest.json`** is the source of truth for id, name, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, etc.; **`ModLoadContext.Manifest`** in **`OnLoad`** is that deserialized data (do not duplicate it in the **`IMod`** type).
-- **`OnLoad`**: register systems (with stable **logical ids**), spawn entities, merge localization, call **`context.MountDefaultContent()`** if you rely on `Content/` under the mod folder.
+- **`manifest.json`** is the source of truth for id, name, version, **`entryAssembly`**, **`contentRoot`**, **`loadOrder`**, etc.; **`ModLoadContext.Manifest`** in **`OnLoadAsync`** is that deserialized data (do not duplicate it in the **`IMod`** type).
+- **`OnLoadAsync`**: register systems (with stable **logical ids**), spawn entities (prefer **`SceneSetup.SetupSceneAsync`** awaited before **`Register*`**), merge localization, call **`context.MountDefaultContent()`** if you rely on `Content/` under the mod folder.
 
 ### Systems: ids, extend, replace, remove
 
@@ -417,7 +417,7 @@ Put **one-off** ECS spawn (camera, session/control tags, playfield, HUD **`Bitma
 
 The method stays **`async`** so you can later **`await`** scene JSON, **`ILocalizedContent.MergeStringTableAsync`**, or other I/O without restructuring **`OnLoadAsync`**. Respect **`cancellationToken`** when you add long-running loads.
 
-**Reference:** **`mods/Cyberland.Demo/SceneSetup.cs`** / **`mods/Cyberland.Demo.BrickBreaker/SceneSetup.cs`** and matching **`Mod.cs`** files—same **`SetupSceneAsync`** + **`OnLoadAsync`** pattern.
+**Reference:** **`mods/Cyberland.Demo/SceneSetup.cs`**, **`mods/Cyberland.Demo.BrickBreaker/SceneSetup.cs`**, **`mods/Cyberland.Demo.Pong/SceneSetup.cs`**, **`mods/Cyberland.Demo.Snake/SceneSetup.cs`**, **`mods/Cyberland.Demo.MouseChase/SceneSetup.cs`**, and matching **`Mod.cs`** files—same **`SetupSceneAsync`** + **`OnLoadAsync`** pattern.
 
 ### 3. Implement `ISystem`, `IParallelSystem`, and/or `ISingletonSystem`
 
@@ -478,7 +478,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 
 ### How shipped samples use the engine
 
-**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, **Snake**, and **BrickBreaker** drive **`Transform`** / **`Sprite`** from simulation or layout systems and each create a **`Camera2D`** entity during **`IMod.OnLoadAsync`** (fixed 1280×720 virtual canvas) so gameplay stays the same size regardless of window resolution. **Cyberland.Demo** and **BrickBreaker** await **`SceneSetup.SetupSceneAsync`** before registering systems; other arcade samples author entities inline in **`OnLoadAsync`**. The host applies a baseline once via **`EngineDefaultGlobalPostProcess`**, and samples add a **`GlobalPostProcessSource`** entity from **`SceneSetup`** (HDR + BrickBreaker) or arcade **`OnLoadAsync`** to tune emissive and bloom. **Cyberland.Demo** updates a fullscreen **`PostProcessVolumeSource`** each late tick (**`cyberland.demo/hdr-post-volume`**) so bloom can track the player. Each demo mod registers its default key bindings in **`OnLoadAsync`** via **`ModLoadContext.AddDefaultInputBinding`**. Use **`ModLayoutViewport.VirtualSizeForSimulation`** / **`VirtualSizeForPresentation`** when you need a consistent virtual canvas read across phases; see in-mod READMEs under **`mods/Cyberland.Demo*`**.
+**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, **Snake**, **BrickBreaker**, and **MouseChase** drive **`Transform`** / **`Sprite`** from simulation or layout systems and each create a **`Camera2D`** entity during cold start (typically **`SceneSetup.SetupSceneAsync`**, awaited from **`IMod.OnLoadAsync`**) using a fixed 1280×720 virtual canvas so gameplay stays the same size regardless of window resolution. All shipped demo mods follow **`SetupSceneAsync`** before **`Register*`**. The host applies a baseline once via **`EngineDefaultGlobalPostProcess`**, and demo **`SceneSetup`** helpers add a **`GlobalPostProcessSource`** entity where samples tune emissive and bloom. **Cyberland.Demo** updates a fullscreen **`PostProcessVolumeSource`** each late tick (**`cyberland.demo/hdr-post-volume`**) so bloom can track the player. Each demo mod registers its default key bindings in **`OnLoadAsync`** via **`ModLoadContext.AddDefaultInputBinding`**. Use **`ModLayoutViewport.VirtualSizeForSimulation`** / **`VirtualSizeForPresentation`** when you need a consistent virtual canvas read across phases; see in-mod READMEs under **`mods/Cyberland.Demo*`**.
 
 **Cyberland.Demo.Snake** drives **`Sprite`** and **`BitmapText`** entities from a visual sync system (grid-aligned quads); the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Samples use **`GameHostServices.Fonts`** / **`TextGlyphCache`** only when calling **`TextRenderer`** directly for special cases.
 

@@ -8,11 +8,23 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
-/// Sequential deterministic submit pass for prebuilt text sprite runs.
+/// Sequential pass: resolves/shapes each visible <see cref="BitmapText"/> row via <see cref="TextRuntimeBuilder.TryPrepare"/>
+/// (glyph cache + fingerprint), then submits sprite quads.
 /// </summary>
 /// <remarks>
-/// Runtime sprite runs are expected to be built by <see cref="TextBuildSystem"/>. This pass preserves stable ordering by
-/// iterating chunks/entities in ECS query order and submitting on one thread.
+/// <para>
+/// Viewport/swapchain rows enqueue into the renderer’s overlay queue (see <see cref="VulkanRenderer"/> HUD routing);
+/// glyph counts therefore flow through the same <see cref="FramePlan"/> sort/count rules as other UI sprites.
+/// </para>
+/// <para>
+/// Glyph layout runs here on the main thread immediately before <see cref="IRenderer.SubmitSprites"/> — do not register a
+/// second “text build” pass that also calls <see cref="TextRuntimeBuilder.TryPrepare"/>; you would duplicate work and risk
+/// races on <see cref="TextSpriteCache"/>.
+/// </para>
+/// <para>
+/// Gameplay systems assign <see cref="BitmapText.Content"/> like any other component field; cache invalidation when copy or
+/// layout-affecting inputs change is handled inside <see cref="TextRuntimeBuilder.TryPrepare"/>.
+/// </para>
 /// </remarks>
 public sealed class TextRenderSystem : ISystem, ILateUpdate
 {
@@ -67,16 +79,19 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
     {
         // Must run before the glyph-cache replay path: invisible rows still hold last frame's TextSpriteCache.
         if (!bt.Visible)
-            return;
-
-        if ((cache.GlyphCount == 0 || cache.CachedGlyphs is null) &&
-            !TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, _host, renderer, out _, out _))
         {
+            TextRuntimeBuilder.DiscardPreparedRow(ref cache, ref fingerprint);
             return;
         }
 
-        if (cache.GlyphCount > 0 && cache.CachedGlyphs is not null)
-            renderer.SubmitSprites(cache.CachedGlyphs.AsSpan(0, cache.GlyphCount));
+        if (!TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, _host, renderer, out _, out _))
+            return;
+
+        // GlyphCount is set inside TryPrepare from FillGlyphRunSprites; do not clamp with fingerprint.ResolvedCharCount —
+        // a cleared/default fingerprint (e.g. ordering bugs) could read 0 and suppress all submits while the cache holds quads.
+        var glyphSubmitCount = cache.GlyphCount;
+        if (glyphSubmitCount > 0 && cache.CachedGlyphs is not null)
+            renderer.SubmitSprites(cache.CachedGlyphs.AsSpan(0, glyphSubmitCount));
 
         if (!bt.Style.Underline && !bt.Style.Strikethrough)
             return;

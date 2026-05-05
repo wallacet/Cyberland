@@ -8,27 +8,41 @@ using Semaphore = Silk.NET.Vulkan.Semaphore;
 using VkBuffer = Silk.NET.Vulkan.Buffer;
 
 namespace Cyberland.Engine.Rendering;
-// Purpose: Per-frame command buffer recording: emissive, G-buffer, deferred lighting, transparency, bloom, composite.
-// Runs on the window/render thread only; consumes FramePlan built on the main thread.
 
-/// <summary>Full-frame GPU recording for one swapchain image.</summary>
+// -----------------------------------------------------------------------------
+// Deferred recording (this file)
+// -----------------------------------------------------------------------------
+// Consumes an immutable FramePlan from VulkanRenderer.FrameExecution.cs and records one command buffer:
+// emissive prepass → G-buffer → lighting → transparency → resolve → post (bloom/composite in sibling partials).
+// Viewport UI overlay draws happen last on the swapchain image (straight-alpha) — see RecordSwapchainUiOverlay.
+
+/// <summary>Partial <see cref="VulkanRenderer"/>: Vulkan command encoding for the deferred HDR pipeline.</summary>
 public sealed unsafe partial class VulkanRenderer
 {
-    private void RecordFullFrame(CommandBuffer cmd, Framebuffer swapFb)
+    /// <summary>Thin indirection so lazy recorder wiring stays in one place.</summary>
+    private void RecordFullFrame(CommandBuffer cmd, Framebuffer swapFb, Framebuffer swapUiOverlayFb)
     {
         _renderFrameRecorder ??= new RenderFrameRecorder(this);
-        _renderFrameRecorder.Record(cmd, swapFb);
+        _renderFrameRecorder.Record(cmd, swapFb, swapUiOverlayFb);
     }
 
-    private void RecordFullFrameCore(CommandBuffer cmd, Framebuffer swapFb)
+    /// <summary>
+    /// Snapshot pending CPU submissions into a <see cref="FramePlan"/>, then encode GPU work for this swapchain image.
+    /// Called once per <see cref="DrawFrame"/> after acquire — queues are empty when this returns.
+    /// </summary>
+    private void RecordFullFrameCore(CommandBuffer cmd, Framebuffer swapFb, Framebuffer swapUiOverlayFb)
     {
         _framePlanBuilder ??= new FramePlanBuilder(this);
         _renderBackendExecutor ??= new RenderBackendExecutor(this);
         var framePlan = _framePlanBuilder.Build();
-        _renderBackendExecutor.Record(cmd, swapFb, in framePlan);
+        _renderBackendExecutor.Record(cmd, swapFb, swapUiOverlayFb, in framePlan);
     }
 
-    private void ExecuteFramePlanCore(CommandBuffer cmd, Framebuffer swapFb, in FramePlan framePlan)
+    /// <summary>
+    /// Encodes the full deferred pipeline + swapchain UI overlay from <paramref name="framePlan"/>.
+    /// Kept separate from <see cref="RecordFullFrameCore"/> so tests could hypothetically inject plans.
+    /// </summary>
+    private void ExecuteFramePlanCore(CommandBuffer cmd, Framebuffer swapFb, Framebuffer swapUiOverlayFb, in FramePlan framePlan)
     {
         if (_vk!.ResetCommandBuffer(cmd, 0) != Result.Success)
             throw new InvalidOperationException("vkResetCommandBuffer failed.");
@@ -96,6 +110,10 @@ public sealed unsafe partial class VulkanRenderer
         {
             var idx = sortIdx[si];
             ref readonly var s = ref sprites[idx];
+            // sprite_emissive outputs zero RGB when EmissiveIntensity is zero; skipping avoids additive writes (incl.
+            // alpha accumulation) into the emissive RT for ordinary lit/UI sprites—HUD text was contributing here.
+            if (!NeedsEmissivePrepass(in s))
+                continue;
             DrawSprite(cmd, in s, in framePlan, 0);
         }
 
@@ -303,9 +321,154 @@ public sealed unsafe partial class VulkanRenderer
         var ppContext = new PostEffectContext(cmd, swapFb, framePlan, vp, sci, vpHalf, sciHalf);
         _postProcessGraph.Record(in ppContext, bloomOn, bloomGain, bloomRadius, post);
 
+        // Composite rewrote the swapchain image (full-surface clear + scissored composite draw); overlay Load inherits that.
+        // Barrier addresses visibility ordering composite writes vs overlay reads — not “carry forward last frame’s HUD,”
+        // since inner viewport pixels were refreshed by composite before this pass.
+        if (framePlan.ViewportUiOverlaySpriteCount > 0)
+            BarrierCompositeColorToSwapchainUiOverlay(cmd);
+
+        RecordSwapchainUiOverlay(cmd, swapUiOverlayFb, in framePlan, in vp, in sci);
+
         if (_vk.EndCommandBuffer(cmd) != Result.Success)
             throw new InvalidOperationException("vkEndCommandBuffer failed.");
     }
+
+    private void BarrierCompositeColorToSwapchainUiOverlay(CommandBuffer cmd)
+    {
+        MemoryBarrier barrier = new()
+        {
+            SType = StructureType.MemoryBarrier,
+            SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+            DstAccessMask = AccessFlags.ColorAttachmentReadBit | AccessFlags.ColorAttachmentWriteBit
+        };
+        _vk!.CmdPipelineBarrier(
+            cmd,
+            PipelineStageFlags.ColorAttachmentOutputBit,
+            PipelineStageFlags.ColorAttachmentOutputBit,
+            0,
+            1,
+            &barrier,
+            0,
+            null,
+            0,
+            null);
+    }
+
+    private void RecordSwapchainUiOverlay(CommandBuffer cmd, Framebuffer uiFb, in FramePlan framePlan, in Viewport vp, in Rect2D sci)
+    {
+        var n = framePlan.ViewportUiOverlaySpriteCount;
+        if (n == 0)
+            return;
+
+        RenderPassBeginInfo rpUi = new()
+        {
+            SType = StructureType.RenderPassBeginInfo,
+            RenderPass = _rpSwapchainUiOverlay,
+            Framebuffer = uiFb,
+            RenderArea = new Rect2D { Offset = default, Extent = _swapchainExtent },
+            ClearValueCount = 0,
+            PClearValues = null
+        };
+
+        _vk!.CmdBeginRenderPass(cmd, &rpUi, SubpassContents.Inline);
+        var vpUi = vp;
+        var sciUi = sci;
+        _vk.CmdSetViewport(cmd, 0, 1, &vpUi);
+        _vk.CmdSetScissor(cmd, 0, 1, &sciUi);
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeSwapchainUiOverlay);
+
+        var vb = stackalloc[] { _vertexBuffer };
+        var off = stackalloc ulong[] { 0 };
+        _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
+        _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
+
+        var sprites = framePlan.ViewportUiOverlaySprites;
+        var sortIdx = framePlan.ViewportUiOverlaySortIndices;
+        for (var si = 0; si < n; si++)
+        {
+            var idx = sortIdx[si];
+            DrawSpriteSwapchainUi(cmd, in sprites[idx], in framePlan);
+        }
+
+        _vk.CmdEndRenderPass(cmd);
+    }
+
+    /// <summary>
+    /// Same projection/bindings as G-buffer sprites (mode 1) but uses the swapchain UI fragment stage + straight-alpha blend (pipeline bound by <see cref="RecordSwapchainUiOverlay"/>).
+    /// </summary>
+    private void DrawSpriteSwapchainUi(CommandBuffer cmd, in SpriteDrawRequest s, in FramePlan plan)
+    {
+        var al = TryGetTextureSlot(s.AlbedoTextureId);
+        if (al is null)
+            return;
+
+        var viewportSize = new Vector2D<float>(plan.Camera.ViewportSizeWorld.X, plan.Camera.ViewportSizeWorld.Y);
+        Vector2D<float> px;
+        float rotScreen;
+        if (s.Space == Scene.CoordinateSpace.ViewportSpace)
+        {
+            rotScreen = s.RotationRadians;
+            px = CameraProjection.ViewportPixelToSwapchainPixel(s.CenterWorld, in plan.Physical);
+        }
+        else if (s.Space == Scene.CoordinateSpace.SwapchainSpace)
+        {
+            rotScreen = s.RotationRadians;
+            px = s.CenterWorld;
+        }
+        else
+        {
+            var vpPixel = CameraProjection.WorldToViewportPixel(
+                s.CenterWorld,
+                plan.Camera.PositionWorld,
+                plan.Camera.RotationRadians,
+                viewportSize);
+            rotScreen = s.RotationRadians - plan.Camera.RotationRadians;
+            px = CameraProjection.ViewportPixelToSwapchainPixel(vpPixel, in plan.Physical);
+        }
+
+        var halfX = s.HalfExtentsWorld.X * plan.Physical.Scale;
+        var halfY = s.HalfExtentsWorld.Y * plan.Physical.Scale;
+        var uv = s.UvRect;
+        if (uv.X == 0f && uv.Y == 0f && uv.Z == 0f && uv.W == 0f)
+            uv = new Vector4D<float>(0f, 0f, 1f, 1f);
+
+        var screen = plan.Screen;
+        var phys = plan.Physical;
+        var push = new SpritePushData
+        {
+            CenterHalfPx = new Vector4D<float>(px.X, px.Y, halfX, halfY),
+            UvRect = uv,
+            ColorAlpha = new Vector4D<float>(s.ColorMultiply.X * s.Alpha, s.ColorMultiply.Y * s.Alpha, s.ColorMultiply.Z * s.Alpha, s.ColorMultiply.W * s.Alpha),
+            EmissiveRgbIntensity = new Vector4D<float>(s.EmissiveTint.X, s.EmissiveTint.Y, s.EmissiveTint.Z, s.EmissiveIntensity),
+            ViewportPhysical = new Vector4D<float>(phys.OffsetPixels.X, phys.OffsetPixels.Y, phys.SizePixels.X, phys.SizePixels.Y),
+            ScreenRot = new Vector4D<float>(screen.X, screen.Y, rotScreen, 0f),
+            Mode = 1,
+            UseEmissiveMap = 0
+        };
+
+        var nid = TryGetTextureSlot(s.NormalTextureId) is not null
+            ? s.NormalTextureId
+            : _defaultNormalTextureId;
+        var nt = TryGetTextureSlot(nid);
+        if (nt is null)
+            return;
+
+        var setsG = stackalloc DescriptorSet[2];
+        setsG[0] = al.DescriptorSet;
+        setsG[1] = nt.DescriptorSet;
+        _vk!.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plSpriteEmissive, 0, 2, setsG, 0, null);
+        _vk.CmdPushConstants(cmd, _plSpriteEmissive, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
+            (uint)sizeof(SpritePushData), &push);
+        _vk.CmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+    }
+
+    /// <summary>
+    /// sprite_emissive.frag scales radiance by push emissive.w (<see cref="SpritePushData.EmissiveRgbIntensity"/> W).
+    /// When intensity is zero the fragment writes zero RGB regardless of maps—skip the draw so additive blending does
+    /// not accumulate alphas into the emissive RT for non-emissive sprites (HUD text included).
+    /// </summary>
+    private static bool NeedsEmissivePrepass(in SpriteDrawRequest s) =>
+        s.EmissiveIntensity > 1e-5f;
 
     private void DrawSprite(CommandBuffer cmd, in SpriteDrawRequest s, in FramePlan plan, int mode)
     {
@@ -315,26 +478,30 @@ public sealed unsafe partial class VulkanRenderer
 
         // Project the sprite's authored center down to swapchain pixels (+Y down). World sprites go through
         // the camera transform first, then letterbox. Viewport sprites skip the camera transform so HUD stays
-        // locked to the virtual viewport regardless of camera pose.
+        // locked to the virtual canvas; swapchain-space sprites are already in window pixels (letterbox bars included).
         var viewportSize = new Vector2D<float>(plan.Camera.ViewportSizeWorld.X, plan.Camera.ViewportSizeWorld.Y);
-        Vector2D<float> vpPixel;
+        Vector2D<float> px;
         float rotScreen;
         if (s.Space == Scene.CoordinateSpace.ViewportSpace)
         {
-            vpPixel = s.CenterWorld;
             rotScreen = s.RotationRadians;
+            px = CameraProjection.ViewportPixelToSwapchainPixel(s.CenterWorld, in plan.Physical);
+        }
+        else if (s.Space == Scene.CoordinateSpace.SwapchainSpace)
+        {
+            rotScreen = s.RotationRadians;
+            px = s.CenterWorld;
         }
         else
         {
-            vpPixel = CameraProjection.WorldToViewportPixel(
+            var vpPixel = CameraProjection.WorldToViewportPixel(
                 s.CenterWorld,
                 plan.Camera.PositionWorld,
                 plan.Camera.RotationRadians,
                 viewportSize);
             rotScreen = s.RotationRadians - plan.Camera.RotationRadians;
+            px = CameraProjection.ViewportPixelToSwapchainPixel(vpPixel, in plan.Physical);
         }
-
-        var px = CameraProjection.ViewportPixelToSwapchainPixel(vpPixel, in plan.Physical);
         var halfX = s.HalfExtentsWorld.X * plan.Physical.Scale;
         var halfY = s.HalfExtentsWorld.Y * plan.Physical.Scale;
         var uv = s.UvRect;

@@ -5,8 +5,8 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
-/// Bitmap label processed by staged text systems (<see cref="Systems.TextStagingSystem"/>,
-/// <see cref="Systems.TextBuildSystem"/>, and <see cref="Systems.TextRenderSystem"/>); pair with
+/// Bitmap label: <see cref="Systems.TextStagingSystem"/> warns on misconfiguration;
+/// <see cref="Systems.TextRenderSystem"/> resolves, lays out glyphs, and submits each frame. Pair with
 /// <see cref="Transform"/> for baseline-left.
 /// </summary>
 /// <remarks>

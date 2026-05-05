@@ -51,7 +51,6 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         Assert.Equal(SystemQuerySpec.All<ViewportAnchor2D, Transform>(), new ViewportAnchorSystem(h).QuerySpec);
         Assert.Equal(SystemQuerySpec.All<BitmapText, Transform>(), new TextStagingSystem(h).QuerySpec);
         var textRow = SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();
-        Assert.Equal(textRow, new TextBuildSystem(h).QuerySpec);
         Assert.Equal(textRow, new TextRenderSystem(h).QuerySpec);
     }
 
@@ -212,13 +211,13 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.GetOrAdd<Transform>(e) = Transform.Identity;
         w.GetOrAdd<BitmapText>(e) = new BitmapText { Visible = false, Content = "ok" };
 
-        sys.OnLateUpdate(w.QueryChunks(spec), 0f);
+        sys.OnParallelLateUpdate(w.QueryChunks(spec), 0f, ParOpts());
 
         var e2 = w.CreateEntity();
         w.GetOrAdd<Transform>(e2) = Transform.Identity;
         w.GetOrAdd<BitmapText>(e2) = new BitmapText { Visible = true, Content = "visible with content skips warning branch" };
 
-        sys.OnLateUpdate(w.QueryChunks(spec), 0f);
+        sys.OnParallelLateUpdate(w.QueryChunks(spec), 0f, ParOpts());
     }
 
     [Fact]
@@ -550,8 +549,8 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
             w.GetOrAdd<Transform>(e) = Transform.Identity;
             w.GetOrAdd<BitmapText>(e) = new BitmapText { Visible = true, Content = "" };
 
-            sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
-            sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f);
+            sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f, ParOpts());
+            sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()), 0f, ParOpts());
 
             Assert.Single(sink.Calls, c => c.Severity == EngineErrorSeverity.Warning && c.Message.Contains("empty Content", StringComparison.Ordinal));
         }
@@ -582,6 +581,6 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         var e = w.CreateEntity();
         w.GetOrAdd<Transform>(e) = Transform.Identity;
         w.GetOrAdd<BitmapText>(e) = new BitmapText { Visible = false, Content = "x" };
-        sys.OnLateUpdate(w.QueryChunks(spec), 0f);
+        sys.OnParallelLateUpdate(w.QueryChunks(spec), 0f, ParOpts());
     }
 }
