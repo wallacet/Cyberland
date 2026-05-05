@@ -14,6 +14,13 @@ namespace Cyberland.Demo.MouseChase;
 /// </summary>
 public static class SceneSetup
 {
+    public static readonly Vector2D<float> TutorialTitleHudPos = new(40f, 36f);
+    public static readonly Vector2D<float> TutorialDetailHudPos = new(40f, 74f);
+    public static readonly Vector2D<float> TutorialStatusHudPos = new(40f, 108f);
+    public const float TutorialTitleHudSize = 24f;
+    public const float TutorialDetailHudSize = 18f;
+    public const float TutorialStatusHudSize = 18f;
+
     /// <summary>Builds the scene; <see cref="IRenderer"/> is required for default white/normal texture ids on sprites.</summary>
     public static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
     {
@@ -116,9 +123,9 @@ public static class SceneSetup
             CastsShadow = false
         };
 
-        CreateHudText<TutorialTitleHudTag>(world, 800f);
-        CreateHudText<TutorialDetailHudTag>(world, 801f);
-        CreateHudText<TutorialStatusHudTag>(world, 802f);
+        CreateHudText<TutorialTitleHudTag>(world, 800f, TutorialTitleHudPos, TutorialTitleHudSize);
+        CreateHudText<TutorialDetailHudTag>(world, 801f, TutorialDetailHudPos, TutorialDetailHudSize);
+        CreateHudText<TutorialStatusHudTag>(world, 802f, TutorialStatusHudPos, TutorialStatusHudSize);
         CreateHudText<FpsHudTag>(world, 803f);
 
         ApplyGlobalPost(world);
@@ -156,17 +163,23 @@ public static class SceneSetup
     }
 
     private static void CreateHudText<TTag>(World world, float sortKey)
+        where TTag : struct, IComponent =>
+        CreateHudText<TTag>(world, sortKey, viewportPos: default, sizePixels: 20f);
+
+    private static void CreateHudText<TTag>(World world, float sortKey, Vector2D<float> viewportPos, float sizePixels)
         where TTag : struct, IComponent
     {
         var e = world.CreateEntity();
-        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        var transform = Transform.Identity;
+        transform.LocalPosition = viewportPos;
+        world.GetOrAdd<Transform>(e) = transform;
         world.GetOrAdd<TTag>(e);
         ref var bt = ref world.GetOrAdd<BitmapText>(e);
         bt.Visible = true;
         bt.Content = " ";
         bt.SortKey = sortKey;
         bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
-        bt.Style = new TextStyle(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, sizePixels, new Vector4D<float>(1f, 1f, 1f, 1f));
         bt.IsLocalizationKey = false;
     }
 

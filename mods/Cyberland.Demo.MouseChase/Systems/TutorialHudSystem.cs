@@ -49,19 +49,9 @@ public sealed class TutorialHudSystem : ISingletonSystem, ISingletonLateUpdate
         var detail = DetailText(state);
         var status = StatusText(state);
 
-        UpdateHudText(world, _titleEntity, header, new Vector2D<float>(40f, 36f), 24f);
-        UpdateHudText(world, _detailEntity, detail, new Vector2D<float>(40f, 74f), 18f);
-        UpdateHudText(world, _statusEntity, status, new Vector2D<float>(40f, 108f), 18f);
-    }
-
-    private void UpdateHudText(World world, EntityId entity, string text, Vector2D<float> viewportPos, float size)
-    {
-        ref var transform = ref world.Get<Transform>(entity);
-        transform.LocalPosition = viewportPos;
-
-        ref var bt = ref world.Get<BitmapText>(entity);
-        bt.Content = text;
-        bt.Style = bt.Style with { SizePixels = size };
+        world.Get<BitmapText>(_titleEntity).Content = header;
+        world.Get<BitmapText>(_detailEntity).Content = detail;
+        world.Get<BitmapText>(_statusEntity).Content = status;
     }
 
     private string HeaderText(in GameState state) =>
@@ -72,22 +62,16 @@ public sealed class TutorialHudSystem : ISingletonSystem, ISingletonLateUpdate
             _ => _strings.Get("mousechase.round.title")
         };
 
-    private string DetailText(in GameState state)
-    {
-        if (state.Phase is RoundPhase.Won or RoundPhase.Lost)
-            return _strings.Get("mousechase.round.restart");
-
-        if (!state.EnterZoneSeen)
-            return _strings.Get("mousechase.tutorial.enter");
-        if (!state.StayZoneSeen)
-            return _strings.Get("mousechase.tutorial.stay");
-        if (!state.ExitZoneSeen)
-            return _strings.Get("mousechase.tutorial.exit");
-        if (!state.LocaleSpriteSeen)
-            return _strings.Get("mousechase.tutorial.locale");
-
-        return _strings.Get("mousechase.tutorial.complete");
-    }
+    private string DetailText(in GameState state) =>
+        state switch
+        {
+            { Phase: RoundPhase.Won or RoundPhase.Lost } => _strings.Get("mousechase.round.restart"),
+            { EnterZoneSeen: false } => _strings.Get("mousechase.tutorial.enter"),
+            { StayZoneSeen: false } => _strings.Get("mousechase.tutorial.stay"),
+            { ExitZoneSeen: false } => _strings.Get("mousechase.tutorial.exit"),
+            { LocaleSpriteSeen: false } => _strings.Get("mousechase.tutorial.locale"),
+            _ => _strings.Get("mousechase.tutorial.complete")
+        };
 
     private static string StatusText(in GameState state) =>
         $"Score {state.Score}/{state.TargetScore}  Health {state.Health:0}  Time {state.TimerSeconds:0.0}s";
