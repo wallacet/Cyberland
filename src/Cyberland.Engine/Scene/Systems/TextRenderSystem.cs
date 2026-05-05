@@ -50,9 +50,6 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
-        if (r is null)
-            return;
-
         foreach (var chunk in query)
         {
             var texts = chunk.Column<BitmapText>();

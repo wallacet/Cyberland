@@ -41,8 +41,6 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
-        if (r is null)
-            return;
         var defaultNormal = r.DefaultNormalTextureId;
         
         foreach (var chunk in query)

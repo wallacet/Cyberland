@@ -33,8 +33,6 @@ public sealed class TilemapRenderSystem : IParallelSystem, IParallelLateUpdate
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
-        if (r is null)
-            return;
         var store = _host.Tilemaps;
         if (store is null)
             return;

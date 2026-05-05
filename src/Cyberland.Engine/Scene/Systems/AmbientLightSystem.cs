@@ -33,9 +33,6 @@ public sealed class AmbientLightSystem : IParallelSystem, IParallelLateUpdate
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
-        if (r is null)
-            return;
-        
         foreach (var chunk in query)
         {
             Parallel.For(0, chunk.Count, parallelOptions, j =>

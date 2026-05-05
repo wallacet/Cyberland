@@ -34,7 +34,7 @@ public sealed class SpriteLocalizedAssetSystem : ISystem, ILateUpdate
         _ = deltaSeconds;
         var renderer = _host.Renderer;
         var localized = _host.LocalizedContent;
-        if (renderer is null || localized is null)
+        if (localized is null)
             return;
 
         foreach (var chunk in query)

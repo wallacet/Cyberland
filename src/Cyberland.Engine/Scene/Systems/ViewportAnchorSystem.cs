@@ -33,7 +33,7 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
     {
         _ = deltaSeconds;
         var viewport = _host.CameraRuntimeState.ViewportSizeWorld;
-        if ((viewport.X <= 0 || viewport.Y <= 0) && _host.Renderer is not null)
+        if (viewport.X <= 0 || viewport.Y <= 0)
             viewport = _host.Renderer.ActiveCameraViewportSize;
         if (viewport.X <= 0 || viewport.Y <= 0)
             return;
