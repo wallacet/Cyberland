@@ -12,7 +12,7 @@ alwaysApply: false
 |--------|-------------------|------|
 | **Host** | `Cyberland.Host`, `Cyberland.Engine.GameApplication` | Process entry, window, Vulkan init, swapchain present, global input service + input bindings file, audio device, ECS `World` + `SystemScheduler`, mod discovery, `Mods/` staging (via **`scripts/StageModsForHost.ps1`**) |
 | **Base campaign** | `mods/Cyberland.Game` | `IMod` (`BaseGameMod`), locale and future core **`Content/`** |
-| **Optional samples** | `mods/Cyberland.Demo`, `Cyberland.Demo.Pong`, `.Snake`, `.BrickBreaker` | `IMod` demos: 2D HDR sprites + ECS; arcade minigames (often **`disabled`** in **`manifest.json`**) |
+| **Optional samples** | `mods/Cyberland.Demo`, `Cyberland.Demo.Pong`, `.Snake`, `.BrickBreaker`, `.MouseChase` | `IMod` demos: 2D HDR sprites + ECS; arcade minigames (often **`disabled`** in **`manifest.json`**) |
 | **Engine** | `Cyberland.Engine` | Reusable APIs: ECS, tasks, rendering, input helpers, `GameHostServices`, `ModLoadContext`, `ModLoader` |
 
 Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` unless it is truly host-only (e.g. **Escape** → close window). Prototypes and samples belong in their own mod assemblies.
@@ -32,6 +32,12 @@ Do **not** put feature gameplay (movement, combat, quests) in `GameApplication` 
 1. Each mod folder under `Mods/<Name>/` has `manifest.json` (`loadOrder`, `contentRoot`, optional `entryAssembly`, optional `disabled`).
 2. **`scripts/StageModsForHost.ps1`** stages enabled **`mods/*/`** into **`$(OutDir)Mods/`** and **`$(PublishDir)Mods/`** when publishing: copies **`manifest.json`** + **`Content/`**; **builds** only when **`entryAssembly`** is set (requires a **`.csproj`**).
 3. **`ModLoader.LoadAll`** mounts each mod’s content in load order (skipping ids passed via **`--exclude-mods`**), applies optional **`contentBlocklist`** paths (**`VirtualFileSystem.BlockPath`**), then for each mod with **`entryAssembly`**, loads that DLL, finds a concrete **`IMod`**, and runs **`OnLoadAsync(ModLoadContext)`** to completion on the load thread (**`.GetAwaiter().GetResult()`** today—mods may **`await`** async scene setup inside **`OnLoadAsync`**). Content-only mods (no **`entryAssembly`**) contribute VFS mounts only.
+
+## Solution membership (IDE/intellisense hygiene)
+
+- If a mod or demo includes a **`.csproj`** under **`mods/<Name>/`**, add it to **`Cyberland.sln`** in the same change so IDE symbol indexing and navigation work.
+- Keep **`dotnet sln Cyberland.sln list`** in sync with all code-bearing mod projects under **`mods/`**; do not leave mod projects solution-external.
+- Content-only mods (no **`entryAssembly`**, no **`.csproj`**) do not need solution entries.
 
 ### Default engine systems (2D scene)
 

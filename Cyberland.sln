@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyberland.Demo.BrickBreaker
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyberland.ModPluginHelper", "tests\Cyberland.ModPluginHelper\Cyberland.ModPluginHelper.csproj", "{7F1FE201-EFED-484B-85E2-AAF60EAC27E8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyberland.Demo.MouseChase", "mods\Cyberland.Demo.MouseChase\Cyberland.Demo.MouseChase.csproj", "{B349B359-CE80-4CDA-93FE-ED312956CFCB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -78,6 +80,10 @@ Global
 		{7F1FE201-EFED-484B-85E2-AAF60EAC27E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7F1FE201-EFED-484B-85E2-AAF60EAC27E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7F1FE201-EFED-484B-85E2-AAF60EAC27E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B349B359-CE80-4CDA-93FE-ED312956CFCB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B349B359-CE80-4CDA-93FE-ED312956CFCB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B349B359-CE80-4CDA-93FE-ED312956CFCB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B349B359-CE80-4CDA-93FE-ED312956CFCB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{3AEF5CB6-12B7-4A47-A5E1-6820B87CF4D8} = {8BAED4DD-ADD0-4556-A38E-EAE3F271EAE6}
@@ -90,5 +96,6 @@ Global
 		{FC86BFBF-7998-49D7-AA64-34EACD22AE10} = {1018775A-53D1-4C17-8C58-50FDDE130D37}
 		{DC8E65AE-8522-456A-A2A2-C49E803CA10D} = {1018775A-53D1-4C17-8C58-50FDDE130D37}
 		{7F1FE201-EFED-484B-85E2-AAF60EAC27E8} = {4DE20FE8-4905-4919-95AC-196A2666BC48}
+		{B349B359-CE80-4CDA-93FE-ED312956CFCB} = {1018775A-53D1-4C17-8C58-50FDDE130D37}
 	EndGlobalSection
 EndGlobal
