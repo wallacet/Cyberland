@@ -70,6 +70,7 @@ public sealed class InputBindings
     {
         _map.Clear();
 
+        AddBinding("cyberland.engine/profile-hud", new InputBinding(InputControl.Keyboard(Key.F10)));
         AddBinding("cyberland.common/quit", new InputBinding(InputControl.Keyboard(Key.Q)));
         AddBinding("cyberland.common/menu", new InputBinding(InputControl.Keyboard(Key.Escape)));
         AddBinding("cyberland.common/start", new InputBinding(InputControl.Keyboard(Key.Enter)));

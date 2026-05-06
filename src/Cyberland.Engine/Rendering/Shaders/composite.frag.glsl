@@ -10,7 +10,7 @@ layout(push_constant) uniform Pp {
     float exposure;
     float saturation;
     float emissiveHdrGain;
-    float emissiveBloomGain;
+    float bloomSourceGain;
     // 0 = swapchain sRGB format encodes on write (output linear m); 1 = apply pow(1/2.2) for UNORM swapchain.
     float applyManualDisplayGamma;
     float pad1;

@@ -66,10 +66,7 @@ public sealed class PongLightsFillSystem : ISingletonSystem, ISingletonLateUpdat
         dir.CastsShadow = false;
 
         var spotPos = new Vector2D<float>(st.ArenaMinX + w * 0.04f, st.ArenaMinY + h * 0.08f);
-        var dx = center.X - spotPos.X;
-        var dy = center.Y - spotPos.Y;
-        var dLen = MathF.Sqrt(dx * dx + dy * dy);
-        var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(1f, 0f);
+        var dirVec = LightRigMath.DirectionToOrFallback(spotPos, center, new Vector2D<float>(1f, 0f));
 
         ref var spotTransform = ref world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;

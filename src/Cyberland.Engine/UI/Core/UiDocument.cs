@@ -13,15 +13,67 @@ namespace Cyberland.Engine.UI.Core;
 /// </summary>
 public sealed class UiDocument
 {
+    private bool _fontsAndLocalizationStale = true;
+
+    /// <summary>When true, <see cref="Scene.Systems.UiDocumentFrameSystem"/> runs <see cref="MeasureArrange(in UiRect)"/>.</summary>
+    internal bool LayoutDirty { get; private set; } = true;
+
+    /// <summary>
+    /// Marks retained-UI visuals stale for incremental layout bookkeeping. Draw submission still runs each frame in
+    /// <see cref="Scene.Systems.UiDocumentFrameSystem"/> because renderer queues are reset every render tick.
+    /// </summary>
+    internal bool VisualDirty { get; private set; } = true;
+
+    /// <summary>Last root rectangle passed to <see cref="MeasureArrange(in UiRect)"/> (for resize detection).</summary>
+    internal UiRect LastArrangedRootRect { get; private set; }
+
     /// <summary>Creates a document whose root stretches to available space.</summary>
     public UiDocument()
     {
         Root = new UiPanel();
         UiLayoutPresets.StretchAll(Root);
+        Root.AttachDocument(this);
     }
 
     /// <summary>Layout root (typically a <see cref="UiPanel"/>).</summary>
     public UiPanel Root { get; }
+
+    /// <summary>
+    /// Marks font/localization pointers stale so the next <see cref="Scene.Systems.UiDocumentFrameSystem"/> pass
+    /// re-runs <see cref="PropagateFonts"/> / <see cref="PropagateLocalization"/> (e.g. after adding new
+    /// <see cref="UiTextBlock"/> nodes at runtime).
+    /// </summary>
+    public void InvalidateFontsAndLocalization()
+    {
+        _fontsAndLocalizationStale = true;
+        NotifyLayoutDirty();
+    }
+
+    internal void NotifyLayoutDirty()
+    {
+        LayoutDirty = true;
+        VisualDirty = true;
+    }
+
+    internal void NotifyVisualDirty() => VisualDirty = true;
+
+    internal void ClearFrameDirtyFlagsAfterMeasure(in UiRect rootRect)
+    {
+        LayoutDirty = false;
+        LastArrangedRootRect = rootRect;
+    }
+
+    internal void ClearVisualDirty() => VisualDirty = false;
+
+    /// <summary>Engine use: applies propagation once per stale cycle before layout.</summary>
+    internal void PrepareFontsAndLocalizationIfNeeded(FontLibrary fonts, LocalizationManager? localization)
+    {
+        if (!_fontsAndLocalizationStale)
+            return;
+        _fontsAndLocalizationStale = false;
+        PropagateFonts(fonts);
+        PropagateLocalization(localization);
+    }
 
     /// <summary>Runs measure then arrange using a viewport-local rect starting at the origin.</summary>
     public void MeasureArrange(Vector2D<float> availableSize) =>
@@ -33,6 +85,7 @@ public sealed class UiDocument
         var constraints = UiSizeConstraints.Loose(rootAvailableRect.Width, rootAvailableRect.Height);
         Root.Measure(constraints);
         Root.Arrange(rootAvailableRect);
+        ClearFrameDirtyFlagsAfterMeasure(rootAvailableRect);
     }
 
     /// <summary>Assigns <see cref="UiTextBlock.Fonts"/> on every <see cref="UiTextBlock"/> in the tree.</summary>

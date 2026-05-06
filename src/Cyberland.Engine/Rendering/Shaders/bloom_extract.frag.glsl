@@ -1,13 +1,14 @@
 #version 450
 // Half-res bright pass: each half-res cell samples full HDR at the center of its 2×2 footprint (see uvFull below).
 // composite.frag uses (floor(FragCoord)+0.5)/fullSz for hdr/em/bloom — stay consistent to avoid diagonal ghosting.
-// HDR already includes emissive from the lit pass; bloom prefilter uses HDR only (avoids double-count / ghost bloom).
+// HDR already includes emissive from the lit pass; bloomSourceGain tunes how strongly bright source color feeds bloom
+// without changing the main composite tonemapping path.
 layout(set = 0, binding = 0) uniform sampler2D hdrTex;
 layout(location = 0) out vec4 outC;
 layout(push_constant) uniform BloomExtractPc {
     float threshold;
     float knee;
-    float emissiveBloomGain;
+    float bloomSourceGain;
     float pad0;
 } pc;
 
@@ -25,6 +26,6 @@ void main() {
     vec2 uvFull = (halfCoord * 2.0 + vec2(0.5)) / fullSz;
 
     vec3 scene = texture(hdrTex, uvFull).rgb;
-    vec3 bloom = prefilteredColor(scene, pc.threshold, pc.knee);
+    vec3 bloom = prefilteredColor(scene, pc.threshold, pc.knee) * pc.bloomSourceGain;
     outC = vec4(bloom, 1.0);
 }

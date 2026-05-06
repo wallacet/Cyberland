@@ -33,10 +33,13 @@ internal readonly struct FramePlan
     public readonly int SpriteCount;
     public readonly PointLight[] PointLights;
     public readonly int PointLightCount;
+    public readonly int PointLightDroppedCount;
     public readonly SpotLight[] SpotLights;
     public readonly int SpotLightCount;
+    public readonly int SpotLightDroppedCount;
     public readonly DirectionalLight[] DirectionalLights;
     public readonly int DirectionalLightCount;
+    public readonly int DirectionalLightDroppedCount;
     public readonly AmbientLight[] AmbientLights;
     public readonly int AmbientLightCount;
     public readonly PostProcessVolumeSubmission[] Volumes;
@@ -60,15 +63,25 @@ internal readonly struct FramePlan
 
     public readonly int[] ViewportUiOverlaySortIndices;
 
+    /// <summary>Queued text glyphs for the dedicated instanced text pass.</summary>
+    public readonly TextGlyphDrawRequest[] TextGlyphs;
+
+    public readonly int TextGlyphCount;
+
+    public readonly int[] TextGlyphSortIndices;
+
     public FramePlan(
         SpriteDrawRequest[] sprites,
         int spriteCount,
         PointLight[] pointLights,
         int pointLightCount,
+        int pointLightDroppedCount,
         SpotLight[] spotLights,
         int spotLightCount,
+        int spotLightDroppedCount,
         DirectionalLight[] directionalLights,
         int directionalLightCount,
+        int directionalLightDroppedCount,
         AmbientLight[] ambientLights,
         int ambientLightCount,
         PostProcessVolumeSubmission[] volumes,
@@ -82,16 +95,22 @@ internal readonly struct FramePlan
         in PhysicalViewport physical,
         SpriteDrawRequest[]? viewportUiOverlaySprites = null,
         int viewportUiOverlaySpriteCount = 0,
-        int[]? viewportUiOverlaySortIndices = null)
+        int[]? viewportUiOverlaySortIndices = null,
+        TextGlyphDrawRequest[]? textGlyphs = null,
+        int textGlyphCount = 0,
+        int[]? textGlyphSortIndices = null)
     {
         Sprites = sprites;
         SpriteCount = spriteCount;
         PointLights = pointLights;
         PointLightCount = pointLightCount;
+        PointLightDroppedCount = pointLightDroppedCount;
         SpotLights = spotLights;
         SpotLightCount = spotLightCount;
+        SpotLightDroppedCount = spotLightDroppedCount;
         DirectionalLights = directionalLights;
         DirectionalLightCount = directionalLightCount;
+        DirectionalLightDroppedCount = directionalLightDroppedCount;
         AmbientLights = ambientLights;
         AmbientLightCount = ambientLightCount;
         Volumes = volumes;
@@ -106,6 +125,9 @@ internal readonly struct FramePlan
         ViewportUiOverlaySprites = viewportUiOverlaySprites ?? [];
         ViewportUiOverlaySpriteCount = viewportUiOverlaySpriteCount;
         ViewportUiOverlaySortIndices = viewportUiOverlaySortIndices ?? [];
+        TextGlyphs = textGlyphs ?? [];
+        TextGlyphCount = textGlyphCount;
+        TextGlyphSortIndices = textGlyphSortIndices ?? [];
     }
 }
 

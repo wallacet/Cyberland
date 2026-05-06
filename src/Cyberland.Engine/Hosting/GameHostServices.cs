@@ -91,4 +91,18 @@ public sealed class GameHostServices
     /// </summary>
     public float FixedDeltaSeconds { get; internal set; } = 1f / 60f;
 
+    /// <summary>
+    /// Ensures the host finished wiring core runtime services before systems or mods execute.
+    /// Violations indicate host bootstrap ordering bugs and should fail fast.
+    /// </summary>
+    public void EnsureCoreServicesReady()
+    {
+        if (Renderer is null)
+            throw new InvalidOperationException("Host bootstrap invariant violated: GameHostServices.Renderer must be assigned before systems execute.");
+        if (Input is null)
+            throw new InvalidOperationException("Host bootstrap invariant violated: GameHostServices.Input must be assigned before systems execute.");
+        if (CameraRuntimeState.Equals(default(CameraRuntimeState)))
+            throw new InvalidOperationException("Host bootstrap invariant violated: GameHostServices.CameraRuntimeState must be assigned before systems execute.");
+    }
+
 }

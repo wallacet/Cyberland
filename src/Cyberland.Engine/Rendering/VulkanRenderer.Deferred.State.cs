@@ -15,6 +15,8 @@ namespace Cyberland.Engine.Rendering;
 /// <summary>HDR: emissive prepass, deferred G-buffer + lighting, WBOIT transparency, bloom, composite (scene-linear).</summary>
 public sealed unsafe partial class VulkanRenderer
 {
+    private const float TextMsdfEdgeSharpness = Text.TextMsdfDefaults.EdgeSharpness;
+
     /// <summary>Offscreen color passes: first write after image (re)alloc uses Undefined; subsequent passes must use ShaderReadOnly initial layout.</summary>
     private RenderPass _rpOffscreenInitialUndefined = default;
 
@@ -130,7 +132,7 @@ public sealed unsafe partial class VulkanRenderer
     // Pyramid level descriptors: [0]=half-res bloom0, [1..N]=bloomDown[i-1]
     private readonly DescriptorSet[] _dsBloomDownSrc = new DescriptorSet[DeferredRenderingConstants.BloomDownsampleLevels + 1];
 
-    private PipelineLayout _plSpriteEmissive = default;
+    private PipelineLayout _plSpriteTwoTexture = default;
     private PipelineLayout _plComposite = default;
     private PipelineLayout _plBloomExtract = default;
     private PipelineLayout _plBloomDownsample = default;
@@ -141,6 +143,7 @@ public sealed unsafe partial class VulkanRenderer
     private PipelineLayout _plDeferredPoint = default;
     private PipelineLayout _plDeferredBleed = default;
     private PipelineLayout _plTransparentResolve = default;
+    private PipelineLayout _plTextMsdf = default;
 
     private ShaderModule _modVertSprite = default;
     private ShaderModule _modFragEmissive = default;
@@ -159,6 +162,8 @@ public sealed unsafe partial class VulkanRenderer
     private ShaderModule _modFragBloomGaussian = default;
     private ShaderModule _modFragBloomUpsample = default;
     private ShaderModule _modFragBloomCopy = default;
+    private ShaderModule _modVertTextMsdf = default;
+    private ShaderModule _modFragTextMsdf = default;
 
     private Pipeline _pipeEmissive = default;
     private Pipeline _pipeSpriteGbuffer = default;
@@ -174,6 +179,7 @@ public sealed unsafe partial class VulkanRenderer
     private Pipeline _pipeBloomGaussian = default;
     private Pipeline _pipeBloomUpsample = default;
     private Pipeline _pipeBloomCopy = default;
+    private Pipeline _pipeTextMsdf = default;
     private BloomPipeline? _bloomPipeline;
     private DescriptorManager? _descriptorManager;
     private OffscreenTargets? _offscreenTargets;
@@ -187,29 +193,83 @@ public sealed unsafe partial class VulkanRenderer
     private DeviceMemory _lightingBufferMemory = default;
     /// <summary>Persistent host mapping for <see cref="_lightingBuffer"/>; unmapped on teardown.</summary>
     private void* _lightingBufferMapped;
+    private VkBuffer _textInstanceBuffer = default;
+    private DeviceMemory _textInstanceBufferMemory = default;
+    private void* _textInstanceBufferMapped;
+    private int _textInstanceCapacity;
+    private int _lastFrameTextGlyphInstances;
+    private int _lastFrameTextBatchCount;
+    private int _lastFrameTextDrawCalls;
+
+    private VkBuffer _spriteInstanceBuffer;
+    private DeviceMemory _spriteInstanceBufferMemory;
+    private void* _spriteInstanceBufferMapped;
+    private int _spriteInstanceCapacity;
+
+    private int _lastFrameOverlaySpriteInstances;
+    private int _lastFrameOverlaySpriteBatchCount;
+    private int _lastFrameOverlaySpriteDrawCalls;
+
+    private int _lastFrameDeferredEmissiveSpriteInstances;
+    private int _lastFrameDeferredEmissiveSpriteBatchCount;
+    private int _lastFrameDeferredEmissiveSpriteDrawCalls;
+
+    private int _lastFrameDeferredOpaqueSpriteInstances;
+    private int _lastFrameDeferredOpaqueSpriteBatchCount;
+    private int _lastFrameDeferredOpaqueSpriteDrawCalls;
+
+    private int _lastFrameDeferredTransparentSpriteInstances;
+    private int _lastFrameDeferredTransparentSpriteBatchCount;
+    private int _lastFrameDeferredTransparentSpriteDrawCalls;
+
+    private int _lastFrameSubmittedPointLights;
+    private int _lastFrameSubmittedDirectionalLights;
+    private int _lastFrameSubmittedSpotLights;
+    private int _lastFrameDroppedPointLights;
+    private int _lastFrameDroppedDirectionalLights;
+    private int _lastFrameDroppedSpotLights;
 
     /// <summary>One composite descriptor set per in-flight frame so updating bloom binding cannot race overlapping GPU work.</summary>
     private DescriptorSet[] _dsCompositeSlots = new DescriptorSet[MaxFramesInFlight];
 
+    /// <summary>Per-frame push for all instanced sprite pipelines (viewport letterbox only).</summary>
     [StructLayout(LayoutKind.Sequential)]
-    private struct SpritePushData
+    private struct SpriteInstancingPush
+    {
+        public Vector4D<float> ViewportPhysical;
+    }
+
+    /// <summary>Per-instance sprite quad data (binding 1, instance rate).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SpriteInstanceGpu
     {
         public Vector4D<float> CenterHalfPx;
         public Vector4D<float> UvRect;
         public Vector4D<float> ColorAlpha;
         public Vector4D<float> EmissiveRgbIntensity;
-        /// <summary>Letterboxed drawable rect in swapchain pixels: X = offset X, Y = offset Y, Z = width, W = height.</summary>
-        /// <remarks>
-        /// Sprite vertices must map swapchain pixel centers into clip space using this rect, because
-        /// <c>vkCmdSetViewport</c> is bound to the same physical region — using the full swapchain size here skews
-        /// NDC whenever pillarbox/letterbox bars are present.
-        /// </remarks>
+        /// <summary>XY unused; Z = rotation radians; W = 1 when emissive map samples set 1, else 0.</summary>
+        public Vector4D<float> RotAndFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TextMsdfPushData
+    {
+        /// <summary>Letterboxed viewport rectangle in swapchain pixels (x,y,w,h).</summary>
         public Vector4D<float> ViewportPhysical;
-        /// <summary>XY = full swapchain size (HDR UVs etc.), Z = rotation radians, W unused.</summary>
-        public Vector4D<float> ScreenRot;
-        public int Mode;
-        /// <summary>Emissive prepass: 1 when <see cref="SpriteDrawRequest.EmissiveTextureId"/> is bound.</summary>
-        public int UseEmissiveMap;
+        /// <summary>XY = full swapchain size.</summary>
+        public Vector2D<float> Screen;
+        /// <summary>Scales screen-space edge slope reconstruction for crispness tuning.</summary>
+        public float EdgeSharpness;
+        public float _pad0;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TextGlyphInstanceGpu
+    {
+        public Vector4D<float> CenterHalfPx;
+        public Vector4D<float> UvRect;
+        public Vector4D<float> Color;
+        public Vector4D<float> MsdfParams;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -219,7 +279,7 @@ public sealed unsafe partial class VulkanRenderer
         public float Exposure;
         public float Saturation;
         public float EmissiveHdrGain;
-        public float EmissiveBloomGain;
+        public float BloomSourceGain;
         /// <summary>1 = apply pow(1/2.2) for UNORM swapchain; 0 = linear out (sRGB swapchain encodes on write).</summary>
         public float ApplyManualDisplayGamma;
         public float Pad1;
@@ -230,7 +290,7 @@ public sealed unsafe partial class VulkanRenderer
     {
         public float Threshold;
         public float Knee;
-        public float EmissiveBloomGain;
+        public float BloomSourceGain;
         public float Pad0;
     }
 

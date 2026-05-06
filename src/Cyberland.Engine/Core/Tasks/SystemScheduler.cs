@@ -1,4 +1,5 @@
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Diagnostics;
 
 namespace Cyberland.Engine.Core.Tasks;
 
@@ -10,6 +11,7 @@ namespace Cyberland.Engine.Core.Tasks;
 /// <see cref="IEarlyUpdate"/> / <see cref="IFixedUpdate"/> / <see cref="ILateUpdate"/> (or parallel equivalents) control
 /// which phases run. Phase interfaces are resolved once at <c>Register*</c> so <see cref="RunFrame(World, float)"/> does not
 /// repeat type tests on the hot path.
+/// Parallel and serial entries share one ordered list per phase; there is no implicit "run all parallel then all serial" barrier.
 /// </summary>
 public sealed class SystemScheduler
 {
@@ -274,6 +276,7 @@ public sealed class SystemScheduler
     /// The stock host passes a callback into the three-parameter <c>RunFrame</c> overload so
     /// <see cref="Hosting.GameHostServices.FixedAccumulatorSeconds"/> is updated <strong>before</strong> late phase, allowing
     /// <see cref="ILateUpdate"/> to extrapolate visuals with the current frame remainder (not the previous frame).
+/// Mixed serial/parallel systems still execute in one deterministic registration/constraint order inside each phase.
     /// </remarks>
     /// <param name="world">ECS world: used to build <see cref="ChunkQueryAll"/> and passed only to <see cref="ISystem.OnStart"/> / <see cref="IParallelSystem.OnStart"/>.</param>
     /// <param name="deltaSeconds">Real elapsed frame time in seconds (variable).</param>
@@ -315,6 +318,7 @@ public sealed class SystemScheduler
             if (!e.Enabled)
                 continue;
 
+            using var __scope = FrameProfilerScope.Enter($"Scheduler.Early.{e.Id}");
             switch (e)
             {
                 case SerialEntry se:
@@ -340,6 +344,7 @@ public sealed class SystemScheduler
                 if (!e.Enabled)
                     continue;
 
+                using var __scope = FrameProfilerScope.Enter($"Scheduler.Fixed.{e.Id}");
                 switch (e)
                 {
                     case SerialEntry se:
@@ -367,6 +372,7 @@ public sealed class SystemScheduler
             if (!e.Enabled)
                 continue;
 
+            using var __scope = FrameProfilerScope.Enter($"Scheduler.Late.{e.Id}");
             switch (e)
             {
                 case SerialEntry se:

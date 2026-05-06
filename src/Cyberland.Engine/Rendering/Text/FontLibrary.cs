@@ -16,6 +16,21 @@ public sealed class FontLibrary
 {
     private readonly Dictionary<string, RegisteredFamily> _families = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Reuses <see cref="Font"/> instances for layout/measure so word-wrap and HUD paths do not allocate a new font per
+    /// span (must match <see cref="TextGlyphCache"/> face/size quantization so metrics align with rasterized glyphs).
+    /// </summary>
+    private readonly Dictionary<(string FamilyId, FontFaceKind Face, int SizeQuant), Font> _measureFontCache = new();
+
+    /// <summary>
+    /// SixLabors <see cref="Font"/> / measurers are not safe for concurrent use on the same instance; layout holds this
+    /// while measuring and <see cref="TextGlyphCache"/> holds it while rasterizing so threads never interleave.
+    /// </summary>
+    private readonly object _measureFontLock = new();
+
+    /// <summary>Sync root shared with UI measure helpers and <see cref="TextGlyphCache"/>.</summary>
+    internal object FontRasterSync => _measureFontLock;
+
     /// <summary>Registers a family from in-memory font files (one stream per face).</summary>
     /// <param name="familyId">Stable id used in <see cref="TextStyle"/>.</param>
     /// <param name="regular">Required regular face bytes.</param>
@@ -104,7 +119,11 @@ public sealed class FontLibrary
         return _families.TryGetValue(familyId, out family);
     }
 
-    internal bool TryCreateFont(in TextStyle style, out Font font, out FontFaceKind usedFace)
+    /// <summary>
+    /// Resolve/create a cached font under <see cref="FontRasterSync"/> (caller must hold the lock through any follow-up
+    /// SixLabors measure or raster work on <paramref name="font"/>).
+    /// </summary>
+    internal bool TryCreateFontUnlocked(in TextStyle style, out Font font, out FontFaceKind usedFace)
     {
         font = null!;
         usedFace = FontFaceKind.Regular;
@@ -112,10 +131,26 @@ public sealed class FontLibrary
             return false;
 
         usedFace = SelectFace(style.Bold, style.Italic, fam!);
-        var face = fam!.GetFace(usedFace);
         var q = QuantizeEmSizePixels(style.SizePixels);
+        var cacheKey = (style.FontFamilyId, usedFace, q);
+
+        if (_measureFontCache.TryGetValue(cacheKey, out var cached))
+        {
+            font = cached;
+            return true;
+        }
+
+        var face = fam!.GetFace(usedFace);
         font = CreateFontAtPixelSize(face, EmQuantToPixels(q));
+        _measureFontCache[cacheKey] = font;
         return true;
+    }
+
+    /// <summary>Convenience for tests and single-threaded callers: locks <see cref="FontRasterSync"/> for lookup only.</summary>
+    internal bool TryCreateFont(in TextStyle style, out Font font, out FontFaceKind usedFace)
+    {
+        lock (_measureFontLock)
+            return TryCreateFontUnlocked(in style, out font, out usedFace);
     }
 
     /// <summary>Rounds nominal pixel size to a stable cache key (1/256 px resolution).</summary>

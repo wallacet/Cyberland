@@ -27,6 +27,17 @@ public sealed class TextRenderingTests
     }
 
     [Fact]
+    public void FontLibrary_TryCreateFont_reuses_cached_font_for_identical_style()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var style = new TextStyle(BuiltinFonts.UiSans, 19.25f, new Vector4D<float>(1f, 1f, 1f, 1f), Bold: true);
+        Assert.True(lib.TryCreateFont(in style, out var a, out _));
+        Assert.True(lib.TryCreateFont(in style, out var b, out _));
+        Assert.Same(a, b);
+    }
+
+    [Fact]
     public void BuiltinFonts_AddTo_null_throws() =>
         Assert.Throws<ArgumentNullException>(() => BuiltinFonts.AddTo(null!));
 
@@ -189,19 +200,25 @@ public sealed class TextRenderingTests
             out var font,
             out _));
 
-        Assert.True(GlyphRasterizer.TryCreateGlyphRgba(font, " ", out var ws, out var ww, out var wh, out _, out _, out _));
-        Assert.True(ww >= 1 && wh >= 1);
+        Assert.True(GlyphRasterizer.TryCreateGlyphMsdf(font, " ", out var ws, out var aw, out var ah, out var ww, out var wh, out _, out _, out _, out _));
+        Assert.True(aw >= 1 && ah >= 1);
+        Assert.True(ww >= 1f && wh >= 1f);
         Assert.NotNull(ws);
+        Assert.DoesNotContain(ws!, static b => b != 0);
 
-        Assert.True(GlyphRasterizer.TryCreateGlyphRgba(font, "Q", out var g, out var w, out var h, out _, out _, out _));
-        Assert.True(w > 1 && h > 1);
+        Assert.True(GlyphRasterizer.TryCreateGlyphMsdf(font, "Q", out var g, out var texW, out var texH, out var w, out var h, out _, out _, out _, out var rangePx));
+        Assert.True(texW > w);
+        Assert.True(texH > h);
+        Assert.True(w > 1f && h > 1f);
         Assert.NotNull(g);
+        Assert.True(rangePx > 0f);
+        Assert.Contains(g!, static b => b != 0);
     }
 
     [Fact]
     public void GlyphRasterizer_rejects_empty_glyph_string() =>
-        Assert.False(GlyphRasterizer.TryCreateGlyphRgba(
-            CreateTestFont(), "", out _, out _, out _, out _, out _, out _));
+        Assert.False(GlyphRasterizer.TryCreateGlyphMsdf(
+            CreateTestFont(), "", out _, out _, out _, out _, out _, out _, out _, out _, out _));
 
     [Fact]
     public void RegisteredFamily_GetFace_covers_all_kinds()
@@ -343,7 +360,7 @@ public sealed class TextRenderingTests
     public void GlyphRasterizer_rejects_empty_string()
     {
         var f = CreateTestFont();
-        Assert.False(GlyphRasterizer.TryCreateGlyphRgba(f, "", out _, out _, out _, out _, out _, out _));
+        Assert.False(GlyphRasterizer.TryCreateGlyphMsdf(f, "", out _, out _, out _, out _, out _, out _, out _, out _, out _));
     }
 
     [Fact]
@@ -606,8 +623,8 @@ public sealed class TextRenderingTests
         BuiltinFonts.AddTo(lib);
         var cache = new TextGlyphCache();
         var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
-        Span<SpriteDrawRequest> empty = stackalloc SpriteDrawRequest[0];
-        var n = TextRenderer.FillGlyphRunSprites(r, lib, cache, "A", in st, new Vector2D<float>(0f, 10f), 0f, 400f, empty,
+        Span<TextGlyphDrawRequest> empty = stackalloc TextGlyphDrawRequest[0];
+        var n = TextRenderer.FillGlyphRunGlyphs(r, lib, cache, "A", in st, new Vector2D<float>(0f, 10f), 0f, 400f, empty,
             out var penAfter);
         Assert.Equal(0, n);
         Assert.Equal(0f, penAfter);
@@ -622,10 +639,44 @@ public sealed class TextRenderingTests
         BuiltinFonts.AddTo(lib);
         var cache = new TextGlyphCache();
         var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
-        Span<SpriteDrawRequest> one = stackalloc SpriteDrawRequest[1];
-        var n = TextRenderer.FillGlyphRunSprites(r, lib, cache, "AB", in st, new Vector2D<float>(0f, 10f), 0f, 400f, one,
+        Span<TextGlyphDrawRequest> one = stackalloc TextGlyphDrawRequest[1];
+        var n = TextRenderer.FillGlyphRunGlyphs(r, lib, cache, "AB", in st, new Vector2D<float>(0f, 10f), 0f, 400f, one,
             out _);
         Assert.Equal(1, n);
+    }
+
+    [Fact]
+    public void FillGlyphRunGlyphs_viewport_snaps_fractional_baseline_to_rounded_origin()
+    {
+        var r = new RecordingRenderer();
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
+        Span<TextGlyphDrawRequest> bufA = stackalloc TextGlyphDrawRequest[4];
+        Span<TextGlyphDrawRequest> bufB = stackalloc TextGlyphDrawRequest[4];
+        var nA = TextRenderer.FillGlyphRunGlyphs(r, lib, cache, "A", in st, new Vector2D<float>(100.6f, 50.4f), 0f, 400f,
+            bufA, out _, CoordinateSpace.ViewportSpace);
+        var nB = TextRenderer.FillGlyphRunGlyphs(r, lib, cache, "A", in st, new Vector2D<float>(101f, 50f), 0f, 400f, bufB,
+            out _, CoordinateSpace.ViewportSpace);
+        Assert.Equal(1, nA);
+        Assert.Equal(1, nB);
+        Assert.Equal(bufA[0].Center, bufB[0].Center);
+    }
+
+    [Fact]
+    public void FillGlyphRunGlyphs_returns_zero_for_empty_text()
+    {
+        var r = new RecordingRenderer();
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
+        Span<TextGlyphDrawRequest> one = stackalloc TextGlyphDrawRequest[1];
+        var n = TextRenderer.FillGlyphRunGlyphs(r, lib, cache, string.Empty, in st, new Vector2D<float>(0f, 10f), 0f,
+            400f, one, out var penAfter);
+        Assert.Equal(0, n);
+        Assert.Equal(0f, penAfter);
     }
 
     [Fact]
@@ -637,6 +688,38 @@ public sealed class TextRenderingTests
         var loc = new LocalizationManager();
         var st = new TextStyle(BuiltinFonts.UiSans, 12f, Vector4D<float>.One);
         TextRenderer.DrawRuns(null!, lib, cache, loc, new[] { new TextRun("x", st, false) }, default);
+    }
+
+    [Fact]
+    public void MsdfDefaults_cover_expected_baseline_sizes_and_scales()
+    {
+        Assert.Equal(new[] { 12f, 14f, 18f, 24f }, TextMsdfDefaults.BaselineSizesPx.ToArray());
+        Assert.Equal(new[] { 1f, 1.25f, 1.5f, 2f }, TextMsdfDefaults.BaselinePhysicalScales.ToArray());
+        Assert.True(TextMsdfDefaults.PixelRange > 0f);
+        Assert.True(TextMsdfDefaults.EdgeSharpness >= 1f);
+    }
+
+    [Fact]
+    public void GlyphRasterizer_break_migration_removed_pseudo_msdf_symbols()
+    {
+        var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        Assert.Null(typeof(GlyphRasterizer).GetMethod("TryCreateGlyphRgba", flags));
+        Assert.Null(typeof(GlyphRasterizer).GetMethod("ConvertAlphaToPseudoMsdf", flags));
+    }
+
+    [Fact]
+    public void FillGlyphRunGlyphs_emits_msdf_pixel_range_metadata()
+    {
+        var r = new RecordingRenderer();
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var cache = new TextGlyphCache();
+        var st = new TextStyle(BuiltinFonts.UiSans, 14f, Vector4D<float>.One);
+        Span<TextGlyphDrawRequest> one = stackalloc TextGlyphDrawRequest[1];
+        var n = TextRenderer.FillGlyphRunGlyphs(r, lib, cache, "A", in st, new Vector2D<float>(8f, 18f), 0f, 5f, one,
+            out _);
+        Assert.Equal(1, n);
+        Assert.True(one[0].MsdfPixelRange > 0f);
     }
 
 }

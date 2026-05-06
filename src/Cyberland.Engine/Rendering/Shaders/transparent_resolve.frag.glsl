@@ -12,6 +12,7 @@ void main() {
     vec2 uv = (floor(gl_FragCoord.xy) + vec2(0.5)) / pc.screenSize;
     vec3 opaqueCol = texture(hdrOpaque, uv).rgb;
     vec4 accum = texture(accumTex, uv);
+    // Reveal stores multiplicative transmittance product (clear=1, blend dst*=1-alpha per fragment).
     float reveal = texture(revealTex, uv).r;
     reveal = clamp(reveal, 0.0, 1.0);
     // Avoid dividing tiny/noisy accum.a (could inflate transCol and leave smears next to clears edges).

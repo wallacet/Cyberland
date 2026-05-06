@@ -16,50 +16,187 @@ public class UiTextBlock : UiElement
 {
     private UiTextLayoutEngine? _layout;
     private readonly UiTextLayoutCache _cache = new();
+    private string _text = string.Empty;
+    private TextStyle _defaultStyle;
+    private List<TextRun>? _runs;
+    private float _paragraphSpacing;
+    private float _lineSpacingExtra;
+    private UiTextHorizontalAlignment _horizontalAlignment;
+    private UiTextVerticalAlignment _verticalAlignment;
+    private UiTextFitMode _fitMode;
+    private UiTextFitTarget _fitTarget = UiTextFitTarget.Box;
+    private float _minFitSizePixels = 8f;
+    private FontLibrary? _fonts;
+    private LocalizationManager? _localization;
+
+    private int _shrinkFitCacheKey;
+    private UiTextLayoutEngine? _shrinkFitCachedLayout;
 
     /// <summary>Whole-block literal copy when <see cref="Runs"/> is null or empty.</summary>
-    public string Text { get; set; } = string.Empty;
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            value ??= string.Empty;
+            if (string.Equals(_text, value, StringComparison.Ordinal))
+                return;
+            _text = value;
+            _cache.Clear();
+            base.InvalidateLayout();
+        }
+    }
 
     /// <summary>Style for literal <see cref="Text"/> mode.</summary>
-    public TextStyle DefaultStyle { get; set; }
+    public TextStyle DefaultStyle
+    {
+        get => _defaultStyle;
+        set
+        {
+            if (_defaultStyle.Equals(value))
+                return;
+            _defaultStyle = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Optional styled spans (paragraph breaks use <c>\n\n</c> inside run text).</summary>
-    public List<TextRun>? Runs { get; set; }
+    public List<TextRun>? Runs
+    {
+        get => _runs;
+        set
+        {
+            if (ReferenceEquals(_runs, value))
+                return;
+            _runs = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Extra vertical gap between paragraphs (after <c>\n\n</c> splits).</summary>
-    public float ParagraphSpacing { get; set; }
+    public float ParagraphSpacing
+    {
+        get => _paragraphSpacing;
+        set
+        {
+            if (MathF.Abs(_paragraphSpacing - value) < 1e-4f)
+                return;
+            _paragraphSpacing = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Extra pixels added after each wrapped/hard line.</summary>
-    public float LineSpacingExtra { get; set; }
+    public float LineSpacingExtra
+    {
+        get => _lineSpacingExtra;
+        set
+        {
+            if (MathF.Abs(_lineSpacingExtra - value) < 1e-4f)
+                return;
+            _lineSpacingExtra = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>
     /// How each laid-out line is shifted on X inside the content rectangle when the line is narrower than the box.
     /// </summary>
-    public UiTextHorizontalAlignment HorizontalAlignment { get; set; }
+    public UiTextHorizontalAlignment HorizontalAlignment
+    {
+        get => _horizontalAlignment;
+        set
+        {
+            if (_horizontalAlignment == value)
+                return;
+            _horizontalAlignment = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>
     /// How the measured layout block is shifted on Y when the laid-out text is shorter than the content rectangle
     /// (after <see cref="UiElement.Padding"/>).
     /// </summary>
-    public UiTextVerticalAlignment VerticalAlignment { get; set; }
+    public UiTextVerticalAlignment VerticalAlignment
+    {
+        get => _verticalAlignment;
+        set
+        {
+            if (_verticalAlignment == value)
+                return;
+            _verticalAlignment = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Whether to binary-search a smaller uniform scale when layout overflows the content box.</summary>
-    public UiTextFitMode FitMode { get; set; }
+    public UiTextFitMode FitMode
+    {
+        get => _fitMode;
+        set
+        {
+            if (_fitMode == value)
+                return;
+            _fitMode = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Axes checked by <see cref="FitMode"/> (<see cref="UiTextFitMode.ShrinkToFit"/>).</summary>
-    public UiTextFitTarget FitTarget { get; set; } = UiTextFitTarget.Box;
+    public UiTextFitTarget FitTarget
+    {
+        get => _fitTarget;
+        set
+        {
+            if (_fitTarget == value)
+                return;
+            _fitTarget = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Lower pixel bound for quantized shrink search (inclusive).</summary>
-    public float MinFitSizePixels { get; set; } = 8f;
+    public float MinFitSizePixels
+    {
+        get => _minFitSizePixels;
+        set
+        {
+            if (MathF.Abs(_minFitSizePixels - value) < 1e-4f)
+                return;
+            _minFitSizePixels = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>
     /// Fonts used for measurement and drawing; when null, <see cref="MeasureCore"/> falls back to the base
     /// <see cref="UiElement"/> sizing path.
     /// </summary>
-    public FontLibrary? Fonts { get; set; }
+    public FontLibrary? Fonts
+    {
+        get => _fonts;
+        set
+        {
+            if (ReferenceEquals(_fonts, value))
+                return;
+            _fonts = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Localization source for runs marked as keys during layout measurement.</summary>
-    public LocalizationManager? Localization { get; set; }
+    public LocalizationManager? Localization
+    {
+        get => _localization;
+        set
+        {
+            if (ReferenceEquals(_localization, value))
+                return;
+            _localization = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <inheritdoc />
     protected override Vector2D<float> MeasureCore(in UiSizeConstraints constraints)
@@ -71,7 +208,7 @@ public class UiTextBlock : UiElement
         var innerMaxH = constraints.MaxHeight - Padding.Vertical - Margin.Vertical;
 
         if (FitMode == UiTextFitMode.ShrinkToFit)
-            _layout = MeasureShrinkToFit(innerMaxW, innerMaxH);
+            _layout = MeasureShrinkToFitCached(innerMaxW, innerMaxH);
         else
         {
             var fp = UiTextLayoutEngine.ComputeFingerprint(
@@ -138,6 +275,34 @@ public class UiTextBlock : UiElement
             dh = MathF.Max(dh, SizeDelta.Y + Margin.Vertical);
 
         return constraints.ClampSize(new Vector2D<float>(dw, dh));
+    }
+
+    private UiTextLayoutEngine MeasureShrinkToFitCached(float innerMaxW, float innerMaxH)
+    {
+        var key = BuildShrinkFitCacheKey(innerMaxW, innerMaxH);
+        if (key == _shrinkFitCacheKey && _shrinkFitCachedLayout is not null)
+            return _shrinkFitCachedLayout;
+
+        var layout = MeasureShrinkToFit(innerMaxW, innerMaxH);
+        _shrinkFitCacheKey = key;
+        _shrinkFitCachedLayout = layout;
+        return layout;
+    }
+
+    private int BuildShrinkFitCacheKey(float innerMaxW, float innerMaxH)
+    {
+        var h = new HashCode();
+        h.Add(UiTextLayoutEngine.ComputeFingerprint(
+            Text,
+            DefaultStyle,
+            Runs,
+            innerMaxW,
+            ParagraphSpacing,
+            LineSpacingExtra));
+        h.Add((int)MathF.Round(innerMaxH * 4f));
+        h.Add((int)FitTarget);
+        h.Add(FontLibrary.QuantizeEmSizePixels(MinFitSizePixels));
+        return h.ToHashCode();
     }
 
     private UiTextLayoutEngine MeasureShrinkToFit(float innerMaxW, float innerMaxH)
@@ -243,8 +408,14 @@ public class UiTextBlock : UiElement
         return layout.MaxLineAdvance <= innerMaxW + eps && layout.TotalHeight <= innerMaxH + eps;
     }
 
-    /// <summary>Drops cached layout lines (call after mutating fonts if face metrics change).</summary>
-    public void InvalidateLayout() => _cache.Clear();
+    /// <summary>Drops cached layout lines and marks the owning <see cref="UiDocument"/> dirty.</summary>
+    public new void InvalidateLayout()
+    {
+        _cache.Clear();
+        _shrinkFitCacheKey = 0;
+        _shrinkFitCachedLayout = null;
+        base.InvalidateLayout();
+    }
 
     /// <summary>
     /// Submits glyph quads for the last measured layout inside <see cref="UiElement.ComputedBounds"/> content rect.
@@ -302,8 +473,6 @@ public class UiTextBlock : UiElement
         foreach (var line in _layout.Lines)
         {
             var lh = line.MaxLineHeight(fonts);
-            // Line box top (LineTop) + distance to baseline: use the same reference sample as MeasureLineHeight
-            // so single-line text is not pushed low inside the line box (fixed 0.82*lh was consistently bottom-heavy).
             var baselineFromLineTop = UiTextMeasurer.TryMinReferenceBoundsTopForLine(fonts, line, out var minTop)
                 ? -minTop
                 : lh * 0.82f;
@@ -311,7 +480,8 @@ public class UiTextBlock : UiElement
 
             var lineShift = HorizontalAlignment switch
             {
-                UiTextHorizontalAlignment.Center => MathF.Max(0f, (inner.Width - LineContentAdvance(fonts, line)) * 0.5f),
+                UiTextHorizontalAlignment.Center =>
+                    MathF.Max(0f, (inner.Width - LineContentAdvance(fonts, line)) * 0.5f),
                 UiTextHorizontalAlignment.End => MathF.Max(0f, inner.Width - LineContentAdvance(fonts, line)),
                 _ => 0f
             };
@@ -405,12 +575,12 @@ public class UiTextBlock : UiElement
         if (string.IsNullOrEmpty(text))
             return;
 
-        var pool = ArrayPool<SpriteDrawRequest>.Shared;
+        var pool = ArrayPool<TextGlyphDrawRequest>.Shared;
         var buf = pool.Rent(text.Length);
         try
         {
             var dest = buf.AsSpan(0, text.Length);
-            var n = TextRenderer.FillGlyphRunSprites(
+            var n = TextRenderer.FillGlyphRunGlyphs(
                 renderer,
                 fonts,
                 cache,
@@ -426,7 +596,7 @@ public class UiTextBlock : UiElement
                 viewportClip);
 
             if (n > 0)
-                renderer.SubmitSprites(dest[..n]);
+                renderer.SubmitTextGlyphs(dest[..n]);
 
             TextRenderer.SubmitTextDecorations(
                 renderer,

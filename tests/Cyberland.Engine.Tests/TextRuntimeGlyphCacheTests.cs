@@ -5,12 +5,13 @@ using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
 using Silk.NET.Maths;
+using System.Threading.Tasks;
 using TextRenderer = Cyberland.Engine.Rendering.Text.TextRenderer;
 
 namespace Cyberland.Engine.Tests;
 
 /// <summary>
-/// Glyph cache invariants after TryPrepare: submitted quad count must match <see cref="TextRenderer.FillGlyphRunSprites"/>
+/// Glyph cache invariants after TryPrepare: submitted quad count must match <see cref="TextRenderer.FillGlyphRunGlyphs"/>
 /// for the same resolved string (warm glyph atlas). Multi-frame tests mirror HUD timelines (long copy → idle frames → short).
 /// </summary>
 public sealed class TextRuntimeGlyphCacheTests
@@ -35,7 +36,7 @@ public sealed class TextRuntimeGlyphCacheTests
         {
             GlyphCount = 3,
             PenAfter = 12f,
-            CachedGlyphs = new SpriteDrawRequest[4],
+            CachedGlyphs = new TextGlyphDrawRequest[4],
             BaselineAuthored = new Vector2D<float>(1f, 2f),
             Space = CoordinateSpace.ViewportSpace
         };
@@ -96,8 +97,8 @@ public sealed class TextRuntimeGlyphCacheTests
         Assert.True(cache.GlyphCount <= bt.Content.Length);
         Assert.Equal(glyphCountHi, cache.GlyphCount);
 
-        Span<SpriteDrawRequest> verify = stackalloc SpriteDrawRequest[Math.Max(1, bt.Content.Length)];
-        var expectedN = TextRenderer.FillGlyphRunSprites(renderer, host.Fonts, host.TextGlyphCache, bt.Content, in style,
+        Span<TextGlyphDrawRequest> verify = stackalloc TextGlyphDrawRequest[Math.Max(1, bt.Content.Length)];
+        var expectedN = TextRenderer.FillGlyphRunGlyphs(renderer, host.Fonts, host.TextGlyphCache, bt.Content, in style,
             cache.BaselineAuthored, 0f, bt.SortKey, verify, out _, CoordinateSpace.WorldSpace);
         Assert.Equal(expectedN, cache.GlyphCount);
         Assert.True(inflatedGlyphCount > glyphCountHi);
@@ -142,8 +143,8 @@ public sealed class TextRuntimeGlyphCacheTests
         sys.OnLateUpdate(q, 1f / 60f);
 
         var cacheFinal = world.Get<TextSpriteCache>(e);
-        Span<SpriteDrawRequest> verify = stackalloc SpriteDrawRequest[Math.Max(1, bt.Content.Length)];
-        var expectedGlyphs = TextRenderer.FillGlyphRunSprites(r, host.Fonts, host.TextGlyphCache, bt.Content, in bt.Style,
+        Span<TextGlyphDrawRequest> verify = stackalloc TextGlyphDrawRequest[Math.Max(1, bt.Content.Length)];
+        var expectedGlyphs = TextRenderer.FillGlyphRunGlyphs(r, host.Fonts, host.TextGlyphCache, bt.Content, in bt.Style,
             cacheFinal.BaselineAuthored, 0f, bt.SortKey, verify, out _, CoordinateSpace.ViewportSpace);
 
         Assert.Equal(expectedGlyphs, r.Sprites.Count);
@@ -183,8 +184,8 @@ public sealed class TextRuntimeGlyphCacheTests
         Assert.True(shortSubmitCount < longSubmitCount);
         Assert.InRange(shortSubmitCount, 1, bitmapText.Content.Length);
 
-        Span<SpriteDrawRequest> verify = stackalloc SpriteDrawRequest[Math.Max(1, bitmapText.Content.Length)];
-        var expected = TextRenderer.FillGlyphRunSprites(r, host.Fonts, host.TextGlyphCache, bitmapText.Content,
+        Span<TextGlyphDrawRequest> verify = stackalloc TextGlyphDrawRequest[Math.Max(1, bitmapText.Content.Length)];
+        var expected = TextRenderer.FillGlyphRunGlyphs(r, host.Fonts, host.TextGlyphCache, bitmapText.Content,
             in bitmapText.Style,
             world.Get<TextSpriteCache>(e).BaselineAuthored,
             0f,
@@ -230,8 +231,8 @@ public sealed class TextRuntimeGlyphCacheTests
         Assert.True(TextRuntimeBuilder.TryPrepare(ref btV, ref fpV, ref cacheV, in transform, host, renderer, out _, out _));
         Assert.True(TextRuntimeBuilder.TryPrepare(ref btS, ref fpS, ref cacheS, in transform, host, renderer, out _, out _));
         Assert.True(cacheV.GlyphCount > 0 && cacheS.GlyphCount > 0);
-        Assert.Equal(cacheV.CachedGlyphs![0].CenterWorld.Y, cacheS.CachedGlyphs![0].CenterWorld.Y, 4);
-        Assert.Equal(cacheV.CachedGlyphs[0].CenterWorld.X, cacheS.CachedGlyphs[0].CenterWorld.X, 4);
+        Assert.Equal(cacheV.CachedGlyphs![0].Center.Y, cacheS.CachedGlyphs![0].Center.Y, 4);
+        Assert.Equal(cacheV.CachedGlyphs[0].Center.X, cacheS.CachedGlyphs[0].Center.X, 4);
     }
 
     [Fact]
@@ -442,5 +443,54 @@ public sealed class TextRuntimeGlyphCacheTests
         Assert.Equal(2, bt.Content.Length);
         Assert.NotNull(cache.CachedGlyphs);
         Assert.True(cache.GlyphCount < cache.CachedGlyphs!.Length);
+    }
+
+    [Fact]
+    public void TextGlyphCache_parallel_same_glyph_requests_return_consistent_cached_result()
+    {
+        var renderer = new RecordingRenderer();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var cache = new TextGlyphCache();
+        var style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        TextGlyphCache.CachedGlyph[] results = new TextGlyphCache.CachedGlyph[2];
+        Parallel.For(0, 2, i =>
+        {
+            Assert.True(cache.TryGetGlyph(renderer, fonts, in style, 'A', "A", out var glyph));
+            results[i] = glyph;
+        });
+
+        Assert.Equal(results[0].TextureId, results[1].TextureId);
+        Assert.Equal(results[0].UvRect, results[1].UvRect);
+    }
+
+    [Fact]
+    public void TextRuntimeBuilder_matching_fingerprint_with_null_cache_falls_back_to_rebuild()
+    {
+        var renderer = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        var style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var bt = new BitmapText
+        {
+            Visible = true,
+            Content = "Cache",
+            IsLocalizationKey = false,
+            CoordinateSpace = CoordinateSpace.WorldSpace,
+            SortKey = 4f,
+            Style = style
+        };
+        var transform = Transform.Identity;
+        var cache = new TextSpriteCache();
+        var fingerprint = default(TextBuildFingerprint);
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, host, renderer,
+            out _, out _));
+        cache.CachedGlyphs = null;
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, host, renderer,
+            out _, out _));
+        Assert.NotNull(cache.CachedGlyphs);
+        Assert.True(cache.GlyphCount > 0);
     }
 }

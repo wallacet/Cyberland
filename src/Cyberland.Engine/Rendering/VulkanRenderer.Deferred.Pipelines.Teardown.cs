@@ -32,6 +32,8 @@ public sealed unsafe partial class VulkanRenderer
         DestroyDsl2(ref _dslTransparentResolve);
         DestroyDsl2(ref _dslTexture);
         DestroyLightingBuffer();
+        DestroyTextInstanceBuffer();
+        DestroySpriteInstanceBuffer();
         DestroyPointLightSsboResources();
         DestroyDirectionalSpotLightSsboResources();
 
@@ -134,6 +136,46 @@ public sealed unsafe partial class VulkanRenderer
             _vk!.FreeMemory(_device, _spotLightSsboMemory, null);
             _spotLightSsboMemory = default;
         }
+    }
+
+    private void DestroyTextInstanceBuffer()
+    {
+        if (_textInstanceBufferMemory.Handle != default && _textInstanceBufferMapped != null)
+        {
+            _vk!.UnmapMemory(_device, _textInstanceBufferMemory);
+            _textInstanceBufferMapped = null;
+        }
+        if (_textInstanceBuffer.Handle != default)
+        {
+            _vk!.DestroyBuffer(_device, _textInstanceBuffer, null);
+            _textInstanceBuffer = default;
+        }
+        if (_textInstanceBufferMemory.Handle != default)
+        {
+            _vk!.FreeMemory(_device, _textInstanceBufferMemory, null);
+            _textInstanceBufferMemory = default;
+        }
+        _textInstanceCapacity = 0;
+    }
+
+    private void DestroySpriteInstanceBuffer()
+    {
+        if (_spriteInstanceBufferMemory.Handle != default && _spriteInstanceBufferMapped != null)
+        {
+            _vk!.UnmapMemory(_device, _spriteInstanceBufferMemory);
+            _spriteInstanceBufferMapped = null;
+        }
+        if (_spriteInstanceBuffer.Handle != default)
+        {
+            _vk!.DestroyBuffer(_device, _spriteInstanceBuffer, null);
+            _spriteInstanceBuffer = default;
+        }
+        if (_spriteInstanceBufferMemory.Handle != default)
+        {
+            _vk!.FreeMemory(_device, _spriteInstanceBufferMemory, null);
+            _spriteInstanceBufferMemory = default;
+        }
+        _spriteInstanceCapacity = 0;
     }
 
     private void DestroyDeferredPipelinesAndLayouts()

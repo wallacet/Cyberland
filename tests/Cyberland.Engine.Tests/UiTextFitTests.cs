@@ -32,9 +32,14 @@ public sealed class UiTextFitTests
         };
         UiLayoutPresets.StretchAll(block);
 
-        block.Measure(UiSizeConstraints.Loose(140f, 48f));
+        var c = UiSizeConstraints.Loose(140f, 48f);
+        block.Measure(c);
 
         Assert.True(block.MeasuredSize.Y <= 48.01f);
+
+        var y1 = block.MeasuredSize.Y;
+        block.Measure(c);
+        Assert.Equal(y1, block.MeasuredSize.Y);
     }
 
     [Fact]

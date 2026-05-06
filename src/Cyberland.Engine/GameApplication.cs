@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Audio;
@@ -11,6 +12,7 @@ using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
+using Cyberland.Engine.UI.Core;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -56,6 +58,15 @@ public sealed class GameApplication : IDisposable
     private IWindow? _window;
     private SilkInputService? _input;
 
+    private readonly double? _profileWallSeconds;
+    private readonly string? _profileDumpPath;
+    private Stopwatch? _profileWall;
+    private bool _profileCloseRequested;
+#if DEBUG
+    private bool _profileHudInTitle;
+    private int _profileTitleThrottle;
+#endif
+
     /// <summary>
     /// Prepares host services and the frame scheduler. Does not open the window until <see cref="Run"/> is called.
     /// </summary>
@@ -63,6 +74,16 @@ public sealed class GameApplication : IDisposable
     public GameApplication(string[]? commandLineArgs = null)
     {
         _commandLineArgs = commandLineArgs ?? Array.Empty<string>();
+        _profileWallSeconds = ProfileCommandLine.TryParseProfileSeconds(_commandLineArgs);
+        _profileDumpPath = ProfileCommandLine.TryParseProfileDump(_commandLineArgs);
+#if !DEBUG
+        if (_profileWallSeconds is not null || !string.IsNullOrEmpty(_profileDumpPath))
+        {
+            Console.Error.WriteLine(
+                "Cyberland: --profile-seconds / --profile-dump require a Debug build of Cyberland.Engine; Release ignores profiler collection.");
+        }
+#endif
+        UiLayoutGating.ApplyEnvironmentDefaults();
         _scheduler = new SystemScheduler(_parallelism);
         _host = new GameHostServices();
     }
@@ -114,9 +135,12 @@ public sealed class GameApplication : IDisposable
         {
             _audio = new OpenALAudioDevice();
         }
-        catch
+        catch (Exception ex)
         {
             // OpenAL Soft may be missing on some machines; game continues silent until configured.
+#if DEBUG
+            Console.Error.WriteLine($"Cyberland: audio initialization failed ({ex.GetType().Name}): {ex.Message}");
+#endif
             _audio = null;
         }
 
@@ -125,7 +149,18 @@ public sealed class GameApplication : IDisposable
         _host.Input = _input;
         _host.Tilemaps ??= new TilemapDataStore();
         _host.CameraRuntimeState = Hosting.CameraRuntimeState.CreateDefault(_renderer.SwapchainPixelSize);
+        _host.EnsureCoreServicesReady();
         _renderer.RequestClose = () => _window?.Close();
+
+        if (_profileWallSeconds is not null)
+        {
+            _renderer.FramePacing = new FramePacing(FramePacingMode.Unlimited);
+#if DEBUG
+            FrameProfiler.ResetSession();
+            FrameProfiler.ConfigureWarmup(TimeSpan.FromSeconds(1));
+#endif
+            _profileWall = Stopwatch.StartNew();
+        }
 
         EngineDefaultGlobalPostProcess.Apply(_renderer);
 
@@ -137,56 +172,76 @@ public sealed class GameApplication : IDisposable
         _localizedContent = new LocalizedContent(_localization, _vfs, primaryCulture);
         _host.LocalizedContent = _localizedContent;
 
-        _scheduler.BeginDeferExecutionOrderRebuilds();
         try
         {
-            _scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
-            _scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
-            _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
+            _scheduler.BeginDeferExecutionOrderRebuilds();
+            try
+            {
+                _scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
+                _scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
+                _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
 
-            var excluded = ExcludeModsParser.TryParse(_commandLineArgs);
-            IReadOnlySet<string>? excludedSet = null;
-            if (excluded is not null)
-                excludedSet = new HashSet<string>(excluded, StringComparer.OrdinalIgnoreCase);
+                var excluded = ExcludeModsParser.TryParse(_commandLineArgs);
+                IReadOnlySet<string>? excludedSet = null;
+                if (excluded is not null)
+                    excludedSet = new HashSet<string>(excluded, StringComparer.OrdinalIgnoreCase);
 
-            _mods.LoadAll(
-                Path.Combine(AppContext.BaseDirectory, "Mods"),
-                _vfs,
-                _localizedContent,
-                _world,
-                _scheduler,
-                _host,
-                excludedSet);
+                _mods.LoadAll(
+                    Path.Combine(AppContext.BaseDirectory, "Mods"),
+                    _vfs,
+                    _localizedContent,
+                    _world,
+                    _scheduler,
+                    _host,
+                    excludedSet);
 
-            _scheduler.RegisterParallel("cyberland.engine/camera-follow", new CameraFollowSystem());
-            _scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
-            // Publish camera runtime state before viewport anchors so gameplay/layout reads deterministic ECS-owned
-            // camera data instead of renderer queue snapshots.
-            _scheduler.RegisterParallel("cyberland.engine/camera-submit", new CameraSubmitSystem(_host));
-            _scheduler.RegisterSerial("cyberland.engine/camera-runtime-state", new CameraRuntimeStateSystem(_host));
-            _scheduler.RegisterSerial("cyberland.engine/viewport-layout", new ViewportAnchorSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/lighting-directional", new DirectionalLightSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/lighting-spot", new SpotLightSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/lighting-point", new PointLightSystem(_host));
-            _scheduler.RegisterSerial("cyberland.engine/global-post-process", new GlobalPostProcessSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/post-process-volumes", new PostProcessVolumeSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
-            _scheduler.RegisterSerial("cyberland.engine/sprite-localized-assets", new SpriteLocalizedAssetSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
-            _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem(_host));
-            // Bitmap text build is folded into TextRenderSystem (serial late) so TryPrepare runs immediately before submit.
-            _scheduler.RegisterSerial("cyberland.engine/text-render", new TextRenderSystem(_host));
-            _scheduler.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(_host));
-            _scheduler.RegisterSerial("cyberland.engine/ui-command-drain", new UiCommandDrainSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/camera-follow", new CameraFollowSystem());
+                _scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
+                // Publish camera runtime state before viewport anchors so gameplay/layout reads deterministic ECS-owned
+                // camera data instead of renderer queue snapshots.
+                _scheduler.RegisterSerial("cyberland.engine/camera-submit", new CameraSubmitSystem(_host));
+                _scheduler.RegisterSerial("cyberland.engine/camera-runtime-state", new CameraRuntimeStateSystem(_host));
+                _scheduler.RegisterSerial("cyberland.engine/viewport-layout", new ViewportAnchorSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/lighting-directional", new DirectionalLightSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/lighting-spot", new SpotLightSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/lighting-point", new PointLightSystem(_host));
+                _scheduler.RegisterSerial("cyberland.engine/global-post-process", new GlobalPostProcessSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/post-process-volumes", new PostProcessVolumeSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
+                _scheduler.RegisterSerial("cyberland.engine/sprite-localized-assets", new SpriteLocalizedAssetSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem(_host));
+                // Bitmap text build is folded into TextRenderSystem (serial late) so TryPrepare runs immediately before submit.
+                _scheduler.RegisterSerial("cyberland.engine/text-render", new TextRenderSystem(_host));
+                _scheduler.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(_host));
+                _scheduler.RegisterSerial("cyberland.engine/ui-command-drain", new UiCommandDrainSystem(_host));
+            }
+            finally
+            {
+                _scheduler.EndDeferExecutionOrderRebuilds();
+            }
+
+            _localizedContent.MergeStringTable("strings.json");
         }
-        finally
+        catch (Exception ex)
         {
-            _scheduler.EndDeferExecutionOrderRebuilds();
-        }
+            // Startup failed after renderer/input were initialized. Keep failure handling deterministic:
+            // unload any partially loaded mods, tear down renderer, and close the window.
+            try
+            {
+                _mods.UnloadAll();
+            }
+            catch
+            {
+            }
 
-        _localizedContent.MergeStringTable("strings.json");
+            UserMessageDialog.ShowError("Cyberland — Startup failed", ex.Message);
+            _renderer?.Dispose();
+            _renderer = null;
+            _window.Close();
+        }
     }
 
     private void OnUpdate(double delta)
@@ -201,6 +256,8 @@ public sealed class GameApplication : IDisposable
         if (_window is null)
             return;
 
+        using var __frame = FrameProfilerScope.Enter("OnRender.Total");
+
         // Same value Silk computed in DoRender from the render stopwatch (interval since the previous successful Render).
         float dt = (float)silkRenderDelta;
         if (float.IsNaN(dt) || float.IsInfinity(dt) || dt < 0f)
@@ -213,18 +270,60 @@ public sealed class GameApplication : IDisposable
 
         // Render tick order (see IRenderer remarks): discard stale CPU submits first so a missed DrawFrame cannot merge
         // with this tick's Submit*, then simulate + submit sprites/lights/camera, then encode/present.
-        _renderer?.ResetPendingSubmissionsForNewTick();
+        {
+            using var __ = FrameProfilerScope.Enter("Game.ResetPendingSubmissions");
+            _renderer?.ResetPendingSubmissionsForNewTick();
+        }
 
-        _host.Input?.BeginFrame();
-        // Publish fixed-step remainder before ILateUpdate so visual extrapolation (e.g. pos + vel * acc) uses this frame's alpha.
-        _scheduler.RunFrame(_world, dt, acc => _host.FixedAccumulatorSeconds = acc);
+        {
+            using var __ = FrameProfilerScope.Enter("Input.BeginFrame");
+            _host.Input?.BeginFrame();
+        }
+
+        {
+            using var __ = FrameProfilerScope.Enter("Scheduler.RunFrame");
+            // Publish fixed-step remainder before ILateUpdate so visual extrapolation (e.g. pos + vel * acc) uses this frame's alpha.
+            _scheduler.RunFrame(_world, dt, acc => _host.FixedAccumulatorSeconds = acc);
+        }
+
         _host.FixedDeltaSeconds = _scheduler.FixedDeltaSeconds;
-        _renderer?.DrawFrame();
+
+        {
+            using var __ = FrameProfilerScope.Enter("Vulkan.DrawFrame");
+            _renderer?.DrawFrame();
+        }
+
         _host.LastPresentDeltaSeconds = dt;
+
+        if (_profileWallSeconds is not null && _profileWall is not null && !_profileCloseRequested &&
+            _profileWall.Elapsed.TotalSeconds >= _profileWallSeconds.Value)
+        {
+            _profileCloseRequested = true;
+            _renderer?.RequestClose?.Invoke();
+        }
+
+#if DEBUG
+        if (_input is not null && _window is not null)
+        {
+            if (_input.WasPressed("cyberland.engine/profile-hud"))
+                _profileHudInTitle = !_profileHudInTitle;
+            if (_profileHudInTitle && ++_profileTitleThrottle >= 30)
+            {
+                _profileTitleThrottle = 0;
+                var sb = new System.Text.StringBuilder(256);
+                FrameProfiler.AppendTopScopes(sb, 6);
+                _window.Title = "Cyberland | " + sb.ToString().Replace('\n', ' ');
+            }
+        }
+#endif
     }
 
     private void OnClosing()
     {
+#if DEBUG
+        if (!string.IsNullOrEmpty(_profileDumpPath))
+            FrameProfiler.WriteDump(_profileDumpPath);
+#endif
         _mods.UnloadAll();
     }
 

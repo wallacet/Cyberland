@@ -17,17 +17,17 @@ alwaysApply: false
 
 ### Camera virtual viewport (+Y down, HUD / UI math)
 
-**Top-left origin, +Y down**, extent `IRenderer.ActiveCameraViewportSize`. This is the camera's fixed virtual canvas in world pixels — **resizing the window letterboxes / pillarboxes this rectangle** instead of showing more world. HUD layout and viewport anchors author against this size, **not** `SwapchainPixelSize`.
+**Top-left origin, +Y down**, extent from `GameHostServices.CameraRuntimeState.ViewportSizeWorld` (with `IRenderer.ActiveCameraViewportSize` as fallback during startup). This is the camera's fixed virtual canvas in world pixels — **resizing the window letterboxes / pillarboxes this rectangle** instead of showing more world. HUD layout and viewport anchors author against this size, **not** `SwapchainPixelSize`.
 
 - `SpriteDrawRequest.CenterWorld` with `SpriteCoordinateSpace.Viewport` lives here (no camera transform, letterboxed).
 - `BitmapText` with `CoordinateSpace.ScreenSpace` gets submitted as viewport-space glyphs automatically.
-- `ViewportAnchor2D` reads `ActiveCameraViewportSize` so HUD stays anchored to the virtual canvas across window resizes.
+- `ViewportAnchor2D` reads `CameraRuntimeState.ViewportSizeWorld` (fallback `ActiveCameraViewportSize`) so HUD stays anchored to the virtual canvas across window resizes.
 
 ### Swapchain (+Y down, physical window)
 
 **Top-left origin, +Y down**, extent `IRenderer.SwapchainPixelSize`. The renderer maps the camera viewport into this surface using aspect-preserving letterbox / pillarbox. Bars outside the virtual viewport fill with the active `Camera2D.BackgroundColor`.
 
-Gameplay and mod code **should not** reason about swapchain pixels for layout; prefer `ActiveCameraViewportSize`. Use swapchain coords only for raw input / cursor picking.
+Gameplay and mod code **should not** reason about swapchain pixels for layout; prefer `CameraRuntimeState.ViewportSizeWorld` (or `ActiveCameraViewportSize` when runtime state is not valid yet). Use swapchain coords only for raw input / cursor picking.
 
 ## Camera component
 
@@ -49,7 +49,7 @@ When no camera is submitted, the renderer falls back to a default camera centere
 
 ## Do not mix without converting
 
-- Do not pass raw swapchain pixels into gameplay positions — you will see your HUD clipped when the window is letterboxed. Lay out against `ActiveCameraViewportSize`.
+- Do not pass raw swapchain pixels into gameplay positions — you will see your HUD clipped when the window is letterboxed. Lay out against the runtime viewport size.
 - Do not integrate **world** (+Y up) velocity into a **viewport-space** position (or the reverse) without `WorldScreenSpace` helpers.
 
 ## Rebasing keys

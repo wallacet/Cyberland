@@ -251,6 +251,38 @@ public sealed class SceneCoverageFillTests
     }
 
     [Fact]
+    public void TilemapRenderSystem_submits_all_visible_tiles_in_chunked_batches()
+    {
+        const int cols = 65;
+        const int rows = 64;
+        var tiles = new int[cols * rows];
+        Array.Fill(tiles, 1);
+
+        var r = new RecordingRenderer();
+        var tm = new TilemapDataStore();
+        var w = new World();
+        var map = w.CreateEntity();
+        tm.Register(map, tiles, cols, rows);
+        var fb = r.SwapchainPixelSize;
+        var cornerWorld = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(0f, 0f), fb);
+        w.GetOrAdd<Transform>(map) = MakeTransform(localPos: cornerWorld, worldPos: cornerWorld);
+        w.GetOrAdd<Tilemap>(map) = new Tilemap
+        {
+            TileWidth = 10f,
+            TileHeight = 10f,
+            AtlasAlbedoTextureId = 2,
+            Layer = 0,
+            SortKey = 0f,
+            NonEmptyTileMinIndex = 1,
+            AtlasColumns = 1,
+            AtlasRows = 1
+        };
+
+        new TilemapRenderSystem(Host(r, tm)).OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Tilemap, Transform>()), 0f, ParOpts());
+        Assert.Equal(cols * rows, r.Sprites.Count);
+    }
+
+    [Fact]
     public void ParticleSimulationSystem_skips_inactive_emitter()
     {
         var r = new RecordingRenderer();

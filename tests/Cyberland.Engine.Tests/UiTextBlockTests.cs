@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Cyberland.Engine.Localization;
@@ -214,6 +215,91 @@ public sealed class UiTextBlockTests
         block.InvalidateLayout();
         block.Measure(c);
         Assert.Equal(h1, block.MeasuredSize.Y);
+    }
+
+    [Fact]
+    public void UiTextBlock_DefaultStyle_setter_invalidates_cached_layout()
+    {
+        var (fonts, cache) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "Cache bust style",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 10f, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        UiLayoutPresets.StretchAll(block);
+        var constraints = UiSizeConstraints.Loose(400f, 200f);
+        block.Measure(constraints);
+        block.Arrange(new UiRect(0f, 0f, 400f, 200f));
+        var r = new RecordingRenderer();
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+        Assert.NotEmpty(r.Sprites);
+        var beforeHalfY = r.Sprites.Max(static s => s.HalfExtentsWorld.Y);
+
+        block.DefaultStyle = block.DefaultStyle with { SizePixels = 28f };
+        block.Measure(constraints);
+        block.Arrange(new UiRect(0f, 0f, 400f, 200f));
+        r.Sprites.Clear();
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+        Assert.NotEmpty(r.Sprites);
+        var afterHalfY = r.Sprites.Max(static s => s.HalfExtentsWorld.Y);
+
+        Assert.True(afterHalfY > beforeHalfY);
+    }
+
+    [Fact]
+    public void UiTextBlock_Runs_setter_invalidates_cached_layout()
+    {
+        var (fonts, _) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)),
+            Runs =
+            [
+                new TextRun("short", new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)))
+            ]
+        };
+        UiLayoutPresets.StretchAll(block);
+        var constraints = UiSizeConstraints.Loose(80f, 500f);
+        block.Measure(constraints);
+        var before = block.MeasuredSize.Y;
+
+        block.Runs =
+        [
+            new TextRun("short short short short short", new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)))
+        ];
+        block.Measure(constraints);
+        var after = block.MeasuredSize.Y;
+
+        Assert.True(after >= before);
+    }
+
+    [Fact]
+    public void UiTextBlock_setters_accept_same_values_without_throwing()
+    {
+        var (fonts, _) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "same",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+
+        var runs = new List<TextRun>
+        {
+            new("r", block.DefaultStyle)
+        };
+        block.Runs = runs;
+        block.Runs = runs;
+
+        block.DefaultStyle = block.DefaultStyle;
+        block.LineSpacingExtra = 2f;
+        block.LineSpacingExtra = 2f;
+        block.MinFitSizePixels = 8f;
+        block.MinFitSizePixels = 8f;
+        block.Fonts = fonts;
+        block.Fonts = fonts;
     }
 
     [Fact]

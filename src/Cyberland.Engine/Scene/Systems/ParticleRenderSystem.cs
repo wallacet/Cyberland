@@ -1,6 +1,8 @@
+using System.Threading;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 using Silk.NET.Maths;
@@ -19,8 +21,10 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
 {
     private static readonly Vector4D<float> WhiteColor = new(1f, 1f, 1f, 1f);
     private static readonly Vector3D<float> WhiteEmissive = new(1f, 1f, 1f);
+    private const int MaxSubmittedParticlesPerEmitter = 2048;
 
     private readonly GameHostServices _host;
+    private int _particleBudgetWarningIssued;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ParticleEmitter, Transform>();
@@ -42,6 +46,7 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
         _ = deltaSeconds;
         var r = _host.Renderer;
         var defaultNormal = r.DefaultNormalTextureId;
+        var camera = _host.CameraRuntimeState;
         
         foreach (var chunk in query)
         {
@@ -57,13 +62,26 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
                 var originX = transform.WorldMatrix.M31;
                 var originY = transform.WorldMatrix.M32;
                 var he = em.HalfExtent;
-                for (var p = 0; p < em.RuntimeCount; p++)
+                var submitCount = Math.Min(em.RuntimeCount, MaxSubmittedParticlesPerEmitter);
+                if (em.RuntimeCount > MaxSubmittedParticlesPerEmitter &&
+                    Interlocked.Exchange(ref _particleBudgetWarningIssued, 1) == 0)
                 {
+                    EngineDiagnostics.Report(
+                        EngineErrorSeverity.Warning,
+                        "Cyberland.Engine.ParticleRenderSystem",
+                        $"Particle emitter submissions exceeded budget ({MaxSubmittedParticlesPerEmitter}); keeping deterministic prefix of runtime particles.");
+                }
+                for (var p = 0; p < submitCount; p++)
+                {
+                    var center = new Vector2D<float>(
+                        originX + em.RuntimePx[p],
+                        originY + em.RuntimePy[p]);
+                    if (IsOutsideActiveCamera(center, he, in camera))
+                        continue;
+
                     var req = new SpriteDrawRequest
                     {
-                        CenterWorld = new Vector2D<float>(
-                            originX + em.RuntimePx[p],
-                            originY + em.RuntimePy[p]),
+                        CenterWorld = center,
                         HalfExtentsWorld = new Vector2D<float>(he, he),
                         RotationRadians = 0f,
                         Layer = em.Layer,
@@ -82,5 +100,26 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
                 }
             });
         }
+    }
+
+    private static bool IsOutsideActiveCamera(Vector2D<float> centerWorld, float halfExtent, in CameraRuntimeState camera)
+    {
+        if (!camera.Valid)
+            return false;
+
+        var viewport = new Vector2D<float>(camera.ViewportSizeWorld.X, camera.ViewportSizeWorld.Y);
+        if (viewport.X <= 0f || viewport.Y <= 0f)
+            return false;
+
+        var centerVp = CameraProjection.WorldToViewportPixel(
+            centerWorld,
+            camera.PositionWorld,
+            camera.RotationRadians,
+            viewport);
+        var radius = MathF.Sqrt(halfExtent * halfExtent * 2f);
+        return centerVp.X + radius < 0f ||
+               centerVp.Y + radius < 0f ||
+               centerVp.X - radius > viewport.X ||
+               centerVp.Y - radius > viewport.Y;
     }
 }

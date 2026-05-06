@@ -260,12 +260,13 @@ public sealed class SchedulerAndHostTests
     public void GameHostServices_exposes_assignable_renderer_and_input()
     {
         var host = new GameHostServices();
-        Assert.Null(host.Renderer);
-        Assert.Null(host.Input);
+        Assert.Throws<InvalidOperationException>(() => host.EnsureCoreServicesReady());
         var renderer = new RecordingRenderer();
         var input = new NoopInputService();
         host.Renderer = renderer;
         host.Input = input;
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(new Silk.NET.Maths.Vector2D<int>(1280, 720));
+        host.EnsureCoreServicesReady();
         Assert.Same(renderer, host.Renderer);
         Assert.Same(input, host.Input);
 
@@ -294,6 +295,18 @@ public sealed class SchedulerAndHostTests
         };
         Assert.Equal(sched.FixedAccumulator, host.FixedAccumulatorSeconds);
         Assert.Equal(sched.FixedDeltaSeconds, host.FixedDeltaSeconds);
+    }
+
+    [Fact]
+    public void GameHostServices_EnsureCoreServicesReady_requires_camera_runtime_state()
+    {
+        var host = new GameHostServices
+        {
+            Renderer = new RecordingRenderer(),
+            Input = new NoopInputService()
+        };
+
+        Assert.Throws<InvalidOperationException>(() => host.EnsureCoreServicesReady());
     }
 
     private sealed class NoopInputService : IInputService

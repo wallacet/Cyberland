@@ -1,3 +1,4 @@
+using System;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering.Text;
 
@@ -254,8 +255,7 @@ internal sealed class UiTextLayoutEngine
     {
         var h = new HashCode();
         h.Add(text);
-        h.Add(defaultStyle.FontFamilyId);
-        h.Add(defaultStyle.SizePixels);
+        AddTextStyle(ref h, in defaultStyle);
         h.Add(paragraphSpacing);
         h.Add(lineSpacingExtra);
         h.Add(Quantize(maxContentWidth));
@@ -264,13 +264,27 @@ internal sealed class UiTextLayoutEngine
             foreach (var r in runs)
             {
                 h.Add(r.Content);
-                h.Add(r.Style.SizePixels);
-                h.Add(r.Style.FontFamilyId);
                 h.Add(r.IsLocalizationKey);
+                var runStyle = r.Style;
+                AddTextStyle(ref h, in runStyle);
             }
         }
 
         return h.ToHashCode();
+    }
+
+    private static void AddTextStyle(ref HashCode h, in TextStyle s)
+    {
+        h.Add(s.FontFamilyId);
+        h.Add(s.SizePixels);
+        h.Add(s.Color.X);
+        h.Add(s.Color.Y);
+        h.Add(s.Color.Z);
+        h.Add(s.Color.W);
+        h.Add(s.Bold);
+        h.Add(s.Italic);
+        h.Add(s.Underline);
+        h.Add(s.Strikethrough);
     }
 
     private static int Quantize(float w) => (int)MathF.Round(w * 4f);

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -12,6 +14,12 @@ namespace Cyberland.Engine.UI.Core;
 public class UiElement
 {
     private readonly List<UiElement> _children = new();
+    private UiDocument? _hostDocument;
+    private UiElement[]? _sortedChildrenScratch;
+    private int _sortedChildCount;
+    private bool _sortedChildrenDirty = true;
+    private bool _visible = true;
+    private float _sortKey;
 
     /// <summary>Parent in the UI graph (not scene <see cref="Scene.Transform"/>).</summary>
     public UiElement? Parent { get; private set; }
@@ -20,7 +28,17 @@ public class UiElement
     public IReadOnlyList<UiElement> Children => _children;
 
     /// <summary>When false, the element skips measure/arrange/draw and reports zero measured size.</summary>
-    public bool Visible { get; set; } = true;
+    public bool Visible
+    {
+        get => _visible;
+        set
+        {
+            if (_visible == value)
+                return;
+            _visible = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>When true, this node may receive pointer hits when it is the deepest matching target.</summary>
     public bool Interactable { get; set; }
@@ -28,43 +46,187 @@ public class UiElement
     /// <summary>
     /// Sub-sort offset added to the accumulated sort key for this subtree (larger tends to draw later among siblings).
     /// </summary>
-    public float SortKey { get; set; }
+    public float SortKey
+    {
+        get => _sortKey;
+        set
+        {
+            if (_sortKey == value)
+                return;
+            _sortKey = value;
+            _sortedChildrenDirty = true;
+            InvalidateLayout();
+        }
+    }
+
+    private UiClipMode _clipMode;
+    private UiThickness _margin;
+    private UiThickness _padding;
+    private Vector2D<float> _anchorMin;
+    private Vector2D<float> _anchorMax;
+    private Vector2D<float> _pivot;
+    private Vector2D<float> _anchoredPosition;
+    private Vector2D<float> _sizeDelta;
+    private float _stretchLeft;
+    private float _stretchRight;
+    private float _stretchTop;
+    private float _stretchBottom;
 
     /// <summary>How descendants are clipped relative to this node's bounds.</summary>
-    public UiClipMode ClipMode { get; set; }
+    public UiClipMode ClipMode
+    {
+        get => _clipMode;
+        set
+        {
+            if (_clipMode == value)
+                return;
+            _clipMode = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Outer inset between this border box and the parent's content slot.</summary>
-    public UiThickness Margin { get; set; }
+    public UiThickness Margin
+    {
+        get => _margin;
+        set
+        {
+            if (_margin.Equals(value))
+                return;
+            _margin = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Inset between border box edges and the content box used for child layout.</summary>
-    public UiThickness Padding { get; set; }
+    public UiThickness Padding
+    {
+        get => _padding;
+        set
+        {
+            if (_padding.Equals(value))
+                return;
+            _padding = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Normalized anchor corners in the parent content slot (after this element's margin).</summary>
-    public Vector2D<float> AnchorMin { get; set; }
+    public Vector2D<float> AnchorMin
+    {
+        get => _anchorMin;
+        set
+        {
+            if (_anchorMin == value)
+                return;
+            _anchorMin = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Normalized anchor corners in the parent content slot (after this element's margin).</summary>
-    public Vector2D<float> AnchorMax { get; set; }
+    public Vector2D<float> AnchorMax
+    {
+        get => _anchorMax;
+        set
+        {
+            if (_anchorMax == value)
+                return;
+            _anchorMax = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Normalized pivot on this element's resolved rect.</summary>
-    public Vector2D<float> Pivot { get; set; }
+    public Vector2D<float> Pivot
+    {
+        get => _pivot;
+        set
+        {
+            if (_pivot == value)
+                return;
+            _pivot = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Pixel shift of the pivot vs the anchor point when an axis is collapsed.</summary>
-    public Vector2D<float> AnchoredPosition { get; set; }
+    public Vector2D<float> AnchoredPosition
+    {
+        get => _anchoredPosition;
+        set
+        {
+            if (_anchoredPosition == value)
+                return;
+            _anchoredPosition = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Pixel width/height when an axis is collapsed; stretch axes use <see cref="StretchLeft"/> instead.</summary>
-    public Vector2D<float> SizeDelta { get; set; }
+    public Vector2D<float> SizeDelta
+    {
+        get => _sizeDelta;
+        set
+        {
+            if (_sizeDelta == value)
+                return;
+            _sizeDelta = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Left inset when the X axis is stretched.</summary>
-    public float StretchLeft { get; set; }
+    public float StretchLeft
+    {
+        get => _stretchLeft;
+        set
+        {
+            if (_stretchLeft == value)
+                return;
+            _stretchLeft = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Right inset when the X axis is stretched.</summary>
-    public float StretchRight { get; set; }
+    public float StretchRight
+    {
+        get => _stretchRight;
+        set
+        {
+            if (_stretchRight == value)
+                return;
+            _stretchRight = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Top inset when the Y axis is stretched.</summary>
-    public float StretchTop { get; set; }
+    public float StretchTop
+    {
+        get => _stretchTop;
+        set
+        {
+            if (_stretchTop == value)
+                return;
+            _stretchTop = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Bottom inset when the Y axis is stretched.</summary>
-    public float StretchBottom { get; set; }
+    public float StretchBottom
+    {
+        get => _stretchBottom;
+        set
+        {
+            if (_stretchBottom == value)
+                return;
+            _stretchBottom = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Latest desired border-box size from <see cref="Measure"/>.</summary>
     public Vector2D<float> MeasuredSize { get; protected set; }
@@ -82,6 +244,9 @@ public class UiElement
         child.Parent?.RemoveChild(child);
         child.Parent = this;
         _children.Add(child);
+        child.AttachDocument(_hostDocument);
+        _sortedChildrenDirty = true;
+        InvalidateLayout();
         return child;
     }
 
@@ -94,9 +259,78 @@ public class UiElement
 
         _children.Remove(child);
         child.Parent = null;
+        child.AttachDocument(null);
+        _sortedChildrenDirty = true;
+        InvalidateLayout();
     }
 
+    internal void AttachDocument(UiDocument? doc)
+    {
+        if (_hostDocument == doc)
+        {
+            foreach (var c in _children)
+                c.AttachDocument(doc);
+            return;
+        }
+
+        _hostDocument = doc;
+        foreach (var c in _children)
+            c.AttachDocument(doc);
+    }
+
+    /// <summary>Marks the owning <see cref="UiDocument"/> so the next frame runs layout (and draw).</summary>
+    protected void InvalidateLayout() => _hostDocument?.NotifyLayoutDirty();
+
+    /// <summary>Marks the owning document for redraw without forcing a full measure (rare; most callers use <see cref="InvalidateLayout"/>).</summary>
+    protected void InvalidateVisual() => _hostDocument?.NotifyVisualDirty();
+
     /// <summary>Measures desired border-box size under parent constraints (+Y down).</summary>
+    internal void RebuildSortedChildrenSnapshot()
+    {
+        var n = _children.Count;
+        if (n == 0)
+        {
+            _sortedChildCount = 0;
+            _sortedChildrenDirty = false;
+            return;
+        }
+
+        if (_sortedChildrenScratch is null || _sortedChildrenScratch.Length < n)
+            _sortedChildrenScratch = new UiElement[Math.Max(16, n)];
+
+        var keys = new int[n];
+        for (var i = 0; i < n; i++)
+            keys[i] = i;
+        Array.Sort(keys, 0, n, new ChildIndexComparer(_children));
+        for (var i = 0; i < n; i++)
+            _sortedChildrenScratch[i] = _children[keys[i]];
+
+        _sortedChildCount = n;
+        _sortedChildrenDirty = false;
+    }
+
+    /// <summary>Visible direct children in draw/hit order (ascending <see cref="SortKey"/>, then insertion order).</summary>
+    public ReadOnlySpan<UiElement> SortedChildren()
+    {
+        if (_sortedChildrenDirty)
+            RebuildSortedChildrenSnapshot();
+        return (_sortedChildrenScratch ?? Array.Empty<UiElement>()).AsSpan(0, _sortedChildCount);
+    }
+
+    private readonly struct ChildIndexComparer : IComparer<int>
+    {
+        private readonly List<UiElement> _children;
+
+        public ChildIndexComparer(List<UiElement> children) => _children = children;
+
+        public int Compare(int x, int y)
+        {
+            var c = _children[x].SortKey.CompareTo(_children[y].SortKey);
+            return c != 0 ? c : x.CompareTo(y);
+        }
+    }
+
+    /// <summary>Computes <see cref="MeasuredSize"/> for this node under <paramref name="constraints"/>.</summary>
     public Vector2D<float> Measure(in UiSizeConstraints constraints)
     {
         if (!Visible)
@@ -192,10 +426,13 @@ public class UiElement
         var mine = accumulatedSortKey + SortKey;
         DrawSelfVisuals(renderer, fonts, cache, space, mine, selfClip, inheritedClip);
 
-        var rank = 0;
-        foreach (var child in EnumerateSortedChildren())
+        if (_sortedChildrenDirty)
+            RebuildSortedChildrenSnapshot();
+        var span = _sortedChildrenScratch.AsSpan(0, _sortedChildCount);
+        for (var i = 0; i < span.Length; i++)
         {
-            rank++;
+            var rank = i + 1;
+            var child = span[i];
             var childInherited = ClipMode == UiClipMode.IntersectParent ? selfClip : inheritedClip;
             child.DrawVisuals(renderer, fonts, cache, space, mine + rank * 1e-4f, childInherited);
         }
@@ -243,42 +480,17 @@ public class UiElement
 
         var childClip = e.ClipMode == UiClipMode.IntersectParent ? selfClip : clip;
 
-        foreach (var child in e.EnumerateSortedChildrenDescending())
+        if (e._sortedChildrenDirty)
+            e.RebuildSortedChildrenSnapshot();
+        var span = e._sortedChildrenScratch.AsSpan(0, e._sortedChildCount);
+        for (var i = span.Length - 1; i >= 0; i--)
         {
-            var hit = HitTestRecursive(child, p, childClip);
+            var hit = HitTestRecursive(span[i], p, childClip);
             if (hit is not null)
                 return hit;
         }
 
         return e.Interactable ? e : null;
-    }
-
-    /// <summary>Stable ascending <see cref="SortKey"/> then insertion order.</summary>
-    protected IEnumerable<UiElement> EnumerateSortedChildren()
-    {
-        var tmp = new List<(UiElement element, int index)>(_children.Count);
-        for (var i = 0; i < _children.Count; i++)
-            tmp.Add((_children[i], i));
-
-        tmp.Sort(static (a, b) =>
-        {
-            var c = a.element.SortKey.CompareTo(b.element.SortKey);
-            return c != 0 ? c : a.index.CompareTo(b.index);
-        });
-
-        foreach (var t in tmp)
-            yield return t.element;
-    }
-
-    /// <summary>Descending <see cref="SortKey"/> for hit-testing (top-most first).</summary>
-    private IEnumerable<UiElement> EnumerateSortedChildrenDescending()
-    {
-        var list = new List<UiElement>();
-        foreach (var c in EnumerateSortedChildren())
-            list.Add(c);
-
-        for (var i = list.Count - 1; i >= 0; i--)
-            yield return list[i];
     }
 
     /// <summary>Leaf/default sizing: collapsed axes honor <see cref="SizeDelta"/>; stretched axes expand to constraint maxima.</summary>

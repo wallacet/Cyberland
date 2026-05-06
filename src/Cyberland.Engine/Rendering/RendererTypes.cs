@@ -8,12 +8,22 @@ namespace Cyberland.Engine.Rendering;
 /// <summary>Internal GPU texture slot (engine use).</summary>
 internal sealed class GpuTexture
 {
-    public Image Image;
-    public DeviceMemory Memory;
-    public ImageView View;
-    public DescriptorSet DescriptorSet;
-    public int Width;
-    public int Height;
+    public GpuTexture(Image image, DeviceMemory memory, ImageView view, DescriptorSet descriptorSet, int width, int height)
+    {
+        Image = image;
+        Memory = memory;
+        View = view;
+        DescriptorSet = descriptorSet;
+        Width = width;
+        Height = height;
+    }
+
+    public Image Image { get; }
+    public DeviceMemory Memory { get; }
+    public ImageView View { get; }
+    public DescriptorSet DescriptorSet { get; }
+    public int Width { get; }
+    public int Height { get; }
 }
 
 /// <summary>
@@ -86,6 +96,39 @@ public struct SpriteDrawRequest
     /// </summary>
     public bool ViewportClipEnabled;
 
+    /// <summary>Viewport clip rectangle (+Y down); ignored unless <see cref="ViewportClipEnabled"/>.</summary>
+    public UiRect ViewportClipRect;
+}
+
+/// <summary>
+/// Text-glyph submit payload used by the dedicated text pipeline. Unlike <see cref="SpriteDrawRequest"/>, this path is
+/// designed for large glyph counts and instanced batching by atlas page / clip state.
+/// </summary>
+public struct TextGlyphDrawRequest
+{
+    /// <summary>Center position in either <see cref="CoordinateSpace.WorldSpace"/> or <see cref="CoordinateSpace.ViewportSpace"/>.</summary>
+    public Vector2D<float> Center;
+    /// <summary>Half-width / half-height in world / viewport units.</summary>
+    public Vector2D<float> HalfExtents;
+    /// <summary>Atlas UV rectangle (min.xy, max.zw). Zero means full texture.</summary>
+    public Vector4D<float> UvRect;
+    /// <summary>Straight-alpha text tint color.</summary>
+    public Vector4D<float> Color;
+    /// <summary>Sort bucket key (lower first).</summary>
+    public float SortKey;
+    /// <summary>Tie-breaker inside one sort key.</summary>
+    public float DepthHint;
+    /// <summary>Atlas texture id from <see cref="IRenderer.RegisterTextureRgbaLinear"/> (glyph MSDF pages).</summary>
+    public TextureId TextureId;
+    /// <summary>Distance normalization range in atlas pixels used by MSDF shader reconstruction.</summary>
+    public float MsdfPixelRange;
+    /// <summary>
+    /// Coordinate space for <see cref="Center"/> and <see cref="HalfExtents"/>:
+    /// <see cref="CoordinateSpace.WorldSpace"/> or <see cref="CoordinateSpace.ViewportSpace"/>.
+    /// </summary>
+    public CoordinateSpace Space;
+    /// <summary>Swapchain overlay clip enable (viewport coordinates, +Y down).</summary>
+    public bool ViewportClipEnabled;
     /// <summary>Viewport clip rectangle (+Y down); ignored unless <see cref="ViewportClipEnabled"/>.</summary>
     public UiRect ViewportClipRect;
 }
@@ -182,33 +225,33 @@ public struct PostProcessVolume
 }
 
 /// <summary>
-/// Sparse override set: each <c>Has*</c> flag gates whether the paired float replaces the current global/post chain value.
+/// Sparse override set: each <c>Has*</c> flag gates whether the paired float multiplies the current global/post chain value.
 /// </summary>
 public struct PostProcessOverrides
 {
     /// <summary>When true, <see cref="BloomRadius"/> applies.</summary>
     public bool HasBloomRadius;
-    /// <summary>Bloom blur kernel radius (engine-defined units).</summary>
+    /// <summary>Multiplier applied to bloom blur kernel radius (engine-defined units).</summary>
     public float BloomRadius;
     /// <summary>When true, <see cref="BloomGain"/> applies.</summary>
     public bool HasBloomGain;
-    /// <summary>Bloom mix into HDR.</summary>
+    /// <summary>Multiplier applied to bloom mix into HDR.</summary>
     public float BloomGain;
     /// <summary>When true, <see cref="EmissiveToHdrGain"/> applies.</summary>
     public bool HasEmissiveToHdrGain;
-    /// <summary>Scales emissive into the HDR buffer.</summary>
+    /// <summary>Multiplier applied to emissive contribution in the HDR buffer.</summary>
     public float EmissiveToHdrGain;
     /// <summary>When true, <see cref="EmissiveToBloomGain"/> applies.</summary>
     public bool HasEmissiveToBloomGain;
-    /// <summary>Feeds emissive into bloom extraction.</summary>
+    /// <summary>Multiplier applied to emissive contribution in bloom extraction.</summary>
     public float EmissiveToBloomGain;
     /// <summary>When true, <see cref="Exposure"/> applies.</summary>
     public bool HasExposure;
-    /// <summary>Scene exposure multiplier.</summary>
+    /// <summary>Multiplier applied to scene exposure.</summary>
     public float Exposure;
     /// <summary>When true, <see cref="Saturation"/> applies.</summary>
     public bool HasSaturation;
-    /// <summary>Color saturation (1 = neutral).</summary>
+    /// <summary>Multiplier applied to color saturation (1 = neutral).</summary>
     public float Saturation;
 }
 

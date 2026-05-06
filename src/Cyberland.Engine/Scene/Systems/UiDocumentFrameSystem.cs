@@ -22,6 +22,7 @@ namespace Cyberland.Engine.Scene.Systems;
 public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 {
     private readonly GameHostServices _host;
+    private readonly List<(EntityId Id, UiDocumentRoot Root)> _rows = new();
     private bool _prevPrimary;
     private UiButton? _armedButton;
 
@@ -63,22 +64,22 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
         var wheel = input?.MouseWheelDelta ?? Vector2.Zero;
 
-        var rows = new List<(EntityId Id, UiDocumentRoot Root)>();
+        _rows.Clear();
         foreach (var chunk in query)
         {
             var ents = chunk.Entities;
             var cols = chunk.Column<UiDocumentRoot>();
             for (var i = 0; i < chunk.Count; i++)
-                rows.Add((ents[i], cols[i]));
+                _rows.Add((ents[i], cols[i]));
         }
 
-        rows.Sort(static (a, b) =>
+        _rows.Sort(static (a, b) =>
         {
             var order = a.Root.SortKeyBase.CompareTo(b.Root.SortKeyBase);
             return order != 0 ? order : a.Id.Raw.CompareTo(b.Id.Raw);
         });
 
-        foreach (var row in rows)
+        foreach (var row in _rows)
         {
             ref readonly var cfg = ref row.Root;
             if (!cfg.Visible)
@@ -87,18 +88,37 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             if (!_host.UiDocuments.TryGet(row.Id, out var doc))
                 continue;
 
-            var vp = renderer.ActiveCameraViewportSize;
+            // Use the same-tick ECS camera snapshot when available so retained UI layout, viewport anchors, and
+            // bitmap text all resolve against one viewport contract. Fallback to renderer state for early startup.
+            var vpRuntime = _host.CameraRuntimeState.ViewportSizeWorld;
+            var vp = vpRuntime.X > 0 && vpRuntime.Y > 0
+                ? vpRuntime
+                : renderer.ActiveCameraViewportSize;
             var rootRect = ResolveRootRect(cfg.RootPreset, vp);
 
-            doc.PropagateFonts(fonts);
-            doc.PropagateLocalization(loc);
-            doc.MeasureArrange(rootRect);
+            var incremental = UiLayoutGating.UseIncrementalDocumentFrames;
+            var rootStable = RootRectNearlyEquals(rootRect, doc.LastArrangedRootRect);
+            var hasViewportPointer =
+                cfg.CoordinateSpace == CoordinateSpace.ViewportSpace && viewportPointer.HasValue;
+            var ptVp = viewportPointer.GetValueOrDefault();
+            var wheelY = hasViewportPointer ? wheel.Y : 0f;
+            var pointerNeedsFrame = hasViewportPointer &&
+                (wheelY != 0f || primaryPressed || primaryReleased);
 
-            if (cfg.CoordinateSpace == CoordinateSpace.ViewportSpace && viewportPointer is { } ptVp)
+            // Font/localization propagation can mark the document dirty; always run the cheap stale check first.
+            doc.PrepareFontsAndLocalizationIfNeeded(fonts, loc);
+
+            // Submissions are discarded at the start of each render tick (see IRenderer.ResetPendingSubmissionsForNewTick).
+            // We may skip MeasureArrange when layout is clean, but we must call DrawVisuals every frame so HUD persists.
+            var skipMeasure = incremental && !doc.LayoutDirty && rootStable;
+            if (!skipMeasure)
+                doc.MeasureArrange(rootRect);
+
+            if (pointerNeedsFrame && hasViewportPointer)
             {
-                if (wheel.Y != 0f)
+                if (wheelY != 0f)
                 {
-                    TryApplyWheel(doc, ptVp, wheel.Y, rootRect);
+                    TryApplyWheel(doc, ptVp, wheelY, rootRect);
                     doc.MeasureArrange(rootRect);
                 }
 
@@ -109,8 +129,15 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             }
 
             doc.DrawVisuals(renderer, fonts, cache, cfg.CoordinateSpace, cfg.SortKeyBase, rootRect);
+            doc.ClearVisualDirty();
         }
     }
+
+    private static bool RootRectNearlyEquals(in UiRect a, in UiRect b) =>
+        MathF.Abs(a.X - b.X) < 0.25f &&
+        MathF.Abs(a.Y - b.Y) < 0.25f &&
+        MathF.Abs(a.Width - b.Width) < 0.25f &&
+        MathF.Abs(a.Height - b.Height) < 0.25f;
 
     private static UiRect ResolveRootRect(UiDocumentRootPreset preset, Vector2D<int> viewportPx) =>
         preset switch
@@ -191,29 +218,14 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
         var childClip = e.ClipMode == UiClipMode.IntersectParent ? selfClip : clip;
 
-        foreach (var child in EnumerateSortedChildrenDescending(e))
+        var span = e.SortedChildren();
+        for (var i = span.Length - 1; i >= 0; i--)
         {
-            var nested = FindDeepestScrollView(child, p, childClip);
+            var nested = FindDeepestScrollView(span[i], p, childClip);
             if (nested is not null)
                 return nested;
         }
 
         return e is UiScrollView sv ? sv : null;
-    }
-
-    private static IEnumerable<UiElement> EnumerateSortedChildrenDescending(UiElement parent)
-    {
-        var tmp = new List<(UiElement element, int index)>(parent.Children.Count);
-        for (var i = 0; i < parent.Children.Count; i++)
-            tmp.Add((parent.Children[i], i));
-
-        tmp.Sort(static (a, b) =>
-        {
-            var order = a.element.SortKey.CompareTo(b.element.SortKey);
-            return order != 0 ? order : a.index.CompareTo(b.index);
-        });
-
-        for (var i = tmp.Count - 1; i >= 0; i--)
-            yield return tmp[i].element;
     }
 }

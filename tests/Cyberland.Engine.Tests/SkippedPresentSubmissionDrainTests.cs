@@ -11,6 +11,31 @@ namespace Cyberland.Engine.Tests;
 public sealed class SkippedPresentSubmissionDrainTests
 {
     [Fact]
+    public void RecordingRenderer_reset_pending_submissions_clears_all_submit_lists()
+    {
+        var renderer = new RecordingRenderer();
+        renderer.SubmitSprite(new SpriteDrawRequest());
+        renderer.SubmitTextGlyph(new TextGlyphDrawRequest());
+        renderer.SubmitPointLight(new PointLight());
+        renderer.SubmitSpotLight(new SpotLight());
+        renderer.SubmitDirectionalLight(new DirectionalLight());
+        renderer.SubmitAmbientLight(new AmbientLight());
+        renderer.SubmitPostProcessVolume(new PostProcessVolume(), default, 0f, new Silk.NET.Maths.Vector2D<float>(1f, 1f));
+        renderer.SubmitCamera(new CameraViewRequest { Enabled = true, ViewportSizeWorld = new Silk.NET.Maths.Vector2D<int>(1, 1) });
+
+        renderer.ResetPendingSubmissionsForNewTick();
+
+        Assert.Empty(renderer.Sprites);
+        Assert.Empty(renderer.TextGlyphs);
+        Assert.Empty(renderer.PointLights);
+        Assert.Empty(renderer.SpotLights);
+        Assert.Empty(renderer.DirectionalLights);
+        Assert.Empty(renderer.AmbientLights);
+        Assert.Empty(renderer.Volumes);
+        Assert.Empty(renderer.Cameras);
+    }
+
+    [Fact]
     public void Without_discard_between_ticks_overlay_queue_retains_prior_tick_submissions()
     {
         var overlay = new ConcurrentQueue<int>();

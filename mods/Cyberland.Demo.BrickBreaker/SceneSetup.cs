@@ -30,8 +30,6 @@ public static class SceneSetup
         await Task.CompletedTask;
 
         var host = context.Host;
-        _ = host.Renderer
-            ?? throw new InvalidOperationException("BrickBreaker scene setup requires Host.Renderer.");
 
         var w = context.World;
 
@@ -138,7 +136,7 @@ public static class SceneSetup
         _ = HudTextRow<HudScoreNumTag>(w, 455f);
         _ = HudTextRow<HudFpsTag>(w, 456f);
 
-        var white = host.Renderer!.WhiteTextureId;
+        var white = host.Renderer.WhiteTextureId;
         var normal = host.Renderer.DefaultNormalTextureId;
         ApplyStaticSpriteAuthoring(
             w,

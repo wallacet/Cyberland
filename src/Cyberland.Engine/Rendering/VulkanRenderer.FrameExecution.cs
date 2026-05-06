@@ -1,4 +1,8 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
+using Cyberland.Engine.Diagnostics;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 
@@ -19,6 +23,11 @@ namespace Cyberland.Engine.Rendering;
 /// <summary>Partial <see cref="VulkanRenderer"/>: constructs <see cref="FramePlan"/> and hosts bloom/composite helpers.</summary>
 public sealed unsafe partial class VulkanRenderer
 {
+    private void EnsureBloomPipelineInitialized()
+    {
+        _bloomPipeline ??= new BloomPipeline(this);
+    }
+
     /// <summary>
     /// Ensures <paramref name="buffer"/> can hold at least <paramref name="requiredLength"/> elements (grow-only — never shrinks).
     /// Pair with <see cref="SpriteDrawSorter.SortByLayerOrder(int[], SpriteDrawRequest[], int)"/> using the drained count,
@@ -58,6 +67,7 @@ public sealed unsafe partial class VulkanRenderer
         /// <inheritdoc cref="IFramePlanBuilder.Build"/>
         public FramePlan Build()
         {
+            using var __build = FrameProfilerScope.Enter("FramePlan.Build");
             int spriteCount, pointCount, spotCount, directionalCount, ambientCount, volumeCount, cameraCount;
             SpriteDrawRequest[] sprites = [];
             PointLight[] pointLights = [];
@@ -67,13 +77,17 @@ public sealed unsafe partial class VulkanRenderer
             PostProcessVolumeSubmission[] volumes = [];
             CameraViewRequest[] cameras = [];
             GlobalPostProcessSettings globalPost;
-            spriteCount = DrainQueue(_r._spriteQueue, ref _r._frameScratchSprites, out sprites);
-            pointCount = DrainQueue(_r._pointLightQueue, ref _r._frameScratchPointLights, out pointLights);
-            spotCount = DrainQueue(_r._spotLightQueue, ref _r._frameScratchSpotLights, out spotLights);
-            directionalCount = DrainQueue(_r._directionalLightQueue, ref _r._frameScratchDirectionalLights, out directionalLights);
-            ambientCount = DrainQueue(_r._ambientLightQueue, ref _r._frameScratchAmbientLights, out ambientLights);
-            volumeCount = DrainQueue(_r._volumeQueue, ref _r._frameScratchVolumes, out volumes);
-            cameraCount = DrainQueue(_r._cameraQueue, ref _r._frameScratchCameras, out cameras);
+            {
+                using var __ = FrameProfilerScope.Enter("FramePlan.DrainQueues");
+                spriteCount = DrainQueue(_r._spriteQueue, ref _r._frameScratchSprites, out sprites);
+                pointCount = DrainQueue(_r._pointLightQueue, ref _r._frameScratchPointLights, out pointLights);
+                spotCount = DrainQueue(_r._spotLightQueue, ref _r._frameScratchSpotLights, out spotLights);
+                directionalCount = DrainQueue(_r._directionalLightQueue, ref _r._frameScratchDirectionalLights, out directionalLights);
+                ambientCount = DrainQueue(_r._ambientLightQueue, ref _r._frameScratchAmbientLights, out ambientLights);
+                volumeCount = DrainQueue(_r._volumeQueue, ref _r._frameScratchVolumes, out volumes);
+                cameraCount = DrainQueue(_r._cameraQueue, ref _r._frameScratchCameras, out cameras);
+            }
+
             lock (_r._globalPostLock)
             {
                 globalPost = _r._globalPost;
@@ -92,54 +106,113 @@ public sealed unsafe partial class VulkanRenderer
                 _r._activeCameraView = camera;
             }
 
-            var resolvedPost = PostProcessVolumeMerge.ResolveAtPoint(
-                in globalPost,
-                volumes.AsSpan(0, volumeCount),
-                camera.PositionWorld);
+            GlobalPostProcessSettings resolvedPost;
+            {
+                using var __ = FrameProfilerScope.Enter("FramePlan.PostMerge");
+                resolvedPost = PostProcessVolumeMerge.ResolveAtPoint(
+                    in globalPost,
+                    volumes.AsSpan(0, volumeCount),
+                    camera.PositionWorld);
+            }
 
+            var drainedSpriteCount = spriteCount;
             int[] sortIndices;
-            if (spriteCount == 0)
+            if (drainedSpriteCount == 0)
                 sortIndices = [];
             else
             {
-                EnsureFrameScratch(ref _r._frameScratchSortIndices, spriteCount);
+                using var __ = FrameProfilerScope.Enter("FramePlan.Sort.Sprites");
+                EnsureFrameScratch(ref _r._frameScratchSortIndices, drainedSpriteCount);
                 sortIndices = _r._frameScratchSortIndices!;
                 // Grow-only scratch may be longer than spriteCount; sort only [0, spriteCount) so stale tail slots are not compared.
-                SpriteDrawSorter.SortByLayerOrder(sortIndices, sprites, spriteCount);
+                SpriteDrawSorter.SortByLayerOrder(sortIndices, sprites, drainedSpriteCount);
+            }
+            LightSubmissionPolicy.ClampWithDropCount(drainedSpriteCount, DeferredRenderingConstants.MaxDeferredSprites, out var droppedDeferredSprites);
+            spriteCount = drainedSpriteCount - droppedDeferredSprites;
+            if (droppedDeferredSprites > 0 && Interlocked.Exchange(ref _r._deferredSpriteOverflowWarningIssued, 1) == 0)
+            {
+                EngineDiagnostics.Report(
+                    EngineErrorSeverity.Warning,
+                    "Cyberland.Engine.Rendering",
+                    $"Deferred sprite submissions exceeded cap ({DeferredRenderingConstants.MaxDeferredSprites}); dropped {droppedDeferredSprites} draws after deterministic layer/sort-key prioritization.");
             }
 
             var transparentSpriteCount = 0;
-            if (spriteCount > 0)
+            for (var i = 0; i < spriteCount; i++)
             {
-                for (var i = 0; i < spriteCount; i++)
-                {
-                    if (sprites[sortIndices[i]].Transparent)
-                        transparentSpriteCount++;
-                }
+                if (sprites[sortIndices[i]].Transparent)
+                    transparentSpriteCount++;
             }
 
             int voCount;
             SpriteDrawRequest[] voSprites;
             voCount = DrainQueue(_r._viewportUiOverlayQueue, ref _r._frameScratchViewportUiOverlay, out voSprites);
+            LightSubmissionPolicy.ClampWithDropCount(voCount, DeferredRenderingConstants.MaxViewportOverlaySprites, out var droppedOverlaySprites);
+            if (droppedOverlaySprites > 0 && Interlocked.Exchange(ref _r._overlaySpriteOverflowWarningIssued, 1) == 0)
+            {
+                EngineDiagnostics.Report(
+                    EngineErrorSeverity.Warning,
+                    "Cyberland.Engine.Rendering",
+                    $"Viewport overlay sprite submissions exceeded cap ({DeferredRenderingConstants.MaxViewportOverlaySprites}); dropped {droppedOverlaySprites} draws.");
+            }
+            voCount -= droppedOverlaySprites;
             int[] voSort;
             if (voCount == 0)
                 voSort = [];
             else
             {
+                using var __ = FrameProfilerScope.Enter("FramePlan.Sort.Overlay");
                 EnsureFrameScratch(ref _r._frameScratchViewportUiSortIndices, voCount);
                 voSort = _r._frameScratchViewportUiSortIndices!;
                 SpriteDrawSorter.SortByLayerOrder(voSort, voSprites, voCount);
             }
+
+            int textCount;
+            TextGlyphDrawRequest[] textGlyphs;
+            textCount = DrainQueue(_r._textGlyphQueue, ref _r._frameScratchTextGlyphs, out textGlyphs);
+            LightSubmissionPolicy.ClampWithDropCount(textCount, DeferredRenderingConstants.MaxTextGlyphs, out var droppedTextGlyphs);
+            if (droppedTextGlyphs > 0 && Interlocked.Exchange(ref _r._textGlyphOverflowWarningIssued, 1) == 0)
+            {
+                EngineDiagnostics.Report(
+                    EngineErrorSeverity.Warning,
+                    "Cyberland.Engine.Rendering",
+                    $"Text glyph submissions exceeded cap ({DeferredRenderingConstants.MaxTextGlyphs}); dropped {droppedTextGlyphs} glyphs.");
+            }
+            textCount -= droppedTextGlyphs;
+            int[] textSort;
+            if (textCount == 0)
+                textSort = [];
+            else
+            {
+                using var __ = FrameProfilerScope.Enter("FramePlan.Sort.TextGlyphs");
+                EnsureFrameScratch(ref _r._frameScratchTextSortIndices, textCount);
+                textSort = _r._frameScratchTextSortIndices!;
+                TextGlyphSortComparer.SortByOrder(textSort, textGlyphs, textCount);
+            }
+
+            if (pointCount > DeferredRenderingConstants.MaxPointLights)
+                LightSubmissionOrdering.SortPointLights(pointLights, pointCount);
+            if (directionalCount > DeferredRenderingConstants.MaxDirectionalLights)
+                LightSubmissionOrdering.SortDirectionalLights(directionalLights, directionalCount);
+            if (spotCount > DeferredRenderingConstants.MaxSpotLights)
+                LightSubmissionOrdering.SortSpotLights(spotLights, spotCount);
+
+            LightSubmissionPolicy.ClampWithDropCount(pointCount, DeferredRenderingConstants.MaxPointLights, out var droppedPointLights);
+            LightSubmissionPolicy.ClampWithDropCount(directionalCount, DeferredRenderingConstants.MaxDirectionalLights, out var droppedDirectionalLights);
+            LightSubmissionPolicy.ClampWithDropCount(spotCount, DeferredRenderingConstants.MaxSpotLights, out var droppedSpotLights);
 
             return new FramePlan(
                 sprites,
                 spriteCount,
                 pointLights,
                 pointCount,
+                droppedPointLights,
                 spotLights,
                 spotCount,
+                droppedSpotLights,
                 directionalLights,
                 directionalCount,
+                droppedDirectionalLights,
                 ambientLights,
                 ambientCount,
                 volumes,
@@ -153,7 +226,10 @@ public sealed unsafe partial class VulkanRenderer
                 in physical,
                 voSprites,
                 voCount,
-                voSort);
+                voSort,
+                textGlyphs,
+                textCount,
+                textSort);
         }
 
         /// <summary>Thin wrapper so <see cref="ConcurrentQueueDrain.DrainToScratch{T}"/> stays testable in isolation.</summary>
@@ -178,12 +254,26 @@ public sealed unsafe partial class VulkanRenderer
 
         public PostProcessGraph(VulkanRenderer renderer)
         {
+            renderer.EnsureBloomPipelineInitialized();
             _bloom = new BloomEffect(renderer);
             _composite = new CompositeEffect(renderer);
         }
 
         public void Record(in PostEffectContext context, bool bloomOn, float bloomGain, float bloomRadius, in GlobalPostProcessSettings post)
         {
+            Debug.Assert(
+                RenderPassDependencyModel.IsExecutionOrderValid(
+                [
+                    RenderPassDependencyModel.PassStage.EmissivePrepass,
+                    RenderPassDependencyModel.PassStage.GBufferOpaque,
+                    RenderPassDependencyModel.PassStage.DeferredLighting,
+                    RenderPassDependencyModel.PassStage.TransparentWboit,
+                    RenderPassDependencyModel.PassStage.TransparentResolve,
+                    RenderPassDependencyModel.PassStage.Bloom,
+                    RenderPassDependencyModel.PassStage.CompositeToSwapchain
+                ]),
+                "Deferred frame pass ordering must satisfy RenderPassDependencyModel edges.");
+
             ImageView current = default;
             if (bloomOn)
                 current = ((BloomEffect)_bloom).RecordBloom(in context, bloomRadius);
@@ -200,7 +290,6 @@ public sealed unsafe partial class VulkanRenderer
         public BloomEffect(VulkanRenderer renderer)
         {
             _r = renderer;
-            _r._bloomPipeline ??= new BloomPipeline(_r);
         }
 
         public void RecreateTargets() { }
@@ -294,7 +383,7 @@ public sealed unsafe partial class VulkanRenderer
                 Exposure = post.Exposure,
                 Saturation = post.Saturation,
                 EmissiveHdrGain = post.EmissiveToHdrGain,
-                EmissiveBloomGain = post.EmissiveToBloomGain,
+                BloomSourceGain = post.EmissiveToBloomGain,
                 ApplyManualDisplayGamma = _r._swapchainUsesSrgbFramebuffer ? 0f : 1f,
                 Pad1 = 0f
             };

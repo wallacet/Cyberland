@@ -10,6 +10,11 @@ namespace Cyberland.Engine.Rendering;
 /// <summary>Descriptor layouts and binding updates for deferred rendering (partial).</summary>
 public sealed unsafe partial class VulkanRenderer
 {
+    private const uint DescriptorPoolCombinedImageSamplerCount = 640;
+    private const uint DescriptorPoolUniformBufferCount = 40;
+    private const uint DescriptorPoolStorageBufferCount = 12;
+    private const uint DescriptorPoolMaxSets = 640;
+
     private void CreateDescriptorLayoutsAndPool()
     {
         Span<DescriptorSetLayoutBinding> tex = stackalloc DescriptorSetLayoutBinding[1];
@@ -118,9 +123,11 @@ public sealed unsafe partial class VulkanRenderer
 
         VulkanGraphicsPipelineHelpers.CreateDescriptorSetLayoutOrThrow(_vk!, _device, b, out _dslTransparentResolve, "dsl transparent resolve failed.");
 
-        DescriptorPoolSize ps1 = new() { Type = DescriptorType.CombinedImageSampler, DescriptorCount = 640 };
-        DescriptorPoolSize ps2 = new() { Type = DescriptorType.UniformBuffer, DescriptorCount = 40 };
-        DescriptorPoolSize ps3 = new() { Type = DescriptorType.StorageBuffer, DescriptorCount = 12 };
+        // Keep headroom between MaxRegisteredTextures and descriptor pool totals for frame-global sets
+        // (gbuffer, bloom, transparent resolve, etc.) so texture registration fails early and predictably.
+        DescriptorPoolSize ps1 = new() { Type = DescriptorType.CombinedImageSampler, DescriptorCount = DescriptorPoolCombinedImageSamplerCount };
+        DescriptorPoolSize ps2 = new() { Type = DescriptorType.UniformBuffer, DescriptorCount = DescriptorPoolUniformBufferCount };
+        DescriptorPoolSize ps3 = new() { Type = DescriptorType.StorageBuffer, DescriptorCount = DescriptorPoolStorageBufferCount };
         var poolSizes = stackalloc DescriptorPoolSize[3];
         poolSizes[0] = ps1;
         poolSizes[1] = ps2;
@@ -129,7 +136,7 @@ public sealed unsafe partial class VulkanRenderer
         DescriptorPoolCreateInfo dpci = new()
         {
             SType = StructureType.DescriptorPoolCreateInfo,
-            MaxSets = 640,
+            MaxSets = DescriptorPoolMaxSets,
             PoolSizeCount = 3,
             PPoolSizes = poolSizes
         };

@@ -79,6 +79,19 @@ public struct ChunkQueryEnumeratorAll
     internal ChunkQueryEnumeratorAll(ArchetypeWorld world, SystemQuerySpec spec)
     {
         _world = world;
+        if (world.TryGetChunkEnumeratorPrep(spec, out var cached))
+        {
+            _queryTypeHandlesBySortedId = cached!.QueryTypeHandlesBySortedId;
+            _sortedIds = cached.SortedIds;
+            _archetypeIndices = cached.ArchetypeIndices;
+            _archetypeEnumIndex = 0;
+            _currentArch = null;
+            _columnIndices = null;
+            _chunkEnumIndex = 0;
+            _current = default;
+            return;
+        }
+
         var sortedTypes = (Type[])spec.Types.Clone();
         Array.Sort(sortedTypes, (a, b) =>
         {
@@ -98,6 +111,16 @@ public struct ChunkQueryEnumeratorAll
         _columnIndices = null;
         _chunkEnumIndex = 0;
         _current = default;
+
+        world.StoreChunkEnumeratorPrep(
+            spec,
+            new ChunkQueryEnumeratorPrep
+            {
+                QueryTypeHandlesBySortedId = _queryTypeHandlesBySortedId,
+                SortedIds = _sortedIds,
+                ArchetypeIndices = _archetypeIndices!,
+                StructureVersion = world.StructureVersion
+            });
     }
 
     /// <summary>Current chunk view after a successful <see cref="MoveNext"/>.</summary>

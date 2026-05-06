@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Text;
+using System.Diagnostics.CodeAnalysis;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine;
@@ -10,7 +11,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Rendering.Text;
 
 /// <summary>
-/// Submits bitmap text as UI-layer <see cref="SpriteDrawRequest"/> quads (LTR, packed glyph atlas textures).
+/// Submits text glyphs through the dedicated batched text path (LTR, packed glyph atlas textures).
 /// Ordinary HUD should use <see cref="Scene.Systems.TextRenderSystem"/> with <see cref="Scene.BitmapText"/>;
 /// call these methods only for custom drawing.
 /// </summary>
@@ -25,8 +26,7 @@ namespace Cyberland.Engine.Rendering.Text;
 public static class TextRenderer
 {
     /// <summary>
-    /// Per-glyph <see cref="SpriteDrawRequest.DepthHint"/> spacing so <see cref="SpriteDrawSorter"/> has a stable tie-break
-    /// when every glyph in a run shares the same <see cref="SpriteDrawRequest.SortKey"/> (Array.Sort is not stable).
+    /// Per-glyph depth spacing so text submission keeps deterministic order when sort keys tie.
     /// </summary>
     private const float GlyphOrdinalDepthHintEpsilon = 1e-5f;
 
@@ -188,7 +188,7 @@ public static class TextRenderer
         DrawRuns(renderer, fonts, cache, localization, runs, baselineLeftScreen, CoordinateSpace.ViewportSpace, sortKey);
 
     /// <summary>
-    /// Fills <paramref name="destination"/> with glyph quads (no submit). Returns glyph count and final pen.
+    /// Fills <paramref name="destination"/> with glyph draw entries (no submit). Returns glyph count and final pen.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -201,7 +201,7 @@ public static class TextRenderer
     /// that); do not use a shorter span in production paths.
     /// </para>
     /// </remarks>
-    internal static int FillGlyphRunSprites(
+    internal static int FillGlyphRunGlyphs(
         IRenderer renderer,
         FontLibrary fonts,
         TextGlyphCache cache,
@@ -210,7 +210,7 @@ public static class TextRenderer
         Vector2D<float> baselineLeft,
         float initialPen,
         float sortKey,
-        Span<SpriteDrawRequest> destination,
+        Span<TextGlyphDrawRequest> destination,
         out float penAfter,
         CoordinateSpace space = CoordinateSpace.WorldSpace,
         bool applyViewportClip = false,
@@ -220,7 +220,6 @@ public static class TextRenderer
         if (string.IsNullOrEmpty(text) || destination.Length == 0)
             return 0;
 
-        var defN = renderer.DefaultNormalTextureId;
         var span = text.AsSpan();
         var n = 0;
         var pen = initialPen;
@@ -228,6 +227,9 @@ public static class TextRenderer
         // SwapchainSpace uses the same +Y-down authoring convention as ViewportSpace (see CameraProjection); mixing it
         // with world-style +Y up here doubled vertical spacing vs DrawSpriteSwapchainUi and could leave junk outside clip.
         var ySign = ScreenSpaceYDown(space) ? -1f : 1f;
+        // Snap HUD baseline to whole pixels so MSDF sprites avoid chronic blur from fractional screen origins (layout
+        // still uses float advances in pen space).
+        var baselineOrigin = SnapBaselineForSpace(baselineLeft, space);
         // DecodeFromUtf16 (not EnumerateRunes): ill-formed UTF-16 stops decoding without emitting a replacement glyph —
         // EnumerateRunes would substitute U+FFFD and change golden tests / lone-surrogate behavior.
         for (var i = 0; i < span.Length;)
@@ -248,10 +250,10 @@ public static class TextRenderer
             if (n >= destination.Length)
                 break;
 
-            var cx = baselineLeft.X + pen + cg.OffsetPenToCenterX;
-            var cy = baselineLeft.Y + cg.OffsetPenToCenterYWorld * ySign;
+            var cx = baselineOrigin.X + pen + cg.OffsetPenToCenterX;
+            var cy = baselineOrigin.Y + cg.OffsetPenToCenterYWorld * ySign;
             var ordinal = n;
-            destination[n++] = CreateGlyphSpriteRequest(cg, cx, cy, in style, sortKey, defN, ordinal, space,
+            destination[n++] = CreateGlyphDrawRequest(cg, cx, cy, in style, sortKey, ordinal, space,
                 applyViewportClip, viewportClip);
             pen += cg.AdvancePx;
         }
@@ -274,15 +276,15 @@ public static class TextRenderer
         // Callers skip empty strings; avoid a redundant branch the gate cannot hit.
         var span = text.AsSpan();
 
-        var pool = ArrayPool<SpriteDrawRequest>.Shared;
+        var pool = ArrayPool<TextGlyphDrawRequest>.Shared;
         var buf = pool.Rent(span.Length);
         try
         {
             var dest = buf.AsSpan(0, span.Length);
-            var n = FillGlyphRunSprites(renderer, fonts, cache, text, in style, baselineLeft, pen, sortKey, dest,
+            var n = FillGlyphRunGlyphs(renderer, fonts, cache, text, in style, baselineLeft, pen, sortKey, dest,
                 out var penAfter, space);
             if (n > 0)
-                renderer.SubmitSprites(dest[..n]);
+                renderer.SubmitTextGlyphs(dest[..n]);
             return penAfter;
         }
         finally
@@ -318,13 +320,12 @@ public static class TextRenderer
     private static bool TransparentSpriteForSpace(CoordinateSpace space) =>
         space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace;
 
-    private static SpriteDrawRequest CreateGlyphSpriteRequest(
+    private static TextGlyphDrawRequest CreateGlyphDrawRequest(
         TextGlyphCache.CachedGlyph g,
         float centerX,
         float centerY,
         in TextStyle style,
         float sortKey,
-        TextureId defNormal,
         int glyphOrdinalInRun,
         CoordinateSpace space,
         bool applyViewportClip,
@@ -332,23 +333,16 @@ public static class TextRenderer
     {
         var cm = style.Color;
         var clip = applyViewportClip && ScreenSpaceYDown(space);
-        return new SpriteDrawRequest
+        return new TextGlyphDrawRequest
         {
-            CenterWorld = new Vector2D<float>(centerX, centerY),
-            HalfExtentsWorld = new Vector2D<float>(g.WidthPx * 0.5f, g.HeightPx * 0.5f),
-            RotationRadians = 0f,
-            Layer = (int)SpriteLayer.Ui,
+            Center = new Vector2D<float>(centerX, centerY),
+            HalfExtents = new Vector2D<float>(g.WidthPx * 0.5f, g.HeightPx * 0.5f),
             SortKey = sortKey,
-            AlbedoTextureId = g.TextureId,
-            NormalTextureId = defNormal,
-            EmissiveTextureId = TextureId.MaxValue,
-            ColorMultiply = cm,
-            Alpha = cm.W,
-            EmissiveTint = default,
-            EmissiveIntensity = 0f,
+            TextureId = g.TextureId,
+            MsdfPixelRange = g.MsdfPixelRange,
+            Color = cm,
             DepthHint = glyphOrdinalInRun * GlyphOrdinalDepthHintEpsilon,
             UvRect = g.UvRect,
-            Transparent = TransparentSpriteForSpace(space),
             Space = space,
             ViewportClipEnabled = clip,
             ViewportClipRect = viewportClip
@@ -378,16 +372,27 @@ public static class TextRenderer
         var underlineOffset = MathF.Max(1.5f, style.SizePixels * 0.12f);
         var strikeOffset = style.SizePixels * 0.08f;
         var ySign = ScreenSpaceYDown(space) ? -1f : 1f;
-        var underlineY = baselineLeft.Y - underlineOffset * ySign;
-        var strikeY = baselineLeft.Y + strikeOffset * ySign;
+        var baselineOrigin = SnapBaselineForSpace(baselineLeft, space);
+        var underlineY = baselineOrigin.Y - underlineOffset * ySign;
+        var strikeY = baselineOrigin.Y + strikeOffset * ySign;
 
         if (style.Underline)
-            SubmitLine(renderer, baselineLeft.X + penStart, baselineLeft.X + penEnd, underlineY, lineHalfH,
+            SubmitLine(renderer, baselineOrigin.X + penStart, baselineOrigin.X + penEnd, underlineY, lineHalfH,
                 cm, sortKey + 0.1f, whiteTex, defNormal, space, applyViewportClip, viewportClip);
 
         if (style.Strikethrough)
-            SubmitLine(renderer, baselineLeft.X + penStart, baselineLeft.X + penEnd, strikeY, lineHalfH,
+            SubmitLine(renderer, baselineOrigin.X + penStart, baselineOrigin.X + penEnd, strikeY, lineHalfH,
                 cm, sortKey + 0.15f, whiteTex, defNormal, space, applyViewportClip, viewportClip);
+    }
+
+    private static Vector2D<float> SnapBaselineForSpace(Vector2D<float> baselineLeft, CoordinateSpace space)
+    {
+        if (!ScreenSpaceYDown(space))
+            return baselineLeft;
+
+        return new Vector2D<float>(
+            MathF.Round(baselineLeft.X),
+            MathF.Round(baselineLeft.Y));
     }
 
     private static void SubmitLine(

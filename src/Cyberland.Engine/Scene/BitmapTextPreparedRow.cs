@@ -8,7 +8,7 @@ namespace Cyberland.Engine.Scene;
 /// <remarks>
 /// <para>
 /// <see cref="Systems.TextRenderSystem"/> resolves text and fills <see cref="TextSpriteCache"/> immediately before
-/// <see cref="Rendering.IRenderer.SubmitSprites"/> each frame. The runtime builder drops prepared CPU slots automatically
+/// <see cref="Rendering.IRenderer.SubmitTextGlyphs"/> each frame. The runtime builder drops prepared CPU slots automatically
 /// when resolved copy / style / layer inputs change vs the last successful prepare; normal <see cref="BitmapText.Content"/>
 /// edits do not require this API.
 /// Use <see cref="DiscardPrepared"/> only for exceptional cases (ordering hazards outside text-render, hot reload, tests).

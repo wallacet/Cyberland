@@ -409,6 +409,61 @@ public sealed class RenderingHelpersTests
     }
 
     [Fact]
+    public void PostProcessVolumeMerge_equal_priority_ties_keep_first_submitted_volume()
+    {
+        var g = new GlobalPostProcessSettings
+        {
+            BloomEnabled = true,
+            BloomGain = 1f,
+            BloomRadius = 1f,
+            EmissiveToHdrGain = 1f,
+            EmissiveToBloomGain = 1f,
+            Exposure = 1f,
+            Saturation = 1f
+        };
+
+        var inside = new Vector2D<float>(5f, 5f);
+        var vols = new[]
+        {
+            new PostProcessVolumeSubmission
+            {
+                Volume = new PostProcessVolume
+                {
+                    HalfExtentsLocal = new Vector2D<float>(5f, 5f),
+                    Priority = 10,
+                    Overrides = new PostProcessOverrides
+                    {
+                        HasBloomGain = true,
+                        BloomGain = 2f
+                    }
+                },
+                WorldPosition = inside,
+                WorldRotationRadians = 0f,
+                WorldScale = new Vector2D<float>(1f, 1f)
+            },
+            new PostProcessVolumeSubmission
+            {
+                Volume = new PostProcessVolume
+                {
+                    HalfExtentsLocal = new Vector2D<float>(5f, 5f),
+                    Priority = 10,
+                    Overrides = new PostProcessOverrides
+                    {
+                        HasBloomGain = true,
+                        BloomGain = 9f
+                    }
+                },
+                WorldPosition = inside,
+                WorldRotationRadians = 0f,
+                WorldScale = new Vector2D<float>(1f, 1f)
+            }
+        };
+
+        var resolved = PostProcessVolumeMerge.ResolveAtPoint(in g, vols, inside);
+        Assert.Equal(2f, resolved.BloomGain);
+    }
+
+    [Fact]
     public void PostProcessVolumeMerge_Overlaps_cases()
     {
         Assert.True(PostProcessVolumeMerge.Overlaps(
@@ -464,5 +519,21 @@ public sealed class RenderingHelpersTests
             new Vector2D<float>(3f, 0f),
             0f,
             new Vector2D<float>(5f, 5f)));
+    }
+
+    [Fact]
+    public void LightRigMath_DirectionToOrFallback_returns_normalized_direction_and_fallback()
+    {
+        var from = new Vector2D<float>(0f, 0f);
+        var to = new Vector2D<float>(3f, 4f);
+        var fallback = new Vector2D<float>(1f, 0f);
+
+        var dir = LightRigMath.DirectionToOrFallback(from, to, fallback);
+        Assert.Equal(0.6f, dir.X, 3);
+        Assert.Equal(0.8f, dir.Y, 3);
+
+        var fallbackDir = LightRigMath.DirectionToOrFallback(from, from, fallback);
+        Assert.Equal(fallback.X, fallbackDir.X);
+        Assert.Equal(fallback.Y, fallbackDir.Y);
     }
 }

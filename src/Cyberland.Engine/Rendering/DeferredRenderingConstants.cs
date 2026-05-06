@@ -34,4 +34,13 @@ internal static class DeferredRenderingConstants
 
     /// <summary>Upper bound for spot lights in the deferred base (fullscreen) pass.</summary>
     public const int MaxSpotLights = 64;
+
+    /// <summary>Upper bound for deferred/world sprite submissions consumed by one frame plan.</summary>
+    public const int MaxDeferredSprites = 65536;
+
+    /// <summary>Upper bound for viewport/swapchain overlay sprite submissions consumed by one frame plan.</summary>
+    public const int MaxViewportOverlaySprites = 16384;
+
+    /// <summary>Upper bound for queued text glyph submissions consumed by one frame plan.</summary>
+    public const int MaxTextGlyphs = 65536;
 }

@@ -22,6 +22,8 @@ internal static class EngineShaderSources
     public const string BloomGaussianFrag = "bloom_gaussian.frag.glsl";
     public const string BloomUpsampleFrag = "bloom_upsample.frag.glsl";
     public const string BloomCopyFrag = "bloom_copy.frag.glsl";
+    public const string TextMsdfVert = "text_msdf.vert.glsl";
+    public const string TextMsdfFrag = "text_msdf.frag.glsl";
 
     /// <summary>Reads UTF-8 text from an embedded shader file.</summary>
     public static string Load(string fileName)

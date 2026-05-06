@@ -28,7 +28,7 @@ public static class SceneSetup
         CancellationToken cancellationToken = default)
     {
         _ = cancellationToken;
-        var renderer = context.Host.Renderer ?? throw new InvalidOperationException("Renderer required.");
+        var renderer = context.Host.Renderer;
         var world = context.World;
         var host = context.Host;
         var loc = context.LocalizedContent.Strings;

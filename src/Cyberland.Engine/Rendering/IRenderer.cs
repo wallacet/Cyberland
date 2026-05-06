@@ -36,15 +36,16 @@ namespace Cyberland.Engine.Rendering;
 /// area with the active camera's background color.</item>
 /// </list>
 /// <para>
-/// <b>Threading:</b> <see cref="SubmitSprite"/>, <see cref="SubmitPointLight"/>, <see cref="SubmitPostProcessVolume"/>,
-/// <see cref="SetGlobalPostProcess"/>, and <see cref="SubmitCamera"/> are safe to call from
+/// <b>Threading:</b> all <c>Submit*</c> members and <see cref="SetGlobalPostProcess"/> are safe to call from
 /// <see cref="Cyberland.Engine.Core.Ecs.IParallelSystem"/> workers concurrently (implementations synchronize
-/// CPU-side queues with the render thread). Vulkan command recording and <c>DrawFrame</c> run on the window /
-/// render thread only.
+/// CPU-side queues with the render thread). Property writes like <see cref="FramePacing"/> and
+/// <see cref="RequestClose"/> should stay on the main thread or be externally coordinated. Vulkan command recording
+/// and <c>DrawFrame</c> run on the window / render thread only.
 /// </para>
 /// <para>
-/// <see cref="RegisterTextureRgba(ReadOnlySpan{byte}, int, int)"/> is normally used from the main thread during load; call sites that invoke it from
-/// parallel code should coordinate externally if the implementation is not made concurrent.
+/// <see cref="RegisterTextureRgba(ReadOnlySpan{byte}, int, int)"/> is normally used from the main thread during load. Implementations may serialize
+/// texture uploads onto the graphics queue/command pools; call sites that invoke texture registration from parallel code should coordinate externally.
+/// Upload APIs return <see cref="TextureId.MaxValue"/> / <c>false</c> for deterministic failure (invalid inputs, missing ids, or capacity limits).
 /// </para>
 /// </remarks>
 public interface IRenderer
@@ -82,13 +83,25 @@ public interface IRenderer
     /// <param name="rgba">Packed RGBA8 pixels, length <c>width * height * 4</c>.</param>
     /// <param name="width">Texture width in pixels.</param>
     /// <param name="height">Texture height in pixels.</param>
+    /// <returns>
+    /// Texture id on success; <see cref="TextureId.MaxValue"/> on failure (invalid size/data, or implementation capacity reached).
+    /// </returns>
     TextureId RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height);
+
+    /// <summary>
+    /// Uploads RGBA8 sampled as linear UNORM (no sRGB decode). Use for MSDF / distance-field atlases and other
+    /// non–display-referred encodings; ordinary sprites and photos should use <see cref="RegisterTextureRgba"/>.
+    /// </summary>
+    /// <returns>
+    /// Texture id on success; <see cref="TextureId.MaxValue"/> on failure (invalid size/data, or implementation capacity reached).
+    /// </returns>
+    TextureId RegisterTextureRgbaLinear(ReadOnlySpan<byte> rgba, int width, int height);
 
     /// <summary>
     /// Copies premultiplied RGBA into a sub-rectangle of an existing texture (same dimensions as when registered).
     /// Used by the glyph atlas to update packed regions without allocating a new GPU image per glyph.
     /// </summary>
-    /// <param name="textureId">Slot from <see cref="RegisterTextureRgba"/>.</param>
+    /// <param name="textureId">Slot from <see cref="RegisterTextureRgba"/> or <see cref="RegisterTextureRgbaLinear"/>.</param>
     /// <param name="dstX">Destination X in pixels (top-left).</param>
     /// <param name="dstY">Destination Y in pixels (top-left).</param>
     /// <param name="width">Region width.</param>
@@ -107,10 +120,21 @@ public interface IRenderer
     void SubmitSprite(in SpriteDrawRequest draw);
 
     /// <summary>
-    /// Queues multiple sprites with a single lock acquisition (preferred for text runs that would otherwise call
+    /// Queues multiple sprites in one call (preferred for text runs that would otherwise call
     /// <see cref="SubmitSprite"/> once per glyph).
     /// </summary>
     void SubmitSprites(ReadOnlySpan<SpriteDrawRequest> draws);
+
+    /// <summary>
+    /// Queues one text glyph for the dedicated instanced text pipeline. This path batches by atlas page and clip state
+    /// to keep draw counts low on text-heavy UI.
+    /// </summary>
+    void SubmitTextGlyph(in TextGlyphDrawRequest draw);
+
+    /// <summary>
+    /// Queues multiple text glyphs. Prefer this over repeated <see cref="SubmitTextGlyph"/> calls for long runs.
+    /// </summary>
+    void SubmitTextGlyphs(ReadOnlySpan<TextGlyphDrawRequest> draws);
 
     /// <summary>
     /// Drops all pending CPU-side sprite/light/camera/post queues before the next simulation tick enqueues work.
@@ -121,12 +145,27 @@ public interface IRenderer
     void ResetPendingSubmissionsForNewTick();
 
     /// <summary>Queues a radial point light (cleared/rebuilt each frame by the caller’s systems).</summary>
+    /// <remarks>
+    /// The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxPointLights</c> lights per frame.
+    /// When submissions exceed the cap, the renderer first applies a deterministic value-ordering pass, keeps the
+    /// first lights in that ordering, and drops the tail.
+    /// </remarks>
     void SubmitPointLight(in PointLight light);
 
     /// <summary>Queues a spot light.</summary>
+    /// <remarks>
+    /// The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxSpotLights</c> lights per frame.
+    /// When submissions exceed the cap, the renderer first applies a deterministic value-ordering pass, keeps the
+    /// first lights in that ordering, and drops the tail.
+    /// </remarks>
     void SubmitSpotLight(in SpotLight light);
 
     /// <summary>Queues a directional light.</summary>
+    /// <remarks>
+    /// The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxDirectionalLights</c> lights per frame.
+    /// When submissions exceed the cap, the renderer first applies a deterministic value-ordering pass, keeps the
+    /// first lights in that ordering, and drops the tail.
+    /// </remarks>
     void SubmitDirectionalLight(in DirectionalLight light);
 
     /// <summary>Queues ambient fill (typically one per frame).</summary>

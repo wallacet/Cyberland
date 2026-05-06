@@ -28,8 +28,7 @@ public static class SceneSetup
         cancellationToken.ThrowIfCancellationRequested();
         await Task.CompletedTask;
 
-        var renderer = context.Host.Renderer
-            ?? throw new InvalidOperationException("Cyberland.Demo scene setup requires Host.Renderer.");
+        var renderer = context.Host.Renderer;
 
         var world = context.World;
         var white = renderer.WhiteTextureId;
@@ -246,10 +245,10 @@ public static class SceneSetup
     private static void SpawnHdrSpot(World world, in DesignCanvas canvas)
     {
         var spotPos = new Vector2D<float>(canvas.W * 0.2f, canvas.H * 0.58f);
-        var dx = canvas.HalfW - spotPos.X;
-        var dy = canvas.HalfH - spotPos.Y;
-        var dLen = MathF.Sqrt(dx * dx + dy * dy);
-        var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(1f, 0f);
+        var dirVec = LightRigMath.DirectionToOrFallback(
+            spotPos,
+            new Vector2D<float>(canvas.HalfW, canvas.HalfH),
+            new Vector2D<float>(1f, 0f));
 
         var entity = world.CreateEntity();
         var transform = Transform.Identity;

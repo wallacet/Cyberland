@@ -53,8 +53,14 @@ public sealed unsafe partial class VulkanRenderer
             ab += a.Color.Z * a.Intensity;
         }
 
-        var nDir = Math.Min(framePlan.DirectionalLightCount, DeferredRenderingConstants.MaxDirectionalLights);
-        var nSpot = Math.Min(framePlan.SpotLightCount, DeferredRenderingConstants.MaxSpotLights);
+        var nDir = LightSubmissionPolicy.ClampWithDropCount(
+            framePlan.DirectionalLightCount,
+            DeferredRenderingConstants.MaxDirectionalLights,
+            out _);
+        var nSpot = LightSubmissionPolicy.ClampWithDropCount(
+            framePlan.SpotLightCount,
+            DeferredRenderingConstants.MaxSpotLights,
+            out _);
         var ubo = new LightingUbo
         {
             Ambient = new Vector4D<float>(ar, ag, ab, 1f),
@@ -156,7 +162,10 @@ public sealed unsafe partial class VulkanRenderer
             return;
 
         var pts = framePlan.PointLights;
-        var n = Math.Min(framePlan.PointLightCount, DeferredRenderingConstants.MaxPointLights);
+        var n = LightSubmissionPolicy.ClampWithDropCount(
+            framePlan.PointLightCount,
+            DeferredRenderingConstants.MaxPointLights,
+            out _);
         var span = new Span<Vector4D<float>>((Vector4D<float>*)_pointLightSsboMapped, DeferredRenderingConstants.MaxPointLights * 2);
         for (var i = 0; i < n; i++)
         {

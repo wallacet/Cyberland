@@ -1,4 +1,5 @@
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 using TextureId = System.UInt32;
 
@@ -29,6 +30,12 @@ internal sealed class RecordingRenderer : IRenderer
     public TextureId WhiteTextureId => 2;
 
     public List<SpriteDrawRequest> Sprites { get; } = new();
+    /// <summary>
+    /// Synthetic sprite mirror of glyph submissions for legacy tests that assert text via <see cref="Sprites"/>.
+    /// Production <see cref="VulkanRenderer"/> keeps text in a dedicated glyph queue.
+    /// </summary>
+    public List<SpriteDrawRequest> MirroredTextSprites { get; } = new();
+    public List<TextGlyphDrawRequest> TextGlyphs { get; } = new();
     public List<PointLight> PointLights { get; } = new();
     public List<SpotLight> SpotLights { get; } = new();
     public List<DirectionalLight> DirectionalLights { get; } = new();
@@ -45,11 +52,20 @@ internal sealed class RecordingRenderer : IRenderer
     /// <summary>Increments for each <see cref="RegisterTextureRgba"/> call (atlas page creation).</summary>
     public int RegisterTextureRgbaCallCount { get; private set; }
 
+    /// <summary>
+    /// When true (default), text glyph submissions are also mirrored into <see cref="Sprites"/> for broad legacy coverage.
+    /// Set false in tests that need production-faithful separation between sprite and text queues.
+    /// </summary>
+    public bool MirrorTextGlyphsIntoSprites { get; set; } = true;
+
     public TextureId RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height)
     {
         RegisterTextureRgbaCallCount++;
         return RegisterTextureRgbaOverride ?? _nextTextureId++;
     }
+
+    public TextureId RegisterTextureRgbaLinear(ReadOnlySpan<byte> rgba, int width, int height) =>
+        RegisterTextureRgba(rgba, width, height);
 
     /// <summary>Counts successful subregion uploads (atlas updates).</summary>
     public int UploadSubregionCount { get; private set; }
@@ -96,9 +112,77 @@ internal sealed class RecordingRenderer : IRenderer
         }
     }
 
+    public void SubmitTextGlyph(in TextGlyphDrawRequest draw)
+    {
+        lock (_lock)
+        {
+            TextGlyphs.Add(draw);
+            if (MirrorTextGlyphsIntoSprites)
+            {
+                var mirrored = ToSprite(in draw);
+                Sprites.Add(mirrored);
+                MirroredTextSprites.Add(mirrored);
+            }
+        }
+    }
+
+    public void SubmitTextGlyphs(ReadOnlySpan<TextGlyphDrawRequest> draws)
+    {
+        if (draws.Length == 0)
+            return;
+        lock (_lock)
+        {
+            foreach (ref readonly var d in draws)
+            {
+                TextGlyphs.Add(d);
+                if (MirrorTextGlyphsIntoSprites)
+                {
+                    var mirrored = ToSprite(in d);
+                    Sprites.Add(mirrored);
+                    MirroredTextSprites.Add(mirrored);
+                }
+            }
+        }
+    }
+
+    private static SpriteDrawRequest ToSprite(in TextGlyphDrawRequest glyph) =>
+        new()
+        {
+            CenterWorld = glyph.Center,
+            HalfExtentsWorld = glyph.HalfExtents,
+            RotationRadians = 0f,
+            Layer = (int)SpriteLayer.Ui,
+            SortKey = glyph.SortKey,
+            AlbedoTextureId = glyph.TextureId,
+            NormalTextureId = TextureId.MaxValue,
+            EmissiveTextureId = TextureId.MaxValue,
+            ColorMultiply = glyph.Color,
+            Alpha = glyph.Color.W,
+            EmissiveTint = default,
+            EmissiveIntensity = 0f,
+            DepthHint = glyph.DepthHint,
+            UvRect = glyph.UvRect,
+            Transparent = glyph.Space is CoordinateSpace.WorldSpace,
+            Space = glyph.Space,
+            ViewportClipEnabled = glyph.ViewportClipEnabled,
+            ViewportClipRect = glyph.ViewportClipRect
+        };
+
     /// <inheritdoc />
     public void ResetPendingSubmissionsForNewTick()
     {
+        lock (_lock)
+        {
+            Sprites.Clear();
+            MirroredTextSprites.Clear();
+            TextGlyphs.Clear();
+            PointLights.Clear();
+            SpotLights.Clear();
+            DirectionalLights.Clear();
+            AmbientLights.Clear();
+            Volumes.Clear();
+            Cameras.Clear();
+        }
     }
 
     public void SubmitPointLight(in PointLight light)

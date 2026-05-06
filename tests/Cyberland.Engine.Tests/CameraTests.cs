@@ -234,14 +234,14 @@ public sealed class CameraTests
     }
 
     [Fact]
-    public void CameraSubmitSystem_skips_when_renderer_null_on_update()
+    public void CameraSubmitSystem_runs_when_renderer_instance_changes_on_update()
     {
         var h = Host(new RecordingRenderer());
         var sys = new CameraSubmitSystem(h);
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Camera2D, Transform>()));
         h.Renderer = new RecordingRenderer();
-        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Camera2D, Transform>()), 0f, ParOpts());
+        sys.OnLateUpdate(w.QueryChunks(SystemQuerySpec.All<Camera2D, Transform>()), 0f);
     }
 
     [Fact]
@@ -273,7 +273,7 @@ public sealed class CameraTests
             ViewportSizeWorld = new Vector2D<int>(10, 10)
         };
 
-        sys.OnParallelLateUpdate(w.QueryChunks(spec), 0f, ParOpts());
+        sys.OnLateUpdate(w.QueryChunks(spec), 0f);
 
         Assert.Single(r.Cameras);
         Assert.Equal(25f, r.Cameras[0].PositionWorld.X, 3);
@@ -309,7 +309,7 @@ public sealed class CameraTests
         // Early update resolves the camera's world matrix from its back-propagated local matrix; the camera
         // submit then decomposes the refreshed world matrix to get (640, 360) back.
         hierarchy.OnParallelEarlyUpdate(w.QueryChunks(hierarchySpec), 0f, ParOpts());
-        submit.OnParallelLateUpdate(w.QueryChunks(cameraSpec), 0f, ParOpts());
+        submit.OnLateUpdate(w.QueryChunks(cameraSpec), 0f);
 
         Assert.Single(r.Cameras);
         Assert.Equal(640f, r.Cameras[0].PositionWorld.X, 3);

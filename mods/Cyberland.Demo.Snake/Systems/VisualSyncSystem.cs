@@ -1,6 +1,5 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
@@ -40,12 +39,6 @@ public sealed class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
         _sessionEntity = _world.RequireSingleEntityWith<Session>("Snake session");
         var world = _world;
         var renderer = _host.Renderer;
-        if (renderer is null)
-        {
-            EngineDiagnostics.Report(EngineErrorSeverity.Major, "Cyberland.Demo.Snake.VisualSyncSystem", "Renderer was null during OnSingletonStart.");
-            throw new InvalidOperationException("Renderer is required by VisualSyncSystem.");
-        }
-
         var visuals = world.Get<VisualBundle>(visualsRow.Entity);
         var white = renderer.WhiteTextureId;
         var normal = renderer.DefaultNormalTextureId;
@@ -114,12 +107,20 @@ public sealed class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
         var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
         var renderer = _host.Renderer;
-        if (renderer is null) return;
         ref var session = ref _world.Get<Session>(_sessionEntity);
         var visuals = _world.Get<VisualBundle>(visualsRow.Entity);
         var fb = ModLayoutViewport.VirtualSizeForPresentation(renderer);
         if (fb.X <= 0 || fb.Y <= 0) return;
         session.UpdateLayout(fb.X, fb.Y);
+        UpdateSnakeAndFoodSprites(visuals, in session, in fb);
+        UpdateOverlayPanels(visuals, in session, in fb);
+
+        SetHudText(visuals, fb, session);
+        UpdateFpsHud(visuals, fb);
+    }
+
+    private void UpdateSnakeAndFoodSprites(VisualBundle visuals, in Session session, in Vector2D<int> framebufferSize)
+    {
         var cell = session.Cell;
         var segIdx = 0;
         if (session.Snake.Count > 0)
@@ -127,65 +128,76 @@ public sealed class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
             var headCell = session.Snake.First!.Value;
             foreach (var seg in session.Snake)
             {
-                var e = visuals.Segments[segIdx++];
-                var center = session.CellCenterWorld(seg.x, seg.y, fb);
-                ref var transform = ref _world.Get<Transform>(e);
+                var entity = visuals.Segments[segIdx++];
+                var center = session.CellCenterWorld(seg.x, seg.y, framebufferSize);
+                ref var transform = ref _world.Get<Transform>(entity);
                 transform.LocalPosition = center;
-                ref var spr = ref _world.Get<Sprite>(e);
-                var head = seg.x == headCell.x && seg.y == headCell.y;
-                spr.Visible = true;
-                spr.HalfExtents = new Vector2D<float>(cell * 0.45f, cell * 0.45f);
-                spr.SortKey = 10f + seg.x;
-                spr.ColorMultiply = head ? new Vector4D<float>(0.2f, 1f, 0.35f, 1f) : new Vector4D<float>(0.05f, 0.55f, 0.12f, 1f);
-                spr.EmissiveIntensity = head ? 0.5f : 0.1f;
+                ref var sprite = ref _world.Get<Sprite>(entity);
+                var isHead = seg.x == headCell.x && seg.y == headCell.y;
+                sprite.Visible = true;
+                sprite.HalfExtents = new Vector2D<float>(cell * 0.45f, cell * 0.45f);
+                sprite.SortKey = 10f + seg.x;
+                sprite.ColorMultiply = isHead
+                    ? new Vector4D<float>(0.2f, 1f, 0.35f, 1f)
+                    : new Vector4D<float>(0.05f, 0.55f, 0.12f, 1f);
+                sprite.EmissiveIntensity = isHead ? 0.5f : 0.1f;
             }
         }
+
         for (var i = segIdx; i < visuals.Segments.Length; i++)
             _world.Get<Sprite>(visuals.Segments[i]).Visible = false;
 
-        var foodCenter = session.CellCenterWorld(session.Food.x, session.Food.y, fb);
+        var foodCenter = session.CellCenterWorld(session.Food.x, session.Food.y, framebufferSize);
         ref var foodTransform = ref _world.Get<Transform>(visuals.Food);
         foodTransform.LocalPosition = foodCenter;
-        ref var foodSp = ref _world.Get<Sprite>(visuals.Food);
-        foodSp.Visible = session.Phase == Phase.Playing;
-        foodSp.HalfExtents = new Vector2D<float>(cell * 0.35f, cell * 0.35f);
+        ref var foodSprite = ref _world.Get<Sprite>(visuals.Food);
+        foodSprite.Visible = session.Phase == Phase.Playing;
+        foodSprite.HalfExtents = new Vector2D<float>(cell * 0.35f, cell * 0.35f);
+    }
 
-        ref var titleSp = ref _world.Get<Sprite>(visuals.TitleBar);
+    private void UpdateOverlayPanels(VisualBundle visuals, in Session session, in Vector2D<int> framebufferSize)
+    {
+        ref var titleSprite = ref _world.Get<Sprite>(visuals.TitleBar);
         if (session.Phase == Phase.Title)
         {
-            var titleBar = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y - 48f), fb);
+            var titleBarCenter = WorldViewportSpace.ViewportPixelToWorldCenter(
+                new Vector2D<float>(framebufferSize.X * 0.5f, framebufferSize.Y - 48f),
+                framebufferSize);
             ref var titleTransform = ref _world.Get<Transform>(visuals.TitleBar);
-            titleTransform.LocalPosition = titleBar;
-            titleSp.Visible = true;
-            titleSp.HalfExtents = new Vector2D<float>(fb.X * 0.42f, 20f);
-        }
-        else titleSp.Visible = false;
-
-        ref var gameOverSp = ref _world.Get<Sprite>(visuals.GoPanel);
-        ref var scoreSp = ref _world.Get<Sprite>(visuals.ScoreBar);
-        if (session.Phase is Phase.GameOver or Phase.Won)
-        {
-            var goPanel = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f), fb);
-            ref var gameOverTransform = ref _world.Get<Transform>(visuals.GoPanel);
-            gameOverTransform.LocalPosition = goPanel;
-            gameOverSp.Visible = true;
-            gameOverSp.HalfExtents = new Vector2D<float>(fb.X * 0.45f, 80f);
-            var scoreW = fb.X * 0.45f * Math.Min(1f, session.FoodsEaten / 30f);
-            var scoreBar = WorldViewportSpace.ViewportPixelToWorldCenter(
-                new Vector2D<float>(fb.X * 0.5f - (fb.X * 0.45f - scoreW) * 0.5f, fb.Y * 0.5f + 28f), fb);
-            ref var scoreTransform = ref _world.Get<Transform>(visuals.ScoreBar);
-            scoreTransform.LocalPosition = scoreBar;
-            scoreSp.Visible = true;
-            scoreSp.HalfExtents = new Vector2D<float>(Math.Max(0.5f, scoreW * 0.5f), 10f);
+            titleTransform.LocalPosition = titleBarCenter;
+            titleSprite.Visible = true;
+            titleSprite.HalfExtents = new Vector2D<float>(framebufferSize.X * 0.42f, 20f);
         }
         else
         {
-            gameOverSp.Visible = false;
-            scoreSp.Visible = false;
+            titleSprite.Visible = false;
         }
 
-        SetHudText(visuals, fb, session);
-        UpdateFpsHud(visuals, fb);
+        ref var gameOverSprite = ref _world.Get<Sprite>(visuals.GoPanel);
+        ref var scoreSprite = ref _world.Get<Sprite>(visuals.ScoreBar);
+        if (session.Phase is not (Phase.GameOver or Phase.Won))
+        {
+            gameOverSprite.Visible = false;
+            scoreSprite.Visible = false;
+            return;
+        }
+
+        var panelCenter = WorldViewportSpace.ViewportPixelToWorldCenter(
+            new Vector2D<float>(framebufferSize.X * 0.5f, framebufferSize.Y * 0.5f),
+            framebufferSize);
+        ref var panelTransform = ref _world.Get<Transform>(visuals.GoPanel);
+        panelTransform.LocalPosition = panelCenter;
+        gameOverSprite.Visible = true;
+        gameOverSprite.HalfExtents = new Vector2D<float>(framebufferSize.X * 0.45f, 80f);
+
+        var scoreWidth = framebufferSize.X * 0.45f * Math.Min(1f, session.FoodsEaten / 30f);
+        var scoreCenter = WorldViewportSpace.ViewportPixelToWorldCenter(
+            new Vector2D<float>(framebufferSize.X * 0.5f - (framebufferSize.X * 0.45f - scoreWidth) * 0.5f, framebufferSize.Y * 0.5f + 28f),
+            framebufferSize);
+        ref var scoreTransform = ref _world.Get<Transform>(visuals.ScoreBar);
+        scoreTransform.LocalPosition = scoreCenter;
+        scoreSprite.Visible = true;
+        scoreSprite.HalfExtents = new Vector2D<float>(Math.Max(0.5f, scoreWidth * 0.5f), 10f);
     }
 
     private void UpdateFpsHud(VisualBundle visuals, Vector2D<int> fb)

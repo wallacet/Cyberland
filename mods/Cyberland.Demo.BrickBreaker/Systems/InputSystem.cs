@@ -24,10 +24,6 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
     public void OnSingletonStart(in SingletonEntity controlRow)
     {
         _stateEntity = Session.RequireStateEntity(controlRow.World);
-        _ = _host.Input
-            ?? throw new InvalidOperationException("cyberland.demo.brick/input requires Host.Input during OnSingletonStart.");
-        _ = _host.Renderer
-            ?? throw new InvalidOperationException("cyberland.demo.brick/input requires Host.Renderer during OnSingletonStart.");
     }
 
     public void OnSingletonEarlyUpdate(in SingletonEntity controlRow, float deltaSeconds)
@@ -38,8 +34,8 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
         c.MoveLeft = false;
         c.MoveRight = false;
 
-        var r = _host.Renderer!;
-        var input = _host.Input!;
+        var r = _host.Renderer;
+        var input = _host.Input;
 
         if (input.IsDown("cyberland.common/quit"))
         {

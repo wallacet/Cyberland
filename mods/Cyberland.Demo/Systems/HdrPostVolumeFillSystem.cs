@@ -32,8 +32,6 @@ public sealed class HdrPostVolumeFillSystem : ISingletonSystem, ISingletonLateUp
     public void OnSingletonStart(in SingletonEntity volume)
     {
         _ = volume.Get<PostProcessVolumeSource>();
-        _ = _host.Renderer
-            ?? throw new InvalidOperationException("cyberland.demo/hdr-post-volume requires Host.Renderer when the singleton entry starts.");
 
         _player = volume.World.QueryChunks(SystemQuerySpec.All<PlayerTag>())
             .RequireSingleEntity("HDR demo player");
@@ -44,15 +42,17 @@ public sealed class HdrPostVolumeFillSystem : ISingletonSystem, ISingletonLateUp
     {
         _ = deltaSeconds;
 
-        var renderer = _host.Renderer!;
+        var renderer = _host.Renderer;
         var frameBuffer = renderer.ActiveCameraViewportSize;
         var width = frameBuffer.X;
         if (width <= 0)
             return;
 
-        // Normalize player X against viewport width for a 0..1 slider (demo assumes one PlayerTag row).
+        // Normalize against authored playfield bounds instead of raw viewport width so edge padding does not skew bloom.
         var playerX = volume.World.Get<Transform>(_player).WorldPosition.X;
-        var tNorm = Math.Clamp(playerX / width, 0f, 1f);
+        var playMinX = Constants.SpriteHalfExtent;
+        var playMaxX = Math.Max(playMinX + 1f, width - Constants.SpriteHalfExtent);
+        var tNorm = Math.Clamp((playerX - playMinX) / (playMaxX - playMinX), 0f, 1f);
         var bloomGain = HdrDemoBloom.GainAtPlayerLeft - HdrDemoBloom.GainSpanAcrossPlayfield * tNorm;
 
         var cx = width * 0.5f;

@@ -71,10 +71,7 @@ public sealed class SnakeLightsFillSystem : ISingletonSystem, ISingletonLateUpda
         dir.CastsShadow = false;
 
         var spotPos = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(ox + cell * 2f, oy + cell * 1.5f), fb);
-        var dx = gridCenterWorld.X - spotPos.X;
-        var dy = gridCenterWorld.Y - spotPos.Y;
-        var dLen = MathF.Sqrt(dx * dx + dy * dy);
-        var dirVec = dLen > 1e-4f ? new Vector2D<float>(dx / dLen, dy / dLen) : new Vector2D<float>(0f, 1f);
+        var dirVec = LightRigMath.DirectionToOrFallback(spotPos, gridCenterWorld, new Vector2D<float>(0f, 1f));
 
         ref var spotTransform = ref world.Get<Transform>(_spot);
         spotTransform.LocalPosition = spotPos;

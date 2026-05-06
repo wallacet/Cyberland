@@ -27,6 +27,46 @@ public sealed class UiDocumentFrameSystemTests
     }
 
     [Fact]
+    public void UiDocumentFrameSystem_second_tick_redraws_after_clear_simulates_renderer_tick_reset()
+    {
+        var prev = UiLayoutGating.UseIncrementalDocumentFrames;
+        UiLayoutGating.UseIncrementalDocumentFrames = true;
+        try
+        {
+            var renderer = new RecordingRenderer();
+            var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+            var doc = BuildHelloDocument();
+            var world = new World();
+            var ent = world.CreateEntity();
+            world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+            {
+                Visible = true,
+                CoordinateSpace = CoordinateSpace.ViewportSpace,
+                RootPreset = UiDocumentRootPreset.FullViewport,
+                SortKeyBase = 1f
+            };
+            host.UiDocuments.Register(ent, doc);
+
+            var sys = new UiDocumentFrameSystem(host);
+            sys.OnStart(world, world.QueryChunks(DocRootQuery));
+            sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+            var combined = renderer.TextGlyphs.Count + renderer.Sprites.Count;
+            Assert.True(combined > 0);
+
+            // Vulkan resets pending submits each tick; mimic so the second frame must resubmit the same HUD draws.
+            renderer.Sprites.Clear();
+            renderer.TextGlyphs.Clear();
+
+            sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+            Assert.Equal(combined, renderer.TextGlyphs.Count + renderer.Sprites.Count);
+        }
+        finally
+        {
+            UiLayoutGating.UseIncrementalDocumentFrames = prev;
+        }
+    }
+
+    [Fact]
     public void UiDocumentFrameSystem_layout_and_draw_submits_viewport_text_sprites()
     {
         var renderer = new RecordingRenderer();

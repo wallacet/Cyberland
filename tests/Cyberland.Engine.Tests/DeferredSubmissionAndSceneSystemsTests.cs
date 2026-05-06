@@ -55,7 +55,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void PointLightSystem_OnStart_allows_null_renderer()
+    public void PointLightSystem_OnStart_no_throw_with_assigned_renderer()
     {
         var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new PointLightSystem(h);
@@ -64,7 +64,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void AmbientLightSystem_OnStart_allows_null_renderer()
+    public void AmbientLightSystem_OnStart_no_throw_with_assigned_renderer()
     {
         var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new AmbientLightSystem(h);
@@ -73,7 +73,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void DirectionalLightSystem_OnStart_allows_null_renderer()
+    public void DirectionalLightSystem_OnStart_no_throw_with_assigned_renderer()
     {
         var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new DirectionalLightSystem(h);
@@ -82,7 +82,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void SpotLightSystem_OnStart_allows_null_renderer()
+    public void SpotLightSystem_OnStart_no_throw_with_assigned_renderer()
     {
         var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new SpotLightSystem(h);
@@ -91,7 +91,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void PostProcessVolumeSystem_OnStart_allows_null_renderer()
+    public void PostProcessVolumeSystem_OnStart_no_throw_with_assigned_renderer()
     {
         var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new PostProcessVolumeSystem(h);
@@ -100,7 +100,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void ViewportAnchorSystem_OnStart_allows_null_renderer()
+    public void ViewportAnchorSystem_OnStart_no_throw_with_assigned_renderer()
     {
         var h = new GameHostServices() { Renderer = new RecordingRenderer() };
         var sys = new ViewportAnchorSystem(h);

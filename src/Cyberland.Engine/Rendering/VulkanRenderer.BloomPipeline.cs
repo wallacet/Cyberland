@@ -97,7 +97,7 @@ public sealed unsafe partial class VulkanRenderer
             {
                 Threshold = extractThreshold,
                 Knee = extractKnee,
-                EmissiveBloomGain = emissiveToBloomGain,
+                BloomSourceGain = emissiveToBloomGain,
                 Pad0 = 0f
             };
 

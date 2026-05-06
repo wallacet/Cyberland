@@ -1,5 +1,6 @@
 using Cyberland.Engine.Rendering;
 using Glslang.NET;
+using System.Reflection;
 
 namespace Cyberland.Engine.Tests;
 
@@ -11,6 +12,7 @@ public sealed class EngineShaderSourcesTests
             { EngineShaderSources.SpriteVert, ShaderStage.Vertex },
             { EngineShaderSources.SpriteEmissiveFrag, ShaderStage.Fragment },
             { EngineShaderSources.SpriteGbufferFrag, ShaderStage.Fragment },
+            { EngineShaderSources.SpriteSwapchainUiFrag, ShaderStage.Fragment },
             { EngineShaderSources.DeferredBaseFrag, ShaderStage.Fragment },
             { EngineShaderSources.DeferredPointVert, ShaderStage.Vertex },
             { EngineShaderSources.DeferredPointFrag, ShaderStage.Fragment },
@@ -24,7 +26,23 @@ public sealed class EngineShaderSourcesTests
             { EngineShaderSources.BloomGaussianFrag, ShaderStage.Fragment },
             { EngineShaderSources.BloomUpsampleFrag, ShaderStage.Fragment },
             { EngineShaderSources.BloomCopyFrag, ShaderStage.Fragment },
+            { EngineShaderSources.TextMsdfVert, ShaderStage.Vertex },
+            { EngineShaderSources.TextMsdfFrag, ShaderStage.Fragment },
         };
+
+    [Fact]
+    public void AllBuiltInShaders_includes_all_EngineShaderSources_constants()
+    {
+        var covered = AllBuiltInShaders.Select(row => (string)row[0]).ToHashSet(StringComparer.Ordinal);
+        var declared = typeof(EngineShaderSources)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.FieldType == typeof(string))
+            .Select(f => (string)f.GetValue(null)!)
+            .ToArray();
+
+        foreach (var shader in declared)
+            Assert.Contains(shader, covered);
+    }
 
     [Theory]
     [MemberData(nameof(AllBuiltInShaders))]
@@ -52,5 +70,21 @@ public sealed class EngineShaderSourcesTests
     public void Load_throws_on_null_name()
     {
         Assert.Throws<ArgumentNullException>(() => EngineShaderSources.Load(null!));
+    }
+
+    [Fact]
+    public void SpriteTransparentWboitFrag_reveal_uses_unweighted_alpha()
+    {
+        var src = EngineShaderSources.Load(EngineShaderSources.SpriteTransparentWboitFrag);
+        Assert.Contains("outReveal = vec4(a, 0.0, 0.0, 1.0);", src, StringComparison.Ordinal);
+        Assert.DoesNotContain("outReveal = vec4(a * w", src, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BloomExtractFrag_applies_emissive_bloom_gain()
+    {
+        var src = EngineShaderSources.Load(EngineShaderSources.BloomExtractFrag);
+        Assert.Contains("pc.bloomSourceGain", src, StringComparison.Ordinal);
+        Assert.Contains("prefilteredColor(scene, pc.threshold, pc.knee) * pc.bloomSourceGain", src, StringComparison.Ordinal);
     }
 }

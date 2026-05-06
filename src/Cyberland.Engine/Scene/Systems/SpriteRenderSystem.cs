@@ -1,8 +1,11 @@
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Scene.Systems;
@@ -13,6 +16,8 @@ namespace Cyberland.Engine.Scene.Systems;
 /// </summary>
 public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
 {
+    private const int ParallelRangeSize = 128;
+    private const int SmallChunkSerialThreshold = 64;
     private readonly GameHostServices _host;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
@@ -34,22 +39,51 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
+        var camera = _host.CameraRuntimeState;
         foreach (var chunk in query)
         {
-            Parallel.For(0, chunk.Count, parallelOptions, i =>
+            if (chunk.Count <= SmallChunkSerialThreshold)
             {
-                ref readonly var spr = ref chunk.Column<Sprite>()[i];
-                if (!spr.Visible)
-                    return;
+                SubmitChunkRange(chunk, 0, chunk.Count, in camera, r);
+                continue;
+            }
 
-                ref readonly var transform = ref chunk.Column<Transform>()[i];
+            Parallel.ForEach(Partitioner.Create(0, chunk.Count, ParallelRangeSize), parallelOptions, range =>
+            {
+                SubmitChunkRange(chunk, range.Item1, range.Item2, in camera, r);
+            });
+        }
+    }
+
+    private static void SubmitChunkRange(
+        in MultiComponentChunkView chunk,
+        int start,
+        int endExclusive,
+        in CameraRuntimeState camera,
+        IRenderer renderer)
+    {
+        var requests = ArrayPool<SpriteDrawRequest>.Shared.Rent(endExclusive - start);
+        var requestCount = 0;
+        try
+        {
+            var sprites = chunk.Column<Sprite>();
+            var transforms = chunk.Column<Transform>();
+            for (var i = start; i < endExclusive; i++)
+            {
+                ref readonly var spr = ref sprites[i];
+                if (!spr.Visible)
+                    continue;
+
+                ref readonly var transform = ref transforms[i];
                 // Decompose the world matrix once per sprite: reading the PRS properties via a ref readonly transform
                 // would decompose (via a defensive copy) on every property access.
                 TransformMath.DecomposeToPRS(transform.WorldMatrix, out var worldPos, out var worldRad, out var worldScale);
                 var hx = spr.HalfExtents.X * worldScale.X;
                 var hy = spr.HalfExtents.Y * worldScale.Y;
+                if (IsOutsideActiveCamera(in spr, worldPos, hx, hy, in camera))
+                    continue;
 
-                var req = new SpriteDrawRequest
+                requests[requestCount++] = new SpriteDrawRequest
                 {
                     CenterWorld = worldPos,
                     HalfExtentsWorld = new Vector2D<float>(hx, hy),
@@ -68,9 +102,40 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
                     Transparent = spr.Transparent,
                     Space = spr.Space
                 };
+            }
 
-                r.SubmitSprite(in req);
-            });
+            if (requestCount > 0)
+                renderer.SubmitSprites(requests.AsSpan(0, requestCount));
         }
+        finally
+        {
+            ArrayPool<SpriteDrawRequest>.Shared.Return(requests);
+        }
+    }
+
+    private static bool IsOutsideActiveCamera(
+        in Sprite sprite,
+        Vector2D<float> spriteCenterWorld,
+        float halfExtentX,
+        float halfExtentY,
+        in CameraRuntimeState camera)
+    {
+        if (!camera.Valid || sprite.Space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace)
+            return false;
+
+        var viewport = new Vector2D<float>(camera.ViewportSizeWorld.X, camera.ViewportSizeWorld.Y);
+        if (viewport.X <= 0f || viewport.Y <= 0f)
+            return false;
+
+        var centerVp = CameraProjection.WorldToViewportPixel(
+            spriteCenterWorld,
+            camera.PositionWorld,
+            camera.RotationRadians,
+            viewport);
+        var radius = MathF.Sqrt((halfExtentX * halfExtentX) + (halfExtentY * halfExtentY));
+        return centerVp.X + radius < 0f ||
+               centerVp.Y + radius < 0f ||
+               centerVp.X - radius > viewport.X ||
+               centerVp.Y - radius > viewport.Y;
     }
 }

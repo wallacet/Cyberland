@@ -4,4 +4,7 @@ namespace Cyberland.Demo.IdleGold.Components;
 public struct EventLog : Cyberland.Engine.Core.Ecs.IComponent
 {
     public List<string>? Lines;
+
+    /// <summary>Bumped when lines are appended; HUD can skip rebuilding log body text when unchanged.</summary>
+    public int ContentRevision;
 }

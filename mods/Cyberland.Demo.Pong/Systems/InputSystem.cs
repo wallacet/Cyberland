@@ -30,10 +30,6 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
     public void OnSingletonStart(in SingletonEntity sessionRow)
     {
         _ = sessionRow;
-        _ = _host.Renderer
-            ?? throw new InvalidOperationException("Cyberland.Demo.Pong InputSystem requires a renderer.");
-        _ = _host.Input
-            ?? throw new InvalidOperationException("Cyberland.Demo.Pong InputSystem requires input.");
     }
 
     /// <inheritdoc />
@@ -46,8 +42,8 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
         c.PaddleUp = false;
         c.PaddleDown = false;
 
-        var renderer = _host.Renderer!;
-        var input = _host.Input!;
+        var renderer = _host.Renderer;
+        var input = _host.Input;
         var syncOn = _scheduler.IsEnabled("cyberland.demo.pong/visual-sync");
         if (input.ConsumePressed("cyberland.demo.pong/toggle_visual_sync") && syncOn)
             _scheduler.SetEnabled("cyberland.demo.pong/visual-sync", !syncOn);

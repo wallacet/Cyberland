@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Threading;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -15,6 +16,7 @@ using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
 using Cyberland.Engine;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Scene;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 using VkBuffer = Silk.NET.Vulkan.Buffer;
@@ -63,6 +65,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     /// but add end-to-end latency (input → present); keep at 2 for responsive feel on desktop.
     /// </summary>
     private const int MaxFramesInFlight = 2;
+    // Descriptor pool reserves combined-image-sampler entries for frame-global sets (gbuffer/bloom/composite/etc).
+    // Keep a hard texture cap below the raw pool size so RegisterTexture* fails deterministically instead of
+    // tripping descriptor-allocation failures after partial initialization.
+    private const int MaxRegisteredTextures = 512;
 
     private static readonly string[] DeviceExtensions = ["VK_KHR_swapchain"];
 
@@ -93,10 +99,12 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private DeviceMemory _indexBufferMemory;
 
     private CommandPool _commandPool;
+    private CommandPool _uploadCommandPool;
     private CommandBuffer[]? _commandBuffers;
 
     private readonly ConcurrentQueue<SpriteDrawRequest> _spriteQueue = new();
     private readonly ConcurrentQueue<SpriteDrawRequest> _viewportUiOverlayQueue = new();
+    private readonly ConcurrentQueue<TextGlyphDrawRequest> _textGlyphQueue = new();
     private readonly ConcurrentQueue<PointLight> _pointLightQueue = new();
     private readonly ConcurrentQueue<SpotLight> _spotLightQueue = new();
     private readonly ConcurrentQueue<DirectionalLight> _directionalLightQueue = new();
@@ -116,8 +124,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private int[]? _frameScratchSortIndices;
     private SpriteDrawRequest[]? _frameScratchViewportUiOverlay;
     private int[]? _frameScratchViewportUiSortIndices;
+    private TextGlyphDrawRequest[]? _frameScratchTextGlyphs;
+    private int[]? _frameScratchTextSortIndices;
 
-    // Selected camera viewport size for the NEXT frame; resolved under _recordLock so mod systems can read
+    // Selected camera viewport size for the NEXT frame; resolved under _cameraStateLock so mod systems can read
     // ActiveCameraViewportSize safely from parallel workers and layout against a stable value even if multiple
     // cameras are submitted concurrently. Initialized to swapchain size so the first frame's viewport anchors
     // behave like the pre-camera default.
@@ -126,26 +136,18 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private readonly object _cameraStateLock = new();
     private readonly object _globalPostLock = new();
 
-    private GlobalPostProcessSettings _globalPost = new()
-    {
-        BloomEnabled = true,
-        BloomRadius = 1.1f,
-        BloomGain = 0.35f,
-        BloomExtractThreshold = 0.32f,
-        BloomExtractKnee = 0.5f,
-        EmissiveToHdrGain = 0.45f,
-        EmissiveToBloomGain = 0.45f,
-        Exposure = 1f,
-        Saturation = 1f,
-        TonemapEnabled = true,
-        ColorGradingShadows = new Silk.NET.Maths.Vector3D<float>(1f, 1f, 1f),
-        ColorGradingMidtones = new Silk.NET.Maths.Vector3D<float>(1f, 1f, 1f),
-        ColorGradingHighlights = new Silk.NET.Maths.Vector3D<float>(1f, 1f, 1f)
-    };
+    private GlobalPostProcessSettings _globalPost = EngineDefaultGlobalPostProcess.DefaultSettings;
 
     private readonly List<GpuTexture> _textureSlots = new();
     private readonly object _textureSlotsLock = new();
+    /// <summary>Append-only slot snapshot for lock-free reads on the render thread.</summary>
+    private readonly GpuTexture?[] _textureSlotsSnapshot = new GpuTexture?[MaxRegisteredTextures];
+    private int _textureSlotsSnapshotCount;
     private readonly object _uploadCommandLock = new();
+    private readonly float _bloomResolutionScale = ReadBloomResolutionScale();
+    private int _deferredSpriteOverflowWarningIssued;
+    private int _overlaySpriteOverflowWarningIssued;
+    private int _textGlyphOverflowWarningIssued;
     private TextureId _whiteTextureId = TextureId.MaxValue;
     private TextureId _blackTextureId = TextureId.MaxValue;
     private TextureId _defaultNormalTextureId = TextureId.MaxValue;
@@ -219,8 +221,74 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         }
     }
 
+    /// <summary>Instrumentation: text glyph instance count written by the most recent frame encode.</summary>
+    public int LastFrameTextGlyphInstances => _lastFrameTextGlyphInstances;
+
+    /// <summary>Instrumentation: text batch groups (texture + clip) emitted by the most recent frame encode.</summary>
+    public int LastFrameTextBatchCount => _lastFrameTextBatchCount;
+
+    /// <summary>Instrumentation: text draw calls emitted by the most recent frame encode.</summary>
+    public int LastFrameTextDrawCalls => _lastFrameTextDrawCalls;
+
+    /// <summary>Instrumentation: viewport UI overlay sprite instances packed for the most recent successful frame encode.</summary>
+    public int LastFrameOverlaySpriteInstances => _lastFrameOverlaySpriteInstances;
+
+    /// <summary>Instrumentation: overlay sprite batch runs (descriptor + scissor groups) for the most recent frame encode.</summary>
+    public int LastFrameOverlaySpriteBatchCount => _lastFrameOverlaySpriteBatchCount;
+
+    /// <summary>Instrumentation: overlay sprite instanced draw calls for the most recent frame encode.</summary>
+    public int LastFrameOverlaySpriteDrawCalls => _lastFrameOverlaySpriteDrawCalls;
+
+    /// <summary>Instrumentation: deferred emissive sprite instances for the most recent frame encode.</summary>
+    public int LastFrameDeferredEmissiveSpriteInstances => _lastFrameDeferredEmissiveSpriteInstances;
+
+    /// <summary>Instrumentation: deferred emissive batch runs for the most recent frame encode.</summary>
+    public int LastFrameDeferredEmissiveSpriteBatchCount => _lastFrameDeferredEmissiveSpriteBatchCount;
+
+    /// <summary>Instrumentation: deferred emissive instanced draw calls for the most recent frame encode.</summary>
+    public int LastFrameDeferredEmissiveSpriteDrawCalls => _lastFrameDeferredEmissiveSpriteDrawCalls;
+
+    /// <summary>Instrumentation: deferred opaque (G-buffer) sprite instances for the most recent frame encode.</summary>
+    public int LastFrameDeferredOpaqueSpriteInstances => _lastFrameDeferredOpaqueSpriteInstances;
+
+    /// <summary>Instrumentation: deferred opaque batch runs for the most recent frame encode.</summary>
+    public int LastFrameDeferredOpaqueSpriteBatchCount => _lastFrameDeferredOpaqueSpriteBatchCount;
+
+    /// <summary>Instrumentation: deferred opaque instanced draw calls for the most recent frame encode.</summary>
+    public int LastFrameDeferredOpaqueSpriteDrawCalls => _lastFrameDeferredOpaqueSpriteDrawCalls;
+
+    /// <summary>Instrumentation: deferred transparent (WBOIT) sprite instances for the most recent frame encode.</summary>
+    public int LastFrameDeferredTransparentSpriteInstances => _lastFrameDeferredTransparentSpriteInstances;
+
+    /// <summary>Instrumentation: deferred transparent batch runs for the most recent frame encode.</summary>
+    public int LastFrameDeferredTransparentSpriteBatchCount => _lastFrameDeferredTransparentSpriteBatchCount;
+
+    /// <summary>Instrumentation: deferred transparent instanced draw calls for the most recent frame encode.</summary>
+    public int LastFrameDeferredTransparentSpriteDrawCalls => _lastFrameDeferredTransparentSpriteDrawCalls;
+
+    /// <summary>Instrumentation: point lights submitted in the most recent frame plan before cap/drop policy.</summary>
+    public int LastFrameSubmittedPointLights => _lastFrameSubmittedPointLights;
+
+    /// <summary>Instrumentation: directional lights submitted in the most recent frame plan before cap/drop policy.</summary>
+    public int LastFrameSubmittedDirectionalLights => _lastFrameSubmittedDirectionalLights;
+
+    /// <summary>Instrumentation: spot lights submitted in the most recent frame plan before cap/drop policy.</summary>
+    public int LastFrameSubmittedSpotLights => _lastFrameSubmittedSpotLights;
+
+    /// <summary>Instrumentation: point lights dropped by cap policy in the most recent frame encode.</summary>
+    public int LastFrameDroppedPointLights => _lastFrameDroppedPointLights;
+
+    /// <summary>Instrumentation: directional lights dropped by cap policy in the most recent frame encode.</summary>
+    public int LastFrameDroppedDirectionalLights => _lastFrameDroppedDirectionalLights;
+
+    /// <summary>Instrumentation: spot lights dropped by cap policy in the most recent frame encode.</summary>
+    public int LastFrameDroppedSpotLights => _lastFrameDroppedSpotLights;
+
     TextureId IRenderer.RegisterTextureRgba(ReadOnlySpan<byte> rgba, int width, int height) =>
-        RegisterTextureRgbaInternal(rgba, width, height);
+        RegisterTextureRgbaInternal(rgba, width, height, Format.R8G8B8A8Srgb);
+
+    TextureId IRenderer.RegisterTextureRgbaLinear(ReadOnlySpan<byte> rgba, int width, int height) =>
+        RegisterTextureRgbaInternal(rgba, width, height, Format.R8G8B8A8Unorm);
 
     bool IRenderer.TryUploadTextureRgbaSubregion(TextureId textureId, int dstX, int dstY, int width, int height,
         ReadOnlySpan<byte> rgba) =>
@@ -251,6 +319,19 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         }
     }
 
+    void IRenderer.SubmitTextGlyph(in TextGlyphDrawRequest draw)
+    {
+        _textGlyphQueue.Enqueue(draw);
+    }
+
+    void IRenderer.SubmitTextGlyphs(ReadOnlySpan<TextGlyphDrawRequest> draws)
+    {
+        if (draws.Length == 0)
+            return;
+        foreach (ref readonly var d in draws)
+            _textGlyphQueue.Enqueue(d);
+    }
+
     /// <inheritdoc />
     public void ResetPendingSubmissionsForNewTick() => DiscardAllPendingSubmissions();
 
@@ -263,6 +344,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     {
         ConcurrentQueueDrain.DiscardAll(_spriteQueue);
         ConcurrentQueueDrain.DiscardAll(_viewportUiOverlayQueue);
+        ConcurrentQueueDrain.DiscardAll(_textGlyphQueue);
         ConcurrentQueueDrain.DiscardAll(_pointLightQueue);
         ConcurrentQueueDrain.DiscardAll(_spotLightQueue);
         ConcurrentQueueDrain.DiscardAll(_directionalLightQueue);
@@ -371,16 +453,23 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         try
         {
-            _vk.WaitForFences(_device, 1, in _inFlightFences![_currentFrame], true, ulong.MaxValue);
+            {
+                using var __ = FrameProfilerScope.Enter("DrawFrame.WaitForFences");
+                _vk.WaitForFences(_device, 1, in _inFlightFences![_currentFrame], true, ulong.MaxValue);
+            }
 
             uint imageIndex = 0;
-            var acquire = _khrSwapchain!.AcquireNextImage(
-                _device,
-                _swapchain,
-                ulong.MaxValue,
-                _imageAvailableSemaphores![_currentFrame],
-                default,
-                ref imageIndex);
+            Result acquire;
+            {
+                using var __ = FrameProfilerScope.Enter("DrawFrame.AcquireNextImageKHR");
+                acquire = _khrSwapchain!.AcquireNextImage(
+                    _device,
+                    _swapchain,
+                    ulong.MaxValue,
+                    _imageAvailableSemaphores![_currentFrame],
+                    default,
+                    ref imageIndex);
+            }
 
             if (acquire == Result.ErrorOutOfDateKhr)
             {
@@ -396,7 +485,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
                 throw new InvalidOperationException($"AcquireNextImage failed: {acquire}");
 
             if (_imagesInFlight![imageIndex].Handle != default)
+            {
+                using var __ = FrameProfilerScope.Enter("DrawFrame.WaitForImageFence");
                 _vk.WaitForFences(_device, 1, in _imagesInFlight[imageIndex], true, ulong.MaxValue);
+            }
 
             _imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
 
@@ -404,7 +496,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             var waitStages = stackalloc[] { PipelineStageFlags.ColorAttachmentOutputBit };
             var buffer = _commandBuffers![_currentFrame];
 
-            RecordCommandBuffer(buffer, _swapchainFramebuffers![imageIndex], _swapchainUiOverlayFramebuffers![imageIndex]);
+            {
+                using var __ = FrameProfilerScope.Enter("DrawFrame.RecordCommandBuffer");
+                RecordCommandBuffer(buffer, _swapchainFramebuffers![imageIndex], _swapchainUiOverlayFramebuffers![imageIndex]);
+            }
 
             var signalSemaphores = stackalloc[] { _renderFinishedSemaphores![_currentFrame] };
 
@@ -422,8 +517,11 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
             _vk.ResetFences(_device, 1, in _inFlightFences[_currentFrame]);
 
-            if (_vk.QueueSubmit(_graphicsQueue, 1, in submitInfo, _inFlightFences[_currentFrame]) != Result.Success)
-                throw new InvalidOperationException("QueueSubmit failed.");
+            {
+                using var __ = FrameProfilerScope.Enter("DrawFrame.QueueSubmit");
+                if (_vk.QueueSubmit(_graphicsQueue, 1, in submitInfo, _inFlightFences[_currentFrame]) != Result.Success)
+                    throw new InvalidOperationException("QueueSubmit failed.");
+            }
 
             var swapChains = stackalloc[] { _swapchain };
             PresentInfoKHR presentInfo = new()
@@ -436,14 +534,21 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
                 PImageIndices = &imageIndex
             };
 
-            var present = _khrSwapchain.QueuePresent(_presentQueue, &presentInfo);
+            Result present;
+            {
+                using var __ = FrameProfilerScope.Enter("DrawFrame.QueuePresentKHR");
+                present = _khrSwapchain.QueuePresent(_presentQueue, &presentInfo);
+            }
 
             if (present == Result.ErrorOutOfDateKhr || present == Result.SuboptimalKhr)
                 _resizePending = true;
             else if (present != Result.Success)
                 throw new InvalidOperationException($"QueuePresent failed: {present}");
 
-            ApplyLimitedCpuPacingIfNeeded();
+            {
+                using var __ = FrameProfilerScope.Enter("DrawFrame.ApplyLimitedCpuPacingIfNeeded");
+                ApplyLimitedCpuPacingIfNeeded();
+            }
 
             _currentFrame = (_currentFrame + 1) % MaxFramesInFlight;
         }
@@ -490,6 +595,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         if (_device.Handle != default)
             _vk.DeviceWaitIdle(_device);
+        _textureUpload?.Dispose();
+        _textureUpload = null;
 
         CleanupSwapchain();
 
@@ -508,6 +615,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         if (_commandPool.Handle != default)
             _vk.DestroyCommandPool(_device, _commandPool, null);
+        if (_uploadCommandPool.Handle != default)
+            _vk.DestroyCommandPool(_device, _uploadCommandPool, null);
 
         if (_device.Handle != default)
             _vk.DestroyDevice(_device, null);
@@ -579,21 +688,33 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private void PickPhysicalDevice()
     {
         var devices = _vk!.GetPhysicalDevices(_instance);
+        var hasCandidate = false;
+        var bestScore = int.MinValue;
+        PhysicalDevice bestDevice = default;
         foreach (var device in devices)
         {
-            if (IsDeviceSuitable(device))
+            if (!TryScorePhysicalDevice(device, out var score))
+                continue;
+            if (!hasCandidate || score > bestScore)
             {
-                _physicalDevice = device;
-                return;
+                hasCandidate = true;
+                bestScore = score;
+                bestDevice = device;
             }
+        }
+        if (hasCandidate)
+        {
+            _physicalDevice = bestDevice;
+            return;
         }
 
         throw new GraphicsInitializationException(
             "No suitable Vulkan GPU was found (graphics + present queues, swapchain support, and required device extensions).");
     }
 
-    private bool IsDeviceSuitable(PhysicalDevice device)
+    private bool TryScorePhysicalDevice(PhysicalDevice device, out int score)
     {
+        score = 0;
         var indices = FindQueueFamilies(device);
         if (!indices.IsComplete())
             return false;
@@ -602,7 +723,20 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             return false;
 
         var swapChainSupport = QuerySwapChainSupport(device);
-        return swapChainSupport.Formats.Length > 0 && swapChainSupport.PresentModes.Length > 0;
+        if (swapChainSupport.Formats.Length == 0 || swapChainSupport.PresentModes.Length == 0)
+            return false;
+
+        _vk!.GetPhysicalDeviceProperties(device, out var properties);
+        score += properties.DeviceType switch
+        {
+            PhysicalDeviceType.DiscreteGpu => 10_000,
+            PhysicalDeviceType.IntegratedGpu => 6_000,
+            PhysicalDeviceType.VirtualGpu => 4_000,
+            PhysicalDeviceType.Cpu => 1_000,
+            _ => 2_000
+        };
+        score += (int)Math.Min(properties.Limits.MaxImageDimension2D, 8192);
+        return true;
     }
 
     private bool CheckDeviceExtensionSupport(PhysicalDevice device)
@@ -838,6 +972,15 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         if (_vk!.CreateCommandPool(_device, in poolInfo, null, out _commandPool) != Result.Success)
             throw new GraphicsInitializationException("vkCreateCommandPool failed.");
+
+        CommandPoolCreateInfo uploadPoolInfo = new()
+        {
+            SType = StructureType.CommandPoolCreateInfo,
+            Flags = CommandPoolCreateFlags.TransientBit | CommandPoolCreateFlags.ResetCommandBufferBit,
+            QueueFamilyIndex = queueFamilyIndex
+        };
+        if (_vk.CreateCommandPool(_device, in uploadPoolInfo, null, out _uploadCommandPool) != Result.Success)
+            throw new GraphicsInitializationException("vkCreateCommandPool (upload) failed.");
     }
 
     private void CreateCommandBuffers()
@@ -1133,9 +1276,41 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private static uint MakeVkVersion(uint major, uint minor, uint patch) =>
         (major << 22) | (minor << 12) | patch;
 
+    private static float ReadBloomResolutionScale()
+    {
+        var raw = Environment.GetEnvironmentVariable("CYBERLAND_BLOOM_RESOLUTION_SCALE");
+        if (string.IsNullOrWhiteSpace(raw))
+            return 1f;
+        if (!float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+            return 1f;
+        return Math.Clamp(parsed, 0.25f, 1f);
+    }
+
     private GpuTexture? TryGetTextureSlot(TextureId id)
     {
+        var snap = _textureSlotsSnapshot;
+        var count = Volatile.Read(ref _textureSlotsSnapshotCount);
+        var idx = (int)id;
+        if (idx < 0 || idx >= count)
+            return null;
+        return snap[idx];
+    }
+
+    /// <summary>Rebuilds <see cref="_textureSlotsSnapshot"/> from <see cref="_textureSlots"/> under <see cref="_textureSlotsLock"/>.</summary>
+    private void RefreshTextureSlotsSnapshot()
+    {
         lock (_textureSlotsLock)
-            return id < (TextureId)_textureSlots.Count ? _textureSlots[(int)id] : null;
+        {
+            var n = _textureSlots.Count;
+            for (var i = 0; i < n; i++)
+                _textureSlotsSnapshot[i] = _textureSlots[i];
+            for (var i = n; i < _textureSlotsSnapshotCount; i++)
+                _textureSlotsSnapshot[i] = null;
+            Volatile.Write(ref _textureSlotsSnapshotCount, n);
+            if (n == 0)
+            {
+                return;
+            }
+        }
     }
 }

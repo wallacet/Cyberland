@@ -6,9 +6,8 @@ namespace Cyberland.Engine.Scene.Systems;
 
 /// <summary>
 /// Applies <see cref="ViewportAnchor2D"/> to <see cref="Transform"/> (and optional <see cref="Sprite"/> half
-/// extents) using <see cref="Hosting.GameHostServices.Renderer"/>'s
-/// <see cref="Rendering.IRenderer.ActiveCameraViewportSize"/>, so HUD anchoring tracks the camera's virtual
-/// viewport rather than the physical window (letterbox bars never clip the UI).
+/// extents) using the current camera runtime viewport, with a renderer fallback during early startup, so HUD
+/// anchoring tracks the virtual camera canvas rather than the physical window (letterbox bars never clip the UI).
 /// </summary>
 public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
 {

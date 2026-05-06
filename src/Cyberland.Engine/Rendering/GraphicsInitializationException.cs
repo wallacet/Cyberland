@@ -25,7 +25,7 @@ public sealed class GraphicsInitializationException : Exception
 
         return
             $"""
-            Cyberland could not start 3D graphics.
+            Cyberland could not start the graphics renderer.
 
             Technical detail:
             {detail}

@@ -21,6 +21,8 @@ public sealed unsafe partial class VulkanRenderer
         var fragBloomG = EngineShaderSources.Load(EngineShaderSources.BloomGaussianFrag);
         var fragBloomUp = EngineShaderSources.Load(EngineShaderSources.BloomUpsampleFrag);
         var fragBloomCopy = EngineShaderSources.Load(EngineShaderSources.BloomCopyFrag);
+        var vertTextMsdf = EngineShaderSources.Load(EngineShaderSources.TextMsdfVert);
+        var fragTextMsdf = EngineShaderSources.Load(EngineShaderSources.TextMsdfFrag);
 
         _modVertSprite = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(vertSprite, ShaderStage.Vertex));
         _modFragEmissive = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragEm, ShaderStage.Fragment));
@@ -31,6 +33,8 @@ public sealed unsafe partial class VulkanRenderer
         _modFragBloomGaussian = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBloomG, ShaderStage.Fragment));
         _modFragBloomUpsample = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBloomUp, ShaderStage.Fragment));
         _modFragBloomCopy = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBloomCopy, ShaderStage.Fragment));
+        _modVertTextMsdf = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(vertTextMsdf, ShaderStage.Vertex));
+        _modFragTextMsdf = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragTextMsdf, ShaderStage.Fragment));
         CompileDeferredShaderModules();
     }
 
@@ -40,7 +44,7 @@ public sealed unsafe partial class VulkanRenderer
         {
             StageFlags = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit,
             Offset = 0,
-            Size = (uint)sizeof(SpritePushData)
+            Size = (uint)sizeof(SpriteInstancingPush)
         };
 
         var pcr = stackalloc PushConstantRange[1];
@@ -59,8 +63,28 @@ public sealed unsafe partial class VulkanRenderer
             PPushConstantRanges = pcr
         };
 
-        if (_vk!.CreatePipelineLayout(_device, in plTwo, null, out _plSpriteEmissive) != Result.Success)
+        if (_vk!.CreatePipelineLayout(_device, in plTwo, null, out _plSpriteTwoTexture) != Result.Success)
             throw new GraphicsInitializationException("pl sprite two-texture (emissive/gbuffer/wboit) failed.");
+
+        var textPcr = stackalloc PushConstantRange[1];
+        textPcr[0] = new PushConstantRange
+        {
+            StageFlags = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit,
+            Offset = 0,
+            Size = (uint)sizeof(TextMsdfPushData)
+        };
+        var textDsl = stackalloc DescriptorSetLayout[1];
+        textDsl[0] = _dslTexture;
+        PipelineLayoutCreateInfo plText = new()
+        {
+            SType = StructureType.PipelineLayoutCreateInfo,
+            SetLayoutCount = 1,
+            PSetLayouts = textDsl,
+            PushConstantRangeCount = 1,
+            PPushConstantRanges = textPcr
+        };
+        if (_vk.CreatePipelineLayout(_device, in plText, null, out _plTextMsdf) != Result.Success)
+            throw new GraphicsInitializationException("pl text msdf failed.");
 
         var mainName = Marshal.StringToHGlobalAnsi("main");
 
@@ -102,6 +126,43 @@ public sealed unsafe partial class VulkanRenderer
             PVertexBindingDescriptions = &bind,
             VertexAttributeDescriptionCount = 1,
             PVertexAttributeDescriptions = &attr
+        };
+
+        VertexInputBindingDescription bindSpriteInstance = new()
+        {
+            Binding = 1,
+            Stride = (uint)sizeof(SpriteInstanceGpu),
+            InputRate = VertexInputRate.Instance
+        };
+        var attrsSpriteInst = stackalloc VertexInputAttributeDescription[6];
+        attrsSpriteInst[0] = new VertexInputAttributeDescription
+        {
+            Binding = 0,
+            Location = 0,
+            Format = Format.R32G32Sfloat,
+            Offset = 0
+        };
+        for (var ai = 0; ai < 5; ai++)
+        {
+            attrsSpriteInst[ai + 1] = new VertexInputAttributeDescription
+            {
+                Binding = 1,
+                Location = (uint)(ai + 1),
+                Format = Format.R32G32B32A32Sfloat,
+                Offset = (uint)(ai * 16)
+            };
+        }
+
+        var bindsSpriteInst = stackalloc VertexInputBindingDescription[2];
+        bindsSpriteInst[0] = bind;
+        bindsSpriteInst[1] = bindSpriteInstance;
+        PipelineVertexInputStateCreateInfo viSpriteInst = new()
+        {
+            SType = StructureType.PipelineVertexInputStateCreateInfo,
+            VertexBindingDescriptionCount = 2,
+            PVertexBindingDescriptions = bindsSpriteInst,
+            VertexAttributeDescriptionCount = 6,
+            PVertexAttributeDescriptions = attrsSpriteInst
         };
 
         PipelineInputAssemblyStateCreateInfo ia = new()
@@ -160,14 +221,14 @@ public sealed unsafe partial class VulkanRenderer
                 SType = StructureType.GraphicsPipelineCreateInfo,
                 StageCount = 2,
                 PStages = stEm,
-                PVertexInputState = &vi,
+                PVertexInputState = &viSpriteInst,
                 PInputAssemblyState = &ia,
                 PViewportState = &vp,
                 PRasterizationState = &rs,
                 PMultisampleState = &ms,
                 PColorBlendState = &cbAdd,
                 PDynamicState = &ds,
-                Layout = _plSpriteEmissive,
+                Layout = _plSpriteTwoTexture,
                 RenderPass = _rpOffscreenInitialUndefined,
                 Subpass = 0
             };
@@ -509,6 +570,20 @@ public sealed unsafe partial class VulkanRenderer
             Module = _modFragSwapchainUi,
             PName = (byte*)mainName
         };
+        PipelineShaderStageCreateInfo vertTextSt = new()
+        {
+            SType = StructureType.PipelineShaderStageCreateInfo,
+            Stage = ShaderStageFlags.VertexBit,
+            Module = _modVertTextMsdf,
+            PName = (byte*)mainName
+        };
+        PipelineShaderStageCreateInfo fragTextSt = new()
+        {
+            SType = StructureType.PipelineShaderStageCreateInfo,
+            Stage = ShaderStageFlags.FragmentBit,
+            Module = _modFragTextMsdf,
+            PName = (byte*)mainName
+        };
         PipelineShaderStageCreateInfo vertCompSt = new()
         {
             SType = StructureType.PipelineShaderStageCreateInfo,
@@ -579,6 +654,97 @@ public sealed unsafe partial class VulkanRenderer
             PVertexBindingDescriptions = &bind,
             VertexAttributeDescriptionCount = 1,
             PVertexAttributeDescriptions = &attr
+        };
+
+        VertexInputBindingDescription bindSpriteInstance = new()
+        {
+            Binding = 1,
+            Stride = (uint)sizeof(SpriteInstanceGpu),
+            InputRate = VertexInputRate.Instance
+        };
+        var attrsSpriteInst = stackalloc VertexInputAttributeDescription[6];
+        attrsSpriteInst[0] = new VertexInputAttributeDescription
+        {
+            Binding = 0,
+            Location = 0,
+            Format = Format.R32G32Sfloat,
+            Offset = 0
+        };
+        for (var ai = 0; ai < 5; ai++)
+        {
+            attrsSpriteInst[ai + 1] = new VertexInputAttributeDescription
+            {
+                Binding = 1,
+                Location = (uint)(ai + 1),
+                Format = Format.R32G32B32A32Sfloat,
+                Offset = (uint)(ai * 16)
+            };
+        }
+
+        var bindsSpriteInst = stackalloc VertexInputBindingDescription[2];
+        bindsSpriteInst[0] = bind;
+        bindsSpriteInst[1] = bindSpriteInstance;
+        PipelineVertexInputStateCreateInfo viSpriteInst = new()
+        {
+            SType = StructureType.PipelineVertexInputStateCreateInfo,
+            VertexBindingDescriptionCount = 2,
+            PVertexBindingDescriptions = bindsSpriteInst,
+            VertexAttributeDescriptionCount = 6,
+            PVertexAttributeDescriptions = attrsSpriteInst
+        };
+
+        VertexInputBindingDescription bindTextInstance = new()
+        {
+            Binding = 1,
+            Stride = (uint)sizeof(TextGlyphInstanceGpu),
+            InputRate = VertexInputRate.Instance
+        };
+        var attrsText = stackalloc VertexInputAttributeDescription[5];
+        attrsText[0] = new VertexInputAttributeDescription
+        {
+            Binding = 0,
+            Location = 0,
+            Format = Format.R32G32Sfloat,
+            Offset = 0
+        };
+        attrsText[1] = new VertexInputAttributeDescription
+        {
+            Binding = 1,
+            Location = 1,
+            Format = Format.R32G32B32A32Sfloat,
+            Offset = 0
+        };
+        attrsText[2] = new VertexInputAttributeDescription
+        {
+            Binding = 1,
+            Location = 2,
+            Format = Format.R32G32B32A32Sfloat,
+            Offset = 16
+        };
+        attrsText[3] = new VertexInputAttributeDescription
+        {
+            Binding = 1,
+            Location = 3,
+            Format = Format.R32G32B32A32Sfloat,
+            Offset = 32
+        };
+        attrsText[4] = new VertexInputAttributeDescription
+        {
+            Binding = 1,
+            Location = 4,
+            Format = Format.R32G32B32A32Sfloat,
+            Offset = 48
+        };
+        var bindsText = stackalloc VertexInputBindingDescription[2];
+        bindsText[0] = bind;
+        bindsText[1] = bindTextInstance;
+        PipelineVertexInputStateCreateInfo viText = new()
+        {
+            SType = StructureType.PipelineVertexInputStateCreateInfo,
+            VertexBindingDescriptionCount = 2,
+            PVertexBindingDescriptions = bindsText,
+            VertexAttributeDescriptionCount = 5,
+            PVertexAttributeDescriptions = attrsText
         };
         PipelineVertexInputStateCreateInfo viEmpty = new()
         {
@@ -694,14 +860,14 @@ public sealed unsafe partial class VulkanRenderer
                 SType = StructureType.GraphicsPipelineCreateInfo,
                 StageCount = 2,
                 PStages = stGb,
-                PVertexInputState = &vi,
+                PVertexInputState = &viSpriteInst,
                 PInputAssemblyState = &ia,
                 PViewportState = &vpSt,
                 PRasterizationState = &rs,
                 PMultisampleState = &ms,
                 PColorBlendState = &cbsGb,
                 PDynamicState = &ds,
-                Layout = _plSpriteEmissive,
+                Layout = _plSpriteTwoTexture,
                 RenderPass = _rpGbufferUndefined,
                 Subpass = 0
             };
@@ -716,19 +882,41 @@ public sealed unsafe partial class VulkanRenderer
                 SType = StructureType.GraphicsPipelineCreateInfo,
                 StageCount = 2,
                 PStages = stUi,
-                PVertexInputState = &vi,
+                PVertexInputState = &viSpriteInst,
                 PInputAssemblyState = &ia,
                 PViewportState = &vpSt,
                 PRasterizationState = &rs,
                 PMultisampleState = &ms,
                 PColorBlendState = &cbsUi,
                 PDynamicState = &ds,
-                Layout = _plSpriteEmissive,
+                Layout = _plSpriteTwoTexture,
                 RenderPass = _rpSwapchainUiOverlay,
                 Subpass = 0
             };
             if (_vk.CreateGraphicsPipelines(_device, default, 1, in gpUi, null, out _pipeSwapchainUiOverlay) != Result.Success)
                 throw new GraphicsInitializationException("pipe swapchain UI overlay failed.");
+
+            var stText = stackalloc PipelineShaderStageCreateInfo[2];
+            stText[0] = vertTextSt;
+            stText[1] = fragTextSt;
+            GraphicsPipelineCreateInfo gpText = new()
+            {
+                SType = StructureType.GraphicsPipelineCreateInfo,
+                StageCount = 2,
+                PStages = stText,
+                PVertexInputState = &viText,
+                PInputAssemblyState = &ia,
+                PViewportState = &vpSt,
+                PRasterizationState = &rs,
+                PMultisampleState = &ms,
+                PColorBlendState = &cbsUi,
+                PDynamicState = &ds,
+                Layout = _plTextMsdf,
+                RenderPass = _rpSwapchainUiOverlay,
+                Subpass = 0
+            };
+            if (_vk.CreateGraphicsPipelines(_device, default, 1, in gpText, null, out _pipeTextMsdf) != Result.Success)
+                throw new GraphicsInitializationException("pipe text msdf failed.");
 
             var stDb = stackalloc PipelineShaderStageCreateInfo[2];
             stDb[0] = vertCompSt;
@@ -804,14 +992,14 @@ public sealed unsafe partial class VulkanRenderer
                 SType = StructureType.GraphicsPipelineCreateInfo,
                 StageCount = 2,
                 PStages = stTw,
-                PVertexInputState = &vi,
+                PVertexInputState = &viSpriteInst,
                 PInputAssemblyState = &ia,
                 PViewportState = &vpSt,
                 PRasterizationState = &rs,
                 PMultisampleState = &ms,
                 PColorBlendState = &cbsW,
                 PDynamicState = &ds,
-                Layout = _plSpriteEmissive,
+                Layout = _plSpriteTwoTexture,
                 RenderPass = _rpWboitUndefined,
                 Subpass = 0
             };

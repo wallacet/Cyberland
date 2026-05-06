@@ -9,9 +9,11 @@ namespace Cyberland.Engine.Rendering.Text;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Rasterization and GPU upload run under an internal lock; prefer resolving text on the main thread during mod load
-/// for large warm-ups. <see cref="Clear"/> drops CPU maps and font reuse entries; atlas GPU textures remain resident
-/// until process teardown unless a future renderer API releases slots.
+/// Cache map and atlas packing are synchronized under an internal lock. Rasterization happens outside the cache lock
+/// (still synchronized through <see cref="FontLibrary.FontRasterSync"/>) so unrelated glyph misses do not block each
+/// other on CPU MSDF generation. <see cref="Clear"/> drops CPU glyph maps; atlas GPU textures remain resident until process
+/// teardown unless a future renderer API releases slots. Shared measured/raster <c>SixLabors.Fonts.Font</c> instances live on
+/// <see cref="FontLibrary"/> (same quantization as glyph keys).
 /// </para>
 /// <para>
 /// Face/size keys use <see cref="FontLibrary.QuantizeEmSizePixels"/> so jittery float sizes map to stable buckets.
@@ -24,14 +26,14 @@ public sealed class TextGlyphCache
     /// <summary>Cached GPU glyph with layout metrics and atlas UVs (min.xy, max.zw).</summary>
     public readonly struct CachedGlyph
     {
-        /// <summary>Atlas page texture id from <see cref="IRenderer.RegisterTextureRgba"/>.</summary>
+        /// <summary>Atlas page texture id from <see cref="IRenderer.RegisterTextureRgbaLinear"/>.</summary>
         public TextureId TextureId { get; init; }
 
-        /// <summary>Bitmap width in pixels.</summary>
-        public int WidthPx { get; init; }
+        /// <summary>Glyph draw width in logical text pixels (before viewport-to-swapchain scaling).</summary>
+        public float WidthPx { get; init; }
 
-        /// <summary>Bitmap height in pixels.</summary>
-        public int HeightPx { get; init; }
+        /// <summary>Glyph draw height in logical text pixels (before viewport-to-swapchain scaling).</summary>
+        public float HeightPx { get; init; }
 
         /// <summary>Horizontal offset from pen to sprite center (pixels).</summary>
         public float OffsetPenToCenterX { get; init; }
@@ -44,25 +46,26 @@ public sealed class TextGlyphCache
 
         /// <summary>Normalized UV rectangle (min.xy, max.zw). Zero means full texture (legacy single-glyph textures).</summary>
         public Vector4D<float> UvRect { get; init; }
+
+        /// <summary>Distance normalization range in source atlas pixels for MSDF reconstruction.</summary>
+        public float MsdfPixelRange { get; init; }
     }
 
     // Tuple key avoids unused generated record accessors in coverage for the private key type.
-    private readonly Dictionary<(string FamilyId, FontFaceKind Face, int SizeQuant, int Codepoint), CachedGlyph> _glyphs =
-        new();
-
-    private readonly Dictionary<(string FamilyId, FontFaceKind Face, int SizeQuant), Font> _fontCache = new();
+    private readonly Dictionary<(string FamilyId, FontFaceKind Face, int SizeQuant, int Codepoint, int RasterRevision),
+        CachedGlyph> _glyphs = new();
 
     private readonly List<GlyphAtlasPage> _pages = new();
 
     /// <summary>
-    /// Clears CPU-side glyph maps, font instance reuse, and atlas bookkeeping (does not destroy GPU textures).
+    /// Clears CPU-side glyph maps and atlas bookkeeping (does not destroy GPU textures). <see cref="FontLibrary"/> keeps
+    /// shared <see cref="Font"/> instances for measure/raster; this does not clear that cache.
     /// </summary>
     public void Clear()
     {
         lock (_lock)
         {
             _glyphs.Clear();
-            _fontCache.Clear();
             _pages.Clear();
         }
     }
@@ -101,7 +104,7 @@ public sealed class TextGlyphCache
 
         var faceKind = FontLibrary.SelectFace(style.Bold, style.Italic, fam);
         var sizeQ = FontLibrary.QuantizeEmSizePixels(style.SizePixels);
-        var key = (style.FontFamilyId, faceKind, sizeQ, codePoint);
+        var key = (style.FontFamilyId, faceKind, sizeQ, codePoint, GlyphRasterizer.RasterRevision);
 
         lock (_lock)
         {
@@ -110,44 +113,45 @@ public sealed class TextGlyphCache
                 glyph = existing;
                 return true;
             }
+        }
 
-            var font = GetOrCreateFontLocked(fam, in style, faceKind, sizeQ);
+        byte[]? rgba;
+        int atlasW, atlasH;
+        float drawW, drawH, adv, cx, cyW, msdfRange;
+        lock (fonts.FontRasterSync)
+        {
+            // Family was resolved above; TryCreateFontUnlocked uses the same id and cannot fail here.
+            _ = fonts.TryCreateFontUnlocked(in style, out var font, out _);
+            _ = GlyphRasterizer.TryCreateGlyphMsdf(font, utf16Glyph, out rgba, out atlasW, out atlasH,
+                out drawW, out drawH, out adv, out cx, out cyW, out msdfRange);
+        }
 
-            if (!GlyphRasterizer.TryCreateGlyphRgba(font, utf16Glyph, out var rgba, out var w, out var h, out var adv,
-                    out var cx, out var cyW)
-                || !TryPackAndUpload(renderer, rgba!, w, h, out var texId, out var uv))
+        lock (_lock)
+        {
+            if (_glyphs.TryGetValue(key, out var existingAfterRaster))
+            {
+                glyph = existingAfterRaster;
+                return true;
+            }
+
+            if (!TryPackAndUpload(renderer, rgba!, atlasW, atlasH, out var texId, out var uv))
                 return false;
 
             var built = new CachedGlyph
             {
                 TextureId = texId,
-                WidthPx = w,
-                HeightPx = h,
+                WidthPx = drawW,
+                HeightPx = drawH,
                 OffsetPenToCenterX = cx,
                 OffsetPenToCenterYWorld = cyW,
                 AdvancePx = adv,
-                UvRect = uv
+                UvRect = uv,
+                MsdfPixelRange = msdfRange
             };
             _glyphs[key] = built;
             glyph = built;
             return true;
         }
-    }
-
-    private Font GetOrCreateFontLocked(
-        FontLibrary.RegisteredFamily fam,
-        in TextStyle style,
-        FontFaceKind faceKind,
-        int sizeQuant)
-    {
-        var fk = (style.FontFamilyId, faceKind, sizeQuant);
-        if (_fontCache.TryGetValue(fk, out var f))
-            return f;
-
-        var face = fam.GetFace(faceKind);
-        var font = FontLibrary.CreateFontAtPixelSize(face, FontLibrary.EmQuantToPixels(sizeQuant));
-        _fontCache[fk] = font;
-        return font;
     }
 
     /// <summary>Tests and atlas packing: rejects dimensions that do not fit a fresh 2048² page.</summary>
@@ -179,7 +183,7 @@ public sealed class TextGlyphCache
 
         if (page.TextureId == TextureId.MaxValue)
         {
-            var id = renderer.RegisterTextureRgba(page.Pixels, GlyphAtlasPage.SizePx, GlyphAtlasPage.SizePx);
+            var id = renderer.RegisterTextureRgbaLinear(page.Pixels, GlyphAtlasPage.SizePx, GlyphAtlasPage.SizePx);
             if (id == TextureId.MaxValue)
                 return false;
             page.TextureId = id;

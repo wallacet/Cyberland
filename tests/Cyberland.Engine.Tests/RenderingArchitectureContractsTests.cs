@@ -1,13 +1,67 @@
 using Cyberland.Engine.Rendering;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
+using System.Reflection;
 
 namespace Cyberland.Engine.Tests;
 
 public sealed class RenderingArchitectureContractsTests
 {
     [Fact]
-    public void FramePlan2D_ctor_assigns_all_fields()
+    public void VulkanRenderer_texture_registration_cap_keeps_descriptor_pool_headroom()
+    {
+        var rendererType = typeof(VulkanRenderer);
+        var maxTextures = (int)rendererType
+            .GetField("MaxRegisteredTextures", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetRawConstantValue()!;
+        var descriptorBudget = (uint)rendererType
+            .GetField("DescriptorPoolCombinedImageSamplerCount", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetRawConstantValue()!;
+
+        Assert.True(maxTextures > 0);
+        Assert.True((uint)maxTextures < descriptorBudget);
+    }
+
+    [Fact]
+    public void GpuTexture_constructor_populates_readonly_properties()
+    {
+        var t = typeof(SpriteDrawRequest).Assembly.GetType("Cyberland.Engine.Rendering.GpuTexture");
+        Assert.NotNull(t);
+        var ctor = t!.GetConstructor(
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            types:
+            [
+                typeof(Image),
+                typeof(DeviceMemory),
+                typeof(ImageView),
+                typeof(DescriptorSet),
+                typeof(int),
+                typeof(int)
+            ],
+            modifiers: null);
+        Assert.NotNull(ctor);
+        var img = new Image { Handle = 11 };
+        var mem = new DeviceMemory { Handle = 12 };
+        var view = new ImageView { Handle = 13 };
+        var ds = new DescriptorSet { Handle = 14 };
+        var instance = ctor!.Invoke([img, mem, view, ds, 64, 32]);
+        var pImage = t.GetProperty("Image", BindingFlags.Instance | BindingFlags.Public)!;
+        var pMemory = t.GetProperty("Memory", BindingFlags.Instance | BindingFlags.Public)!;
+        var pView = t.GetProperty("View", BindingFlags.Instance | BindingFlags.Public)!;
+        var pSet = t.GetProperty("DescriptorSet", BindingFlags.Instance | BindingFlags.Public)!;
+        var pW = t.GetProperty("Width", BindingFlags.Instance | BindingFlags.Public)!;
+        var pH = t.GetProperty("Height", BindingFlags.Instance | BindingFlags.Public)!;
+        Assert.Equal(img.Handle, ((Image)pImage.GetValue(instance)!).Handle);
+        Assert.Equal(mem.Handle, ((DeviceMemory)pMemory.GetValue(instance)!).Handle);
+        Assert.Equal(view.Handle, ((ImageView)pView.GetValue(instance)!).Handle);
+        Assert.Equal(ds.Handle, ((DescriptorSet)pSet.GetValue(instance)!).Handle);
+        Assert.Equal(64, (int)pW.GetValue(instance)!);
+        Assert.Equal(32, (int)pH.GetValue(instance)!);
+    }
+
+    [Fact]
+    public void FramePlan_ctor_assigns_all_fields()
     {
         var sprites = new[] { new SpriteDrawRequest() };
         var pointLights = new[] { new PointLight() };
@@ -36,10 +90,13 @@ public sealed class RenderingArchitectureContractsTests
             1,
             pointLights,
             1,
+            0,
             spotLights,
             1,
+            0,
             directionalLights,
             1,
+            0,
             ambientLights,
             1,
             volumes,
@@ -55,8 +112,11 @@ public sealed class RenderingArchitectureContractsTests
         Assert.Same(sprites, plan.Sprites);
         Assert.Equal(1, plan.SpriteCount);
         Assert.Same(pointLights, plan.PointLights);
+        Assert.Equal(0, plan.PointLightDroppedCount);
         Assert.Same(spotLights, plan.SpotLights);
+        Assert.Equal(0, plan.SpotLightDroppedCount);
         Assert.Same(directionalLights, plan.DirectionalLights);
+        Assert.Equal(0, plan.DirectionalLightDroppedCount);
         Assert.Same(ambientLights, plan.AmbientLights);
         Assert.Same(volumes, plan.Volumes);
         Assert.Equal(global.BloomEnabled, plan.GlobalPost.BloomEnabled);
@@ -84,7 +144,7 @@ public sealed class RenderingArchitectureContractsTests
     }
 
     [Fact]
-    public void PostEffectContext2D_ctor_assigns_all_fields()
+    public void PostEffectContext_ctor_assigns_all_fields()
     {
         var cmd = default(CommandBuffer);
         var fb = default(Framebuffer);
@@ -108,10 +168,13 @@ public sealed class RenderingArchitectureContractsTests
             spriteCount: 0,
             pointLights: [],
             pointLightCount: 0,
+            pointLightDroppedCount: 0,
             spotLights: [],
             spotLightCount: 0,
+            spotLightDroppedCount: 0,
             directionalLights: [],
             directionalLightCount: 0,
+            directionalLightDroppedCount: 0,
             ambientLights: [],
             ambientLightCount: 0,
             volumes: [],
@@ -138,5 +201,45 @@ public sealed class RenderingArchitectureContractsTests
         Assert.Equal(halfViewport.Height, context.HalfViewport.Height);
         Assert.Equal(halfScissor.Extent.Width, context.HalfScissor.Extent.Width);
         Assert.Equal(halfScissor.Extent.Height, context.HalfScissor.Extent.Height);
+    }
+
+    [Fact]
+    public void RenderPassDependencyModel_accepts_expected_deferred_execution_order()
+    {
+        RenderPassDependencyModel.PassStage[] order =
+        [
+            RenderPassDependencyModel.PassStage.EmissivePrepass,
+            RenderPassDependencyModel.PassStage.GBufferOpaque,
+            RenderPassDependencyModel.PassStage.DeferredLighting,
+            RenderPassDependencyModel.PassStage.TransparentWboit,
+            RenderPassDependencyModel.PassStage.TransparentResolve,
+            RenderPassDependencyModel.PassStage.Bloom,
+            RenderPassDependencyModel.PassStage.CompositeToSwapchain
+        ];
+
+        Assert.True(RenderPassDependencyModel.IsExecutionOrderValid(order));
+    }
+
+    [Fact]
+    public void RenderPassDependencyModel_rejects_order_with_transparency_resolve_before_wboit()
+    {
+        RenderPassDependencyModel.PassStage[] order =
+        [
+            RenderPassDependencyModel.PassStage.EmissivePrepass,
+            RenderPassDependencyModel.PassStage.GBufferOpaque,
+            RenderPassDependencyModel.PassStage.DeferredLighting,
+            RenderPassDependencyModel.PassStage.TransparentResolve,
+            RenderPassDependencyModel.PassStage.TransparentWboit,
+            RenderPassDependencyModel.PassStage.Bloom,
+            RenderPassDependencyModel.PassStage.CompositeToSwapchain
+        ];
+
+        Assert.False(RenderPassDependencyModel.IsExecutionOrderValid(order));
+    }
+
+    [Fact]
+    public void RenderPassDependencyModel_declares_expected_dependency_edge_count()
+    {
+        Assert.Equal(6, RenderPassDependencyModel.Dependencies.Length);
     }
 }

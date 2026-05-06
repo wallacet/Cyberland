@@ -9,6 +9,7 @@ namespace Cyberland.Demo.BrickBreaker;
 /// <summary>Late parallel: fullscreen backdrop sprite tracks presentation viewport pixels.</summary>
 public sealed class BackgroundSpriteSyncSystem : IParallelSystem, IParallelLateUpdate
 {
+    private const int SmallBatchSerialThreshold = 8;
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BackgroundTag, Transform, Sprite>();
 
@@ -29,13 +30,25 @@ public sealed class BackgroundSpriteSyncSystem : IParallelSystem, IParallelLateU
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
         foreach (var chunk in archetype)
         {
+            if (chunk.Count <= SmallBatchSerialThreshold)
+            {
+                for (var i = 0; i < chunk.Count; i++)
+                    ApplyBackground(chunk, i, fb);
+                continue;
+            }
+
             Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                ref var tr = ref chunk.Column<Transform>()[i];
-                tr.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
-                ref var spr = ref chunk.Column<Sprite>()[i];
-                spr.HalfExtents = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
+                ApplyBackground(chunk, i, fb);
             });
         }
+    }
+
+    private static void ApplyBackground(in MultiComponentChunkView chunk, int index, in Vector2D<int> framebufferSize)
+    {
+        ref var tr = ref chunk.Column<Transform>()[index];
+        tr.LocalPosition = new Vector2D<float>(framebufferSize.X * 0.5f, framebufferSize.Y * 0.5f);
+        ref var spr = ref chunk.Column<Sprite>()[index];
+        spr.HalfExtents = new Vector2D<float>(framebufferSize.X * 0.5f, framebufferSize.Y * 0.5f);
     }
 }

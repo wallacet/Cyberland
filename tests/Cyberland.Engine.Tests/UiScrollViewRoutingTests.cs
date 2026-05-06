@@ -41,6 +41,14 @@ public sealed class UiScrollViewRoutingTests
     }
 
     [Fact]
+    public void ApplyWheel_zero_delta_is_noop()
+    {
+        var sv = new UiScrollView { ContentOffset = new Vector2D<float>(0f, 12f) };
+        sv.ApplyWheel(0f);
+        Assert.Equal(12f, sv.ContentOffset.Y);
+    }
+
+    [Fact]
     public void Wheel_measure_apply_measure_keeps_ContentOffset()
     {
         var scroll = BuildTallScroll();

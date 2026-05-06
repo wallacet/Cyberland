@@ -18,23 +18,29 @@ internal static class UiTextMeasurer
         if (text.IsEmpty)
             return 0f;
 
-        if (!fonts.TryCreateFont(in style, out var font, out _))
-            return 0f;
+        lock (fonts.FontRasterSync)
+        {
+            if (!fonts.TryCreateFontUnlocked(in style, out var font, out _))
+                return 0f;
 
-        var opts = new TextOptions(font) { Dpi = 96f };
-        var adv = TextMeasurer.MeasureAdvance(text.ToString(), opts);
-        return adv.Width;
+            var opts = new TextOptions(font) { Dpi = 96f };
+            var adv = TextMeasurer.MeasureAdvance(text, opts);
+            return adv.Width;
+        }
     }
 
     /// <summary>Approximate line height for one line (ascenders + descenders sample).</summary>
     public static float MeasureLineHeight(FontLibrary fonts, in TextStyle style)
     {
-        if (!fonts.TryCreateFont(in style, out var font, out _))
-            return MathF.Max(1f, style.SizePixels * 1.15f);
+        lock (fonts.FontRasterSync)
+        {
+            if (!fonts.TryCreateFontUnlocked(in style, out var font, out _))
+                return MathF.Max(1f, style.SizePixels * 1.15f);
 
-        var opts = new TextOptions(font) { Dpi = 96f };
-        var b = TextMeasurer.MeasureBounds(LineHeightReferenceSample, opts);
-        return MathF.Max(style.SizePixels * 0.5f, b.Height);
+            var opts = new TextOptions(font) { Dpi = 96f };
+            var b = TextMeasurer.MeasureBounds(LineHeightReferenceSample, opts);
+            return MathF.Max(style.SizePixels * 0.5f, b.Height);
+        }
     }
 
     /// <summary>
@@ -45,14 +51,17 @@ internal static class UiTextMeasurer
     internal static bool TryMinReferenceBoundsTopForLine(FontLibrary fonts, UiTextLayoutLine line, out float minTop)
     {
         minTop = float.PositiveInfinity;
-        foreach (var seg in line.Segments)
+        lock (fonts.FontRasterSync)
         {
-            if (!fonts.TryCreateFont(in seg.Style, out var font, out _))
-                continue;
+            foreach (var seg in line.Segments)
+            {
+                if (!fonts.TryCreateFontUnlocked(in seg.Style, out var font, out _))
+                    continue;
 
-            var opts = new TextOptions(font) { Dpi = 96f };
-            var b = TextMeasurer.MeasureBounds(LineHeightReferenceSample, opts);
-            minTop = MathF.Min(minTop, b.Top);
+                var opts = new TextOptions(font) { Dpi = 96f };
+                var b = TextMeasurer.MeasureBounds(LineHeightReferenceSample, opts);
+                minTop = MathF.Min(minTop, b.Top);
+            }
         }
 
         if (float.IsPositiveInfinity(minTop))

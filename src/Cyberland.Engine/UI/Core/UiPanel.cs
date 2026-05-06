@@ -12,18 +12,53 @@ namespace Cyberland.Engine.UI.Core;
 /// </summary>
 public class UiPanel : UiElement
 {
+    private Vector4D<float> _backgroundColor;
+    private TextureId _backgroundTextureId = TextureId.MaxValue;
+
     /// <summary>
     /// Straight RGBA tint for an axis-aligned background quad; alpha 0 skips submission (see <see cref="BackgroundTextureId"/>).
     /// </summary>
-    public Vector4D<float> BackgroundColor { get; set; }
+    public Vector4D<float> BackgroundColor
+    {
+        get => _backgroundColor;
+        set
+        {
+            if (_backgroundColor == value)
+                return;
+            _backgroundColor = value;
+            InvalidateVisual();
+        }
+    }
 
     /// <summary>
     /// When not <see cref="TextureId.MaxValue"/>, used as the albedo for the background quad; otherwise <see cref="IRenderer.WhiteTextureId"/>.
     /// </summary>
-    public TextureId BackgroundTextureId { get; set; } = TextureId.MaxValue;
+    public TextureId BackgroundTextureId
+    {
+        get => _backgroundTextureId;
+        set
+        {
+            if (_backgroundTextureId == value)
+                return;
+            _backgroundTextureId = value;
+            InvalidateVisual();
+        }
+    }
+
+    private float _spacing;
 
     /// <summary>Extra vertical gap between successive visible children.</summary>
-    public float Spacing { get; set; }
+    public float Spacing
+    {
+        get => _spacing;
+        set
+        {
+            if (_spacing == value)
+                return;
+            _spacing = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <inheritdoc />
     protected override void DrawSelfVisuals(

@@ -15,6 +15,7 @@ public static class LogBook
         log.Lines.Add(line);
         while (log.Lines.Count > MaxLines)
             log.Lines.RemoveAt(0);
+        log.ContentRevision++;
     }
 
     public static string BuildText(World world, EntityId session)

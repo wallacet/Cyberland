@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -161,39 +162,63 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
 
         var localBuckets = new ConcurrentBag<Dictionary<EntityId, List<TriggerEvent>>>();
 
-        var currentPairs = _currentOverlaps.ToArray();
-        Parallel.For(
-            0,
-            currentPairs.Length,
-            parallelOptions,
-            () => new Dictionary<EntityId, List<TriggerEvent>>(),
-            (i, _, local) =>
-            {
-                var pair = currentPairs[i];
-                var kind = _previousOverlaps.Contains(pair)
-                    ? TriggerEventKind.OnTriggerStay
-                    : TriggerEventKind.OnTriggerEnter;
-                AppendMirrored(local, snapshotByEntity, pair, kind);
-                return local;
-            },
-            local => localBuckets.Add(local));
+        var currentCount = _currentOverlaps.Count;
+        var currentBuf = ArrayPool<TriggerPairKey>.Shared.Rent(currentCount);
+        try
+        {
+            var ci = 0;
+            foreach (var p in _currentOverlaps)
+                currentBuf[ci++] = p;
 
-        var previousPairs = _previousOverlaps.ToArray();
-        Parallel.For(
-            0,
-            previousPairs.Length,
-            parallelOptions,
-            () => new Dictionary<EntityId, List<TriggerEvent>>(),
-            (i, _, local) =>
-            {
-                var pair = previousPairs[i];
-                if (_currentOverlaps.Contains(pair))
+            Parallel.For(
+                0,
+                ci,
+                parallelOptions,
+                () => new Dictionary<EntityId, List<TriggerEvent>>(),
+                (i, _, local) =>
+                {
+                    var pair = currentBuf[i];
+                    var kind = _previousOverlaps.Contains(pair)
+                        ? TriggerEventKind.OnTriggerStay
+                        : TriggerEventKind.OnTriggerEnter;
+                    AppendMirrored(local, snapshotByEntity, pair, kind);
                     return local;
+                },
+                local => localBuckets.Add(local));
+        }
+        finally
+        {
+            ArrayPool<TriggerPairKey>.Shared.Return(currentBuf);
+        }
 
-                AppendMirrored(local, snapshotByEntity, pair, TriggerEventKind.OnTriggerExit);
-                return local;
-            },
-            local => localBuckets.Add(local));
+        var prevCount = _previousOverlaps.Count;
+        var prevBuf = ArrayPool<TriggerPairKey>.Shared.Rent(prevCount);
+        try
+        {
+            var pi = 0;
+            foreach (var p in _previousOverlaps)
+                prevBuf[pi++] = p;
+
+            Parallel.For(
+                0,
+                pi,
+                parallelOptions,
+                () => new Dictionary<EntityId, List<TriggerEvent>>(),
+                (i, _, local) =>
+                {
+                    var pair = prevBuf[i];
+                    if (_currentOverlaps.Contains(pair))
+                        return local;
+
+                    AppendMirrored(local, snapshotByEntity, pair, TriggerEventKind.OnTriggerExit);
+                    return local;
+                },
+                local => localBuckets.Add(local));
+        }
+        finally
+        {
+            ArrayPool<TriggerPairKey>.Shared.Return(prevBuf);
+        }
 
         foreach (var bucket in localBuckets)
         {

@@ -1,4 +1,17 @@
+using System.Collections.Generic;
+
 namespace Cyberland.Engine.Core.Ecs;
+
+/// <summary>
+/// Cached enumerator prep for <see cref="ChunkQueryEnumeratorAll"/> (invalidated when <see cref="StructureVersion"/> bumps).
+/// </summary>
+internal sealed class ChunkQueryEnumeratorPrep
+{
+    internal required RuntimeTypeHandle[] QueryTypeHandlesBySortedId { get; init; }
+    internal required uint[] SortedIds { get; init; }
+    internal required List<int> ArchetypeIndices { get; init; }
+    internal required int StructureVersion { get; init; }
+}
 
 /// <summary>
 /// Archetype graph, chunk allocation, entity location table, and migration between signatures.
@@ -10,6 +23,11 @@ internal sealed class ArchetypeWorld
     private readonly Dictionary<ComponentId[], int> _signatureToIndex;
     private readonly Dictionary<ComponentId, List<int>> _archetypesByComponent = new();
     private EntityRecord[] _records;
+
+    /// <summary>Increments when a new archetype row is added to <see cref="_archetypes"/>; chunk query prep caches key off this.</summary>
+    internal int StructureVersion { get; private set; }
+
+    private readonly Dictionary<int, ChunkQueryEnumeratorPrep> _chunkEnumeratorPrep = new();
 
     public ArchetypeWorld()
     {
@@ -25,6 +43,18 @@ internal sealed class ArchetypeWorld
     }
 
     public IReadOnlyList<Archetype> Archetypes => _archetypes;
+
+    internal bool TryGetChunkEnumeratorPrep(SystemQuerySpec spec, out ChunkQueryEnumeratorPrep? prep)
+    {
+        prep = null;
+        if (!_chunkEnumeratorPrep.TryGetValue(spec.GetHashCode(), out var p) || p.StructureVersion != StructureVersion)
+            return false;
+        prep = p;
+        return true;
+    }
+
+    internal void StoreChunkEnumeratorPrep(SystemQuerySpec spec, ChunkQueryEnumeratorPrep prep) =>
+        _chunkEnumeratorPrep[spec.GetHashCode()] = prep;
 
     public ref EntityRecord GetRecordRef(EntityId entity)
     {
@@ -63,6 +93,9 @@ internal sealed class ArchetypeWorld
     {
         if (_signatureToIndex.TryGetValue(signatureKey, out var idx))
             return (_archetypes[idx], idx);
+
+        StructureVersion++;
+        _chunkEnumeratorPrep.Clear();
 
         var arch = new Archetype(signatureKey);
         idx = _archetypes.Count;

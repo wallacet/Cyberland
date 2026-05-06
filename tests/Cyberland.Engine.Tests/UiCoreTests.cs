@@ -3,6 +3,7 @@ using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
 using Cyberland.Engine.UI.Layout;
 using Cyberland.Engine.UI.Rendering;
+using Cyberland.Engine.UI.Text;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Tests;
@@ -440,5 +441,80 @@ public sealed class UiCoreTests
     public void UiElement_RemoveChild_null_throws()
     {
         Assert.Throws<ArgumentNullException>(() => new UiPanel().RemoveChild(null!));
+    }
+
+    [Fact]
+    public void UiElement_SortedChildren_orders_by_sort_key_then_insertion()
+    {
+        var p = new UiPanel();
+        var a = new UiPanel { SortKey = 2f };
+        var b = new UiPanel { SortKey = 1f };
+        p.AddChild(a);
+        p.AddChild(b);
+        var span = p.SortedChildren();
+        Assert.Equal(2, span.Length);
+        Assert.Same(b, span[0]);
+        Assert.Same(a, span[1]);
+    }
+
+    [Fact]
+    public void UiElement_layout_property_setters_coalesce_noop_assignments()
+    {
+        var p = new UiPanel();
+        var m = new UiThickness(2f, 3f, 4f, 5f);
+        p.Margin = m;
+        p.Margin = m;
+        p.Padding = p.Padding;
+        p.AnchorMin = p.AnchorMin;
+        p.AnchorMax = p.AnchorMax;
+        p.Pivot = p.Pivot;
+        p.AnchoredPosition = p.AnchoredPosition;
+        p.SizeDelta = p.SizeDelta;
+        p.StretchLeft = 1f;
+        p.StretchLeft = 1f;
+        p.StretchRight = 2f;
+        p.StretchRight = 2f;
+        p.StretchTop = 3f;
+        p.StretchTop = 3f;
+        p.StretchBottom = 4f;
+        p.StretchBottom = 4f;
+        p.ClipMode = p.ClipMode;
+        p.Visible = true;
+        p.SortKey = p.SortKey;
+    }
+
+    [Fact]
+    public void UiPanel_background_texture_and_spacing_setters_coalesce()
+    {
+        var p = new UiPanel();
+        var c = new Vector4D<float>(1f, 0f, 0f, 0.5f);
+        p.BackgroundColor = c;
+        p.BackgroundColor = c;
+        p.BackgroundTextureId = 7u;
+        p.BackgroundTextureId = 7u;
+        p.Spacing = 2f;
+        p.Spacing = 2f;
+    }
+
+    [Fact]
+    public void UiDocument_PrepareFontsAndLocalizationIfNeeded_reruns_after_Invalidate()
+    {
+        var doc = new UiDocument();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var tb = new UiTextBlock
+        {
+            Text = "x",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        doc.Root.AddChild(tb);
+
+        doc.PrepareFontsAndLocalizationIfNeeded(fonts, null);
+        Assert.Same(fonts, tb.Fonts);
+
+        tb.Fonts = null;
+        doc.InvalidateFontsAndLocalization();
+        doc.PrepareFontsAndLocalizationIfNeeded(fonts, null);
+        Assert.Same(fonts, tb.Fonts);
     }
 }

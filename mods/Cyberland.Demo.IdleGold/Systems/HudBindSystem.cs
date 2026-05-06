@@ -8,6 +8,7 @@ using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.UI.Core;
 using Silk.NET.Maths;
+using System.Linq;
 
 namespace Cyberland.Demo.IdleGold.Systems;
 
@@ -34,11 +35,42 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
 
     private static readonly Vector4D<float> BtnCaptionBright = new(0.97f, 0.98f, 1f, 1f);
     private static readonly Vector4D<float> BtnCaptionMuted = new(0.62f, 0.66f, 0.74f, 0.92f);
+    private static readonly TextStyle DetailUnlockedStyle = new(BuiltinFonts.UiSans, 14f, DetailUnlockedColor);
+    private static readonly TextStyle DetailLockedStyle = new(BuiltinFonts.UiSans, 14f, DetailLockedColor);
+    private static readonly TextStyle ButtonCaptionBrightStyle = new(BuiltinFonts.UiSans, 14f, BtnCaptionBright, Bold: true);
+    private static readonly TextStyle ButtonCaptionMutedStyle = new(BuiltinFonts.UiSans, 14f, BtnCaptionMuted, Bold: true);
 
     private readonly DocumentRefs _refs;
     private readonly LocalizationManager _loc;
     private readonly GameHostServices _host;
     private readonly FpsMovingAverage _fpsAverage = new(FpsMovingAverage.DefaultWindowSeconds);
+
+    /// <summary>Last chrome strings actually assigned — avoids <see cref="UiTextBlock"/> layout invalidation when raw
+    /// wallet/sim values jitter more often than the formatted HUD changes.</summary>
+    private string _lastChromeGoldDisplay = "";
+
+    private string _lastChromeGpsDisplay = "";
+    private int _lastLogRevision = -1;
+
+    private float _fpsHudTimer;
+    private string _lastFpsLabel = "";
+
+    private readonly int[] _lastSourceDetailLevel = Enumerable.Repeat(-1, SourceOrder.Length).ToArray();
+    private readonly bool[] _lastSourceDetailUnlocked = new bool[SourceOrder.Length];
+    private readonly double[] _lastSourceDetailEff = new double[SourceOrder.Length];
+
+    private readonly double[] _lastUnlockCost = Enumerable.Repeat(double.NaN, SourceOrder.Length).ToArray();
+    private readonly bool[] _lastUnlockAffordable = new bool[SourceOrder.Length];
+
+    private readonly double[] _lastLevelCost = Enumerable.Repeat(double.NaN, SourceOrder.Length).ToArray();
+    private readonly bool[] _lastLevelAffordable = new bool[SourceOrder.Length];
+
+    private double _lastStatSummaryRate = double.NaN;
+    private readonly int[] _lastStatRowLevel = Enumerable.Repeat(-1, StatOrder.Length).ToArray();
+    private readonly double[] _lastStatRowMult = Enumerable.Repeat(double.NaN, StatOrder.Length).ToArray();
+
+    private readonly double[] _lastTrainCost = Enumerable.Repeat(double.NaN, StatOrder.Length).ToArray();
+    private readonly bool[] _lastTrainAffordable = new bool[StatOrder.Length];
 
     public HudBindSystem(DocumentRefs refs, LocalizationManager loc, GameHostServices host)
     {
@@ -61,14 +93,24 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
         ref var stats = ref row.Get<Stats>();
         ref var eq = ref row.Get<Equipment>();
 
-        var rate = Economy.TotalGoldPerSecond(ref sources, in stats, in eq);
-        _refs.ChromeGold.Text = $"{wallet.Gold:F2}";
-        _refs.ChromeGold.InvalidateLayout();
-        _refs.ChromeGps.Text = $"{rate:F2} {_loc.Get("idlegold.ui.gold_per_sec")}";
-        _refs.ChromeGps.InvalidateLayout();
+        var globalRate = Economy.TotalGoldPerSecond(ref sources, in stats, in eq);
+
+        var goldDisplay = $"{wallet.Gold:F2}";
+        if (goldDisplay != _lastChromeGoldDisplay)
+        {
+            _lastChromeGoldDisplay = goldDisplay;
+            _refs.ChromeGold.Text = goldDisplay;
+        }
+
+        var gpsDisplay = $"{globalRate:F2} {_loc.Get("idlegold.ui.gold_per_sec")}";
+        if (gpsDisplay != _lastChromeGpsDisplay)
+        {
+            _lastChromeGpsDisplay = gpsDisplay;
+            _refs.ChromeGps.Text = gpsDisplay;
+        }
 
         BindSources(ref wallet, ref sources, ref stats, ref eq);
-        BindStats(ref wallet, ref stats, ref sources, ref eq);
+        BindStats(ref wallet, ref stats, ref sources, ref eq, globalRate);
         BindEquipment(ref wallet, ref eq);
         BindLog(row.World, row.Entity);
 
@@ -76,10 +118,22 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
         {
             var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
             _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
-            var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
+            _fpsHudTimer += deltaSeconds;
+
             ref var hud = ref row.World.Get<BitmapText>(_refs.FpsHudEntity);
-            hud.Content = label;
             hud.Visible = true;
+
+            var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
+            if (_fpsHudTimer >= 0.25f || _lastFpsLabel.Length == 0)
+            {
+                if (_fpsHudTimer >= 0.25f)
+                    _fpsHudTimer = 0f;
+                if (label != _lastFpsLabel)
+                {
+                    _lastFpsLabel = label;
+                    hud.Content = label;
+                }
+            }
         }
     }
 
@@ -91,69 +145,109 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
             var card = _refs.SourceCards[i];
             ref var row = ref GameBalance.Row(ref sources, id);
 
-            card.NameText.Text = _loc.Get(SourceTitleKey(id));
-            card.DescText.Text = _loc.Get(SourceDescKey(id));
+            var name = _loc.Get(SourceTitleKey(id));
+            if (card.NameText.Text != name)
+                card.NameText.Text = name;
+
+            var desc = _loc.Get(SourceDescKey(id));
+            if (card.DescText.Text != desc)
+                card.DescText.Text = desc;
 
             var eff = Economy.EffectiveRate(id, ref sources, in stats, in eq);
-            card.DetailText.Text = row.Unlocked
-                ? $"{_loc.Get("idlegold.ui.level")} {row.Level} · {_loc.Get("idlegold.ui.rate")} {eff:F2}/s"
-                : _loc.Get("idlegold.ui.locked");
-            card.DetailText.DefaultStyle = new TextStyle(
-                BuiltinFonts.UiSans,
-                14f,
-                row.Unlocked ? DetailUnlockedColor : DetailLockedColor);
-            card.DetailText.InvalidateLayout();
+            var detailChanged = _lastSourceDetailLevel[i] != row.Level ||
+                                _lastSourceDetailUnlocked[i] != row.Unlocked ||
+                                Math.Abs(_lastSourceDetailEff[i] - eff) > 1e-9;
+            if (detailChanged)
+            {
+                _lastSourceDetailLevel[i] = row.Level;
+                _lastSourceDetailUnlocked[i] = row.Unlocked;
+                _lastSourceDetailEff[i] = eff;
+                card.DetailText.Text = row.Unlocked
+                    ? $"{_loc.Get("idlegold.ui.level")} {row.Level} · {_loc.Get("idlegold.ui.rate")} {eff:F2}/s"
+                    : _loc.Get("idlegold.ui.locked");
+            }
+
+            var detailStyle = row.Unlocked ? DetailUnlockedStyle : DetailLockedStyle;
+            if (!detailStyle.Equals(card.DetailText.DefaultStyle))
+                card.DetailText.DefaultStyle = detailStyle;
 
             var unlockCost = GameBalance.UnlockCost(id);
             card.UnlockButton.Visible = !row.Unlocked;
             var unlockAffordable = wallet.Gold >= unlockCost && id != SourceId.VillageBeg;
             card.UnlockButton.Interactable = unlockAffordable;
-            card.UnlockCaption.Text.Text =
-                id == SourceId.VillageBeg ? _loc.Get("idlegold.ui.always_on") : $"{_loc.Get("idlegold.ui.unlock")} ({unlockCost:F0})";
-            card.UnlockCaption.Text.DefaultStyle = new TextStyle(
-                BuiltinFonts.UiSans,
-                14f,
-                unlockAffordable ? BtnCaptionBright : BtnCaptionMuted,
-                Bold: true);
-            card.UnlockCaption.Text.InvalidateLayout();
+            var unlockCapChanged = Math.Abs(_lastUnlockCost[i] - unlockCost) > 1e-9 ||
+                                   _lastUnlockAffordable[i] != unlockAffordable;
+            if (unlockCapChanged)
+            {
+                _lastUnlockCost[i] = unlockCost;
+                _lastUnlockAffordable[i] = unlockAffordable;
+                card.UnlockCaption.Text.Text = id == SourceId.VillageBeg
+                    ? _loc.Get("idlegold.ui.always_on")
+                    : $"{_loc.Get("idlegold.ui.unlock")} ({unlockCost:F0})";
+            }
+
+            var unlockStyle = unlockAffordable ? ButtonCaptionBrightStyle : ButtonCaptionMutedStyle;
+            if (!unlockStyle.Equals(card.UnlockCaption.Text.DefaultStyle))
+                card.UnlockCaption.Text.DefaultStyle = unlockStyle;
 
             var levelCost = Economy.LevelUpCost(id, row.Level);
             card.LevelButton.Visible = row.Unlocked;
             var levelAffordable = wallet.Gold >= levelCost;
             card.LevelButton.Interactable = levelAffordable;
-            card.LevelCaption.Text.Text = $"{_loc.Get("idlegold.ui.level_up")} ({levelCost:F0})";
-            card.LevelCaption.Text.DefaultStyle = new TextStyle(
-                BuiltinFonts.UiSans,
-                14f,
-                levelAffordable ? BtnCaptionBright : BtnCaptionMuted,
-                Bold: true);
-            card.LevelCaption.Text.InvalidateLayout();
+            var levelCapChanged = Math.Abs(_lastLevelCost[i] - levelCost) > 1e-9 ||
+                                  _lastLevelAffordable[i] != levelAffordable;
+            if (levelCapChanged)
+            {
+                _lastLevelCost[i] = levelCost;
+                _lastLevelAffordable[i] = levelAffordable;
+                card.LevelCaption.Text.Text = $"{_loc.Get("idlegold.ui.level_up")} ({levelCost:F0})";
+            }
+
+            var levelStyle = levelAffordable ? ButtonCaptionBrightStyle : ButtonCaptionMutedStyle;
+            if (!levelStyle.Equals(card.LevelCaption.Text.DefaultStyle))
+                card.LevelCaption.Text.DefaultStyle = levelStyle;
         }
     }
 
-    private void BindStats(ref Wallet wallet, ref Stats stats, ref Sources sources, ref Equipment eq)
+    private void BindStats(ref Wallet wallet, ref Stats stats, ref Sources sources, ref Equipment eq, double globalRate)
     {
+        var rateMoved = Math.Abs(_lastStatSummaryRate - globalRate) > 1e-9;
         for (var i = 0; i < StatOrder.Length; i++)
         {
             var kind = StatOrder[i];
             var ui = _refs.StatRows[i];
             var level = StatLevel(in stats, kind);
             var mult = Economy.StatMultiplier(kind, in stats);
-            var globalRate = Economy.TotalGoldPerSecond(ref sources, in stats, in eq);
-            ui.Summary.Text =
-                $"{StatTitle(kind)} L{level} · ×{mult:F2} · {_loc.Get("idlegold.ui.total_rate")} {globalRate:F2}/s";
+            var summaryChanged = rateMoved ||
+                                 _lastStatRowLevel[i] != level ||
+                                 Math.Abs(_lastStatRowMult[i] - mult) > 1e-9;
+            if (summaryChanged)
+            {
+                _lastStatRowLevel[i] = level;
+                _lastStatRowMult[i] = mult;
+                ui.Summary.Text =
+                    $"{StatTitle(kind)} L{level} · ×{mult:F2} · {_loc.Get("idlegold.ui.total_rate")} {globalRate:F2}/s";
+            }
 
             var nextLevel = level + 1;
             var cost = Economy.StatPurchaseCost(nextLevel);
             var trainAffordable = wallet.Gold >= cost;
             ui.BuyButton.Interactable = trainAffordable;
-            ui.BuyCaption.Text.Text = $"{_loc.Get("idlegold.ui.train")} ({cost:F0})";
-            ui.BuyCaption.Text.DefaultStyle = new TextStyle(
-                BuiltinFonts.UiSans,
-                14f,
-                trainAffordable ? BtnCaptionBright : BtnCaptionMuted,
-                Bold: true);
+            var trainCapChanged = Math.Abs(_lastTrainCost[i] - cost) > 1e-9 ||
+                                  _lastTrainAffordable[i] != trainAffordable;
+            if (trainCapChanged)
+            {
+                _lastTrainCost[i] = cost;
+                _lastTrainAffordable[i] = trainAffordable;
+                ui.BuyCaption.Text.Text = $"{_loc.Get("idlegold.ui.train")} ({cost:F0})";
+            }
+
+            var trainStyle = trainAffordable ? ButtonCaptionBrightStyle : ButtonCaptionMutedStyle;
+            if (!trainStyle.Equals(ui.BuyCaption.Text.DefaultStyle))
+                ui.BuyCaption.Text.DefaultStyle = trainStyle;
         }
+
+        _lastStatSummaryRate = globalRate;
     }
 
     private string StatTitle(StatKind kind) =>
@@ -183,10 +277,14 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
             var slot = EquipOrder[i];
             var cell = _refs.EquipCells[i];
             var tier = GameBalance.Tier(ref eq, slot);
-            cell.SlotText.Text = SlotTitle(slot);
-            cell.SlotText.InvalidateLayout();
-            cell.TierText.Text = _loc.Get(GameBalance.TierLocalizationKey(tier));
-            cell.TierText.InvalidateLayout();
+            var slotTitle = SlotTitle(slot);
+            if (cell.SlotText.Text != slotTitle)
+                cell.SlotText.Text = slotTitle;
+
+            var tierLine = _loc.Get(GameBalance.TierLocalizationKey(tier));
+            if (cell.TierText.Text != tierLine)
+                cell.TierText.Text = tierLine;
+
             cell.Icon.Tint = TierVisual.Stripe(tier);
 
             var maxed = tier >= GameBalance.TierCount - 1;
@@ -194,14 +292,17 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
             var cost = maxed ? 0d : Economy.SlotUpgradeCost(slot, nextTier);
             var upgradeAffordable = !maxed && wallet.Gold >= cost;
             cell.UpgradeButton.Interactable = upgradeAffordable;
-            cell.UpgradeCaption.Text.Text =
-                maxed ? _loc.Get("idlegold.ui.max_tier") : $"{_loc.Get("idlegold.ui.upgrade")} ({cost:F0})";
-            cell.UpgradeCaption.Text.DefaultStyle = new TextStyle(
-                BuiltinFonts.UiSans,
-                14f,
-                maxed ? BtnCaptionMuted : upgradeAffordable ? BtnCaptionBright : BtnCaptionMuted,
-                Bold: true);
-            cell.UpgradeCaption.Text.InvalidateLayout();
+            var upCap = maxed ? _loc.Get("idlegold.ui.max_tier") : $"{_loc.Get("idlegold.ui.upgrade")} ({cost:F0})";
+            if (cell.UpgradeCaption.Text.Text != upCap)
+                cell.UpgradeCaption.Text.Text = upCap;
+
+            var upStyle = maxed
+                ? ButtonCaptionMutedStyle
+                : upgradeAffordable
+                    ? ButtonCaptionBrightStyle
+                    : ButtonCaptionMutedStyle;
+            if (!upStyle.Equals(cell.UpgradeCaption.Text.DefaultStyle))
+                cell.UpgradeCaption.Text.DefaultStyle = upStyle;
         }
     }
 
@@ -218,6 +319,11 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
 
     private void BindLog(World world, EntityId session)
     {
+        var log = world.Get<EventLog>(session);
+        if (log.ContentRevision == _lastLogRevision)
+            return;
+
+        _lastLogRevision = log.ContentRevision;
         _refs.LogBody.Text = LogBook.BuildText(world, session);
         _refs.LogScroll.ContentOffset = new Vector2D<float>(0f, 1e6f);
     }

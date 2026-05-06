@@ -31,7 +31,7 @@ public sealed class FpsDisplaySystem : ISingletonSystem, ISingletonLateUpdate
     /// <inheritdoc />
     public void OnSingletonLateUpdate(in SingletonEntity hud, float deltaSeconds)
     {
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
 
         var frame = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         _fps.AddFrameDeltaSeconds(frame);

@@ -14,8 +14,20 @@ public class UiScrollView : UiElement
     /// <summary>Hosted content (stack rows inside this panel).</summary>
     public UiPanel Content { get; }
 
+    private Vector2D<float> _contentOffset;
+
     /// <summary>Vertical scroll offset in pixels (+Y down content moves up when positive).</summary>
-    public Vector2D<float> ContentOffset { get; set; }
+    public Vector2D<float> ContentOffset
+    {
+        get => _contentOffset;
+        set
+        {
+            if (_contentOffset == value)
+                return;
+            _contentOffset = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>Pixels per wheel notch applied along Y.</summary>
     public float WheelScrollPixels { get; set; } = 32f;
@@ -34,8 +46,13 @@ public class UiScrollView : UiElement
     /// <summary>
     /// Applies Silk wheel delta Y before the next layout pass (positive delta scrolls content down / reveals lower rows).
     /// </summary>
-    public void ApplyWheel(float wheelY) =>
-        ContentOffset = new Vector2D<float>(ContentOffset.X, ContentOffset.Y - wheelY * WheelScrollPixels);
+    public void ApplyWheel(float wheelY)
+    {
+        var next = new Vector2D<float>(ContentOffset.X, ContentOffset.Y - wheelY * WheelScrollPixels);
+        if (next == ContentOffset)
+            return;
+        ContentOffset = next;
+    }
 
     /// <summary>Clamps <see cref="ContentOffset"/> after measurement so content cannot scroll past its extents.</summary>
     public void ClampContentOffset()

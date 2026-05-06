@@ -511,6 +511,30 @@ public sealed class SceneSystemTests
     }
 
     [Fact]
+    public void SpriteRenderSystem_parallel_partition_path_submits_all_visible_sprites()
+    {
+        var renderer = new RecordingRenderer();
+        var world = new World();
+        const int spriteCount = 96;
+        for (var i = 0; i < spriteCount; i++)
+        {
+            var entity = world.CreateEntity();
+            world.GetOrAdd<Transform>(entity) = MakeTransform(
+                localPos: new Vector2D<float>(i, i),
+                worldPos: new Vector2D<float>(i, i));
+            ref var sprite = ref world.GetOrAdd<Sprite>(entity);
+            sprite = Sprite.DefaultWhiteUnlit(2, 1, new Vector2D<float>(1f, 1f));
+            sprite.Visible = true;
+        }
+
+        var system = new SpriteRenderSystem(Host(renderer));
+        StartEcs(system, world);
+        system.OnParallelLateUpdate(world.QueryChunks(SystemQuerySpec.All<Sprite, Transform>()), 0.016f, ParOpts());
+
+        Assert.Equal(spriteCount, renderer.Sprites.Count);
+    }
+
+    [Fact]
     public void SpriteAnimationSystem_noop_when_no_animation_chunks()
     {
         var w = new World();
@@ -571,6 +595,36 @@ public sealed class SceneSystemTests
     }
 
     [Fact]
+    public void TilemapRenderSystem_flushes_in_chunks_without_dropping_visible_tiles()
+    {
+        var r = new RecordingRenderer();
+        var tm = new TilemapDataStore();
+        var w = new World();
+        var map = w.CreateEntity();
+        const int cols = 80;
+        const int rows = 30;
+        var dense = new int[cols * rows];
+        Array.Fill(dense, 1);
+        tm.Register(map, dense, cols, rows);
+        w.GetOrAdd<Transform>(map) = Transform.Identity;
+        w.GetOrAdd<Tilemap>(map) = new Tilemap
+        {
+            TileWidth = 16f,
+            TileHeight = 16f,
+            AtlasAlbedoTextureId = 2,
+            Layer = 0,
+            SortKey = 0f,
+            NonEmptyTileMinIndex = 1
+        };
+
+        var host = Host(r, tm);
+        host.CameraRuntimeState = default; // disable view culling for deterministic full-map submission assertions
+        var tmSpec = SystemQuerySpec.All<Tilemap, Transform>();
+        new TilemapRenderSystem(host).OnParallelLateUpdate(w.QueryChunks(tmSpec), 0f, ParOpts());
+        Assert.Equal(cols * rows, r.Sprites.Count);
+    }
+
+    [Fact]
     public void ParticleSimulation_and_render_round_trip()
     {
         var r = new RecordingRenderer();
@@ -601,6 +655,112 @@ public sealed class SceneSystemTests
         StartEcs(pr, w);
         pr.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
         Assert.NotEmpty(r.Sprites);
+    }
+
+    [Fact]
+    public void ParticleRenderSystem_caps_submissions_per_emitter_deterministically()
+    {
+        var r = new RecordingRenderer();
+        var host = Host(r);
+        host.CameraRuntimeState = default;
+        var w = new World();
+        var emitterId = w.CreateEntity();
+        w.GetOrAdd<Transform>(emitterId) = Transform.Identity;
+        const int runtimeCount = 2500;
+        var px = new float[runtimeCount];
+        var py = new float[runtimeCount];
+        for (var i = 0; i < runtimeCount; i++)
+        {
+            px[i] = i * 0.1f;
+            py[i] = 0f;
+        }
+
+        w.GetOrAdd<ParticleEmitter>(emitterId) = new ParticleEmitter
+        {
+            RuntimePx = px,
+            RuntimePy = py,
+            RuntimeVx = new float[runtimeCount],
+            RuntimeVy = new float[runtimeCount],
+            RuntimeLife = new float[runtimeCount],
+            RuntimeCount = runtimeCount,
+            HalfExtent = 2f,
+            Layer = 0,
+            SortKey = 10f,
+            AlbedoTextureId = 2
+        };
+
+        var sys = new ParticleRenderSystem(host);
+        StartEcs(sys, w);
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
+        Assert.Equal(2048, r.Sprites.Count);
+        Assert.Equal(10f, r.Sprites[0].SortKey);
+        Assert.Equal(10f + 2047 * 0.001f, r.Sprites[^1].SortKey, 3);
+    }
+
+    [Fact]
+    public void ParticleRenderSystem_skips_particles_outside_active_camera()
+    {
+        var r = new RecordingRenderer();
+        var host = Host(r);
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(new Vector2D<int>(64, 64));
+        var w = new World();
+        var emitterId = w.CreateEntity();
+        w.GetOrAdd<Transform>(emitterId) = MakeTransform(
+            localPos: new Vector2D<float>(5000f, 5000f),
+            worldPos: new Vector2D<float>(5000f, 5000f));
+        w.GetOrAdd<ParticleEmitter>(emitterId) = new ParticleEmitter
+        {
+            RuntimePx = [0f, 2f, 4f],
+            RuntimePy = [0f, 2f, 4f],
+            RuntimeVx = [0f, 0f, 0f],
+            RuntimeVy = [0f, 0f, 0f],
+            RuntimeLife = [1f, 1f, 1f],
+            RuntimeCount = 3,
+            HalfExtent = 2f,
+            Layer = 0,
+            SortKey = 0f,
+            AlbedoTextureId = 2
+        };
+
+        var sys = new ParticleRenderSystem(host);
+        StartEcs(sys, w);
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
+        Assert.Empty(r.Sprites);
+    }
+
+    [Fact]
+    public void ParticleRenderSystem_does_not_cull_when_camera_viewport_is_invalid_size()
+    {
+        var r = new RecordingRenderer();
+        var host = Host(r);
+        host.CameraRuntimeState = new CameraRuntimeState(
+            ViewportSizeWorld: new Vector2D<int>(0, 0),
+            PositionWorld: default,
+            RotationRadians: 0f,
+            BackgroundColor: default,
+            Priority: 0,
+            Valid: true);
+        var w = new World();
+        var emitterId = w.CreateEntity();
+        w.GetOrAdd<Transform>(emitterId) = Transform.Identity;
+        w.GetOrAdd<ParticleEmitter>(emitterId) = new ParticleEmitter
+        {
+            RuntimePx = [0f],
+            RuntimePy = [0f],
+            RuntimeVx = [0f],
+            RuntimeVy = [0f],
+            RuntimeLife = [1f],
+            RuntimeCount = 1,
+            HalfExtent = 2f,
+            Layer = 0,
+            SortKey = 0f,
+            AlbedoTextureId = 2
+        };
+
+        var sys = new ParticleRenderSystem(host);
+        StartEcs(sys, w);
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<ParticleEmitter, Transform>()), 0f, ParOpts());
+        Assert.Single(r.Sprites);
     }
 
     [Fact]

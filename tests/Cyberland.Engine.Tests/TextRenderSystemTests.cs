@@ -17,7 +17,7 @@ public sealed class TextRenderSystemTests
         SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();
 
     [Fact]
-    public void TextRenderSystem_throws_when_renderer_null()
+    public void TextRenderSystem_runs_with_assigned_renderer()
     {
         var host = new GameHostServices() { Renderer = new RecordingRenderer(), LocalizedContent = null };
         var world = new World();
@@ -193,6 +193,30 @@ public sealed class TextRenderSystemTests
     }
 
     [Fact]
+    public void TextRenderSystem_submits_text_glyph_queue_when_sprite_mirroring_disabled()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "GlyphPath";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        var q = world.QueryChunks(TextRowQuery);
+        var sys = new TextRenderSystem(host);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.TextGlyphs);
+        Assert.Empty(r.MirroredTextSprites);
+    }
+
+    [Fact]
     public void TextRenderSystem_skips_when_localization_key_resolves_to_empty()
     {
         var r = new RecordingRenderer();
@@ -276,6 +300,95 @@ public sealed class TextRenderSystemTests
     }
 
     [Fact]
+    public void TextRenderSystem_viewport_decorations_apply_viewport_clip_rect()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.ActiveCameraViewportSize = new Vector2D<int>(320, 180);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var transform = ref world.Get<Transform>(e);
+        transform.WorldPosition = new Vector2D<float>(12f, 16f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "Clip me";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.Sprites);
+        Assert.All(r.Sprites, s => Assert.True(s.ViewportClipEnabled));
+        Assert.All(r.Sprites, s =>
+        {
+            Assert.Equal(0f, s.ViewportClipRect.X);
+            Assert.Equal(0f, s.ViewportClipRect.Y);
+            Assert.Equal(320f, s.ViewportClipRect.Width);
+            Assert.Equal(180f, s.ViewportClipRect.Height);
+        });
+    }
+
+    [Fact]
+    public void TextRenderSystem_swapchain_decorations_use_swapchain_clip_rect()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.SwapchainPixelSize = new Vector2D<int>(1024, 576);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "Swap clip";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.SwapchainSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Strikethrough: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.Sprites);
+        Assert.All(r.Sprites, s => Assert.True(s.ViewportClipEnabled));
+        Assert.All(r.Sprites, s =>
+        {
+            Assert.Equal(1024f, s.ViewportClipRect.Width);
+            Assert.Equal(576f, s.ViewportClipRect.Height);
+        });
+    }
+
+    [Fact]
+    public void TextRenderSystem_viewport_decorations_skip_clip_when_viewport_size_is_invalid()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.ActiveCameraViewportSize = new Vector2D<int>(0, 0);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "No clip";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.Sprites);
+        Assert.All(r.Sprites, s => Assert.False(s.ViewportClipEnabled));
+    }
+
+    [Fact]
     public void TextRenderSystem_second_frame_unchanged_uses_glyph_cache_replay()
     {
         var r = new RecordingRenderer();
@@ -356,7 +469,7 @@ public sealed class TextRenderSystemTests
     }
 
     [Fact]
-    public void TextRenderSystem_throws_when_renderer_becomes_null()
+    public void TextRenderSystem_continues_when_renderer_instance_changes()
     {
         var r = new RecordingRenderer();
         var host = new GameHostServices() { Renderer = r, LocalizedContent = null };

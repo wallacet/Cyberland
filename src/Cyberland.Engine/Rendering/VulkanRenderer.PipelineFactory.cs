@@ -32,14 +32,16 @@ public sealed unsafe partial class VulkanRenderer
             VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeBloomUpsample);
             VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeBloomDownsample);
             VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeBloomExtract);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_r._vk!, _r._device, ref _r._pipeTextMsdf);
 
             VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plComposite);
-            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plSpriteEmissive);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plSpriteTwoTexture);
             VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomGaussian);
             VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomCopy);
             VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomUpsample);
             VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomDownsample);
             VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plBloomExtract);
+            VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_r._vk!, _r._device, ref _r._plTextMsdf);
 
             _r.DestroyDeferredShaderModules();
 
@@ -52,6 +54,8 @@ public sealed unsafe partial class VulkanRenderer
             _r.DestroyShaderModule2(ref _r._modVertComposite);
             _r.DestroyShaderModule2(ref _r._modFragEmissive);
             _r.DestroyShaderModule2(ref _r._modVertSprite);
+            _r.DestroyShaderModule2(ref _r._modFragTextMsdf);
+            _r.DestroyShaderModule2(ref _r._modVertTextMsdf);
         }
     }
 }

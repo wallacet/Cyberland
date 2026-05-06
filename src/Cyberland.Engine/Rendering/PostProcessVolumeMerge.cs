@@ -5,7 +5,8 @@ namespace Cyberland.Engine.Rendering;
 
 /// <summary>
 /// Merges global post settings with the submitted post volume whose oriented box contains the active camera's
-/// world position. Higher <see cref="PostProcessVolume.Priority"/> wins on overlap; ties break by submit order.
+/// world position. Higher <see cref="PostProcessVolume.Priority"/> wins on overlap; ties keep the first submitted
+/// volume (stable first-wins).
 /// </summary>
 /// <remarks>
 /// Volumes only apply when the camera's world position is inside them, per design goal: "post volumes only apply
@@ -43,7 +44,7 @@ public static class PostProcessVolumeMerge
                     cameraPositionWorld))
                 continue;
 
-            if (v.Priority < bestPri)
+            if (bestIdx >= 0 && v.Priority <= bestPri)
                 continue;
 
             bestPri = v.Priority;

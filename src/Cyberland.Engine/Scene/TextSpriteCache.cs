@@ -5,8 +5,8 @@ using Silk.NET.Maths;
 namespace Cyberland.Engine.Scene;
 
 /// <summary>
-/// CPU cache of <see cref="SpriteDrawRequest"/> quads for one <see cref="BitmapText"/> row, filled by
-/// <see cref="Systems.TextRuntimeBuilder"/> immediately before <see cref="Rendering.IRenderer.SubmitSprites"/> in
+/// CPU cache of <see cref="TextGlyphDrawRequest"/> entries for one <see cref="BitmapText"/> row, filled by
+/// <see cref="Systems.TextRuntimeBuilder"/> immediately before <see cref="Rendering.IRenderer.SubmitTextGlyphs"/> in
 /// <see cref="Systems.TextRenderSystem"/>.
 /// </summary>
 /// <remarks>
@@ -28,7 +28,7 @@ public struct TextSpriteCache : IComponent
     /// Only indices <c>[0 .. GlyphCount)</c> are valid after a successful prepare; after <see cref="Systems.TextRuntimeBuilder.DiscardGlyphCache"/>,
     /// this may be <c>null</c> until the next layout.
     /// </summary>
-    public SpriteDrawRequest[]? CachedGlyphs;
+    public TextGlyphDrawRequest[]? CachedGlyphs;
 
     /// <summary>Number of valid entries in <see cref="CachedGlyphs"/> for the current cached run.</summary>
     public int GlyphCount;

@@ -1,4 +1,5 @@
 using Silk.NET.Vulkan;
+using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Rendering;
 
@@ -184,8 +185,15 @@ public sealed unsafe partial class VulkanRenderer
 
         public void CreateBloomHalfResTargets()
         {
-            _r._bloomHalfW = Math.Max(_r._swapchainExtent.Width / 2, 1u);
-            _r._bloomHalfH = Math.Max(_r._swapchainExtent.Height / 2, 1u);
+            var swapchain = new Vector2D<int>((int)_r._swapchainExtent.Width, (int)_r._swapchainExtent.Height);
+            var viewport = _r.ActiveCameraViewportSize;
+            var physical = CameraProjection.ComputePhysicalViewport(viewport, swapchain);
+            var bloomBudgetW = Math.Max(physical.SizePixels.X, 1);
+            var bloomBudgetH = Math.Max(physical.SizePixels.Y, 1);
+            var scaledW = (int)MathF.Round(bloomBudgetW * _r._bloomResolutionScale);
+            var scaledH = (int)MathF.Round(bloomBudgetH * _r._bloomResolutionScale);
+            _r._bloomHalfW = (uint)Math.Max(scaledW / 2, 1);
+            _r._bloomHalfH = (uint)Math.Max(scaledH / 2, 1);
 
             CreateDeviceLocalImage(_r._bloomHalfW, _r._bloomHalfH, DeferredRenderingConstants.HdrFormat,
                 ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit,

@@ -1,6 +1,6 @@
 // BitmapText pipeline (CPU): resolve string → layout glyph quads into TextSpriteCache → TextRenderSystem submits the same
-// frame. There is no "fingerprint fast path" that skips layout: skipping rebuilds was a past source of stale GlyphCount
-// / resolved-string skew. See TextBuildFingerprint remarks — the name is historical.
+// frame. Fast-path reuse is allowed only when all layout-driving inputs, baseline, and cached glyph buffers still match.
+// Any mismatch falls back to full rebuild to avoid stale GlyphCount / resolved-string skew bugs.
 using System;
 using System.Diagnostics;
 using Cyberland.Engine.Hosting;
@@ -53,6 +53,9 @@ internal static class TextRuntimeBuilder
         // so HUD drift does not thrash the backing array every frame — BuildGlyphSprites still runs with the new baseline.
         if (!ContentPipelineInputsMatchLastPrepare(in fingerprint, in bt, resolved, vpW, vpH))
             DiscardPreparedRow(ref cache, ref fingerprint);
+
+        if (CanReusePreparedGlyphs(in fingerprint, in cache, in bt, resolved, baselineAuthored, vpW, vpH))
+            return true;
 
         // Fingerprint must reflect a completed glyph fill — never expose new ResolvedCharCount/hash alongside a prior
         // GlyphCount if BuildGlyphSprites were ever to fail mid-flight (future-proof ordering).
@@ -133,6 +136,30 @@ internal static class TextRuntimeBuilder
             return false;
         return true;
     }
+
+    private static bool CanReusePreparedGlyphs(
+        in TextBuildFingerprint fingerprint,
+        in TextSpriteCache cache,
+        in BitmapText text,
+        string resolved,
+        Vector2D<float> baselineAuthored,
+        int vpW,
+        int vpH)
+    {
+        if (!ContentPipelineInputsMatchLastPrepare(in fingerprint, in text, resolved, vpW, vpH))
+            return false;
+        if (!BaselineMatches(in fingerprint, baselineAuthored))
+            return false;
+        if (cache.CachedGlyphs is null)
+            return false;
+        if (cache.GlyphCount < 0 || cache.GlyphCount > resolved.Length)
+            return false;
+        return true;
+    }
+
+    private static bool BaselineMatches(in TextBuildFingerprint fingerprint, in Vector2D<float> baselineAuthored) =>
+        fingerprint.BaselineWorldX == baselineAuthored.X &&
+        fingerprint.BaselineWorldY == baselineAuthored.Y;
 
     private static ulong HashResolvedContent64(string value)
     {
@@ -221,19 +248,19 @@ internal static class TextRuntimeBuilder
     {
         var cap = Math.Max(1, resolved.Length);
         if (cache.CachedGlyphs is null || cache.CachedGlyphs.Length < cap)
-            cache.CachedGlyphs = new SpriteDrawRequest[cap];
+            cache.CachedGlyphs = new TextGlyphDrawRequest[cap];
         else if (cache.CachedGlyphs.Length > cap * 2)
         {
-            // Shrank a lot: drop the large backing array so the tail cannot hold addressable stale SpriteDrawRequest
+            // Shrank a lot: drop the large backing array so the tail cannot hold addressable stale cached glyph data
             // values (long tutorial string → short line).
-            cache.CachedGlyphs = new SpriteDrawRequest[cap];
+            cache.CachedGlyphs = new TextGlyphDrawRequest[cap];
         }
 
         cache.CachedGlyphs.AsSpan(0, cap).Clear();
 
         var fillDest = cache.CachedGlyphs.AsSpan(0, cap);
         Debug.Assert(fillDest.Length == resolved.Length, "BitmapText glyph buffer must match resolved UTF-16 length.");
-        var n = TextRenderer.FillGlyphRunSprites(
+        var n = TextRenderer.FillGlyphRunGlyphs(
             renderer,
             host.Fonts,
             host.TextGlyphCache,
@@ -247,7 +274,7 @@ internal static class TextRuntimeBuilder
             space);
 
         // Invariant: one quad per Rune at most; rune count never exceeds UTF-16 length, so n <= cap == resolved.Length.
-        Debug.Assert(n <= cap, "FillGlyphRunSprites must not outgrow the resolved string capacity.");
+        Debug.Assert(n <= cap, "FillGlyphRunGlyphs must not outgrow the resolved string capacity.");
         cache.GlyphCount = n;
         cache.PenAfter = penAfter;
 

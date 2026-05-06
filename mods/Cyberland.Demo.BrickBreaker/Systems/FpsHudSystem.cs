@@ -25,7 +25,7 @@ public sealed class FpsHudSystem : ISingletonSystem, ISingletonLateUpdate
 
     public void OnSingletonLateUpdate(in SingletonEntity fpsRow, float deltaSeconds)
     {
-        var r = _host.Renderer!;
+        var r = _host.Renderer;
         var frame = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
         _fps.AddFrameDeltaSeconds(frame);
         var label = _fps.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";

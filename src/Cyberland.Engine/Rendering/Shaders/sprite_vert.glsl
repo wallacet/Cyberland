@@ -1,24 +1,30 @@
 #version 450
+// Instanced sprite quad: per-vertex quad inPos; per-instance transform and material in locations 1–5.
+// Push holds only the letterboxed viewport rect (swapchain pixels); matches dynamic VkViewport scissor.
 layout(push_constant) uniform Pc {
-    vec4 centerHalf;
-    vec4 uvRect;
-    vec4 colorAlpha;
-    vec4 emissive;
     vec4 viewportPhysical;
-    vec4 screenRot;
-    int mode;
-    int useEmissiveMap;
 } pc;
 layout(location = 0) in vec2 inPos;
+layout(location = 1) in vec4 inCenterHalf;
+layout(location = 2) in vec4 inUvRect;
+layout(location = 3) in vec4 inColorAlpha;
+layout(location = 4) in vec4 inEmissive;
+layout(location = 5) in vec4 inRotAndFlags;
 layout(location = 0) out vec2 vUv;
+layout(location = 1) out vec4 vColorAlpha;
+layout(location = 2) out vec4 vEmissive;
+layout(location = 3) flat out int vUseEmissiveMap;
 void main() {
-    float c = cos(pc.screenRot.z);
-    float s = sin(pc.screenRot.z);
-    vec2 lh = inPos * pc.centerHalf.zw;
-    vec2 rot = mat2(c, -s, s, c) * lh;
-    vec2 px = pc.centerHalf.xy + rot;
-    vUv = mix(pc.uvRect.xy, pc.uvRect.zw, inPos * 0.5 + 0.5);
-    // Clip space must match the dynamic VkViewport (letterboxed physical rect), not the full swapchain extent.
+    float rot = inRotAndFlags.z;
+    float c = cos(rot);
+    float s = sin(rot);
+    vec2 lh = inPos * inCenterHalf.zw;
+    vec2 rotLh = mat2(c, -s, s, c) * lh;
+    vec2 px = inCenterHalf.xy + rotLh;
+    vUv = mix(inUvRect.xy, inUvRect.zw, inPos * 0.5 + 0.5);
+    vColorAlpha = inColorAlpha;
+    vEmissive = inEmissive;
+    vUseEmissiveMap = int(inRotAndFlags.w + 0.5);
     float physW = max(pc.viewportPhysical.z, 1.0);
     float physH = max(pc.viewportPhysical.w, 1.0);
     float ndcX = (px.x - pc.viewportPhysical.x) / physW * 2.0 - 1.0;
