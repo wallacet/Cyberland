@@ -18,7 +18,8 @@ public class UiHorizontalStack : UiElement
     protected override Vector2D<float> MeasureCore(in UiSizeConstraints constraints)
     {
         var innerMaxW = constraints.MaxWidth - Padding.Horizontal - Margin.Horizontal;
-        var innerMaxH = constraints.MaxHeight - Padding.Vertical - Margin.Vertical;
+        var innerMaxH = ClampInnerMaxHeightForBand(this,
+            constraints.MaxHeight - Padding.Vertical - Margin.Vertical);
 
         float sumW = 0f;
         float maxCross = 0f;

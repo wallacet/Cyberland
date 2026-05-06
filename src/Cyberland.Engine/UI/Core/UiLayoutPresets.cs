@@ -19,6 +19,21 @@ public static class UiLayoutPresets
         element.StretchLeft = element.StretchRight = element.StretchTop = element.StretchBottom = 0f;
     }
 
+    /// <summary>
+    /// Full width along the top edge; border height follows the laid-out slot (intrinsic stack height), not
+    /// <see cref="UiElement.SizeDelta"/>. Use for shells that must stretch horizontally without a fixed pixel band.
+    /// </summary>
+    public static void StretchWidthAutoHeight(UiElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        element.AnchorMin = new Vector2D<float>(0f, 0f);
+        element.AnchorMax = new Vector2D<float>(1f, 0f);
+        element.Pivot = new Vector2D<float>(0f, 0f);
+        element.AnchoredPosition = default;
+        element.SizeDelta = default;
+        element.StretchLeft = element.StretchRight = element.StretchTop = element.StretchBottom = 0f;
+    }
+
     /// <summary>Full width along the top edge; height comes from <paramref name="height"/>.</summary>
     public static void TopStretch(UiElement element, float height)
     {

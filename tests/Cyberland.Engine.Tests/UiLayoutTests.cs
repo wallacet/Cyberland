@@ -1,3 +1,5 @@
+using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
 using Cyberland.Engine.UI.Layout;
 using Silk.NET.Maths;
@@ -32,6 +34,27 @@ public sealed class UiLayoutTests
 
         Assert.Equal(0f, a.ComputedBounds.Y);
         Assert.Equal(10f + 2f, b.ComputedBounds.Y);
+    }
+
+    [Fact]
+    public void UiHorizontalStack_TopStretch_nested_column_fills_row_slot_for_text_and_hits()
+    {
+        var row = new UiHorizontalStack { Spacing = 4f, CrossAlignment = UiCrossAlignment.Stretch };
+        UiLayoutPresets.StretchAll(row);
+        var stripe = row.AddChild(new UiElement());
+        UiLayoutPresets.TopLeftFixed(stripe, 6f, 40f);
+        var titles = row.AddChild(new UiVerticalStack());
+        UiLayoutPresets.TopStretch(titles, 40f);
+        var name = titles.AddChild(new UiElement());
+        UiLayoutPresets.TopStretch(name, 14f);
+        var desc = titles.AddChild(new UiElement());
+        UiLayoutPresets.TopStretch(desc, 12f);
+
+        row.Measure(UiSizeConstraints.Loose(400f, 50f));
+        row.Arrange(new UiRect(0f, 0f, 400f, 50f));
+
+        Assert.True(titles.ComputedBounds.Width > 64f, "nested column should map stack slot width, not 0");
+        Assert.True(titles.ComputedBounds.Height > 1f);
     }
 
     [Fact]
@@ -199,6 +222,33 @@ public sealed class UiLayoutTests
         row.Measure(UiSizeConstraints.Loose(40f, 40f));
         row.Arrange(new UiRect(0f, 0f, 40f, 40f));
         Assert.Equal(default(UiRect), row.ComputedBounds);
+    }
+
+    [Fact]
+    public void UiHorizontalStack_TopStretch_clamps_cross_axis_when_fixed_button_contains_stretch_all_label()
+    {
+        var nav = new UiHorizontalStack { Spacing = 8f };
+        UiLayoutPresets.TopStretch(nav, 38f);
+
+        var btn = new UiButton();
+        UiLayoutPresets.TopLeftFixed(btn, 148f, 34f);
+        var lab = new UiLabel();
+        UiLayoutPresets.StretchAll(lab);
+        lab.Text.Text = "Gather";
+        lab.Text.Fonts = Fonts();
+        btn.AddChild(lab);
+        nav.AddChild(btn);
+
+        nav.Measure(UiSizeConstraints.Loose(800f, 600f));
+
+        Assert.InRange(nav.MeasuredSize.Y, 34f, 42f);
+    }
+
+    private static FontLibrary Fonts()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        return lib;
     }
 
     [Fact]

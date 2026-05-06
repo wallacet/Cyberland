@@ -99,7 +99,8 @@ public sealed class UiControlsTests
         doc.Root.AddChild(img);
         doc.MeasureArrange(new Vector2D<float>(120f, 120f));
 
-        doc.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 300f);
+        var rootClip = new UiRect(0f, 0f, 120f, 120f);
+        doc.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 300f, rootClip);
         Assert.Single(renderer.Sprites);
     }
 
@@ -123,7 +124,7 @@ public sealed class UiControlsTests
         doc.Root.AddChild(transparent);
 
         doc.MeasureArrange(new Vector2D<float>(120f, 60f));
-        doc.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 0f);
+        doc.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 0f, new UiRect(0f, 0f, 120f, 60f));
         Assert.Empty(renderer.Sprites);
     }
 
@@ -132,6 +133,63 @@ public sealed class UiControlsTests
     {
         var label = new UiLabel();
         Assert.Same(label.Children[0], label.Text);
+    }
+
+    [Fact]
+    public void UiPanel_DrawSelfVisuals_skips_when_intersected_viewport_clip_empty()
+    {
+        var renderer = new RecordingRenderer();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var cache = new TextGlyphCache();
+
+        var panel = new UiPanel { BackgroundColor = new Vector4D<float>(1f, 1f, 1f, 1f) };
+        UiLayoutPresets.TopLeftFixed(panel, 80f, 40f);
+        panel.Measure(UiSizeConstraints.Loose(300f, 300f));
+        panel.Arrange(new UiRect(10f, 10f, 300f, 300f));
+
+        var disjointClip = new UiRect(0f, 500f, 200f, 80f);
+        panel.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 0f, disjointClip);
+        Assert.Empty(renderer.Sprites);
+    }
+
+    [Fact]
+    public void UiImage_DrawSelfVisuals_skips_when_intersected_viewport_clip_empty()
+    {
+        var renderer = new RecordingRenderer();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var cache = new TextGlyphCache();
+
+        var img = new UiImage { SourceTextureId = renderer.WhiteTextureId, Tint = new Vector4D<float>(1f, 1f, 1f, 1f) };
+        UiLayoutPresets.TopLeftFixed(img, 40f, 40f);
+        img.Measure(UiSizeConstraints.Loose(200f, 200f));
+        img.Arrange(new UiRect(5f, 5f, 200f, 200f));
+
+        img.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 0f, new UiRect(0f, 600f, 100f, 100f));
+        Assert.Empty(renderer.Sprites);
+    }
+
+    [Fact]
+    public void UiScrollView_DrawVisuals_skips_when_invisible()
+    {
+        var renderer = new RecordingRenderer();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var cache = new TextGlyphCache();
+
+        var scroll = new UiScrollView { Visible = false };
+        UiLayoutPresets.StretchAll(scroll);
+        var inner = new UiPanel { BackgroundColor = new Vector4D<float>(1f, 0f, 0f, 1f) };
+        UiLayoutPresets.TopStretch(inner, 400f);
+        scroll.Content.AddChild(inner);
+
+        var doc = new UiDocument();
+        doc.Root.AddChild(scroll);
+        doc.MeasureArrange(new Vector2D<float>(100f, 200f));
+
+        scroll.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 0f, new UiRect(0f, 0f, 100f, 200f));
+        Assert.Empty(renderer.Sprites);
     }
 
     [Fact]
@@ -146,7 +204,7 @@ public sealed class UiControlsTests
         UiLayoutPresets.TopLeftFixed(e, 50f, 20f);
         e.Measure(UiSizeConstraints.Loose(100f, 100f));
         e.Arrange(new UiRect(0f, 0f, 100f, 100f));
-        e.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 0f);
+        e.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 0f, new UiRect(0f, 0f, 100f, 100f));
         Assert.Empty(renderer.Sprites);
     }
 

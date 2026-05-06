@@ -49,12 +49,19 @@ public sealed class UiDocument
     /// <summary>
     /// Submits retained visuals (panels, images, text) using the last <c>MeasureArrange</c> results.
     /// </summary>
-    public void DrawVisuals(IRenderer renderer, FontLibrary fonts, TextGlyphCache cache, CoordinateSpace space, float sortKeyBase)
+    /// <param name="renderer">Destination renderer.</param>
+    /// <param name="fonts">Font library for text measurement/submission.</param>
+    /// <param name="cache">Glyph cache shared with the frame pipeline.</param>
+    /// <param name="space">Coordinate space for submitted draws.</param>
+    /// <param name="sortKeyBase">Base HUD sort key for this document.</param>
+    /// <param name="rootClip">Document-space clip, normally the arranged root rectangle (e.g. full viewport).</param>
+    public void DrawVisuals(IRenderer renderer, FontLibrary fonts, TextGlyphCache cache, CoordinateSpace space,
+        float sortKeyBase, in UiRect rootClip)
     {
         ArgumentNullException.ThrowIfNull(renderer);
         ArgumentNullException.ThrowIfNull(fonts);
         ArgumentNullException.ThrowIfNull(cache);
-        Root.DrawVisuals(renderer, fonts, cache, space, sortKeyBase);
+        Root.DrawVisuals(renderer, fonts, cache, space, sortKeyBase, rootClip);
     }
 
     /// <inheritdoc cref="UiElement.HitTest"/>

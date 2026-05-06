@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering.Text;
@@ -15,6 +16,22 @@ public sealed class UiTextBlockTests
         var lib = new FontLibrary();
         BuiltinFonts.AddTo(lib);
         return (lib, new TextGlyphCache());
+    }
+
+    [Fact]
+    public void UiTextBlock_TopLeftFixed_measures_at_least_SizeDelta_for_horizontal_stack_spacing()
+    {
+        var (fonts, _) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "Hi",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)),
+            FitMode = UiTextFitMode.None
+        };
+        UiLayoutPresets.TopLeftFixed(block, 200f, 22f);
+        block.Measure(UiSizeConstraints.Loose(400f, 80f));
+        Assert.True(block.MeasuredSize.X >= 199f);
     }
 
     [Fact]
@@ -143,6 +160,40 @@ public sealed class UiTextBlockTests
     }
 
     [Fact]
+    public void UiTextBlock_TopStretch_band_reports_fixed_height_even_when_intrinsic_text_is_taller()
+    {
+        var (fonts, _) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "Line one\nLine two\nLine three\nLine four",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        UiLayoutPresets.TopStretch(block, 28f);
+        block.Measure(UiSizeConstraints.Loose(200f, 500f));
+        Assert.Equal(28f, block.MeasuredSize.Y, 0.01f);
+    }
+
+    [Fact]
+    public void UiTextBlock_stretch_all_unbounded_main_axis_measures_intrinsic_size()
+    {
+        var (fonts, _) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "Tab",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        UiLayoutPresets.StretchAll(block);
+        block.Measure(UiSizeConstraints.Loose(float.PositiveInfinity, 40f));
+        Assert.True(float.IsFinite(block.MeasuredSize.X) && block.MeasuredSize.X > 1f);
+        Assert.True(float.IsFinite(block.MeasuredSize.Y) && block.MeasuredSize.Y > 1f);
+
+        block.Arrange(new UiRect(0f, 0f, 120f, 40f));
+        Assert.True(float.IsFinite(block.ComputedBounds.X) && float.IsFinite(block.ComputedBounds.Width));
+    }
+
+    [Fact]
     public void UiTextBlock_measure_cache_hit_then_InvalidateLayout_still_consistent()
     {
         var (fonts, _) = TestFonts();
@@ -211,6 +262,74 @@ public sealed class UiTextBlockTests
     }
 
     [Fact]
+    public void UiTextBlock_HorizontalAlignment_Center_and_End_shift_glyphs_in_wide_box()
+    {
+        var (fonts, cache) = TestFonts();
+        var style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        const string text = "Ab";
+        const float boxW = 220f;
+
+        float MinLeft(UiTextHorizontalAlignment align)
+        {
+            var r = new RecordingRenderer();
+            var block = new UiTextBlock
+            {
+                Fonts = fonts,
+                Text = text,
+                DefaultStyle = style,
+                HorizontalAlignment = align,
+                FitMode = UiTextFitMode.None
+            };
+            UiLayoutPresets.StretchAll(block);
+            block.Measure(UiSizeConstraints.Loose(boxW, 80f));
+            block.Arrange(new UiRect(0f, 0f, boxW, 80f));
+            block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+            Assert.NotEmpty(r.Sprites);
+            return r.Sprites.Min(s => s.CenterWorld.X - s.HalfExtentsWorld.X);
+        }
+
+        var start = MinLeft(UiTextHorizontalAlignment.Start);
+        var center = MinLeft(UiTextHorizontalAlignment.Center);
+        var end = MinLeft(UiTextHorizontalAlignment.End);
+        Assert.True(center > start);
+        Assert.True(end > center);
+    }
+
+    [Fact]
+    public void UiTextBlock_VerticalAlignment_Center_and_End_shift_glyphs_in_tall_box()
+    {
+        var (fonts, cache) = TestFonts();
+        var style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        const string text = "Ab";
+        const float boxH = 80f;
+
+        float MinTop(UiTextVerticalAlignment v)
+        {
+            var r = new RecordingRenderer();
+            var block = new UiTextBlock
+            {
+                Fonts = fonts,
+                Text = text,
+                DefaultStyle = style,
+                VerticalAlignment = v,
+                FitMode = UiTextFitMode.None
+            };
+            UiLayoutPresets.StretchAll(block);
+            block.Measure(UiSizeConstraints.Loose(220f, boxH));
+            block.Arrange(new UiRect(0f, 0f, 220f, boxH));
+            block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+            Assert.NotEmpty(r.Sprites);
+            return r.Sprites.Min(s => s.CenterWorld.Y - s.HalfExtentsWorld.Y);
+        }
+
+        var start = MinTop(UiTextVerticalAlignment.Start);
+        var center = MinTop(UiTextVerticalAlignment.Center);
+        var end = MinTop(UiTextVerticalAlignment.End);
+        Assert.True(center > start);
+        Assert.True(end > center);
+    }
+
+    [Fact]
     public void UiTextMeasurer_empty_and_missing_font_paths()
     {
         var lib = new FontLibrary();
@@ -221,6 +340,37 @@ public sealed class UiTextBlockTests
         Assert.Equal(0f, UiTextMeasurer.MeasureAdvanceWidth(lib, in ok, ReadOnlySpan<char>.Empty));
         Assert.Equal(0f, UiTextMeasurer.MeasureAdvanceWidth(lib, in bad, "a".AsSpan()));
         Assert.True(UiTextMeasurer.MeasureLineHeight(lib, in bad) > 0f);
+    }
+
+    [Fact]
+    public void UiTextMeasurer_TryMinReferenceBoundsTopForLine_returns_false_when_no_segment_font_resolves()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var line = new UiTextLayoutLine();
+        line.Segments.Add(("x", new TextStyle("__missing__", 14f, new Vector4D<float>(1f, 1f, 1f, 1f)), 0f));
+        Assert.False(UiTextMeasurer.TryMinReferenceBoundsTopForLine(lib, line, out var minTop));
+        Assert.Equal(0f, minTop);
+    }
+
+    [Fact]
+    public void UiTextBlock_DrawGlyphs_falls_back_to_legacy_baseline_when_reference_top_unavailable()
+    {
+        var fonts = new FontLibrary();
+        var cache = new TextGlyphCache();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "x",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)),
+            FitMode = UiTextFitMode.None
+        };
+        UiLayoutPresets.StretchAll(block);
+        block.Measure(UiSizeConstraints.Loose(80f, 40f));
+        block.Arrange(new UiRect(0f, 0f, 80f, 40f));
+        var r = new RecordingRenderer();
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+        Assert.Empty(r.Sprites);
     }
 
     [Fact]
@@ -309,6 +459,43 @@ public sealed class UiTextBlockTests
     }
 
     [Fact]
+    public void UiTextBlock_DrawVisuals_uses_style_slack_when_measured_without_fonts()
+    {
+        var (fonts, cache) = TestFonts();
+        var r = new RecordingRenderer();
+        var block = new UiTextBlock
+        {
+            Text = "x",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 18f, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        UiLayoutPresets.TopLeftFixed(block, 40f, 20f);
+        block.Measure(UiSizeConstraints.Loose(100f, 100f));
+        block.Fonts = fonts;
+        block.Arrange(new UiRect(0f, 0f, 100f, 100f));
+        block.DrawVisuals(r, fonts, cache, CoordinateSpace.ViewportSpace, 0f, new UiRect(0f, 0f, 100f, 100f));
+        Assert.Empty(r.Sprites);
+    }
+
+    [Fact]
+    public void UiTextBlock_DrawGlyphs_with_clip_skips_when_clip_rect_has_no_area()
+    {
+        var (fonts, cache) = TestFonts();
+        var r = new RecordingRenderer();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "clip",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f))
+        };
+        UiLayoutPresets.TopLeftFixed(block, 120f, 40f);
+        block.Measure(UiSizeConstraints.Loose(200f, 200f));
+        block.Arrange(new UiRect(0f, 0f, 200f, 200f));
+
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace, 400f, new UiRect(0f, 0f, 0f, 50f));
+        Assert.Empty(r.Sprites);
+    }
+
+    [Fact]
     public void UiTextBlock_DrawRun_empty_string_returns_via_reflection()
     {
         var (fonts, cache) = TestFonts();
@@ -326,7 +513,9 @@ public sealed class UiTextBlockTests
             st,
             new Vector2D<float>(10f, 20f),
             450f,
-            CoordinateSpace.ViewportSpace
+            CoordinateSpace.ViewportSpace,
+            false,
+            default(UiRect)
         ]);
         Assert.Empty(r.Sprites);
     }

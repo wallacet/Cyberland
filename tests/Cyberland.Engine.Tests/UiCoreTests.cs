@@ -1,4 +1,7 @@
+using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
+using Cyberland.Engine.UI.Layout;
 using Cyberland.Engine.UI.Rendering;
 using Silk.NET.Maths;
 
@@ -36,6 +39,24 @@ public sealed class UiCoreTests
     }
 
     [Fact]
+    public void UiAnchorLayout_horizontal_stretch_zero_SizeDelta_fills_slot_height()
+    {
+        var slot = new UiRect(10f, 20f, 400f, 120f);
+        var r = UiAnchorLayout.ResolveBounds(
+            slot,
+            new Vector2D<float>(0f, 0f),
+            new Vector2D<float>(1f, 0f),
+            new Vector2D<float>(0f, 0f),
+            default,
+            new Vector2D<float>(0f, 0f),
+            0f, 0f, 0f, 0f);
+        Assert.Equal(10f, r.X);
+        Assert.Equal(20f, r.Y);
+        Assert.Equal(400f, r.Width);
+        Assert.Equal(120f, r.Height);
+    }
+
+    [Fact]
     public void UiLayoutPresets_TopRightFixed_places_panel_with_margin()
     {
         var root = new UiPanel();
@@ -66,6 +87,87 @@ public sealed class UiCoreTests
     }
 
     [Fact]
+    public void UiPanel_StretchWidthAutoHeight_matches_intrinsic_column_slot_without_fixed_band_gap()
+    {
+        var col = new UiVerticalStack { Spacing = 8f };
+        UiLayoutPresets.StretchAll(col);
+        var frame = col.AddChild(new UiPanel { Padding = new UiThickness(1f) });
+        UiLayoutPresets.StretchWidthAutoHeight(frame);
+        var inner = frame.AddChild(new UiPanel());
+        UiLayoutPresets.TopLeftFixed(inner, 40f, 44f);
+
+        col.Measure(UiSizeConstraints.Loose(200f, 400f));
+        Assert.True(frame.MeasuredSize.Y < 90f, "intrinsic height must not reserve a huge fixed band");
+
+        var tail = col.AddChild(new UiElement());
+        UiLayoutPresets.TopLeftFixed(tail, 10f, 10f);
+        col.Measure(UiSizeConstraints.Loose(200f, 400f));
+        col.Arrange(new UiRect(0f, 0f, 200f, 400f));
+
+        Assert.True(tail.ComputedBounds.Y >= frame.ComputedBounds.Bottom + 8f - 0.01f);
+    }
+
+    [Fact]
+    public void UiPanel_TopLeftFixed_horizontal_measure_reserves_SizeDelta_width_over_narrow_children()
+    {
+        var row = new UiHorizontalStack { Spacing = 12f };
+        UiLayoutPresets.StretchAll(row);
+        var tile = new UiPanel();
+        UiLayoutPresets.TopLeftFixed(tile, 90f, 28f);
+        var inner = new UiPanel();
+        UiLayoutPresets.TopLeftFixed(inner, 12f, 12f);
+        tile.AddChild(inner);
+        row.AddChild(tile);
+
+        row.Measure(UiSizeConstraints.Loose(400f, 80f));
+        Assert.True(tile.MeasuredSize.X >= 89f, "tile measure must reserve TopLeftFixed width");
+        Assert.True(row.MeasuredSize.X >= 90f - 0.01f);
+    }
+
+    [Fact]
+    public void UiPanel_fixed_height_caps_vertical_measure_for_stretch_labels()
+    {
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+
+        var row = new UiHorizontalStack { CrossAlignment = UiCrossAlignment.Stretch };
+        UiLayoutPresets.StretchAll(row);
+        var btn = new UiPanel();
+        UiLayoutPresets.TopLeftFixed(btn, 120f, 36f);
+        var lab = new UiLabel();
+        lab.Text.Fonts = fonts;
+        lab.Text.Text = "Caption";
+        lab.Text.DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        btn.AddChild(lab);
+
+        row.AddChild(btn);
+        row.Measure(UiSizeConstraints.Loose(400f, 72f));
+
+        Assert.InRange(btn.MeasuredSize.Y, 35.5f, 37f);
+    }
+
+    [Fact]
+    public void UiPanel_TopStretch_fixed_band_uses_SizeDelta_height_for_stack_spacing_not_intrinsic_sum()
+    {
+        var col = new UiVerticalStack { Spacing = 8f };
+        UiLayoutPresets.StretchAll(col);
+        var frame = col.AddChild(new UiPanel { Padding = new UiThickness(1f) });
+        UiLayoutPresets.TopStretch(frame, 100f);
+        var inner = frame.AddChild(new UiPanel());
+        UiLayoutPresets.TopLeftFixed(inner, 40f, 40f);
+
+        col.Measure(UiSizeConstraints.Loose(200f, 400f));
+        Assert.Equal(100f, frame.MeasuredSize.Y, 0.01f);
+
+        var tail = col.AddChild(new UiElement());
+        UiLayoutPresets.TopLeftFixed(tail, 10f, 10f);
+        col.Measure(UiSizeConstraints.Loose(200f, 400f));
+        col.Arrange(new UiRect(0f, 0f, 200f, 400f));
+
+        Assert.True(tail.ComputedBounds.Y >= frame.ComputedBounds.Bottom + 8f - 0.01f);
+    }
+
+    [Fact]
     public void UiPanel_vertical_stack_positions_children_with_spacing_and_padding()
     {
         var panel = new UiPanel { Padding = new UiThickness(4f), Spacing = 6f };
@@ -88,6 +190,27 @@ public sealed class UiCoreTests
         Assert.Equal(15f, b.ComputedBounds.Height);
         Assert.Equal(4f, b.ComputedBounds.X);
         Assert.Equal(4f + 20f + 6f, b.ComputedBounds.Y);
+    }
+
+    [Fact]
+    public void UiPanel_vertical_stack_stretch_child_measures_to_remaining_height_below_fixed_rows()
+    {
+        var panel = new UiPanel { Spacing = 10f };
+        UiLayoutPresets.StretchAll(panel);
+
+        var header = panel.AddChild(new UiElement());
+        UiLayoutPresets.TopStretch(header, 30f);
+        var body = panel.AddChild(new UiElement());
+        UiLayoutPresets.StretchAll(body);
+
+        panel.Measure(UiSizeConstraints.Loose(400f, 200f));
+        panel.Arrange(new UiRect(0f, 0f, 400f, 200f));
+
+        Assert.Equal(30f, header.MeasuredSize.Y);
+        Assert.Equal(160f, body.MeasuredSize.Y);
+        Assert.Equal(0f, header.ComputedBounds.Y);
+        Assert.Equal(40f, body.ComputedBounds.Y);
+        Assert.Equal(160f, body.ComputedBounds.Height);
     }
 
     [Fact]

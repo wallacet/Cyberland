@@ -1,3 +1,4 @@
+using System.Numerics;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
@@ -183,6 +184,53 @@ public sealed class UiDocumentFrameSystemTests
         sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
         Assert.Equal(0, clicked);
 
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+        Assert.Equal(1, clicked);
+    }
+
+    [Fact]
+    public void UiDocumentFrameSystem_primary_click_hits_button_inside_scroll_content()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(400, 600) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+
+        var clicked = 0;
+        var doc = new UiDocument();
+        var scroll = new UiScrollView();
+        UiLayoutPresets.StretchAll(scroll);
+        var btn = new UiButton();
+        UiLayoutPresets.TopLeftFixed(btn, 160f, 44f);
+        btn.Clicked += (_, _) => clicked++;
+        scroll.Content.AddChild(btn);
+        doc.Root.AddChild(scroll);
+
+        doc.MeasureArrange(new Vector2D<float>(400f, 600f));
+        var center = btn.ComputedBounds.Center;
+
+        var input = new Mock<IInputService>();
+        input.Setup(i => i.GetMousePosition(CoordinateSpace.ViewportSpace))
+            .Returns(new Vector2(center.X, center.Y));
+        input.SetupSequence(i => i.IsControlDown(It.IsAny<InputControl>()))
+            .Returns(true)
+            .Returns(false);
+        input.Setup(i => i.MouseWheelDelta).Returns(Vector2.Zero);
+        host.Input = input.Object;
+
+        var world = new World();
+        var ent = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        host.UiDocuments.Register(ent, doc);
+
+        var sys = new UiDocumentFrameSystem(host);
+        sys.OnStart(world, world.QueryChunks(DocRootQuery));
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+        Assert.Equal(0, clicked);
         sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
         Assert.Equal(1, clicked);
     }

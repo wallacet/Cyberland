@@ -108,7 +108,7 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
                     PointerRelease(doc, ptVp, rootRect);
             }
 
-            doc.DrawVisuals(renderer, fonts, cache, cfg.CoordinateSpace, cfg.SortKeyBase);
+            doc.DrawVisuals(renderer, fonts, cache, cfg.CoordinateSpace, cfg.SortKeyBase, rootRect);
         }
     }
 

@@ -109,6 +109,26 @@ public class UiElement
         return MeasuredSize;
     }
 
+    /// <summary>
+    /// Limits vertical slack passed to children when this node's own border height is band-shaped (collapsed vertical
+    /// anchor axis and height from <see cref="SizeDelta"/>), e.g. <see cref="UiLayoutPresets.TopStretch"/>. Otherwise a
+    /// <see cref="Controls.UiLabel"/> using <see cref="UiLayoutPresets.StretchAll"/> measures to the full parent height
+    /// and inflates cross-axis size in <see cref="Layout.UiHorizontalStack"/> or pushes siblings away in vertical stacks.
+    /// </summary>
+    protected static float ClampInnerMaxHeightForBand(UiElement self, float innerMaxH)
+    {
+        const float eps = 1e-4f;
+        var stretchY = self.AnchorMax.Y - self.AnchorMin.Y > eps;
+        if (stretchY)
+            return innerMaxH;
+
+        var band = self.SizeDelta.Y - self.Padding.Vertical;
+        if (band <= eps)
+            return innerMaxH;
+
+        return MathF.Min(innerMaxH, band);
+    }
+
     /// <summary>Arranges this element into an absolute margin-box slot from the parent layout.</summary>
     public virtual void Arrange(in UiRect allocationMarginBoxAbsolute)
     {
@@ -152,13 +172,15 @@ public class UiElement
 
     /// <summary>
     /// Depth-first visual submission for HUD passes: combines <see cref="SortKey"/> with the caller’s accumulated key.
+    /// Submits visuals clipped to <paramref name="inheritedClip"/> per <see cref="ClipMode"/> (matches <see cref="HitTest"/>).
     /// </summary>
     public virtual void DrawVisuals(
         IRenderer renderer,
         FontLibrary fonts,
         TextGlyphCache cache,
         CoordinateSpace space,
-        float accumulatedSortKey)
+        float accumulatedSortKey,
+        in UiRect inheritedClip)
     {
         ArgumentNullException.ThrowIfNull(renderer);
         ArgumentNullException.ThrowIfNull(fonts);
@@ -166,30 +188,40 @@ public class UiElement
         if (!Visible)
             return;
 
+        var selfClip = ComputedBounds.Intersect(inheritedClip);
         var mine = accumulatedSortKey + SortKey;
-        DrawSelfVisuals(renderer, fonts, cache, space, mine);
+        DrawSelfVisuals(renderer, fonts, cache, space, mine, selfClip, inheritedClip);
 
         var rank = 0;
         foreach (var child in EnumerateSortedChildren())
         {
             rank++;
-            child.DrawVisuals(renderer, fonts, cache, space, mine + rank * 1e-4f);
+            var childInherited = ClipMode == UiClipMode.IntersectParent ? selfClip : inheritedClip;
+            child.DrawVisuals(renderer, fonts, cache, space, mine + rank * 1e-4f, childInherited);
         }
     }
 
-    /// <summary>Override to submit quads/glyphs for this node before children.</summary>
+    /// <summary>
+    /// Override to submit quads/glyphs for this node before children.
+    /// <paramref name="viewportClip"/> is <see cref="ComputedBounds"/> ∩ ancestor clip; <paramref name="inheritedClip"/>
+    /// is the clip inherited from this node's parent (cap for inflating text past layout bounds).
+    /// </summary>
     protected virtual void DrawSelfVisuals(
         IRenderer renderer,
         FontLibrary fonts,
         TextGlyphCache cache,
         CoordinateSpace space,
-        float sortKey)
+        float sortKey,
+        in UiRect viewportClip,
+        in UiRect inheritedClip)
     {
         _ = renderer;
         _ = fonts;
         _ = cache;
         _ = space;
         _ = sortKey;
+        _ = viewportClip;
+        _ = inheritedClip;
     }
 
     /// <summary>Deepest top-most interactable node under <paramref name="point"/> (document +Y down space).</summary>

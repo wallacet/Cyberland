@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Cyberland.Engine.UI.Core;
 using Glslang.NET;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
@@ -387,20 +388,68 @@ public sealed unsafe partial class VulkanRenderer
         for (var si = 0; si < n; si++)
         {
             var idx = sortIdx[si];
-            DrawSpriteSwapchainUi(cmd, in sprites[idx], in framePlan);
+            DrawSpriteSwapchainUi(cmd, in sprites[idx], in framePlan, sciUi);
         }
 
         _vk.CmdEndRenderPass(cmd);
     }
 
     /// <summary>
+    /// Viewport clip (+Y down) → swapchain scissor, intersected with <paramref name="passScissor"/>.
+    /// </summary>
+    private static Rect2D ViewportClipRectToSwapchainScissor(in UiRect clipVp, in FramePlan plan, in Rect2D passScissor)
+    {
+        var tl = CameraProjection.ViewportPixelToSwapchainPixel(new Vector2D<float>(clipVp.X, clipVp.Y), plan.Physical);
+        var br = CameraProjection.ViewportPixelToSwapchainPixel(new Vector2D<float>(clipVp.Right, clipVp.Bottom),
+            plan.Physical);
+
+        var minX = MathF.Min(tl.X, br.X);
+        var minY = MathF.Min(tl.Y, br.Y);
+        var maxX = MathF.Max(tl.X, br.X);
+        var maxY = MathF.Max(tl.Y, br.Y);
+
+        var ix0 = (int)Math.Floor(minX);
+        var iy0 = (int)Math.Floor(minY);
+        var ix1 = (int)Math.Ceiling(maxX);
+        var iy1 = (int)Math.Ceiling(maxY);
+
+        var px0 = (int)passScissor.Offset.X;
+        var py0 = (int)passScissor.Offset.Y;
+        var px1 = px0 + (int)passScissor.Extent.Width;
+        var py1 = py0 + (int)passScissor.Extent.Height;
+
+        var cx0 = Math.Max(0, Math.Max(ix0, px0));
+        var cy0 = Math.Max(0, Math.Max(iy0, py0));
+        var cx1 = Math.Min(ix1, px1);
+        var cy1 = Math.Min(iy1, py1);
+        var cw = Math.Max(0, cx1 - cx0);
+        var ch = Math.Max(0, cy1 - cy0);
+
+        return new Rect2D
+        {
+            Offset = new Offset2D { X = cx0, Y = cy0 },
+            Extent = new Extent2D { Width = (uint)cw, Height = (uint)ch }
+        };
+    }
+
+    /// <summary>
     /// Same projection/bindings as G-buffer sprites (mode 1) but uses the swapchain UI fragment stage + straight-alpha blend (pipeline bound by <see cref="RecordSwapchainUiOverlay"/>).
     /// </summary>
-    private void DrawSpriteSwapchainUi(CommandBuffer cmd, in SpriteDrawRequest s, in FramePlan plan)
+    private void DrawSpriteSwapchainUi(CommandBuffer cmd, in SpriteDrawRequest s, in FramePlan plan, in Rect2D passScissor)
     {
         var al = TryGetTextureSlot(s.AlbedoTextureId);
         if (al is null)
             return;
+
+        Rect2D sci = passScissor;
+        if (s.ViewportClipEnabled)
+        {
+            sci = ViewportClipRectToSwapchainScissor(s.ViewportClipRect, in plan, passScissor);
+            if (sci.Extent.Width == 0 || sci.Extent.Height == 0)
+                return;
+        }
+
+        _vk!.CmdSetScissor(cmd, 0, 1, &sci);
 
         var viewportSize = new Vector2D<float>(plan.Camera.ViewportSizeWorld.X, plan.Camera.ViewportSizeWorld.Y);
         Vector2D<float> px;

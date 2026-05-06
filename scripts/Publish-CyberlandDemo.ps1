@@ -1,17 +1,17 @@
-# Enables one demo mod in its manifest, clears artifacts, runs the host until exit, then restores "disabled": true.
-# Use from VS Code / Cursor: Tasks → Cyberland: Test demo (…).
-# If you kill the task or close the terminal during the game, the finally block may not run — re-disable the mod in manifest.json manually if needed.
+# Enables one demo mod manifest, runs Publish-Cyberland.ps1, then restores "disabled": true.
+# Use from VS Code / Cursor: Tasks → Cyberland: Publish Release with demo (Idle Gold), etc.
+# If publish fails mid-flight, the finally block restores the manifest; if you terminate the shell abruptly, re-disable manually.
 [CmdletBinding()]
 param(
-    # Use non-mandatory with explicit throw so missing -Demo does not open an interactive prompt in CI / tasks.
-    [Parameter(Mandatory = $false, Position = 0)]
+    [Parameter(Mandatory = $true)]
     [ValidateSet("hdr", "snake", "pong", "brick", "mousechase", "idlegold")]
-    [string] $Demo
+    [string] $Demo,
+    [ValidateSet('Debug', 'Release')]
+    [string] $Configuration = 'Release',
+    [string] $RuntimeIdentifier,
+    [switch] $SelfContained,
+    [switch] $Archive
 )
-
-if ([string]::IsNullOrEmpty($Demo)) {
-    throw "Required: -Demo (hdr | snake | pong | brick | mousechase | idlegold). Example: .\Run-CyberlandDemo-Test.ps1 -Demo hdr"
-}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -56,15 +56,34 @@ function Set-ManifestDisabled {
     [System.IO.File]::WriteAllText($LiteralPath, $new, $utf8NoBom)
 }
 
+$publishScript = Join-Path $PSScriptRoot "Publish-Cyberland.ps1"
+
+# Child script uses `exit` on dotnet failure; run it in a subprocess so this script's `finally` always restores the manifest.
+$publishArgs = @(
+    '-NoProfile',
+    '-ExecutionPolicy', 'Bypass',
+    '-File', $publishScript,
+    '-Configuration', $Configuration
+)
+if (-not [string]::IsNullOrWhiteSpace($RuntimeIdentifier)) {
+    $publishArgs += @('-RuntimeIdentifier', $RuntimeIdentifier.Trim())
+}
+if ($SelfContained) {
+    $publishArgs += '-SelfContained'
+}
+if ($Archive) {
+    $publishArgs += '-Archive'
+}
+
 try {
-    Write-Host "Enabling demo (manifest: $relManifest)..."
+    Write-Host "Enabling demo for publish (manifest: $relManifest)..."
     Set-ManifestDisabled -LiteralPath $manifestPath -Disabled $false
 
-    Write-Host "Clearing artifacts/..."
-    & (Join-Path $PSScriptRoot "Clear-CyberlandArtifacts.ps1")
-
-    Write-Host "Running Cyberland.Host (close the game to continue)..."
-    dotnet run --project (Join-Path $repoRoot "src\Cyberland.Host\Cyberland.Host.csproj") -c Debug
+    Write-Host "Publishing Cyberland.Host..."
+    $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $publishArgs -WorkingDirectory $repoRoot -Wait -PassThru -NoNewWindow
+    if ($proc.ExitCode -ne 0) {
+        exit $proc.ExitCode
+    }
 }
 finally {
     try {

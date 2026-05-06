@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.idlegold",
+  "name": "Cyberland Idle Gold (UI demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.IdleGold.dll",
+  "contentRoot": "Content",
+  "loadOrder": 24,
+  "disabled": true
+}

@@ -672,6 +672,95 @@
       }
     },
     {
+      "label": "Cyberland: Test demo (Idle Gold)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "idlegold"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo.IdleGold, clears artifacts/, runs the host until you exit, then disables the mod again.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release with demo (Idle Gold)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-CyberlandDemo.ps1",
+        "-Demo",
+        "idlegold",
+        "-Configuration",
+        "Release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Temporarily enables IdleGold, publishes Host (Release portable), then restores manifest disabled:true so shipped zips stay unchanged.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + zip with demo (Idle Gold)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-CyberlandDemo.ps1",
+        "-Demo",
+        "idlegold",
+        "-Configuration",
+        "Release",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Temporarily enables IdleGold, publishes Release + artifacts/dist zip, then restores manifest disabled:true.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
       "label": "build",
       "command": "dotnet",
       "type": "process",

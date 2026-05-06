@@ -32,6 +32,17 @@ public class UiTextBlock : UiElement
     /// <summary>Extra pixels added after each wrapped/hard line.</summary>
     public float LineSpacingExtra { get; set; }
 
+    /// <summary>
+    /// How each laid-out line is shifted on X inside the content rectangle when the line is narrower than the box.
+    /// </summary>
+    public UiTextHorizontalAlignment HorizontalAlignment { get; set; }
+
+    /// <summary>
+    /// How the measured layout block is shifted on Y when the laid-out text is shorter than the content rectangle
+    /// (after <see cref="UiElement.Padding"/>).
+    /// </summary>
+    public UiTextVerticalAlignment VerticalAlignment { get; set; }
+
     /// <summary>Whether to binary-search a smaller uniform scale when layout overflows the content box.</summary>
     public UiTextFitMode FitMode { get; set; }
 
@@ -92,14 +103,39 @@ public class UiTextBlock : UiElement
         const float eps = 1e-4f;
         var stretchX = AnchorMax.X - AnchorMin.X > eps;
         var stretchY = AnchorMax.Y - AnchorMin.Y > eps;
+        // UiLayoutPresets.TopStretch: stretch X to parent slot, fixed pixel height on Y via SizeDelta.Y.
+        // Arrange resolves border height to SizeDelta.Y, but intrinsic text height can exceed that band; reporting
+        // intrinsic MeasuredSize.Y makes vertical stacks advance past the real border box so siblings (buttons, etc.)
+        // sit too low and no longer match raster/hit targets.
+        var topStretchBand = stretchX && !stretchY && MathF.Abs(SizeDelta.X) <= eps && SizeDelta.Y > eps;
+
+        // Horizontal stacks (and similar) measure main-axis children with unbounded maxima. Stretch-all text would
+        // otherwise report infinite measured width/height; Arrange then multiplies 0*Infinity when resolving anchors
+        // and poisons ComputedBounds with NaNs. Use intrinsic layout sizes until a finite cap exists.
+        var intrinsicW = _layout.TotalWidth + Padding.Horizontal + Margin.Horizontal;
+        var intrinsicH = _layout.TotalHeight + Padding.Vertical + Margin.Vertical;
 
         var dw = stretchX
-            ? constraints.MaxWidth
-            : _layout.TotalWidth + Padding.Horizontal + Margin.Horizontal;
+            ? (float.IsFinite(constraints.MaxWidth) ? constraints.MaxWidth : intrinsicW)
+            : intrinsicW;
 
-        var dh = stretchY
-            ? constraints.MaxHeight
-            : _layout.TotalHeight + Padding.Vertical + Margin.Vertical;
+        float dh;
+        if (stretchY)
+            dh = float.IsFinite(constraints.MaxHeight) ? constraints.MaxHeight : intrinsicH;
+        else if (topStretchBand)
+            // Full border height (SizeDelta is the band rect). Outer margin is applied once by parents (MeasuredSize.Y + Margin.Vertical).
+            dh = SizeDelta.Y;
+        else
+            dh = intrinsicH;
+
+        // Match Arrange: collapsed anchors still use SizeDelta width/height; floor measured size so stacked siblings
+        // (e.g. gather-card detail + buttons) do not overlap when intrinsic text is narrower than the slot.
+        // Cap the height floor so large TopLeftFixed boxes (scroll hosts) still report intrinsic text height.
+        const float collapsedHeightFloorMaxPx = 256f;
+        if (!stretchX && SizeDelta.X > eps)
+            dw = MathF.Max(dw, SizeDelta.X + Margin.Horizontal);
+        if (!stretchY && SizeDelta.Y > eps && !topStretchBand && SizeDelta.Y <= collapsedHeightFloorMaxPx)
+            dh = MathF.Max(dh, SizeDelta.Y + Margin.Vertical);
 
         return constraints.ClampSize(new Vector2D<float>(dw, dh));
     }
@@ -218,7 +254,27 @@ public class UiTextBlock : UiElement
         FontLibrary fonts,
         TextGlyphCache cache,
         CoordinateSpace space,
-        float sortKey = 450f)
+        float sortKey = 450f) =>
+        DrawGlyphsCore(renderer, fonts, cache, space, sortKey, clipGlyphs: false, default);
+
+    /// <summary>Submits glyphs with viewport scissor (retained UI document path).</summary>
+    public void DrawGlyphs(
+        IRenderer renderer,
+        FontLibrary fonts,
+        TextGlyphCache cache,
+        CoordinateSpace space,
+        float sortKey,
+        in UiRect viewportClip) =>
+        DrawGlyphsCore(renderer, fonts, cache, space, sortKey, clipGlyphs: true, viewportClip);
+
+    private void DrawGlyphsCore(
+        IRenderer renderer,
+        FontLibrary fonts,
+        TextGlyphCache cache,
+        CoordinateSpace space,
+        float sortKey,
+        bool clipGlyphs,
+        UiRect viewportClip)
     {
         ArgumentNullException.ThrowIfNull(renderer);
         ArgumentNullException.ThrowIfNull(fonts);
@@ -227,29 +283,112 @@ public class UiTextBlock : UiElement
         if (_layout is null || _layout.Lines.Count == 0)
             return;
 
+        if (clipGlyphs && (viewportClip.Width <= 1e-4f || viewportClip.Height <= 1e-4f))
+            return;
+
         var inner = ComputedBounds.Deflate(Padding);
+        var applyVpClip = clipGlyphs && space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace;
+
+        // TotalHeight can include slack vs tight line boxes; center using ink extent so single-line captions sit
+        // visually centered in buttons (IdleGold nav / gather actions).
+        var extentH = LayoutInkExtentHeight(fonts, _layout);
+        var blockShiftY = VerticalAlignment switch
+        {
+            UiTextVerticalAlignment.Center => MathF.Max(0f, (inner.Height - extentH) * 0.5f),
+            UiTextVerticalAlignment.End => MathF.Max(0f, inner.Height - extentH),
+            _ => 0f
+        };
 
         foreach (var line in _layout.Lines)
         {
             var lh = line.MaxLineHeight(fonts);
-            var baselineY = inner.Y + line.LineTop + lh * 0.82f;
+            // Line box top (LineTop) + distance to baseline: use the same reference sample as MeasureLineHeight
+            // so single-line text is not pushed low inside the line box (fixed 0.82*lh was consistently bottom-heavy).
+            var baselineFromLineTop = UiTextMeasurer.TryMinReferenceBoundsTopForLine(fonts, line, out var minTop)
+                ? -minTop
+                : lh * 0.82f;
+            var baselineY = inner.Y + blockShiftY + line.LineTop + baselineFromLineTop;
+
+            var lineShift = HorizontalAlignment switch
+            {
+                UiTextHorizontalAlignment.Center => MathF.Max(0f, (inner.Width - LineContentAdvance(fonts, line)) * 0.5f),
+                UiTextHorizontalAlignment.End => MathF.Max(0f, inner.Width - LineContentAdvance(fonts, line)),
+                _ => 0f
+            };
 
             foreach (var seg in line.Segments)
             {
-                var baselineLeft = new Vector2D<float>(inner.X + seg.PenStart, baselineY);
-                DrawRun(renderer, fonts, cache, seg.Text, seg.Style, baselineLeft, sortKey, space);
+                var baselineLeft = new Vector2D<float>(inner.X + lineShift + seg.PenStart, baselineY);
+                DrawRun(renderer, fonts, cache, seg.Text, seg.Style, baselineLeft, sortKey, space, applyVpClip,
+                    viewportClip);
             }
         }
     }
 
+    private static float LayoutInkExtentHeight(FontLibrary fonts, UiTextLayoutEngine layout)
+    {
+        float bottom = 0f;
+        foreach (var line in layout.Lines)
+            bottom = MathF.Max(bottom, line.LineTop + line.MaxLineHeight(fonts));
+
+        return bottom;
+    }
+
+    private static float LineContentAdvance(FontLibrary fonts, UiTextLayoutLine line)
+    {
+        float maxEnd = 0f;
+        foreach (var seg in line.Segments)
+        {
+            var w = UiTextMeasurer.MeasureAdvanceWidth(fonts, in seg.Style, seg.Text.AsSpan());
+            maxEnd = MathF.Max(maxEnd, seg.PenStart + w);
+        }
+
+        return maxEnd;
+    }
+
     /// <inheritdoc />
+    /// <remarks>
+    /// Layout bounds from measure are a tight text box; glyph quads extend past that for ascenders,
+    /// descenders, and side bearings. The GPU scissor used for viewport UI is therefore inflated vertically
+    /// (capped by <paramref name="inheritedClip"/>) so ink is not culled while scroll ports still clip.
+    /// </remarks>
     protected override void DrawSelfVisuals(
         IRenderer renderer,
         FontLibrary fonts,
         TextGlyphCache cache,
         CoordinateSpace space,
-        float sortKey) =>
-        DrawGlyphs(renderer, fonts, cache, space, sortKey);
+        float sortKey,
+        in UiRect viewportClip,
+        in UiRect inheritedClip)
+    {
+        var clip = GlyphViewportScissorClip(in viewportClip, in inheritedClip, fonts, _layout, DefaultStyle);
+        DrawGlyphs(renderer, fonts, cache, space, sortKey, clip);
+    }
+
+    private static UiRect GlyphViewportScissorClip(
+        in UiRect layoutClip,
+        in UiRect inheritedClip,
+        FontLibrary fonts,
+        UiTextLayoutEngine? layout,
+        TextStyle defaultStyle)
+    {
+        float slack;
+        if (layout is { Lines.Count: > 0 })
+        {
+            var m = 0f;
+            foreach (var line in layout.Lines)
+                m = MathF.Max(m, line.MaxLineHeight(fonts));
+            slack = MathF.Min(28f, MathF.Max(2f, m * 0.38f));
+        }
+        else
+            slack = MathF.Min(24f, MathF.Max(2f, defaultStyle.SizePixels * 0.5f));
+
+        var hPad = MathF.Min(14f, MathF.Max(1f, slack * 0.35f));
+        return InflateRect(layoutClip, hPad, slack, hPad, slack).Intersect(inheritedClip);
+    }
+
+    private static UiRect InflateRect(in UiRect r, float left, float top, float right, float bottom) =>
+        new(r.X - left, r.Y - top, r.Width + left + right, r.Height + top + bottom);
 
     private static void DrawRun(
         IRenderer renderer,
@@ -259,7 +398,9 @@ public class UiTextBlock : UiElement
         TextStyle style,
         Vector2D<float> baselineLeft,
         float sortKey,
-        CoordinateSpace space)
+        CoordinateSpace space,
+        bool applyVpClip,
+        UiRect viewportClip)
     {
         if (string.IsNullOrEmpty(text))
             return;
@@ -280,7 +421,9 @@ public class UiTextBlock : UiElement
                 sortKey,
                 dest,
                 out var penAfter,
-                space);
+                space,
+                applyVpClip,
+                viewportClip);
 
             if (n > 0)
                 renderer.SubmitSprites(dest[..n]);
@@ -294,7 +437,9 @@ public class UiTextBlock : UiElement
                 sortKey,
                 renderer.WhiteTextureId,
                 renderer.DefaultNormalTextureId,
-                space);
+                space,
+                applyVpClip,
+                viewportClip);
         }
         finally
         {

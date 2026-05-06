@@ -22,13 +22,19 @@ public class UiImage : UiElement
         FontLibrary fonts,
         TextGlyphCache cache,
         CoordinateSpace space,
-        float sortKey)
+        float sortKey,
+        in UiRect viewportClip,
+        in UiRect inheritedClip)
     {
         _ = fonts;
         _ = cache;
+        _ = inheritedClip;
         if (SourceTextureId == TextureId.MaxValue || Tint.W <= 1e-4f)
             return;
 
-        UiVisualSubmission.SubmitFilledQuad(renderer, ComputedBounds, space, SourceTextureId, Tint, sortKey);
+        if (viewportClip.Width <= 1e-4f || viewportClip.Height <= 1e-4f)
+            return;
+
+        UiVisualSubmission.SubmitFilledQuad(renderer, ComputedBounds, space, SourceTextureId, Tint, sortKey, viewportClip);
     }
 }

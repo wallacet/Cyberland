@@ -1,6 +1,7 @@
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Cyberland.Engine.Scene;
+using Cyberland.Engine.UI.Core;
 
 namespace Cyberland.Engine.Rendering;
 
@@ -78,6 +79,15 @@ public struct SpriteDrawRequest
     /// <see cref="CoordinateSpace.WorldSpace"/> or <see cref="CoordinateSpace.ViewportSpace"/>.
     /// </summary>
     public CoordinateSpace Space;
+
+    /// <summary>
+    /// When true, the swapchain UI overlay sets Vulkan scissor to <see cref="ViewportClipRect"/> (virtual viewport +Y-down px)
+    /// intersected with the pass scissor before drawing.
+    /// </summary>
+    public bool ViewportClipEnabled;
+
+    /// <summary>Viewport clip rectangle (+Y down); ignored unless <see cref="ViewportClipEnabled"/>.</summary>
+    public UiRect ViewportClipRect;
 }
 
 /// <summary>

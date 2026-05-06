@@ -16,11 +16,13 @@ internal static class UiVisualSubmission
         CoordinateSpace space,
         TextureId albedoTextureId,
         in Vector4D<float> colorMultiply,
-        float sortKey)
+        float sortKey,
+        in UiRect viewportClip)
     {
         var cx = rect.X + rect.Width * 0.5f;
         var cy = rect.Y + rect.Height * 0.5f;
         var straightA = colorMultiply.W;
+        var clipScreen = space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace;
         renderer.SubmitSprite(new SpriteDrawRequest
         {
             CenterWorld = new Vector2D<float>(cx, cy),
@@ -39,6 +41,8 @@ internal static class UiVisualSubmission
             UvRect = default,
             Transparent = straightA < 0.999f,
             Space = space,
+            ViewportClipEnabled = clipScreen,
+            ViewportClipRect = viewportClip
         });
     }
 }

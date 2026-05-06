@@ -15,10 +15,28 @@ public sealed class UiScrollViewRoutingTests
     private static readonly SystemQuerySpec DocRootQuery = SystemQuerySpec.All<UiDocumentRoot>();
 
     [Fact]
+    public void UiDocument_HitTest_reaches_UiButton_inside_UiScrollView_content()
+    {
+        var doc = new UiDocument();
+        var scroll = new UiScrollView();
+        UiLayoutPresets.StretchAll(scroll);
+        var btn = new UiButton();
+        UiLayoutPresets.TopLeftFixed(btn, 160f, 44f);
+        scroll.Content.AddChild(btn);
+        doc.Root.AddChild(scroll);
+
+        doc.MeasureArrange(new Vector2D<float>(400f, 600f));
+        var c = btn.ComputedBounds.Center;
+        var hit = doc.HitTest(c, new UiRect(0f, 0f, 400f, 600f));
+        Assert.NotNull(hit);
+        Assert.Same(btn, hit);
+    }
+
+    [Fact]
     public void ApplyWheel_increments_ContentOffset()
     {
         var sv = new UiScrollView();
-        sv.ApplyWheel(2f);
+        sv.ApplyWheel(-2f);
         Assert.True(sv.ContentOffset.Y > 0f);
     }
 
@@ -33,7 +51,7 @@ public sealed class UiScrollViewRoutingTests
         var clip = new UiRect(0f, 0f, 480f, 160f);
         var sv = UiDocumentFrameSystem.FindDeepestScrollView(doc.Root, new Vector2D<float>(40f, 80f), clip);
         Assert.NotNull(sv);
-        sv!.ApplyWheel(2f);
+        sv!.ApplyWheel(-2f);
         doc.MeasureArrange(new Vector2D<float>(480f, 160f));
         Assert.True(scroll.ContentOffset.Y > 0f);
     }
@@ -44,7 +62,7 @@ public sealed class UiScrollViewRoutingTests
         var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(480, 160) };
         var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
 
-        var input = new StubUiInput { Wheel = new System.Numerics.Vector2(0f, 2f), Viewport = new System.Numerics.Vector2(40f, 80f) };
+        var input = new StubUiInput { Wheel = new System.Numerics.Vector2(0f, -2f), Viewport = new System.Numerics.Vector2(40f, 80f) };
         host.Input = input;
 
         var scroll = BuildTallScroll();

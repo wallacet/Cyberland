@@ -1,3 +1,6 @@
+using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.Scene;
 using Cyberland.Engine.UI.Core;
 using Silk.NET.Maths;
 
@@ -22,14 +25,17 @@ public class UiScrollView : UiElement
     {
         ClipMode = UiClipMode.IntersectParent;
         Content = new UiPanel();
+        // Default collapsed anchors would ignore the arranged slot → 0×0 ComputedBounds; HitTest bails out before
+        // descendants while DrawVisuals still lays out children from the slot width/height.
+        UiLayoutPresets.StretchAll(Content);
         AddChild(Content);
     }
 
     /// <summary>
-    /// Applies a wheel delta before the next layout pass (positive deltas increase offset, revealing lower content).
+    /// Applies Silk wheel delta Y before the next layout pass (positive delta scrolls content down / reveals lower rows).
     /// </summary>
     public void ApplyWheel(float wheelY) =>
-        ContentOffset = new Vector2D<float>(ContentOffset.X, ContentOffset.Y + wheelY * WheelScrollPixels);
+        ContentOffset = new Vector2D<float>(ContentOffset.X, ContentOffset.Y - wheelY * WheelScrollPixels);
 
     /// <summary>Clamps <see cref="ContentOffset"/> after measurement so content cannot scroll past its extents.</summary>
     public void ClampContentOffset()
@@ -76,5 +82,32 @@ public class UiScrollView : UiElement
         var contentW = MathF.Max(0f, inner.Width - Content.Margin.Horizontal);
         var contentH = Content.MeasuredSize.Y + Content.Margin.Vertical;
         Content.Arrange(new UiRect(inner.X - ContentOffset.X, inner.Y - ContentOffset.Y, contentW, contentH));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Layout positions <see cref="Content"/> with a vertical offset, so measured bounds extend outside the viewport.
+    /// Raster clips <see cref="Content"/> to the padded viewport rect (same rule as pointer routing).
+    /// </remarks>
+    public override void DrawVisuals(
+        IRenderer renderer,
+        FontLibrary fonts,
+        TextGlyphCache cache,
+        CoordinateSpace space,
+        float accumulatedSortKey,
+        in UiRect inheritedClip)
+    {
+        ArgumentNullException.ThrowIfNull(renderer);
+        ArgumentNullException.ThrowIfNull(fonts);
+        ArgumentNullException.ThrowIfNull(cache);
+        if (!Visible)
+            return;
+
+        var selfClip = ComputedBounds.Intersect(inheritedClip);
+        var mine = accumulatedSortKey + SortKey;
+        DrawSelfVisuals(renderer, fonts, cache, space, mine, selfClip, inheritedClip);
+
+        var viewportInner = ComputedBounds.Deflate(Padding).Intersect(inheritedClip);
+        Content.DrawVisuals(renderer, fonts, cache, space, mine + 1e-4f, viewportInner);
     }
 }

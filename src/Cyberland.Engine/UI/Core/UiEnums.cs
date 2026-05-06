@@ -18,6 +18,32 @@ public enum UiAlignment
     Stretch
 }
 
+/// <summary>Horizontal placement of laid-out lines inside the <see cref="Cyberland.Engine.UI.Text.UiTextBlock"/> content box.</summary>
+public enum UiTextHorizontalAlignment
+{
+    /// <summary>Lines begin at the content box left edge (default).</summary>
+    Start,
+
+    /// <summary>Each line is centered when narrower than the content box width.</summary>
+    Center,
+
+    /// <summary>Each line is right-aligned when narrower than the content box width.</summary>
+    End
+}
+
+/// <summary>Vertical placement of the laid-out text block inside the <see cref="Cyberland.Engine.UI.Text.UiTextBlock"/> content box.</summary>
+public enum UiTextVerticalAlignment
+{
+    /// <summary>Lines keep layout offsets from the content box top (default).</summary>
+    Start,
+
+    /// <summary>The whole layout is shifted down when shorter than the content box height.</summary>
+    Center,
+
+    /// <summary>The whole layout is bottom-aligned when shorter than the content box height.</summary>
+    End
+}
+
 /// <summary>
 /// Cross-axis alignment for horizontal/vertical stack layout peers (<c>UiHorizontalStack</c>, <c>UiVerticalStack</c>).
 /// </summary>

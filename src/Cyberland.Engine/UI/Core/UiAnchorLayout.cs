@@ -63,9 +63,17 @@ public static class UiAnchorLayout
         }
         else
         {
-            h = MathF.Max(0f, sizeDelta.Y);
+            // Stretch width + collapsed Y with SizeDelta.Y≈0: height follows the parent slot (intrinsic measure path).
+            // Fixed pixel height still uses SizeDelta.Y (> 0), e.g. UiLayoutPresets.TopStretch.
+            float hResolved;
+            if (stretchX && sizeDelta.Y <= CollapsedEpsilon && slot.Height > CollapsedEpsilon)
+                hResolved = slot.Height;
+            else
+                hResolved = MathF.Max(0f, sizeDelta.Y);
+
             var anchorY = slot.Y + anchorMin.Y * slot.Height;
-            y = anchorY + anchoredPosition.Y - pivot.Y * h;
+            y = anchorY + anchoredPosition.Y - pivot.Y * hResolved;
+            h = hResolved;
         }
 
         return new UiRect(x, y, w, h);

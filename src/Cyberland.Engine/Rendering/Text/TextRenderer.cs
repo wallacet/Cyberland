@@ -4,6 +4,7 @@ using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine;
 using Cyberland.Engine.Scene;
+using Cyberland.Engine.UI.Core;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Rendering.Text;
@@ -63,7 +64,7 @@ public static class TextRenderer
 
         var pen = FillGlyphRunAndSubmit(renderer, fonts, cache, text, in style, baselineLeft, 0f, sortKey, space);
         SubmitTextDecorations(renderer, in style, baselineLeft, 0f, pen, sortKey, renderer.WhiteTextureId,
-            renderer.DefaultNormalTextureId, space);
+            renderer.DefaultNormalTextureId, space, false, default);
     }
 
     /// <summary>Draws a localized string in world space.</summary>
@@ -100,7 +101,7 @@ public static class TextRenderer
 
         var pen = FillGlyphRunAndSubmit(renderer, fonts, cache, resolved, in style, baselineLeft, 0f, sortKey, space);
         SubmitTextDecorations(renderer, in style, baselineLeft, 0f, pen, sortKey, renderer.WhiteTextureId,
-            renderer.DefaultNormalTextureId, space);
+            renderer.DefaultNormalTextureId, space, false, default);
     }
 
     /// <summary>
@@ -171,7 +172,7 @@ public static class TextRenderer
             pen = FillGlyphRunAndSubmit(renderer, fonts, cache, text, in st, baselineLeft, pen, sortKey, space);
             var runEnd = pen;
             SubmitTextDecorations(renderer, in st, baselineLeft, runStart, runEnd, sortKey, renderer.WhiteTextureId,
-                renderer.DefaultNormalTextureId, space);
+                renderer.DefaultNormalTextureId, space, false, default);
         }
     }
 
@@ -211,7 +212,9 @@ public static class TextRenderer
         float sortKey,
         Span<SpriteDrawRequest> destination,
         out float penAfter,
-        CoordinateSpace space = CoordinateSpace.WorldSpace)
+        CoordinateSpace space = CoordinateSpace.WorldSpace,
+        bool applyViewportClip = false,
+        UiRect viewportClip = default)
     {
         penAfter = initialPen;
         if (string.IsNullOrEmpty(text) || destination.Length == 0)
@@ -248,7 +251,8 @@ public static class TextRenderer
             var cx = baselineLeft.X + pen + cg.OffsetPenToCenterX;
             var cy = baselineLeft.Y + cg.OffsetPenToCenterYWorld * ySign;
             var ordinal = n;
-            destination[n++] = CreateGlyphSpriteRequest(cg, cx, cy, in style, sortKey, defN, ordinal, space);
+            destination[n++] = CreateGlyphSpriteRequest(cg, cx, cy, in style, sortKey, defN, ordinal, space,
+                applyViewportClip, viewportClip);
             pen += cg.AdvancePx;
         }
 
@@ -296,8 +300,11 @@ public static class TextRenderer
         float sortKey,
         TextureId whiteTex,
         TextureId defNormal,
-        CoordinateSpace space = CoordinateSpace.WorldSpace) =>
-        AddDecorations(renderer, in style, baselineLeft, penStart, penEnd, sortKey, whiteTex, defNormal, space);
+        CoordinateSpace space = CoordinateSpace.WorldSpace,
+        bool applyViewportClip = false,
+        UiRect viewportClip = default) =>
+        AddDecorations(renderer, in style, baselineLeft, penStart, penEnd, sortKey, whiteTex, defNormal, space,
+            applyViewportClip, viewportClip);
 
     /// <summary>Approximate em advance when a glyph cannot be cached so the rest of the string still lays out.</summary>
     private static float FallbackAdvanceWhenGlyphUnavailable(in TextStyle style) =>
@@ -319,9 +326,12 @@ public static class TextRenderer
         float sortKey,
         TextureId defNormal,
         int glyphOrdinalInRun,
-        CoordinateSpace space)
+        CoordinateSpace space,
+        bool applyViewportClip,
+        UiRect viewportClip)
     {
         var cm = style.Color;
+        var clip = applyViewportClip && ScreenSpaceYDown(space);
         return new SpriteDrawRequest
         {
             CenterWorld = new Vector2D<float>(centerX, centerY),
@@ -339,7 +349,9 @@ public static class TextRenderer
             DepthHint = glyphOrdinalInRun * GlyphOrdinalDepthHintEpsilon,
             UvRect = g.UvRect,
             Transparent = TransparentSpriteForSpace(space),
-            Space = space
+            Space = space,
+            ViewportClipEnabled = clip,
+            ViewportClipRect = viewportClip
         };
     }
 
@@ -352,7 +364,9 @@ public static class TextRenderer
         float sortKey,
         TextureId whiteTex,
         TextureId defNormal,
-        CoordinateSpace space)
+        CoordinateSpace space,
+        bool applyViewportClip,
+        UiRect viewportClip)
     {
         if (penEnd <= penStart)
             return;
@@ -369,11 +383,11 @@ public static class TextRenderer
 
         if (style.Underline)
             SubmitLine(renderer, baselineLeft.X + penStart, baselineLeft.X + penEnd, underlineY, lineHalfH,
-                cm, sortKey + 0.1f, whiteTex, defNormal, space);
+                cm, sortKey + 0.1f, whiteTex, defNormal, space, applyViewportClip, viewportClip);
 
         if (style.Strikethrough)
             SubmitLine(renderer, baselineLeft.X + penStart, baselineLeft.X + penEnd, strikeY, lineHalfH,
-                cm, sortKey + 0.15f, whiteTex, defNormal, space);
+                cm, sortKey + 0.15f, whiteTex, defNormal, space, applyViewportClip, viewportClip);
     }
 
     private static void SubmitLine(
@@ -386,10 +400,13 @@ public static class TextRenderer
         float sortKey,
         TextureId whiteTex,
         TextureId defN,
-        CoordinateSpace space)
+        CoordinateSpace space,
+        bool applyViewportClip,
+        UiRect viewportClip)
     {
         var midX = (xStart + xEnd) * 0.5f;
         var halfW = MathF.Max(0.5f, (xEnd - xStart) * 0.5f);
+        var clip = applyViewportClip && ScreenSpaceYDown(space);
         var req = new SpriteDrawRequest
         {
             CenterWorld = new Vector2D<float>(midX, y),
@@ -407,7 +424,9 @@ public static class TextRenderer
             DepthHint = 0f,
             UvRect = default,
             Transparent = TransparentSpriteForSpace(space),
-            Space = space
+            Space = space,
+            ViewportClipEnabled = clip,
+            ViewportClipRect = viewportClip
         };
         renderer.SubmitSprite(in req);
     }
