@@ -154,5 +154,108 @@ public sealed class FrameProfilerDebugTests
         Assert.True(FrameProfilerStats.TryGetStat("parallel.outer", out var outer) && outer.Count >= 64);
         Assert.True(FrameProfilerStats.TryGetStat("parallel.inner", out var inner) && inner.Count >= 64);
     }
+
+    private const string FrameProfilerEnvVar = "CYBERLAND_ENABLE_FRAME_PROFILER";
+
+    [Fact]
+    public void FrameProfiler_ApplyEnvironmentDefaults_noop_for_empty_or_whitespace_env()
+    {
+        var prev = Environment.GetEnvironmentVariable(FrameProfilerEnvVar);
+        try
+        {
+            Environment.SetEnvironmentVariable(FrameProfilerEnvVar, null);
+            FrameProfiler.SetEnabled(true);
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.True(FrameProfiler.IsEnabled);
+
+            Environment.SetEnvironmentVariable(FrameProfilerEnvVar, "  ");
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.True(FrameProfiler.IsEnabled);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(FrameProfilerEnvVar, prev);
+            FrameProfiler.SetEnabled(true);
+        }
+    }
+
+    [Fact]
+    public void FrameProfiler_ApplyEnvironmentDefaults_toggles_from_env_strings()
+    {
+        var prev = Environment.GetEnvironmentVariable(FrameProfilerEnvVar);
+        try
+        {
+            Environment.SetEnvironmentVariable(FrameProfilerEnvVar, "0");
+            FrameProfiler.SetEnabled(true);
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.False(FrameProfiler.IsEnabled);
+
+            Environment.SetEnvironmentVariable(FrameProfilerEnvVar, "FALSE");
+            FrameProfiler.SetEnabled(true);
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.False(FrameProfiler.IsEnabled);
+
+            Environment.SetEnvironmentVariable(FrameProfilerEnvVar, "1");
+            FrameProfiler.SetEnabled(false);
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.True(FrameProfiler.IsEnabled);
+
+            Environment.SetEnvironmentVariable(FrameProfilerEnvVar, "TRUE");
+            FrameProfiler.SetEnabled(false);
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.True(FrameProfiler.IsEnabled);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(FrameProfilerEnvVar, prev);
+            FrameProfiler.SetEnabled(true);
+        }
+    }
+
+    [Fact]
+    public void FrameProfiler_MarkFrame_before_warmup_end_is_ignored()
+    {
+        FrameProfiler.ResetSession();
+        FrameProfiler.SetEnabled(true);
+        FrameProfiler.MarkFrame();
+
+        var path = Path.Combine(Path.GetTempPath(), "cybprof-warmup" + Guid.NewGuid() + ".txt");
+        try
+        {
+            FrameProfiler.WriteDump(path);
+            var text = File.ReadAllText(path);
+            Assert.Contains("frames=0", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch
+            {
+            }
+
+            FrameProfiler.ConfigureWarmup(TimeSpan.Zero);
+        }
+    }
+
+    [Fact]
+    public void FrameProfiler_PushInternal_and_PopInternal_short_circuit_when_disabled()
+    {
+        FrameProfiler.ResetSession();
+        FrameProfiler.ConfigureWarmup(TimeSpan.Zero);
+        FrameProfiler.SetEnabled(false);
+        try
+        {
+            FrameProfiler.PushInternal("noop.when.disabled");
+            FrameProfiler.PopInternal();
+            Assert.False(FrameProfilerStats.TryGetStat("noop.when.disabled", out _));
+        }
+        finally
+        {
+            FrameProfiler.SetEnabled(true);
+        }
+    }
 }
 #endif

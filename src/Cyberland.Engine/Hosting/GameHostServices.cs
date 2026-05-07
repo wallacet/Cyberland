@@ -24,13 +24,14 @@ public sealed class GameHostServices
     /// <summary>
     /// Creates host-owned services used by mods and built-in systems.
     /// </summary>
-    public GameHostServices()
+    /// <param name="uiCommands">Optional queue override (tests may supply an <see cref="IUiCommandQueue"/> that exercises edge cases).</param>
+    public GameHostServices(IUiCommandQueue? uiCommands = null)
     {
         Fonts = new FontLibrary();
         BuiltinFonts.AddTo(Fonts);
         TextGlyphCache = new TextGlyphCache();
         UiDocuments = new UiDocumentRegistry();
-        UiCommands = new UiCommandQueue();
+        UiCommands = uiCommands ?? new UiCommandQueue();
     }
 
     /// <summary>Localized strings + media resolution; set by the host before <see cref="Modding.ModLoader.LoadAll"/>.</summary>

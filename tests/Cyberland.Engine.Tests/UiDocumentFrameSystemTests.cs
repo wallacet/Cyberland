@@ -549,6 +549,23 @@ public sealed class UiDocumentFrameSystemTests
     }
 
     [Fact]
+    public void UiCommandDrainSystem_skips_null_command_without_throwing()
+    {
+        var queue = new UiCommandQueueWithNullableSeed(null, new TestUiCommand(99));
+        var host = new GameHostServices(queue);
+        IUiCommand? last = null;
+        host.UiCommandDispatcher = c => last = c;
+
+        var drain = new UiCommandDrainSystem(host);
+        var world = new World();
+        drain.OnStart(world, world.QueryChunks(SystemQuerySpec.Empty));
+        drain.OnLateUpdate(world.QueryChunks(SystemQuerySpec.Empty), 0f);
+
+        Assert.Equal(99, Assert.IsType<TestUiCommand>(last).Value);
+        Assert.Equal(0, host.UiCommands.Count);
+    }
+
+    [Fact]
     public void UiDocumentFrameSystem_wheel_prefers_higher_sort_key_document()
     {
         var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(480, 200) };
@@ -716,6 +733,39 @@ public sealed class UiDocumentFrameSystemTests
         }
     }
 
+    [Fact]
+    public void UiDocumentFrameSystem_warns_once_when_measure_arrange_budget_is_exceeded()
+    {
+        var prevInc = UiLayoutGating.UseIncrementalDocumentFrames;
+        UiLayoutGating.UseIncrementalDocumentFrames = false;
+        try
+        {
+            var renderer = new RecordingRenderer();
+            var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+            var world = new World();
+            for (var i = 0; i < 129; i++)
+            {
+                var ent = world.CreateEntity();
+                world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+                {
+                    Visible = true,
+                    CoordinateSpace = CoordinateSpace.ViewportSpace,
+                    RootPreset = UiDocumentRootPreset.FullViewport,
+                    SortKeyBase = i
+                };
+                host.UiDocuments.Register(ent, new UiDocument());
+            }
+
+            var sys = new UiDocumentFrameSystem(host);
+            sys.OnStart(world, world.QueryChunks(DocRootQuery));
+            sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+        }
+        finally
+        {
+            UiLayoutGating.UseIncrementalDocumentFrames = prevInc;
+        }
+    }
+
     private static UiDocument BuildHelloDocument()
     {
         var doc = new UiDocument();
@@ -806,6 +856,51 @@ public sealed class UiDocumentFrameSystemTests
         {
             MeasureCount++;
             return base.MeasureCore(in constraints);
+        }
+    }
+
+    /// <summary>Test double that can dequeue null head entries (stock <see cref="UiCommandQueue"/> forbids null enqueue).</summary>
+    private sealed class UiCommandQueueWithNullableSeed : IUiCommandQueue
+    {
+        private readonly Queue<IUiCommand?> _queue = new();
+
+        public UiCommandQueueWithNullableSeed(params IUiCommand?[] seed)
+        {
+            foreach (var item in seed)
+                _queue.Enqueue(item);
+        }
+
+        public int Count => _queue.Count;
+
+        public void Enqueue(IUiCommand command)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            _queue.Enqueue(command);
+        }
+
+        public bool TryPeek(out IUiCommand? command)
+        {
+            if (_queue.Count == 0)
+            {
+                command = null;
+                return false;
+            }
+
+            command = _queue.Peek();
+            return true;
+        }
+
+        public bool TryDequeue(out IUiCommand? command) => _queue.TryDequeue(out command);
+
+        public int TrimToMaxCount(int maxCount)
+        {
+            if (maxCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxCount), maxCount, "maxCount must be non-negative.");
+
+            var removed = 0;
+            while (_queue.Count > maxCount && TryDequeue(out _))
+                removed++;
+            return removed;
         }
     }
 

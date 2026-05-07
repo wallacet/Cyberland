@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
@@ -536,6 +537,31 @@ public sealed class TextRenderSystemTests
         sys.OnStart(world, q);
         sys.OnLateUpdate(q, 0.016f);
         Assert.NotEmpty(r.Sprites);
+    }
+
+    [Fact]
+    public void TextRenderSystem_OnParallelLateUpdate_partitions_large_chunk_when_parallelism_gt_one()
+    {
+        var r = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var sys = new TextRenderSystem(host);
+        var world = new World();
+        for (var i = 0; i < 65; i++)
+        {
+            var e = world.CreateEntity();
+            world.GetOrAdd<Transform>(e) = Transform.Identity;
+            ref var bt = ref world.GetOrAdd<BitmapText>(e);
+            bt.Visible = true;
+            bt.Content = "x";
+            bt.IsLocalizationKey = false;
+            bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+            bt.Style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        }
+
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnParallelLateUpdate(q, 0.016f, new ParallelOptions { MaxDegreeOfParallelism = 2 });
+        Assert.NotEmpty(r.TextGlyphs);
     }
 
     [Fact]

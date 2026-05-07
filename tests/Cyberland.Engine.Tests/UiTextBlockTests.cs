@@ -440,6 +440,17 @@ public sealed class UiTextBlockTests
     }
 
     [Fact]
+    public void UiTextMeasurer_TryMinReferenceBoundsTopForLine_returns_true_when_segment_font_resolves()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var line = new UiTextLayoutLine();
+        line.Segments.Add(("x", new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)), 0f));
+        Assert.True(UiTextMeasurer.TryMinReferenceBoundsTopForLine(lib, line, out var minTop));
+        Assert.False(float.IsInfinity(minTop));
+    }
+
+    [Fact]
     public void UiTextBlock_DrawGlyphs_falls_back_to_legacy_baseline_when_reference_top_unavailable()
     {
         var fonts = new FontLibrary();
@@ -582,6 +593,35 @@ public sealed class UiTextBlockTests
     }
 
     [Fact]
+    public void UiTextBlock_DrawRun_empty_string_adds_placeholder_when_cache_slot_missing()
+    {
+        var (fonts, cache) = TestFonts();
+        var r = new RecordingRenderer();
+        var st = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var block = new UiTextBlock();
+        var m = typeof(UiTextBlock).GetMethod("DrawRun",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(m);
+        var invokeArgs = new object[]
+        {
+            r,
+            fonts,
+            cache,
+            "",
+            st,
+            new Vector2D<float>(1f, 2f),
+            450f,
+            CoordinateSpace.ViewportSpace,
+            false,
+            0,
+            default(UiRect)
+        };
+        m.Invoke(block, invokeArgs);
+        Assert.Equal(1, (int)invokeArgs[9]);
+        Assert.Empty(r.Sprites);
+    }
+
+    [Fact]
     public void UiTextBlock_DrawRun_empty_string_returns_via_reflection()
     {
         var (fonts, cache) = TestFonts();
@@ -591,8 +631,28 @@ public sealed class UiTextBlockTests
         var m = typeof(UiTextBlock).GetMethod("DrawRun",
             BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(m);
-        m.Invoke(block,
-        [
+        // DrawRun(renderer, fonts, cache, text, style, baselineLeft, sortKey, space, applyVpClip, ref drawRunCursor, viewportClip)
+        var primeArgs = new object[]
+        {
+            r,
+            fonts,
+            cache,
+            "z",
+            st,
+            new Vector2D<float>(10f, 20f),
+            450f,
+            CoordinateSpace.ViewportSpace,
+            false,
+            0,
+            default(UiRect)
+        };
+        m.Invoke(block, primeArgs);
+        Assert.Equal(1, (int)primeArgs[9]);
+        r.Sprites.Clear();
+        r.TextGlyphs.Clear();
+
+        var emptyReuseSlotArgs = new object[]
+        {
             r,
             fonts,
             cache,
@@ -602,8 +662,35 @@ public sealed class UiTextBlockTests
             450f,
             CoordinateSpace.ViewportSpace,
             false,
+            0,
             default(UiRect)
-        ]);
+        };
+        m.Invoke(block, emptyReuseSlotArgs);
+        Assert.Equal(1, (int)emptyReuseSlotArgs[9]);
         Assert.Empty(r.Sprites);
+    }
+
+    [Fact]
+    public void UiTextBlock_DrawGlyphs_trims_draw_run_cache_when_segment_count_shrinks()
+    {
+        var (fonts, cache) = TestFonts();
+        var r = new RecordingRenderer();
+        var st = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "a\nb",
+            DefaultStyle = st
+        };
+        UiLayoutPresets.StretchAll(block);
+        block.Measure(UiSizeConstraints.Loose(200f, 120f));
+        block.Arrange(new UiRect(0f, 0f, 200f, 120f));
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+
+        block.Text = "a";
+        block.InvalidateLayout();
+        block.Measure(UiSizeConstraints.Loose(200f, 120f));
+        block.Arrange(new UiRect(0f, 0f, 200f, 120f));
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
     }
 }
