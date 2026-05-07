@@ -203,22 +203,32 @@ scripts/
 ## High-level architecture
 
 ```mermaid
-flowchart TB
-  subgraph HP["Host process"]
-    GA["GameApplication"]
-    GA --> WIN["Silk.NET Window"]
-    GA --> VK["VulkanRenderer"]
-    GA --> SCHED["SystemScheduler"]
-    GA --> ECS["World ECS"]
-    GA --> VFS["VirtualFileSystem"]
-    ML["ModLoader"]
+graph TB
+  subgraph HP[Host process]
+    GA[GameApplication]
+    WIN[Silk.NET Window]
+    VK[VulkanRenderer]
+    SCHED[SystemScheduler]
+    ECS[World ECS]
+    VFS[VirtualFileSystem]
+    ML[ModLoader]
+    MODS[IMod DLLs: Game/Demo]
+    SYS[ISystem + IParallelSystem + ISingletonSystem]
+    SVC[GameHostServices]
+    INP[IInputService]
+
+    GA --> WIN
+    GA --> VK
+    GA --> SCHED
+    GA --> ECS
+    GA --> VFS
     GA --> ML
-    ML --> MODS["IMod DLLs Game Demo"]
-    MODS --> SYS["ISystem, IParallelSystem, ISingletonSystem"]
+    ML --> MODS
+    MODS --> SYS
     SYS --> ECS
-    SYS --> SVC["GameHostServices"]
+    SYS --> SVC
     SVC --> VK
-    SVC --> INP["IInputService"]
+    SVC --> INP
   end
 ```
 
