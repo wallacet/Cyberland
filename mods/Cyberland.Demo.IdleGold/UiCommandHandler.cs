@@ -1,5 +1,6 @@
 using Cyberland.Demo.IdleGold.Components;
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Localization;
 
 namespace Cyberland.Demo.IdleGold;
@@ -9,7 +10,7 @@ namespace Cyberland.Demo.IdleGold;
 /// <summary>Applies purchase commands to the session row and records localized log lines.</summary>
 public static class UiCommandHandler
 {
-    public static void Dispatch(World world, EntityId session, LocalizationManager loc, object? cmd)
+    public static void Dispatch(World world, EntityId session, LocalizationManager loc, IUiCommand cmd)
     {
         if (cmd is not UiGameCommand gameCmd)
             return;

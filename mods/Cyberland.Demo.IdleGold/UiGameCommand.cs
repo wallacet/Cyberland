@@ -1,7 +1,9 @@
+using Cyberland.Engine.Hosting;
+
 namespace Cyberland.Demo.IdleGold;
 
 /// <summary>Player intents queued from <see cref="Cyberland.Engine.UI.Controls.UiButton"/> and drained with <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommandDispatcher"/>.</summary>
-public abstract record UiGameCommand;
+public abstract record UiGameCommand : IUiCommand;
 
 public sealed record UnlockSourceCommand(SourceId Source) : UiGameCommand;
 

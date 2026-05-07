@@ -72,4 +72,37 @@ internal static class UiTextMeasurer
 
         return true;
     }
+
+    /// <summary>
+    /// Computes both max line height and baseline top metric in one lock, avoiding separate per-line lock passes.
+    /// </summary>
+    internal static bool TryGetLineMetrics(FontLibrary fonts, UiTextLayoutLine line, out float maxLineHeight,
+        out float minTop)
+    {
+        maxLineHeight = 0f;
+        minTop = float.PositiveInfinity;
+        lock (fonts.FontRasterSync)
+        {
+            foreach (var seg in line.Segments)
+            {
+                if (!fonts.TryCreateFontUnlocked(in seg.Style, out var font, out _))
+                    continue;
+
+                var opts = new TextOptions(font) { Dpi = 96f };
+                var lineBounds = TextMeasurer.MeasureBounds(LineHeightReferenceSample, opts);
+                maxLineHeight = MathF.Max(maxLineHeight, MathF.Max(seg.Style.SizePixels * 0.5f, lineBounds.Height));
+                minTop = MathF.Min(minTop, lineBounds.Top);
+            }
+        }
+
+        if (maxLineHeight <= 0f)
+            maxLineHeight = 0f;
+        if (float.IsPositiveInfinity(minTop))
+        {
+            minTop = 0f;
+            return false;
+        }
+
+        return true;
+    }
 }

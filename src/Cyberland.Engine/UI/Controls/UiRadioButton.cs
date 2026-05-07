@@ -20,8 +20,8 @@ public class UiRadioButton : UiPanel
     /// <summary>Fill when selected.</summary>
     public Vector4D<float> SelectedTint { get; set; } = new(0.28f, 0.42f, 0.55f, 1f);
 
-    /// <summary>Creates a radio tile registered with <paramref name="group"/>.</summary>
-    public UiRadioButton(UiRadioGroup group, string optionId)
+    /// <summary>Creates a radio tile registered with <paramref name="group"/> and fixed tile dimensions.</summary>
+    public UiRadioButton(UiRadioGroup group, string optionId, float width, float height)
     {
         ArgumentNullException.ThrowIfNull(group);
         ArgumentNullException.ThrowIfNull(optionId);
@@ -30,7 +30,7 @@ public class UiRadioButton : UiPanel
         OptionId = optionId;
         Interactable = true;
         group.Register(this);
-        UiLayoutPresets.TopLeftFixed(this, 140f, 32f);
+        UiLayoutPresets.TopLeftFixed(this, width, height);
         SyncVisual();
     }
 

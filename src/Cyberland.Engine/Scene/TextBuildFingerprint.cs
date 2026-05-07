@@ -7,13 +7,10 @@ namespace Cyberland.Engine.Scene;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The name “fingerprint” is historical. The engine no longer uses these fields to skip layout in the runtime builder;
-/// every visible row rebuilds from the resolved string each time <see cref="Systems.TextRenderSystem"/> runs.
-/// </para>
-/// <para>
-/// Fields are still written each prepare so tooling can compare viewport/baseline/hash without introspecting strings.
+/// Fields are written by <see cref="Systems.TextRuntimeBuilder"/> during staging/submit preparation so tooling can compare
+/// viewport, baseline, style, and resolved-content hashes without introspecting full strings.
 /// <see cref="Systems.TextRuntimeBuilder"/> compares these against the current resolved row (excluding baseline-only moves)
-/// to decide when to discard CPU glyph slots before rebuilding.
+/// to decide when cached CPU glyph slots can be reused safely.
 /// </para>
 /// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures <see cref="Transform"/> exists.
 /// </remarks>

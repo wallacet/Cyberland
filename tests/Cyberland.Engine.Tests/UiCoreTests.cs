@@ -458,6 +458,34 @@ public sealed class UiCoreTests
     }
 
     [Fact]
+    public void UiElement_Draw_visits_children_in_sorted_order()
+    {
+        var root = new UiPanel();
+        UiLayoutPresets.StretchAll(root);
+
+        var late = new UiElement { SortKey = 5f };
+        UiLayoutPresets.TopLeftFixed(late, 10f, 10f);
+        late.AnchoredPosition = new Vector2D<float>(40f, 0f);
+
+        var early = new UiElement { SortKey = 1f };
+        UiLayoutPresets.TopLeftFixed(early, 10f, 10f);
+
+        root.AddChild(late);
+        root.AddChild(early);
+
+        root.Measure(UiSizeConstraints.Loose(100f, 100f));
+        root.Arrange(new UiRect(0f, 0f, 100f, 100f));
+
+        var ctx = new UiRenderContext(new UiRect(0f, 0f, 100f, 100f));
+        root.Draw(ctx);
+
+        // Root records first, then children in traversal order.
+        Assert.True(ctx.DebugRects.Count >= 3);
+        Assert.Equal(0f, ctx.DebugRects[1].X);
+        Assert.Equal(40f, ctx.DebugRects[2].X);
+    }
+
+    [Fact]
     public void UiElement_layout_property_setters_coalesce_noop_assignments()
     {
         var p = new UiPanel();

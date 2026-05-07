@@ -587,10 +587,11 @@ public sealed class UiTextBlockTests
         var (fonts, cache) = TestFonts();
         var r = new RecordingRenderer();
         var st = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var block = new UiTextBlock();
         var m = typeof(UiTextBlock).GetMethod("DrawRun",
-            BindingFlags.Static | BindingFlags.NonPublic);
+            BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(m);
-        m.Invoke(null,
+        m.Invoke(block,
         [
             r,
             fonts,

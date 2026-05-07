@@ -395,6 +395,7 @@ public sealed class SystemScheduler
         if (e.Started)
             return;
 
+        using var __scope = FrameProfilerScope.Enter($"Scheduler.Start.{e.Id}");
         e.Start.Invoke(world);
 
         e.Started = true;

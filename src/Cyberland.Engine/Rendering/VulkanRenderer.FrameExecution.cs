@@ -169,7 +169,7 @@ public sealed unsafe partial class VulkanRenderer
 
             int textCount;
             TextGlyphDrawRequest[] textGlyphs;
-            textCount = DrainQueue(_r._textGlyphQueue, ref _r._frameScratchTextGlyphs, out textGlyphs);
+            textCount = _r.DrainPendingTextGlyphs(ref _r._frameScratchTextGlyphs, out textGlyphs);
             LightSubmissionPolicy.ClampWithDropCount(textCount, DeferredRenderingConstants.MaxTextGlyphs, out var droppedTextGlyphs);
             if (droppedTextGlyphs > 0 && Interlocked.Exchange(ref _r._textGlyphOverflowWarningIssued, 1) == 0)
             {
@@ -184,10 +184,10 @@ public sealed unsafe partial class VulkanRenderer
                 textSort = [];
             else
             {
-                using var __ = FrameProfilerScope.Enter("FramePlan.Sort.TextGlyphs");
                 EnsureFrameScratch(ref _r._frameScratchTextSortIndices, textCount);
                 textSort = _r._frameScratchTextSortIndices!;
-                TextGlyphSortComparer.SortByOrder(textSort, textGlyphs, textCount);
+                for (var i = 0; i < textCount; i++)
+                    textSort[i] = i;
             }
 
             if (pointCount > DeferredRenderingConstants.MaxPointLights)
@@ -235,6 +235,7 @@ public sealed unsafe partial class VulkanRenderer
         /// <summary>Thin wrapper so <see cref="ConcurrentQueueDrain.DrainToScratch{T}"/> stays testable in isolation.</summary>
         private static int DrainQueue<T>(ConcurrentQueue<T> queue, ref T[]? scratch, out T[] result) =>
             ConcurrentQueueDrain.DrainToScratch(queue, ref scratch, out result);
+
     }
 
     private sealed class RenderBackendExecutor : IRenderBackendExecutor

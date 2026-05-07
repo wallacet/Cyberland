@@ -12,6 +12,7 @@ namespace Cyberland.Engine.UI.Core;
 /// </summary>
 public class UiPanel : UiElement
 {
+    private readonly List<UiElement> _stretchersScratch = new();
     private Vector4D<float> _backgroundColor;
     private TextureId _backgroundTextureId = TextureId.MaxValue;
 
@@ -90,16 +91,19 @@ public class UiPanel : UiElement
         var innerMaxH = ClampInnerMaxHeightForBand(this,
             constraints.MaxHeight - Padding.Vertical - Margin.Vertical);
 
-        const float eps = 1e-4f;
-        const float collapsedHeightFloorMaxPx = 256f;
-        var stretchX = AnchorMax.X - AnchorMin.X > eps;
-        var stretchY = AnchorMax.Y - AnchorMin.Y > eps;
-        var topStretchBand = stretchX && !stretchY && MathF.Abs(SizeDelta.X) <= eps && SizeDelta.Y > eps;
+        var stretchX = AnchorMax.X - AnchorMin.X > UiLayoutConstants.AxisEpsilon;
+        var stretchY = AnchorMax.Y - AnchorMin.Y > UiLayoutConstants.AxisEpsilon;
+        var topStretchBand = stretchX &&
+            !stretchY &&
+            MathF.Abs(SizeDelta.X) <= UiLayoutConstants.AxisEpsilon &&
+            SizeDelta.Y > UiLayoutConstants.AxisEpsilon;
 
         // Fixed-height tiles must not give StretchAll labels the parent's slack (e.g. 44px chrome band) when
         // SizeDelta.Y is 38–40px — measured height would exceed Arrange, pinning captions to the top of the slot.
         var childVertBudget = innerMaxH;
-        if (!stretchY && SizeDelta.Y > eps && SizeDelta.Y <= collapsedHeightFloorMaxPx)
+        if (!stretchY &&
+            SizeDelta.Y > UiLayoutConstants.AxisEpsilon &&
+            SizeDelta.Y <= UiLayoutConstants.CollapsedHeightFloorMaxPx)
         {
             var contentH = MathF.Max(0f, SizeDelta.Y - Padding.Vertical);
             childVertBudget = MathF.Min(innerMaxH, contentH);
@@ -108,12 +112,15 @@ public class UiPanel : UiElement
         // Giving every child the full innerMaxH makes each StretchAll descendant measure to the full viewport;
         // summed heights then exceed the parent and push siblings off-screen. Measure fixed-height siblings first,
         // then split the remaining vertical budget across children that stretch on Y (see UiLayoutPresets.StretchAll).
-        var stretchers = new List<UiElement>();
+        var stretchers = _stretchersScratch;
+        stretchers.Clear();
         float consumed = 0f;
         var anyFixedMeasured = false;
+        var children = Children;
 
-        foreach (var child in Children)
+        for (var i = 0; i < children.Count; i++)
         {
+            var child = children[i];
             if (!child.Visible)
                 continue;
 
@@ -153,8 +160,9 @@ public class UiPanel : UiElement
         float maxChildW = 0f;
         float sumH = 0f;
         var firstVisible = true;
-        foreach (var child in Children)
+        for (var i = 0; i < children.Count; i++)
         {
+            var child = children[i];
             if (!child.Visible)
                 continue;
 
@@ -180,9 +188,12 @@ public class UiPanel : UiElement
         // TopLeftFixed tiles (buttons, radio pills) must reserve SizeDelta on collapsed axes so horizontal-stack
         // cursor advances match Arrange bounds — otherwise siblings paint on top of each other (IdleGold chrome).
         // Cap the height floor: large SizeDelta.Y is often a layout viewport; measured height must stay intrinsic there.
-        if (!stretchX && SizeDelta.X > eps)
+        if (!stretchX && SizeDelta.X > UiLayoutConstants.AxisEpsilon)
             dw = MathF.Max(dw, SizeDelta.X + Margin.Horizontal);
-        if (!stretchY && SizeDelta.Y > eps && !topStretchBand && SizeDelta.Y <= collapsedHeightFloorMaxPx)
+        if (!stretchY &&
+            SizeDelta.Y > UiLayoutConstants.AxisEpsilon &&
+            !topStretchBand &&
+            SizeDelta.Y <= UiLayoutConstants.CollapsedHeightFloorMaxPx)
             dh = MathF.Max(dh, SizeDelta.Y + Margin.Vertical);
 
         return constraints.ClampSize(new Vector2D<float>(dw, dh));
@@ -190,8 +201,7 @@ public class UiPanel : UiElement
 
     private static bool StretchesVertically(UiElement child)
     {
-        const float eps = 1e-4f;
-        return child.AnchorMax.Y - child.AnchorMin.Y > eps;
+        return child.AnchorMax.Y - child.AnchorMin.Y > UiLayoutConstants.AxisEpsilon;
     }
 
     /// <inheritdoc />
@@ -204,8 +214,10 @@ public class UiPanel : UiElement
         var inner = ComputedBounds.Deflate(Padding);
         float y = inner.Y;
         var first = true;
-        foreach (var child in Children)
+        var children = Children;
+        for (var i = 0; i < children.Count; i++)
         {
+            var child = children[i];
             if (!child.Visible)
                 continue;
 

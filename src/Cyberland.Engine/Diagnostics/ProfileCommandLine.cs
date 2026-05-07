@@ -1,7 +1,7 @@
 namespace Cyberland.Engine.Diagnostics;
 
 /// <summary>
-/// Parses <c>--profile-seconds=N</c> and <c>--profile-dump=path</c> for unattended CPU profiling runs.
+/// Parses unattended profiling / perf-capture command-line flags.
 /// </summary>
 public static class ProfileCommandLine
 {
@@ -10,6 +10,9 @@ public static class ProfileCommandLine
 
     /// <summary>Long-form CLI token for <see cref="TryParseProfileDump"/>.</summary>
     public const string DumpFlag = "--profile-dump";
+
+    /// <summary>Long-form CLI token for <see cref="TryParsePerfDump"/>.</summary>
+    public const string PerfDumpFlag = "--perf-dump";
 
     /// <summary>Returns wall-clock profile duration in seconds, or <c>null</c> if profiling is disabled.</summary>
     public static double? TryParseProfileSeconds(ReadOnlySpan<string> args)
@@ -48,6 +51,22 @@ public static class ProfileCommandLine
                 return a[(DumpFlag + "=").Length..].Trim();
 
             if (a.Equals(DumpFlag, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                return args[i + 1].Trim();
+        }
+
+        return null;
+    }
+
+    /// <summary>Returns perf summary dump file path, or <c>null</c> if absent.</summary>
+    public static string? TryParsePerfDump(ReadOnlySpan<string> args)
+    {
+        for (var i = 0; i < args.Length; i++)
+        {
+            var a = args[i];
+            if (a.StartsWith(PerfDumpFlag + "=", StringComparison.OrdinalIgnoreCase))
+                return a[(PerfDumpFlag + "=").Length..].Trim();
+
+            if (a.Equals(PerfDumpFlag, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
                 return args[i + 1].Trim();
         }
 

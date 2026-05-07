@@ -33,23 +33,23 @@ public sealed class UiScrollViewRoutingTests
     }
 
     [Fact]
-    public void ApplyWheel_increments_ContentOffset()
+    public void ApplyWheel_increments_VerticalOffset()
     {
         var sv = new UiScrollView();
         sv.ApplyWheel(-2f);
-        Assert.True(sv.ContentOffset.Y > 0f);
+        Assert.True(sv.VerticalOffset > 0f);
     }
 
     [Fact]
     public void ApplyWheel_zero_delta_is_noop()
     {
-        var sv = new UiScrollView { ContentOffset = new Vector2D<float>(0f, 12f) };
+        var sv = new UiScrollView { VerticalOffset = 12f };
         sv.ApplyWheel(0f);
-        Assert.Equal(12f, sv.ContentOffset.Y);
+        Assert.Equal(12f, sv.VerticalOffset);
     }
 
     [Fact]
-    public void Wheel_measure_apply_measure_keeps_ContentOffset()
+    public void Wheel_measure_apply_measure_keeps_VerticalOffset()
     {
         var scroll = BuildTallScroll();
         var doc = new UiDocument();
@@ -61,7 +61,7 @@ public sealed class UiScrollViewRoutingTests
         Assert.NotNull(sv);
         sv!.ApplyWheel(-2f);
         doc.MeasureArrange(new Vector2D<float>(480f, 160f));
-        Assert.True(scroll.ContentOffset.Y > 0f);
+        Assert.True(scroll.VerticalOffset > 0f);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class UiScrollViewRoutingTests
         sys.OnStart(world, world.QueryChunks(DocRootQuery));
         sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
 
-        Assert.True(scroll.ContentOffset.Y > 0f);
+        Assert.True(scroll.VerticalOffset > 0f);
     }
 
     [Fact]

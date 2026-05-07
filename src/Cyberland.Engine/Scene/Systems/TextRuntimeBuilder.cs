@@ -43,6 +43,7 @@ internal static class TextRuntimeBuilder
         }
 
         ResolveBaseline(in bt, in transform, host, out baselineAuthored, out space, out var vpW, out var vpH);
+        var resolvedHash = HashResolvedContent64(resolved);
 
         cache.BaselineAuthored = baselineAuthored;
         cache.Space = space;
@@ -51,16 +52,16 @@ internal static class TextRuntimeBuilder
         // fingerprint before rebuilding so nothing addressable looks like a longer run (mods should not need to call
         // DiscardPrepared for normal BitmapText.Content edits). Baseline/transform-only moves intentionally do not match here,
         // so HUD drift does not thrash the backing array every frame — BuildGlyphSprites still runs with the new baseline.
-        if (!ContentPipelineInputsMatchLastPrepare(in fingerprint, in bt, resolved, vpW, vpH))
+        if (!ContentPipelineInputsMatchLastPrepare(in fingerprint, in bt, resolved, resolvedHash, vpW, vpH))
             DiscardPreparedRow(ref cache, ref fingerprint);
 
-        if (CanReusePreparedGlyphs(in fingerprint, in cache, in bt, resolved, baselineAuthored, vpW, vpH))
+        if (TryReusePreparedGlyphs(ref fingerprint, ref cache, in bt, resolved, resolvedHash, baselineAuthored, vpW, vpH))
             return true;
 
         // Fingerprint must reflect a completed glyph fill — never expose new ResolvedCharCount/hash alongside a prior
         // GlyphCount if BuildGlyphSprites were ever to fail mid-flight (future-proof ordering).
         BuildGlyphSprites(ref bt, ref cache, host, renderer, resolved, baselineAuthored, space);
-        WriteFingerprintFromPrepare(ref fingerprint, in bt, resolved, baselineAuthored, vpW, vpH);
+        WriteFingerprintFromPrepare(ref fingerprint, in bt, resolved, resolvedHash, baselineAuthored, vpW, vpH);
         return true;
     }
 
@@ -96,11 +97,12 @@ internal static class TextRuntimeBuilder
         ref TextBuildFingerprint fingerprint,
         in BitmapText bt,
         string resolved,
+        ulong resolvedHash,
         Vector2D<float> baselineAuthored,
         int vpW,
         int vpH)
     {
-        fingerprint.ResolvedContentHash64 = HashResolvedContent64(resolved);
+        fingerprint.ResolvedContentHash64 = resolvedHash;
         fingerprint.ResolvedCharCount = resolved.Length;
         fingerprint.StyleHash = bt.Style.GetHashCode();
         fingerprint.CoordinateSpace = bt.CoordinateSpace;
@@ -119,12 +121,13 @@ internal static class TextRuntimeBuilder
         in TextBuildFingerprint fp,
         in BitmapText bt,
         string resolved,
+        ulong resolvedHash,
         int vpW,
         int vpH)
     {
         if (fp.ResolvedCharCount != resolved.Length)
             return false;
-        if (fp.ResolvedContentHash64 != HashResolvedContent64(resolved))
+        if (fp.ResolvedContentHash64 != resolvedHash)
             return false;
         if (fp.StyleHash != bt.Style.GetHashCode())
             return false;
@@ -137,29 +140,55 @@ internal static class TextRuntimeBuilder
         return true;
     }
 
-    private static bool CanReusePreparedGlyphs(
-        in TextBuildFingerprint fingerprint,
-        in TextSpriteCache cache,
+    private static bool TryReusePreparedGlyphs(
+        ref TextBuildFingerprint fingerprint,
+        ref TextSpriteCache cache,
         in BitmapText text,
         string resolved,
+        ulong resolvedHash,
         Vector2D<float> baselineAuthored,
         int vpW,
         int vpH)
     {
-        if (!ContentPipelineInputsMatchLastPrepare(in fingerprint, in text, resolved, vpW, vpH))
-            return false;
-        if (!BaselineMatches(in fingerprint, baselineAuthored))
+        if (!ContentPipelineInputsMatchLastPrepare(in fingerprint, in text, resolved, resolvedHash, vpW, vpH))
             return false;
         if (cache.CachedGlyphs is null)
             return false;
         if (cache.GlyphCount < 0 || cache.GlyphCount > resolved.Length)
             return false;
+
+        if (BaselineMatches(in fingerprint, baselineAuthored))
+            return true;
+
+        var oldEffective = EffectiveBaselineForGlyphSpace(
+            new Vector2D<float>(fingerprint.BaselineWorldX, fingerprint.BaselineWorldY),
+            cache.Space);
+        var newEffective = EffectiveBaselineForGlyphSpace(baselineAuthored, cache.Space);
+        var deltaX = newEffective.X - oldEffective.X;
+        var deltaY = newEffective.Y - oldEffective.Y;
+        if (deltaX != 0f || deltaY != 0f)
+        {
+            var glyphs = cache.CachedGlyphs;
+            for (var i = 0; i < cache.GlyphCount; i++)
+                glyphs[i].Center += new Vector2D<float>(deltaX, deltaY);
+        }
+
+        cache.BaselineAuthored = baselineAuthored;
+        fingerprint.BaselineWorldX = baselineAuthored.X;
+        fingerprint.BaselineWorldY = baselineAuthored.Y;
         return true;
     }
 
     private static bool BaselineMatches(in TextBuildFingerprint fingerprint, in Vector2D<float> baselineAuthored) =>
         fingerprint.BaselineWorldX == baselineAuthored.X &&
         fingerprint.BaselineWorldY == baselineAuthored.Y;
+
+    private static Vector2D<float> EffectiveBaselineForGlyphSpace(Vector2D<float> baselineAuthored, CoordinateSpace space)
+    {
+        if (space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace)
+            return new Vector2D<float>(MathF.Round(baselineAuthored.X), MathF.Round(baselineAuthored.Y));
+        return baselineAuthored;
+    }
 
     private static ulong HashResolvedContent64(string value)
     {

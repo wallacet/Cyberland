@@ -67,4 +67,25 @@ public sealed class ProfileCommandLineTests
         ReadOnlySpan<string> args = new[] { "other" };
         Assert.Null(ProfileCommandLine.TryParseProfileDump(args));
     }
+
+    [Fact]
+    public void TryParsePerfDump_equals_form()
+    {
+        ReadOnlySpan<string> args = new[] { ProfileCommandLine.PerfDumpFlag + "=C:\\tmp\\perf.txt" };
+        Assert.Equal(@"C:\tmp\perf.txt", ProfileCommandLine.TryParsePerfDump(args));
+    }
+
+    [Fact]
+    public void TryParsePerfDump_next_token_form()
+    {
+        ReadOnlySpan<string> args = new[] { ProfileCommandLine.PerfDumpFlag, "artifacts/profiles/perf.txt" };
+        Assert.Equal("artifacts/profiles/perf.txt", ProfileCommandLine.TryParsePerfDump(args));
+    }
+
+    [Fact]
+    public void TryParsePerfDump_missing_returns_null()
+    {
+        ReadOnlySpan<string> args = new[] { "other" };
+        Assert.Null(ProfileCommandLine.TryParsePerfDump(args));
+    }
 }

@@ -1,10 +1,13 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.UI.Core;
 using Silk.NET.Maths;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace Cyberland.Engine.Scene.Systems;
 
@@ -23,13 +26,19 @@ namespace Cyberland.Engine.Scene.Systems;
 /// races on <see cref="TextSpriteCache"/>.
 /// </para>
 /// <para>
+/// This pass remains serial because <see cref="TextSpriteCache"/> and render submission ordering are mutated in place. Future
+/// parallelization should split immutable shaping/prep from serial submit, with deterministic merge order preserved.
+/// </para>
+/// <para>
 /// Gameplay systems assign <see cref="BitmapText.Content"/> like any other component field; cache invalidation when copy or
 /// layout-affecting inputs change is handled inside <see cref="TextRuntimeBuilder.TryPrepare"/>.
 /// </para>
 /// </remarks>
-public sealed class TextRenderSystem : ISystem, ILateUpdate
+public sealed class TextRenderSystem : ISystem, ILateUpdate, IParallelSystem, IParallelLateUpdate
 {
     private readonly GameHostServices _host;
+    private const int ParallelRangeSize = 128;
+    private const int SmallChunkSerialThreshold = 64;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec =>
@@ -49,22 +58,45 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate
     /// <inheritdoc />
     public void OnLateUpdate(ChunkQueryAll query, float deltaSeconds)
     {
+        OnParallelLateUpdate(query, deltaSeconds, new ParallelOptions { MaxDegreeOfParallelism = 1 });
+    }
+
+    /// <inheritdoc />
+    public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions options)
+    {
+        using var frameScope = FrameProfilerScope.Enter("text.render.frame");
         _ = deltaSeconds;
         var r = _host.Renderer;
         foreach (var chunk in query)
         {
-            var texts = chunk.Column<BitmapText>();
-            var transforms = chunk.Column<Transform>();
-            var fingerprints = chunk.Column<TextBuildFingerprint>();
-            var caches = chunk.Column<TextSpriteCache>();
-            for (var i = 0; i < chunk.Count; i++)
+            using var chunkScope = FrameProfilerScope.Enter("text.render.chunk");
+            if (chunk.Count <= SmallChunkSerialThreshold || options.MaxDegreeOfParallelism == 1)
             {
-                ref var bt = ref texts[i];
-                ref var fingerprint = ref fingerprints[i];
-                ref var cache = ref caches[i];
-                ref readonly var transform = ref transforms[i];
-                SubmitBitmapTextRow(ref bt, ref fingerprint, ref cache, in transform, r);
+                SubmitChunkRange(chunk, 0, chunk.Count, r);
+                continue;
             }
+
+            Parallel.ForEach(Partitioner.Create(0, chunk.Count, ParallelRangeSize), options, range =>
+            {
+                SubmitChunkRange(chunk, range.Item1, range.Item2, r);
+            });
+        }
+    }
+
+    private void SubmitChunkRange(in MultiComponentChunkView chunk, int start, int endExclusive, IRenderer renderer)
+    {
+        var texts = chunk.Column<BitmapText>();
+        var transforms = chunk.Column<Transform>();
+        var fingerprints = chunk.Column<TextBuildFingerprint>();
+        var caches = chunk.Column<TextSpriteCache>();
+        for (var i = start; i < endExclusive; i++)
+        {
+            using var rowScope = FrameProfilerScope.Enter("text.render.row");
+            ref var bt = ref texts[i];
+            ref var fingerprint = ref fingerprints[i];
+            ref var cache = ref caches[i];
+            ref readonly var transform = ref transforms[i];
+            SubmitBitmapTextRow(ref bt, ref fingerprint, ref cache, in transform, renderer);
         }
     }
 

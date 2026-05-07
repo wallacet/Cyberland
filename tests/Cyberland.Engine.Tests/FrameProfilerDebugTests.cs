@@ -1,5 +1,6 @@
 #if DEBUG
 using System.Text;
+using System.Threading.Tasks;
 using Cyberland.Engine.Diagnostics;
 using Xunit;
 
@@ -91,6 +92,67 @@ public sealed class FrameProfilerDebugTests
         FrameProfiler.AppendTopScopes(sb, 8);
         Assert.DoesNotContain("ghost", sb.ToString(), StringComparison.Ordinal);
         Assert.Contains("real.scope", sb.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FrameProfiler_disable_short_circuits_scope_recording()
+    {
+        FrameProfiler.ResetSession();
+        FrameProfiler.ConfigureWarmup(TimeSpan.Zero);
+        FrameProfiler.SetEnabled(false);
+        try
+        {
+            using (FrameProfilerScope.Enter("disabled.scope")) { }
+            Assert.False(FrameProfilerStats.TryGetStat("disabled.scope", out _));
+        }
+        finally
+        {
+            FrameProfiler.SetEnabled(true);
+        }
+    }
+
+    [Fact]
+    public void FrameProfiler_mark_frame_writes_positive_frame_count()
+    {
+        FrameProfiler.ResetSession();
+        FrameProfiler.ConfigureWarmup(TimeSpan.Zero);
+        FrameProfiler.MarkFrame();
+        FrameProfiler.MarkFrame();
+
+        var path = Path.Combine(Path.GetTempPath(), "cybprof-frames" + Guid.NewGuid() + ".txt");
+        try
+        {
+            FrameProfiler.WriteDump(path);
+            var text = File.ReadAllText(path);
+            Assert.Contains("frames=2", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    [Fact]
+    public void FrameProfiler_parallel_scopes_record_without_stack_corruption()
+    {
+        FrameProfiler.ResetSession();
+        FrameProfiler.ConfigureWarmup(TimeSpan.Zero);
+        Parallel.For(0, 64, _ =>
+        {
+            using (FrameProfilerScope.Enter("parallel.outer"))
+            {
+                using (FrameProfilerScope.Enter("parallel.inner")) { }
+            }
+        });
+
+        Assert.True(FrameProfilerStats.TryGetStat("parallel.outer", out var outer) && outer.Count >= 64);
+        Assert.True(FrameProfilerStats.TryGetStat("parallel.inner", out var inner) && inner.Count >= 64);
     }
 }
 #endif

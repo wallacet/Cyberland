@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Cyberland.Engine.UI.Core;
 using Silk.NET.Maths;
 
@@ -8,6 +10,9 @@ namespace Cyberland.Engine.UI.Layout;
 /// </summary>
 public class UiGrid : UiElement
 {
+    private readonly List<UiElement> _visibleChildrenScratch = new();
+    private float[] _rowHeightsScratch = Array.Empty<float>();
+
     /// <summary>Number of columns (≥ 1).</summary>
     public int ColumnCount
     {
@@ -31,14 +36,10 @@ public class UiGrid : UiElement
         var gapTotalW = Spacing * Math.Max(0, cols - 1);
         var colW = cols > 0 ? MathF.Max(0f, (innerMaxW - gapTotalW) / cols) : 0f;
 
-        var visible = new List<UiElement>();
-        foreach (var c in Children)
-        {
-            if (c.Visible)
-                visible.Add(c);
-        }
+        var visible = BuildVisibleChildren();
 
-        var rows = visible.Count == 0 ? 0 : (visible.Count + cols - 1) / cols;
+        var visibleCount = visible.Count;
+        var rows = visibleCount == 0 ? 0 : (visibleCount + cols - 1) / cols;
 
         float totalH = 0f;
         var firstRow = true;
@@ -52,7 +53,7 @@ public class UiGrid : UiElement
             for (var c = 0; c < cols; c++)
             {
                 var i = r * cols + c;
-                if (i >= visible.Count)
+                if (i >= visibleCount)
                     break;
 
                 var child = visible[i];
@@ -84,30 +85,26 @@ public class UiGrid : UiElement
         var gapTotalW = Spacing * Math.Max(0, cols - 1);
         var colW = cols > 0 ? MathF.Max(0f, (inner.Width - gapTotalW) / cols) : 0f;
 
-        var visible = new List<UiElement>();
-        foreach (var c in Children)
-        {
-            if (c.Visible)
-                visible.Add(c);
-        }
+        var visible = BuildVisibleChildren();
+        var visibleCount = visible.Count;
 
-        var rows = visible.Count == 0 ? 0 : (visible.Count + cols - 1) / cols;
+        var rows = visibleCount == 0 ? 0 : (visibleCount + cols - 1) / cols;
+        EnsureRowHeightsCapacity(rows);
 
-        var rowHeights = new float[rows];
         for (var r = 0; r < rows; r++)
         {
             float rowH = 0f;
             for (var c = 0; c < cols; c++)
             {
                 var i = r * cols + c;
-                if (i >= visible.Count)
+                if (i >= visibleCount)
                     break;
 
                 var child = visible[i];
                 rowH = MathF.Max(rowH, child.MeasuredSize.Y + child.Margin.Vertical);
             }
 
-            rowHeights[r] = rowH;
+            _rowHeightsScratch[r] = rowH;
         }
 
         float y = inner.Y;
@@ -118,7 +115,7 @@ public class UiGrid : UiElement
                 y += Spacing;
             firstRow = false;
 
-            var rowH = rowHeights[r];
+            var rowH = _rowHeightsScratch[r];
             float x = inner.X;
             for (var c = 0; c < cols; c++)
             {
@@ -126,7 +123,7 @@ public class UiGrid : UiElement
                     x += Spacing;
 
                 var i = r * cols + c;
-                if (i >= visible.Count)
+                if (i >= visibleCount)
                     break;
 
                 var child = visible[i];
@@ -137,5 +134,31 @@ public class UiGrid : UiElement
 
             y += rowH;
         }
+    }
+
+    private List<UiElement> BuildVisibleChildren()
+    {
+        var visible = _visibleChildrenScratch;
+        visible.Clear();
+        var children = Children;
+        for (var i = 0; i < children.Count; i++)
+        {
+            var child = children[i];
+            if (child.Visible)
+                visible.Add(child);
+        }
+
+        return visible;
+    }
+
+    private void EnsureRowHeightsCapacity(int rows)
+    {
+        if (_rowHeightsScratch.Length >= rows)
+            return;
+
+        var replacement = new float[Math.Max(4, rows)];
+        if (_rowHeightsScratch.Length > 0)
+            Array.Copy(_rowHeightsScratch, replacement, _rowHeightsScratch.Length);
+        _rowHeightsScratch = replacement;
     }
 }

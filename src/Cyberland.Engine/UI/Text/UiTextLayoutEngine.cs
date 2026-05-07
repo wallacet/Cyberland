@@ -26,8 +26,20 @@ internal sealed class UiTextLayoutLine
     /// <summary>Top of the line box (+Y down, relative to content origin).</summary>
     public float LineTop { get; set; }
 
+    /// <summary>Measured horizontal advance for this wrapped line.</summary>
+    public float LineAdvance { get; set; }
+
+    /// <summary>Measured line-box height used for vertical placement and clipping.</summary>
+    public float MaxLineHeightPx { get; set; }
+
+    /// <summary>Baseline offset from <see cref="LineTop"/> in pixels (+Y down).</summary>
+    public float BaselineFromLineTopPx { get; set; }
+
     public float MaxLineHeight(FontLibrary fonts)
     {
+        if (MaxLineHeightPx > 0f)
+            return MaxLineHeightPx;
+
         var h = 0f;
         foreach (var seg in Segments)
             h = MathF.Max(h, UiTextMeasurer.MeasureLineHeight(fonts, seg.Style));
@@ -178,6 +190,7 @@ internal sealed class UiTextLayoutEngine
         ref float maxLineW)
     {
         var pending = new List<(string Text, TextStyle Style, float PenStart)>();
+        var styleSpaceWidthCache = new Dictionary<TextStyle, float>();
         float pen = 0f;
 
         foreach (var tok in tokens)
@@ -191,9 +204,15 @@ internal sealed class UiTextLayoutEngine
             var word = tok.Text;
             var st = tok.Style;
             var wordW = UiTextMeasurer.MeasureAdvanceWidth(fonts, in st, word.AsSpan());
-            var spaceW = pen > 0f
-                ? UiTextMeasurer.MeasureAdvanceWidth(fonts, in st, " ".AsSpan())
-                : 0f;
+            float spaceW = 0f;
+            if (pen > 0f)
+            {
+                if (!styleSpaceWidthCache.TryGetValue(st, out spaceW))
+                {
+                    spaceW = UiTextMeasurer.MeasureAdvanceWidth(fonts, in st, " ".AsSpan());
+                    styleSpaceWidthCache[st] = spaceW;
+                }
+            }
 
             var extra = pen > 0f ? spaceW : 0f;
             if (pending.Count > 0 && pen + extra + wordW > maxContentWidth)
@@ -235,8 +254,16 @@ internal sealed class UiTextLayoutEngine
 
         maxLineW = MathF.Max(maxLineW, pen);
 
-        var line = new UiTextLayoutLine { LineTop = contentBottom };
+        var line = new UiTextLayoutLine { LineTop = contentBottom, LineAdvance = pen, MaxLineHeightPx = lh };
         line.Segments.AddRange(pending);
+        if (UiTextMeasurer.TryGetLineMetrics(fonts, line, out var measuredLineHeight, out var minTop))
+        {
+            if (measuredLineHeight > 0f)
+                line.MaxLineHeightPx = measuredLineHeight;
+            line.BaselineFromLineTopPx = -minTop;
+        }
+        else
+            line.BaselineFromLineTopPx = line.MaxLineHeightPx * 0.82f;
         lines.Add(line);
 
         contentBottom += lh + lineSpacingExtra;
@@ -249,6 +276,7 @@ internal sealed class UiTextLayoutEngine
         string? text,
         TextStyle defaultStyle,
         IReadOnlyList<TextRun>? runs,
+        LocalizationManager? localization,
         float maxContentWidth,
         float paragraphSpacing,
         float lineSpacingExtra)
@@ -263,8 +291,10 @@ internal sealed class UiTextLayoutEngine
         {
             foreach (var r in runs)
             {
-                h.Add(r.Content);
                 h.Add(r.IsLocalizationKey);
+                h.Add(r.IsLocalizationKey && localization is not null
+                    ? localization.Get(r.Content)
+                    : r.Content);
                 var runStyle = r.Style;
                 AddTextStyle(ref h, in runStyle);
             }

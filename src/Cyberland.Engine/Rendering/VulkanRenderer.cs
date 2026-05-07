@@ -104,7 +104,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     private readonly ConcurrentQueue<SpriteDrawRequest> _spriteQueue = new();
     private readonly ConcurrentQueue<SpriteDrawRequest> _viewportUiOverlayQueue = new();
-    private readonly ConcurrentQueue<TextGlyphDrawRequest> _textGlyphQueue = new();
+    private readonly object _textGlyphGate = new();
+    private TextGlyphDrawRequest[]? _pendingTextGlyphs;
+    private int _pendingTextGlyphCount;
     private readonly ConcurrentQueue<PointLight> _pointLightQueue = new();
     private readonly ConcurrentQueue<SpotLight> _spotLightQueue = new();
     private readonly ConcurrentQueue<DirectionalLight> _directionalLightQueue = new();
@@ -321,15 +323,23 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     void IRenderer.SubmitTextGlyph(in TextGlyphDrawRequest draw)
     {
-        _textGlyphQueue.Enqueue(draw);
+        lock (_textGlyphGate)
+        {
+            EnsurePendingTextGlyphCapacityForAppend(1);
+            _pendingTextGlyphs![_pendingTextGlyphCount++] = draw;
+        }
     }
 
     void IRenderer.SubmitTextGlyphs(ReadOnlySpan<TextGlyphDrawRequest> draws)
     {
         if (draws.Length == 0)
             return;
-        foreach (ref readonly var d in draws)
-            _textGlyphQueue.Enqueue(d);
+        lock (_textGlyphGate)
+        {
+            EnsurePendingTextGlyphCapacityForAppend(draws.Length);
+            draws.CopyTo(_pendingTextGlyphs.AsSpan(_pendingTextGlyphCount));
+            _pendingTextGlyphCount += draws.Length;
+        }
     }
 
     /// <inheritdoc />
@@ -344,13 +354,49 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     {
         ConcurrentQueueDrain.DiscardAll(_spriteQueue);
         ConcurrentQueueDrain.DiscardAll(_viewportUiOverlayQueue);
-        ConcurrentQueueDrain.DiscardAll(_textGlyphQueue);
+        lock (_textGlyphGate)
+            _pendingTextGlyphCount = 0;
         ConcurrentQueueDrain.DiscardAll(_pointLightQueue);
         ConcurrentQueueDrain.DiscardAll(_spotLightQueue);
         ConcurrentQueueDrain.DiscardAll(_directionalLightQueue);
         ConcurrentQueueDrain.DiscardAll(_ambientLightQueue);
         ConcurrentQueueDrain.DiscardAll(_volumeQueue);
         ConcurrentQueueDrain.DiscardAll(_cameraQueue);
+    }
+
+    private void EnsurePendingTextGlyphCapacityForAppend(int appendCount)
+    {
+        var needed = _pendingTextGlyphCount + appendCount;
+        if (_pendingTextGlyphs is not null && _pendingTextGlyphs.Length >= needed)
+            return;
+        var next = Math.Max(256, _pendingTextGlyphs?.Length ?? 0);
+        while (next < needed)
+            next *= 2;
+        var grown = new TextGlyphDrawRequest[next];
+        if (_pendingTextGlyphCount > 0 && _pendingTextGlyphs is not null)
+            Array.Copy(_pendingTextGlyphs, grown, _pendingTextGlyphCount);
+        _pendingTextGlyphs = grown;
+    }
+
+    internal int DrainPendingTextGlyphs(ref TextGlyphDrawRequest[]? scratch, out TextGlyphDrawRequest[] result)
+    {
+        lock (_textGlyphGate)
+        {
+            if (_pendingTextGlyphCount == 0)
+            {
+                result = scratch ?? Array.Empty<TextGlyphDrawRequest>();
+                return 0;
+            }
+
+            if (scratch is null || scratch.Length < _pendingTextGlyphCount)
+                scratch = new TextGlyphDrawRequest[Math.Max(_pendingTextGlyphCount, (scratch?.Length ?? 0) * 2)];
+
+            Array.Copy(_pendingTextGlyphs!, scratch, _pendingTextGlyphCount);
+            var count = _pendingTextGlyphCount;
+            _pendingTextGlyphCount = 0;
+            result = scratch;
+            return count;
+        }
     }
 
     /// <summary>

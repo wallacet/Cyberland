@@ -1,6 +1,7 @@
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
 using Cyberland.Engine.UI.Layout;
@@ -15,8 +16,8 @@ public sealed class UiControlsTests
     public void UiRadioGroup_keeps_single_selection()
     {
         var group = new UiRadioGroup();
-        var a = new UiRadioButton(group, "a");
-        var b = new UiRadioButton(group, "b");
+        var a = new UiRadioButton(group, "a", 140f, 32f);
+        var b = new UiRadioButton(group, "b", 140f, 32f);
 
         string? last = null;
         group.SelectionChanged += (_, id) => last = id;
@@ -34,7 +35,7 @@ public sealed class UiControlsTests
     public void UiRadioGroup_Select_same_id_is_noop()
     {
         var group = new UiRadioGroup();
-        _ = new UiRadioButton(group, "a");
+        _ = new UiRadioButton(group, "a", 140f, 32f);
         group.Select("a");
         group.Select("a");
         Assert.Equal("a", group.SelectedOptionId);
@@ -44,7 +45,7 @@ public sealed class UiControlsTests
     public void UiRadioButton_non_interactable_ignores_select()
     {
         var group = new UiRadioGroup();
-        var a = new UiRadioButton(group, "a") { Interactable = false };
+        var a = new UiRadioButton(group, "a", 140f, 32f) { Interactable = false };
         a.SelectFromUiSystem();
         Assert.Null(group.SelectedOptionId);
     }
@@ -226,11 +227,34 @@ public sealed class UiControlsTests
         var q = new Cyberland.Engine.Hosting.UiCommandQueue();
         Assert.Throws<ArgumentNullException>(() => q.Enqueue(null!));
 
-        q.Enqueue(7);
+        q.Enqueue(new TestUiCommand("seven"));
         Assert.True(q.TryPeek(out var peeked));
-        Assert.Equal(7, peeked);
+        Assert.Equal("seven", Assert.IsType<TestUiCommand>(peeked).Name);
         Assert.True(q.TryDequeue(out var popped));
-        Assert.Equal(7, popped);
+        Assert.Equal("seven", Assert.IsType<TestUiCommand>(popped).Name);
         Assert.False(q.TryPeek(out _));
     }
+
+    [Fact]
+    public void UiCommandQueue_TrimToMaxCount_drops_oldest_entries()
+    {
+        var q = new Cyberland.Engine.Hosting.UiCommandQueue();
+        q.Enqueue(new TestUiCommand("a"));
+        q.Enqueue(new TestUiCommand("b"));
+        q.Enqueue(new TestUiCommand("c"));
+        var removed = q.TrimToMaxCount(1);
+        Assert.Equal(2, removed);
+        Assert.Equal(1, q.Count);
+        Assert.True(q.TryDequeue(out var remaining));
+        Assert.Equal("c", Assert.IsType<TestUiCommand>(remaining).Name);
+    }
+
+    [Fact]
+    public void UiCommandQueue_TrimToMaxCount_negative_throws()
+    {
+        var q = new Cyberland.Engine.Hosting.UiCommandQueue();
+        Assert.Throws<ArgumentOutOfRangeException>(() => q.TrimToMaxCount(-1));
+    }
+
+    private sealed record TestUiCommand(string Name) : IUiCommand;
 }

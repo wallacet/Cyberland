@@ -262,12 +262,11 @@ public static class SceneSetup
 
     private static UiRadioButton NavRadio(UiRadioGroup group, string id, string caption)
     {
-        var rb = new UiRadioButton(group, id)
+        var rb = new UiRadioButton(group, id, 158f, 38f)
         {
             NormalTint = new Vector4D<float>(0.12f, 0.13f, 0.18f, 1f),
             SelectedTint = new Vector4D<float>(0.24f, 0.42f, 0.58f, 1f)
         };
-        UiLayoutPresets.TopLeftFixed(rb, 158f, 38f);
         var lab = new UiLabel();
         UiLayoutPresets.StretchAll(lab);
         lab.Text.Text = caption;
@@ -559,8 +558,8 @@ public static class SceneSetup
             {
                 BloomEnabled = false,
                 Exposure = 1f,
-                Saturation = 1.05f,
-                TonemapEnabled = true,
+                Saturation = 1f,
+                TonemapEnabled = false,
                 EmissiveToHdrGain = 0.42f,
                 EmissiveToBloomGain = 0.38f
             }

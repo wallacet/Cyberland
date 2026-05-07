@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 
 namespace Cyberland.Engine.Rendering;
 
@@ -8,6 +9,7 @@ namespace Cyberland.Engine.Rendering;
 /// </summary>
 internal static class TextGlyphSortComparer
 {
+    private const float SortKeyEpsilon = 1e-7f;
     [ThreadStatic]
     private static TextGlyphDrawRequest[]? _compareGlyphs;
 
@@ -42,11 +44,10 @@ internal static class TextGlyphSortComparer
 
     public static int Compare(in TextGlyphDrawRequest a, in TextGlyphDrawRequest b)
     {
-        var c = a.SortKey.CompareTo(b.SortKey);
-        if (c != 0)
-            return c;
-
-        return a.DepthHint.CompareTo(b.DepthHint);
+        var delta = a.SortKey - b.SortKey;
+        if (MathF.Abs(delta) <= SortKeyEpsilon)
+            return 0;
+        return delta < 0f ? -1 : 1;
     }
 
     private static int CompareIndicesNoAlloc(int ia, int ib)

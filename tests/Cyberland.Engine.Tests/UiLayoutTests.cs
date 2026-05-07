@@ -175,6 +175,51 @@ public sealed class UiLayoutTests
     }
 
     [Fact]
+    public void UiGrid_row_height_scratch_can_grow_multiple_times()
+    {
+        var grid = new UiGrid { ColumnCount = 1, Spacing = 1f };
+        UiLayoutPresets.StretchAll(grid);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var cell = grid.AddChild(new UiElement());
+            UiLayoutPresets.TopLeftFixed(cell, 20f, 10f + i);
+        }
+
+        grid.Measure(UiSizeConstraints.Loose(80f, 400f));
+        grid.Arrange(new UiRect(0f, 0f, 80f, 400f));
+
+        for (var i = 0; i < 12; i++)
+        {
+            var cell = grid.AddChild(new UiElement());
+            UiLayoutPresets.TopLeftFixed(cell, 20f, 8f);
+        }
+
+        grid.Measure(UiSizeConstraints.Loose(80f, 400f));
+        grid.Arrange(new UiRect(0f, 0f, 80f, 400f));
+        Assert.True(grid.Children.Count > 10);
+    }
+
+    [Fact]
+    public void UiGrid_row_height_scratch_reuse_returns_when_capacity_is_sufficient()
+    {
+        var grid = new UiGrid { ColumnCount = 1 };
+        UiLayoutPresets.StretchAll(grid);
+        for (var i = 0; i < 6; i++)
+        {
+            var cell = grid.AddChild(new UiElement());
+            UiLayoutPresets.TopLeftFixed(cell, 10f, 10f);
+        }
+
+        grid.Measure(UiSizeConstraints.Loose(100f, 300f));
+        grid.Arrange(new UiRect(0f, 0f, 100f, 300f));
+        // Same row count on the second arrange path should hit the early return capacity branch.
+        grid.Measure(UiSizeConstraints.Loose(100f, 300f));
+        grid.Arrange(new UiRect(0f, 0f, 100f, 300f));
+        Assert.Equal(6, grid.Children.Count);
+    }
+
+    [Fact]
     public void Nested_stack_in_stretched_slot_sizes_within_parent()
     {
         var doc = new UiDocument();

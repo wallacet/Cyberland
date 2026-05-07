@@ -50,9 +50,12 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
     private string _lastChromeGoldDisplay = "";
 
     private string _lastChromeGpsDisplay = "";
+    private double _lastChromeGoldValue = double.NaN;
+    private double _lastChromeGpsValue = double.NaN;
     private int _lastLogRevision = -1;
 
     private float _fpsHudTimer;
+    private float _chromeHudTimer;
     private string _lastFpsLabel = "";
 
     private readonly int[] _lastSourceDetailLevel = Enumerable.Repeat(-1, SourceOrder.Length).ToArray();
@@ -95,18 +98,25 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
 
         var globalRate = Economy.TotalGoldPerSecond(ref sources, in stats, in eq);
 
-        var goldDisplay = $"{wallet.Gold:F2}";
-        if (goldDisplay != _lastChromeGoldDisplay)
+        _chromeHudTimer += deltaSeconds;
+        if (_chromeHudTimer >= 0.1f || _lastChromeGoldDisplay.Length == 0 || _lastChromeGpsDisplay.Length == 0)
         {
-            _lastChromeGoldDisplay = goldDisplay;
-            _refs.ChromeGold.Text = goldDisplay;
-        }
+            _chromeHudTimer = 0f;
+            if (Math.Abs(wallet.Gold - _lastChromeGoldValue) >= 0.01d || _lastChromeGoldDisplay.Length == 0)
+            {
+                _lastChromeGoldValue = wallet.Gold;
+                var goldDisplay = $"{wallet.Gold:F2}";
+                _lastChromeGoldDisplay = goldDisplay;
+                _refs.ChromeGold.Text = goldDisplay;
+            }
 
-        var gpsDisplay = $"{globalRate:F2} {_loc.Get("idlegold.ui.gold_per_sec")}";
-        if (gpsDisplay != _lastChromeGpsDisplay)
-        {
-            _lastChromeGpsDisplay = gpsDisplay;
-            _refs.ChromeGps.Text = gpsDisplay;
+            if (Math.Abs(globalRate - _lastChromeGpsValue) >= 0.01d || _lastChromeGpsDisplay.Length == 0)
+            {
+                _lastChromeGpsValue = globalRate;
+                var gpsDisplay = $"{globalRate:F2} {_loc.Get("idlegold.ui.gold_per_sec")}";
+                _lastChromeGpsDisplay = gpsDisplay;
+                _refs.ChromeGps.Text = gpsDisplay;
+            }
         }
 
         BindSources(ref wallet, ref sources, ref stats, ref eq);
@@ -325,7 +335,7 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
 
         _lastLogRevision = log.ContentRevision;
         _refs.LogBody.Text = LogBook.BuildText(world, session);
-        _refs.LogScroll.ContentOffset = new Vector2D<float>(0f, 1e6f);
+        _refs.LogScroll.VerticalOffset = 1e6f;
     }
 
     private static string SourceTitleKey(SourceId id) =>

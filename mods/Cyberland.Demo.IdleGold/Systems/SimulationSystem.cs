@@ -55,7 +55,7 @@ public sealed class SimulationSystem : ISingletonSystem, ISingletonLateUpdate
 
             var bonus = GameBalance.LuckProcBonusGoldBase + GameBalance.LuckProcBonusPerLuck * luckLevel;
             wallet.Gold += bonus;
-            LogBook.Append(world, session, string.Format(_loc.Get("idlegold.log.luck_proc"), bonus.ToString("F0")));
+            LogBook.Append(world, session, _loc.Get("idlegold.log.luck_proc").Replace("{0}", bonus.ToString("F0")));
         }
     }
 }

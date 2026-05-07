@@ -290,7 +290,7 @@ public sealed class UiDocumentFrameSystemTests
         host.Input = input;
 
         var group = new UiRadioGroup();
-        var rb = new UiRadioButton(group, "a");
+        var rb = new UiRadioButton(group, "a", 120f, 36f);
         UiLayoutPresets.TopLeftFixed(rb, 120f, 36f);
 
         var doc = new UiDocument();
@@ -348,21 +348,372 @@ public sealed class UiDocumentFrameSystemTests
     }
 
     [Fact]
+    public void UiDocumentFrameSystem_release_outside_viewport_document_cancels_armed_button()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(100, 100) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(10f, 10f),
+            LeftSequence = new[] { true, false },
+            Wheel = Vector2.Zero
+        };
+
+        var clicked = 0;
+        var doc = new UiDocument();
+        var btn = new UiButton();
+        UiLayoutPresets.TopLeftFixed(btn, 40f, 20f);
+        btn.Clicked += (_, _) => clicked++;
+        doc.Root.AddChild(btn);
+
+        var world = new World();
+        var ent = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        host.UiDocuments.Register(ent, doc);
+
+        var sys = new UiDocumentFrameSystem(host);
+        sys.OnStart(world, world.QueryChunks(DocRootQuery));
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f); // arm on button
+
+        // Move pointer outside root; release should not click and should clear armed path.
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(999f, 999f),
+            LeftSequence = new[] { false },
+            Wheel = Vector2.Zero
+        };
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+        Assert.Equal(0, clicked);
+    }
+
+    [Fact]
+    public void UiDocumentFrameSystem_wheel_with_no_scroll_target_keeps_layout_stable()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(200, 100) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(20f, 20f),
+            LeftSequence = new[] { false },
+            Wheel = new Vector2(0f, -1f)
+        };
+
+        var measured = new CountingElement();
+        UiLayoutPresets.TopLeftFixed(measured, 60f, 20f);
+        var doc = new UiDocument();
+        doc.Root.AddChild(measured);
+
+        var world = new World();
+        var ent = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        host.UiDocuments.Register(ent, doc);
+
+        var prev = UiLayoutGating.UseIncrementalDocumentFrames;
+        UiLayoutGating.UseIncrementalDocumentFrames = true;
+        try
+        {
+            var sys = new UiDocumentFrameSystem(host);
+            sys.OnStart(world, world.QueryChunks(DocRootQuery));
+            sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+            var measuredAfterFirst = measured.MeasureCount;
+            sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+            Assert.Equal(measuredAfterFirst, measured.MeasureCount);
+        }
+        finally
+        {
+            UiLayoutGating.UseIncrementalDocumentFrames = prev;
+        }
+    }
+
+    [Fact]
+    public void UiDocumentFrameSystem_pointer_outside_zero_viewport_root_is_ignored()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(0, 0) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(1f, 1f),
+            LeftSequence = new[] { true, false },
+            Wheel = Vector2.Zero
+        };
+
+        var clicked = 0;
+        var doc = new UiDocument();
+        var btn = new UiButton();
+        UiLayoutPresets.TopLeftFixed(btn, 40f, 20f);
+        btn.Clicked += (_, _) => clicked++;
+        doc.Root.AddChild(btn);
+
+        var world = new World();
+        var ent = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        host.UiDocuments.Register(ent, doc);
+
+        var sys = new UiDocumentFrameSystem(host);
+        sys.OnStart(world, world.QueryChunks(DocRootQuery));
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+        Assert.Equal(0, clicked);
+    }
+
+    [Fact]
     public void UiCommandDrainSystem_invokes_dispatcher_per_command()
     {
         var host = new GameHostServices();
-        object? last = null;
+        IUiCommand? last = null;
         host.UiCommandDispatcher = o => last = o;
-        host.UiCommands.Enqueue("a");
-        host.UiCommands.Enqueue(42);
+        host.UiCommands.Enqueue(new TestUiCommand(7));
+        host.UiCommands.Enqueue(new TestUiCommand(42));
 
         var drain = new UiCommandDrainSystem(host);
         var world = new World();
         drain.OnStart(world, world.QueryChunks(SystemQuerySpec.Empty));
         drain.OnLateUpdate(world.QueryChunks(SystemQuerySpec.Empty), 0f);
 
-        Assert.Equal(42, last);
+        Assert.Equal(42, Assert.IsType<TestUiCommand>(last).Value);
         Assert.Equal(0, host.UiCommands.Count);
+    }
+
+    [Fact]
+    public void UiCommandDrainSystem_keeps_commands_queued_until_dispatcher_is_installed()
+    {
+        var host = new GameHostServices();
+        host.UiCommands.Enqueue(new TestUiCommand(99));
+
+        var drain = new UiCommandDrainSystem(host);
+        var world = new World();
+        drain.OnStart(world, world.QueryChunks(SystemQuerySpec.Empty));
+
+        drain.OnLateUpdate(world.QueryChunks(SystemQuerySpec.Empty), 0f);
+        Assert.Equal(1, host.UiCommands.Count);
+
+        IUiCommand? delivered = null;
+        host.UiCommandDispatcher = cmd => delivered = cmd;
+        drain.OnLateUpdate(world.QueryChunks(SystemQuerySpec.Empty), 0f);
+
+        Assert.Equal(99, Assert.IsType<TestUiCommand>(delivered).Value);
+        Assert.Equal(0, host.UiCommands.Count);
+    }
+
+    [Fact]
+    public void UiCommandDrainSystem_caps_backlog_when_dispatcher_is_missing()
+    {
+        var host = new GameHostServices();
+        for (var i = 0; i < 5000; i++)
+            host.UiCommands.Enqueue(new TestUiCommand(i));
+
+        var drain = new UiCommandDrainSystem(host);
+        var world = new World();
+        drain.OnStart(world, world.QueryChunks(SystemQuerySpec.Empty));
+        drain.OnLateUpdate(world.QueryChunks(SystemQuerySpec.Empty), 0f);
+
+        Assert.Equal(4096, host.UiCommands.Count);
+        Assert.True(host.UiCommands.TryPeek(out var firstRemaining));
+        Assert.Equal(904, Assert.IsType<TestUiCommand>(firstRemaining).Value);
+    }
+
+    [Fact]
+    public void UiCommandDrainSystem_enforces_per_frame_dispatch_budget()
+    {
+        var host = new GameHostServices();
+        var dispatched = 0;
+        host.UiCommandDispatcher = _ => dispatched++;
+        for (var i = 0; i < 600; i++)
+            host.UiCommands.Enqueue(new TestUiCommand(i));
+
+        var drain = new UiCommandDrainSystem(host);
+        var world = new World();
+        drain.OnStart(world, world.QueryChunks(SystemQuerySpec.Empty));
+        drain.OnLateUpdate(world.QueryChunks(SystemQuerySpec.Empty), 0f);
+
+        Assert.Equal(512, dispatched);
+        Assert.Equal(88, host.UiCommands.Count);
+    }
+
+    [Fact]
+    public void UiDocumentFrameSystem_wheel_prefers_higher_sort_key_document()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(480, 200) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(40f, 80f),
+            LeftSequence = new[] { false },
+            Wheel = new Vector2(0f, -2f)
+        };
+
+        var world = new World();
+        var a = world.CreateEntity();
+        var b = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(a) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        world.GetOrAdd<UiDocumentRoot>(b) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 10f
+        };
+
+        var scrollA = BuildTallScroll();
+        var scrollB = BuildTallScroll();
+        host.UiDocuments.Register(a, WrapInDocument(scrollA));
+        host.UiDocuments.Register(b, WrapInDocument(scrollB));
+
+        var sys = new UiDocumentFrameSystem(host);
+        sys.OnStart(world, world.QueryChunks(DocRootQuery));
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+
+        Assert.Equal(0f, scrollA.VerticalOffset);
+        Assert.True(scrollB.VerticalOffset > 0f);
+    }
+
+    [Fact]
+    public void UiDocumentFrameSystem_wheel_routes_only_to_topmost_viewport_document()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(480, 200) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(40f, 80f),
+            LeftSequence = new[] { false },
+            Wheel = new Vector2(0f, -2f)
+        };
+
+        var world = new World();
+        var back = world.CreateEntity();
+        var front = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(back) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        world.GetOrAdd<UiDocumentRoot>(front) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 10f
+        };
+
+        var scrollBack = BuildTallScroll();
+        var scrollFront = BuildTallScroll();
+        host.UiDocuments.Register(back, WrapInDocument(scrollBack));
+        host.UiDocuments.Register(front, WrapInDocument(scrollFront));
+
+        var sys = new UiDocumentFrameSystem(host);
+        sys.OnStart(world, world.QueryChunks(DocRootQuery));
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+
+        Assert.Equal(0f, scrollBack.VerticalOffset);
+        Assert.True(scrollFront.VerticalOffset > 0f);
+    }
+
+    [Fact]
+    public void UiDocumentFrameSystem_world_space_documents_ignore_pointer_and_wheel_routing()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(400, 200) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(20f, 20f),
+            LeftSequence = new[] { true, false },
+            Wheel = new Vector2(0f, -2f)
+        };
+
+        var clicked = 0;
+        var doc = new UiDocument();
+        var scroll = new UiScrollView();
+        UiLayoutPresets.StretchAll(scroll);
+        var btn = new UiButton();
+        UiLayoutPresets.TopLeftFixed(btn, 120f, 36f);
+        btn.Clicked += (_, _) => clicked++;
+        scroll.Content.AddChild(btn);
+        doc.Root.AddChild(scroll);
+
+        var world = new World();
+        var ent = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.WorldSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        host.UiDocuments.Register(ent, doc);
+
+        var sys = new UiDocumentFrameSystem(host);
+        sys.OnStart(world, world.QueryChunks(DocRootQuery));
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+
+        Assert.Equal(0, clicked);
+        Assert.Equal(0f, scroll.VerticalOffset);
+    }
+
+    [Fact]
+    public void UiDocumentFrameSystem_incremental_gating_skips_second_measure_when_root_and_layout_are_stable()
+    {
+        var prev = UiLayoutGating.UseIncrementalDocumentFrames;
+        UiLayoutGating.UseIncrementalDocumentFrames = true;
+        try
+        {
+            var renderer = new RecordingRenderer();
+            var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+            var world = new World();
+            var ent = world.CreateEntity();
+            world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+            {
+                Visible = true,
+                CoordinateSpace = CoordinateSpace.ViewportSpace,
+                RootPreset = UiDocumentRootPreset.FullViewport,
+                SortKeyBase = 0f
+            };
+
+            var doc = new UiDocument();
+            var measured = new CountingElement();
+            UiLayoutPresets.TopLeftFixed(measured, 100f, 30f);
+            doc.Root.AddChild(measured);
+            host.UiDocuments.Register(ent, doc);
+
+            var sys = new UiDocumentFrameSystem(host);
+            sys.OnStart(world, world.QueryChunks(DocRootQuery));
+            sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+            var countAfterFirstTick = measured.MeasureCount;
+            Assert.True(countAfterFirstTick > 0);
+
+            sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+            Assert.Equal(countAfterFirstTick, measured.MeasureCount);
+        }
+        finally
+        {
+            UiLayoutGating.UseIncrementalDocumentFrames = prev;
+        }
     }
 
     private static UiDocument BuildHelloDocument()
@@ -383,6 +734,24 @@ public sealed class UiDocumentFrameSystemTests
         var p = new UiPanel { BackgroundColor = new Vector4D<float>(1f, 0f, 0f, 0.2f) };
         UiLayoutPresets.TopLeftFixed(p, 400f, h);
         return p;
+    }
+
+    private static UiDocument WrapInDocument(UiScrollView scroll)
+    {
+        var doc = new UiDocument();
+        doc.Root.AddChild(scroll);
+        return doc;
+    }
+
+    private static UiScrollView BuildTallScroll()
+    {
+        var scroll = new UiScrollView();
+        UiLayoutPresets.StretchAll(scroll);
+        var body = new UiPanel();
+        for (var i = 0; i < 10; i++)
+            body.AddChild(MakeSpacerRow(40f));
+        scroll.Content.AddChild(body);
+        return scroll;
     }
 
     private sealed class StubUiInput : IInputService
@@ -428,4 +797,17 @@ public sealed class UiDocumentFrameSystemTests
 
         public float ReadControlValue(InputControl control) => IsControlDown(control) ? 1f : 0f;
     }
+
+    private sealed class CountingElement : UiElement
+    {
+        public int MeasureCount { get; private set; }
+
+        protected override Vector2D<float> MeasureCore(in UiSizeConstraints constraints)
+        {
+            MeasureCount++;
+            return base.MeasureCore(in constraints);
+        }
+    }
+
+    private sealed record TestUiCommand(int Value) : IUiCommand;
 }

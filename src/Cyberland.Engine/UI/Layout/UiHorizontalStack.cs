@@ -24,10 +24,14 @@ public class UiHorizontalStack : UiElement
         float sumW = 0f;
         float maxCross = 0f;
         var first = true;
-        foreach (var child in Children)
+        var anyVisible = false;
+        var children = Children;
+        for (var i = 0; i < children.Count; i++)
         {
+            var child = children[i];
             if (!child.Visible)
                 continue;
+            anyVisible = true;
 
             if (!first)
                 sumW += Spacing;
@@ -40,16 +44,6 @@ public class UiHorizontalStack : UiElement
             sumW += child.MeasuredSize.X + child.Margin.Horizontal;
             var cross = child.MeasuredSize.Y + child.Margin.Vertical;
             maxCross = MathF.Max(maxCross, cross);
-        }
-
-        var anyVisible = false;
-        foreach (var ch in Children)
-        {
-            if (ch.Visible)
-            {
-                anyVisible = true;
-                break;
-            }
         }
 
         if (CrossAlignment == UiCrossAlignment.Stretch && anyVisible)
@@ -70,8 +64,10 @@ public class UiHorizontalStack : UiElement
         var inner = ComputedBounds.Deflate(Padding);
         float cursorX = inner.X;
         var first = true;
-        foreach (var child in Children)
+        var children = Children;
+        for (var i = 0; i < children.Count; i++)
         {
+            var child = children[i];
             if (!child.Visible)
                 continue;
 

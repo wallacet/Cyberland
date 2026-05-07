@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using System.Threading;
 
 namespace Cyberland.Engine.Diagnostics;
 
@@ -11,8 +12,9 @@ namespace Cyberland.Engine.Diagnostics;
 public static class FrameProfiler
 {
 #if DEBUG
-    private static readonly object StackGate = new();
-    private static readonly Stack<(string Name, long StartTicks, long StartBytes)> Stack = new();
+    private static volatile bool _enabled = true;
+    [ThreadStatic]
+    private static Stack<(string Name, long StartTicks, long StartBytes)>? _threadScopeStack;
 
     private static readonly Stopwatch Wall = Stopwatch.StartNew();
     private static long _warmupEndTicks;
@@ -21,6 +23,29 @@ public static class FrameProfiler
     private static long _gen1AtStart;
     private static long _gen2AtStart;
 
+    /// <summary>Whether debug profiling scopes record samples.</summary>
+    public static bool IsEnabled => _enabled;
+
+    /// <summary>Turns debug profiling on/off at runtime.</summary>
+    public static void SetEnabled(bool enabled) => _enabled = enabled;
+
+    /// <summary>
+    /// Reads <c>CYBERLAND_ENABLE_FRAME_PROFILER</c> once: <c>0/false</c> disables, <c>1/true</c> enables.
+    /// Empty/unset keeps the current setting.
+    /// </summary>
+    public static void ApplyEnvironmentDefaults()
+    {
+        var v = Environment.GetEnvironmentVariable("CYBERLAND_ENABLE_FRAME_PROFILER");
+        if (string.IsNullOrWhiteSpace(v))
+            return;
+        if (v.Equals("0", StringComparison.OrdinalIgnoreCase) ||
+            v.Equals("false", StringComparison.OrdinalIgnoreCase))
+            _enabled = false;
+        else if (v.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+                 v.Equals("true", StringComparison.OrdinalIgnoreCase))
+            _enabled = true;
+    }
+
     /// <summary>Wall time after ctor when samples are recorded (default 1 s).</summary>
     public static void ConfigureWarmup(TimeSpan wallWarmup) =>
         _warmupEndTicks = Wall.ElapsedTicks + wallWarmup.Ticks;
@@ -28,8 +53,6 @@ public static class FrameProfiler
     /// <summary>Reset session counters (call when starting a profile run).</summary>
     public static void ResetSession()
     {
-        lock (StackGate)
-            Stack.Clear();
         FrameProfilerStats.Clear();
         _framesAfterWarmup = 0;
         _warmupEndTicks = Wall.ElapsedTicks + Stopwatch.Frequency;
@@ -38,35 +61,38 @@ public static class FrameProfiler
         _gen2AtStart = GC.CollectionCount(2);
     }
 
+    /// <summary>Marks one presented frame after warmup; called from the main render loop.</summary>
+    public static void MarkFrame()
+    {
+        if (!_enabled || Wall.ElapsedTicks < _warmupEndTicks)
+            return;
+        Interlocked.Increment(ref _framesAfterWarmup);
+    }
+
     internal static void Push(string name)
     {
+        if (!_enabled)
+            return;
         var bytes = GC.GetAllocatedBytesForCurrentThread();
-        lock (StackGate)
-            Stack.Push((name, Stopwatch.GetTimestamp(), bytes));
+        var stack = _threadScopeStack ??= new Stack<(string Name, long StartTicks, long StartBytes)>(64);
+        stack.Push((name, Stopwatch.GetTimestamp(), bytes));
     }
 
     internal static void Pop()
     {
+        if (!_enabled)
+            return;
         long endTicks = Stopwatch.GetTimestamp();
         var endBytes = GC.GetAllocatedBytesForCurrentThread();
-        string name;
-        long startTicks;
-        long startBytes;
-        lock (StackGate)
-        {
-            if (Stack.Count == 0)
-                return;
-            (name, startTicks, startBytes) = Stack.Pop();
-        }
+        var stack = _threadScopeStack;
+        if (stack is null || stack.Count == 0)
+            return;
+        var (name, startTicks, startBytes) = stack.Pop();
 
         var dt = endTicks - startTicks;
         var dBytes = endBytes - startBytes;
         if (Wall.ElapsedTicks >= _warmupEndTicks)
-        {
             FrameProfilerStats.Record(name, dt, dBytes);
-            if (Stack.Count == 0)
-                _framesAfterWarmup++;
-        }
     }
 
     /// <summary>Write aggregated stats to a UTF-8 text file (creates parent directories).</summary>
@@ -110,6 +136,14 @@ public static class FrameProfiler
 #else
     /// <summary>Release no-op; profiling is compiled out.</summary>
     public static void ConfigureWarmup(TimeSpan wallWarmup) => _ = wallWarmup;
+    /// <summary>Release constant false; profiling is compiled out.</summary>
+    public static bool IsEnabled => false;
+    /// <summary>Release no-op; profiling is compiled out.</summary>
+    public static void SetEnabled(bool enabled) => _ = enabled;
+    /// <summary>Release no-op; profiling is compiled out.</summary>
+    public static void ApplyEnvironmentDefaults() { }
+    /// <summary>Release no-op; profiling is compiled out.</summary>
+    public static void MarkFrame() { }
 
     /// <summary>Release no-op; profiling is compiled out.</summary>
     public static void ResetSession() { }
@@ -143,6 +177,8 @@ public ref struct FrameProfilerScope
     /// <summary>Begins a named scope; pair with <see cref="Dispose"/>.</summary>
     public static FrameProfilerScope Enter(string name)
     {
+        if (!FrameProfiler.IsEnabled)
+            return default;
         FrameProfiler.PushInternal(name);
         return new FrameProfilerScope(true);
     }

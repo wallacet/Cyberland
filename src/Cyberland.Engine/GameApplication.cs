@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Text;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Audio;
 using Cyberland.Engine.Diagnostics;
@@ -60,8 +62,11 @@ public sealed class GameApplication : IDisposable
 
     private readonly double? _profileWallSeconds;
     private readonly string? _profileDumpPath;
+    private readonly string? _perfDumpPath;
     private Stopwatch? _profileWall;
+    private bool _profileWallStarted;
     private bool _profileCloseRequested;
+    private int _profilePresentedFrames;
 #if DEBUG
     private bool _profileHudInTitle;
     private int _profileTitleThrottle;
@@ -74,13 +79,15 @@ public sealed class GameApplication : IDisposable
     public GameApplication(string[]? commandLineArgs = null)
     {
         _commandLineArgs = commandLineArgs ?? Array.Empty<string>();
+        FrameProfiler.ApplyEnvironmentDefaults();
         _profileWallSeconds = ProfileCommandLine.TryParseProfileSeconds(_commandLineArgs);
         _profileDumpPath = ProfileCommandLine.TryParseProfileDump(_commandLineArgs);
+        _perfDumpPath = ProfileCommandLine.TryParsePerfDump(_commandLineArgs);
 #if !DEBUG
-        if (_profileWallSeconds is not null || !string.IsNullOrEmpty(_profileDumpPath))
+        if (_profileWallSeconds is not null || !string.IsNullOrEmpty(_profileDumpPath) || !string.IsNullOrEmpty(_perfDumpPath))
         {
             Console.Error.WriteLine(
-                "Cyberland: --profile-seconds / --profile-dump require a Debug build of Cyberland.Engine; Release ignores profiler collection.");
+                "Cyberland: --profile-seconds auto-close works in all configs. --profile-dump requires Debug; use --perf-dump for Release perf summaries.");
         }
 #endif
         UiLayoutGating.ApplyEnvironmentDefaults();
@@ -111,6 +118,14 @@ public sealed class GameApplication : IDisposable
         if (_window is null)
             return;
 
+#if DEBUG
+        Console.WriteLine(
+            $"Cyberland startup | Configuration=Debug | FrameProfilerEnabled={FrameProfiler.IsEnabled} | UiIncremental={UiLayoutGating.UseIncrementalDocumentFrames}");
+#else
+        Console.WriteLine(
+            $"Cyberland startup | Configuration=Release | UiIncremental={UiLayoutGating.UseIncrementalDocumentFrames}");
+#endif
+
         // Bootstrap order: Vulkan + audio + input → assign Host.Renderer/Input → baseline HDR once (EngineDefaultGlobalPostProcess)
         // → sync input bindings (window thread; GetAwaiter().GetResult avoids re-entrancy on the same thread)
         // → register core parallel sim systems → ModLoader.LoadAll (mods register systems) → parallel render submit systems
@@ -140,6 +155,8 @@ public sealed class GameApplication : IDisposable
             // OpenAL Soft may be missing on some machines; game continues silent until configured.
 #if DEBUG
             Console.Error.WriteLine($"Cyberland: audio initialization failed ({ex.GetType().Name}): {ex.Message}");
+#else
+            _ = ex;
 #endif
             _audio = null;
         }
@@ -159,7 +176,8 @@ public sealed class GameApplication : IDisposable
             FrameProfiler.ResetSession();
             FrameProfiler.ConfigureWarmup(TimeSpan.FromSeconds(1));
 #endif
-            _profileWall = Stopwatch.StartNew();
+            _profileWall = new Stopwatch();
+            _profileWallStarted = false;
         }
 
         EngineDefaultGlobalPostProcess.Apply(_renderer);
@@ -213,8 +231,8 @@ public sealed class GameApplication : IDisposable
                 _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
                 _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
                 _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem(_host));
-                // Bitmap text build is folded into TextRenderSystem (serial late) so TryPrepare runs immediately before submit.
-                _scheduler.RegisterSerial("cyberland.engine/text-render", new TextRenderSystem(_host));
+                // Bitmap text build is folded into TextRenderSystem; it parallelizes per chunk/range and submits thread-safe requests.
+                _scheduler.RegisterParallel("cyberland.engine/text-render", new TextRenderSystem(_host));
                 _scheduler.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(_host));
                 _scheduler.RegisterSerial("cyberland.engine/ui-command-drain", new UiCommandDrainSystem(_host));
             }
@@ -294,6 +312,18 @@ public sealed class GameApplication : IDisposable
         }
 
         _host.LastPresentDeltaSeconds = dt;
+        if (_profileWallSeconds is not null && _profileWall is not null)
+        {
+            if (!_profileWallStarted)
+            {
+                _profileWallStarted = true;
+                _profileWall.Start();
+            }
+            _profilePresentedFrames++;
+#if DEBUG
+            FrameProfiler.MarkFrame();
+#endif
+        }
 
         if (_profileWallSeconds is not null && _profileWall is not null && !_profileCloseRequested &&
             _profileWall.Elapsed.TotalSeconds >= _profileWallSeconds.Value)
@@ -320,11 +350,33 @@ public sealed class GameApplication : IDisposable
 
     private void OnClosing()
     {
+        if (_profileWallSeconds is not null && _profileWall is not null)
+        {
+            var wallSeconds = _profileWall.Elapsed.TotalSeconds;
+            var fps = wallSeconds > 0d ? _profilePresentedFrames / wallSeconds : 0d;
+            Console.WriteLine(
+                $"Perf summary | frames={_profilePresentedFrames} wallSeconds={wallSeconds.ToString("0.###", CultureInfo.InvariantCulture)} fps={fps.ToString("0.###", CultureInfo.InvariantCulture)}");
+            if (!string.IsNullOrWhiteSpace(_perfDumpPath))
+                WritePerfDump(_perfDumpPath, _profilePresentedFrames, wallSeconds, fps);
+        }
 #if DEBUG
         if (!string.IsNullOrEmpty(_profileDumpPath))
             FrameProfiler.WriteDump(_profileDumpPath);
 #endif
         _mods.UnloadAll();
+    }
+
+    private static void WritePerfDump(string path, int frames, double wallSeconds, double fps)
+    {
+        var dir = Path.GetDirectoryName(Path.GetFullPath(path));
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        var sb = new StringBuilder(128);
+        sb.Append("frames=").Append(frames.ToString(CultureInfo.InvariantCulture)).AppendLine();
+        sb.Append("wallSeconds=").Append(wallSeconds.ToString("0.###", CultureInfo.InvariantCulture)).AppendLine();
+        sb.Append("fps=").Append(fps.ToString("0.###", CultureInfo.InvariantCulture)).AppendLine();
+        File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
     }
 
     /// <summary>

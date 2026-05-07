@@ -49,7 +49,7 @@ public sealed class GameHostServices
     public IUiCommandQueue UiCommands { get; }
 
     /// <summary>Optional hook invoked once per dequeued command after UI input runs on the render tick.</summary>
-    public Action<object?>? UiCommandDispatcher { get; set; }
+    public Action<IUiCommand>? UiCommandDispatcher { get; set; }
 
     /// <summary>
     /// Draw and lighting submit API. In the stock host this is a <see cref="Rendering.VulkanRenderer"/>; depend on <see cref="Rendering.IRenderer"/> in mods.

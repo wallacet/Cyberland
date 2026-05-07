@@ -6,7 +6,27 @@ param(
     # Use non-mandatory with explicit throw so missing -Demo does not open an interactive prompt in CI / tasks.
     [Parameter(Mandatory = $false, Position = 0)]
     [ValidateSet("hdr", "snake", "pong", "brick", "mousechase", "idlegold")]
-    [string] $Demo
+    [string] $Demo,
+    # Debug-Instrumented: keeps debug diagnostics/profiler behavior.
+    # Release-Perf: use Release for throughput/perf validation.
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("Debug-Instrumented", "Release-Perf")]
+    [string] $RunMode = "Debug-Instrumented",
+    # Optional unattended profiler duration. When > 0, the host auto-exits after this many wall-clock seconds.
+    [Parameter(Mandatory = $false)]
+    [double] $ProfileSeconds = 0,
+    # Optional profiler dump path. If omitted while profiling, defaults under artifacts/profiles/.
+    [Parameter(Mandatory = $false)]
+    [string] $ProfileDumpPath = "",
+    # Optional perf summary dump path. If omitted while profiling, defaults under artifacts/profiles/.
+    [Parameter(Mandatory = $false)]
+    [string] $PerfDumpPath = "",
+    # Skip clearing artifacts/ (useful for iterative cycle runs that archive outputs elsewhere).
+    [Parameter(Mandatory = $false)]
+    [switch] $SkipClearArtifacts,
+    # Forces debug frame profiler scopes on (uses CYBERLAND_ENABLE_FRAME_PROFILER=1).
+    [Parameter(Mandatory = $false)]
+    [switch] $EnableProfiler
 )
 
 if ([string]::IsNullOrEmpty($Demo)) {
@@ -60,11 +80,52 @@ try {
     Write-Host "Enabling demo (manifest: $relManifest)..."
     Set-ManifestDisabled -LiteralPath $manifestPath -Disabled $false
 
-    Write-Host "Clearing artifacts/..."
-    & (Join-Path $PSScriptRoot "Clear-CyberlandArtifacts.ps1")
+    if (-not $SkipClearArtifacts.IsPresent) {
+        Write-Host "Clearing artifacts/..."
+        & (Join-Path $PSScriptRoot "Clear-CyberlandArtifacts.ps1")
+    } else {
+        Write-Host "Skipping artifacts clear (-SkipClearArtifacts)."
+    }
 
-    Write-Host "Running Cyberland.Host (close the game to continue)..."
-    dotnet run --project (Join-Path $repoRoot "src\Cyberland.Host\Cyberland.Host.csproj") -c Debug
+    $config = if ($RunMode -eq "Release-Perf") { "Release" } else { "Debug" }
+    $hostArgs = @()
+    if ($ProfileSeconds -gt 0) {
+        $hostArgs += "--profile-seconds=$ProfileSeconds"
+        if ([string]::IsNullOrWhiteSpace($ProfileDumpPath)) {
+            $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+            $profileDir = Join-Path $repoRoot "artifacts\profiles"
+            New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+            $ProfileDumpPath = Join-Path $profileDir "$Demo-$RunMode-$stamp.txt"
+        }
+        $hostArgs += "--profile-dump=$ProfileDumpPath"
+        if ([string]::IsNullOrWhiteSpace($PerfDumpPath)) {
+            $PerfDumpPath = [System.IO.Path]::ChangeExtension($ProfileDumpPath, ".perf.txt")
+        }
+        $hostArgs += "--perf-dump=$PerfDumpPath"
+    }
+
+    if ($EnableProfiler.IsPresent -and $config -ne "Debug") {
+        Write-Warning "EnableProfiler is meaningful for Debug builds; Release compiles frame profiler scopes out."
+    }
+
+    Write-Host "Running Cyberland.Host ($RunMode, -c $config; close the game to continue)..."
+    if ($hostArgs.Count -gt 0) {
+        Write-Host "Host args: $($hostArgs -join ' ')"
+    }
+    $envPrefix = ""
+    if ($EnableProfiler.IsPresent) {
+        $env:CYBERLAND_ENABLE_FRAME_PROFILER = "1"
+        $envPrefix = "CYBERLAND_ENABLE_FRAME_PROFILER=1 "
+    }
+
+    dotnet run --project (Join-Path $repoRoot "src\Cyberland.Host\Cyberland.Host.csproj") -c $config -- @hostArgs
+
+    if ($ProfileSeconds -gt 0 -and -not [string]::IsNullOrWhiteSpace($ProfileDumpPath)) {
+        Write-Host "Profiler report: $ProfileDumpPath"
+    }
+    if ($ProfileSeconds -gt 0 -and -not [string]::IsNullOrWhiteSpace($PerfDumpPath)) {
+        Write-Host "Perf summary: $PerfDumpPath"
+    }
 }
 finally {
     try {
@@ -72,5 +133,8 @@ finally {
         Set-ManifestDisabled -LiteralPath $manifestPath -Disabled $true
     } catch {
         Write-Warning "Could not restore manifest disabled state: $_"
+    }
+    if ($EnableProfiler.IsPresent) {
+        Remove-Item Env:CYBERLAND_ENABLE_FRAME_PROFILER -ErrorAction SilentlyContinue
     }
 }

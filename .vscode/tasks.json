@@ -700,6 +700,236 @@
       }
     },
     {
+      "label": "Cyberland: Profile demo 30s (HDR / Vulkan intro)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "hdr",
+        "-RunMode",
+        "Debug-Instrumented",
+        "-EnableProfiler",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs HDR demo for 30 seconds with frame profiler enabled, then exits and prints profiler report path.",
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Cyberland: Profile demo 30s (Snake)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "snake",
+        "-RunMode",
+        "Debug-Instrumented",
+        "-EnableProfiler",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs Snake demo for 30 seconds with frame profiler enabled, then exits and prints profiler report path.",
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Cyberland: Profile demo 30s (Pong)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "pong",
+        "-RunMode",
+        "Debug-Instrumented",
+        "-EnableProfiler",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs Pong demo for 30 seconds with frame profiler enabled, then exits and prints profiler report path.",
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Cyberland: Profile demo 30s (Brick Breaker)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "brick",
+        "-RunMode",
+        "Debug-Instrumented",
+        "-EnableProfiler",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs Brick Breaker demo for 30 seconds with frame profiler enabled, then exits and prints profiler report path.",
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Cyberland: Profile demo 30s (Mouse Chase)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "mousechase",
+        "-RunMode",
+        "Debug-Instrumented",
+        "-EnableProfiler",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs Mouse Chase demo for 30 seconds with frame profiler enabled, then exits and prints profiler report path.",
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Cyberland: Profile demo 30s (Idle Gold)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "idlegold",
+        "-RunMode",
+        "Debug-Instrumented",
+        "-EnableProfiler",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs Idle Gold demo for 30 seconds with frame profiler enabled, then exits and prints profiler report path.",
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Cyberland: Optimize Idle Gold (up to 30 cycles)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-IdleGold-OptimizationCycles.ps1",
+        "-MaxCycles",
+        "30",
+        "-TargetFps",
+        "2000",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs Release-Perf and Debug profiler captures each cycle, writes cycle reports, and stops at 2000+ FPS or 30 cycles.",
+      "icon": {
+        "id": "sync",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
       "label": "Cyberland: Publish Release with demo (Idle Gold)",
       "type": "shell",
       "command": "powershell.exe",

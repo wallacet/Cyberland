@@ -38,4 +38,5 @@ public struct TextSpriteCache : IComponent
 
     /// <summary>Coordinate space used by the current cached glyph run.</summary>
     public CoordinateSpace Space;
+
 }

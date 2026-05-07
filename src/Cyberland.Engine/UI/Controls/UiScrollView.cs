@@ -14,17 +14,17 @@ public class UiScrollView : UiElement
     /// <summary>Hosted content (stack rows inside this panel).</summary>
     public UiPanel Content { get; }
 
-    private Vector2D<float> _contentOffset;
+    private float _verticalOffset;
 
     /// <summary>Vertical scroll offset in pixels (+Y down content moves up when positive).</summary>
-    public Vector2D<float> ContentOffset
+    public float VerticalOffset
     {
-        get => _contentOffset;
+        get => _verticalOffset;
         set
         {
-            if (_contentOffset == value)
+            if (_verticalOffset == value)
                 return;
-            _contentOffset = value;
+            _verticalOffset = value;
             InvalidateLayout();
         }
     }
@@ -48,27 +48,26 @@ public class UiScrollView : UiElement
     /// </summary>
     public void ApplyWheel(float wheelY)
     {
-        var next = new Vector2D<float>(ContentOffset.X, ContentOffset.Y - wheelY * WheelScrollPixels);
-        if (next == ContentOffset)
+        var next = VerticalOffset - wheelY * WheelScrollPixels;
+        if (next == VerticalOffset)
             return;
-        ContentOffset = next;
+        VerticalOffset = next;
     }
 
-    /// <summary>Clamps <see cref="ContentOffset"/> after measurement so content cannot scroll past its extents.</summary>
-    public void ClampContentOffset()
+    /// <summary>Clamps <see cref="VerticalOffset"/> after measurement so content cannot scroll past its extents.</summary>
+    public void ClampVerticalOffset()
     {
         var inner = ComputedBounds.Deflate(Padding);
         var contentH = Content.MeasuredSize.Y + Content.Margin.Vertical;
         var maxOff = MathF.Max(0f, contentH - inner.Height);
-        ContentOffset = new Vector2D<float>(0f, Math.Clamp(ContentOffset.Y, 0f, maxOff));
+        VerticalOffset = Math.Clamp(VerticalOffset, 0f, maxOff);
     }
 
     /// <inheritdoc />
     protected override Vector2D<float> MeasureCore(in UiSizeConstraints constraints)
     {
-        const float eps = 1e-4f;
-        var stretchX = AnchorMax.X - AnchorMin.X > eps;
-        var stretchY = AnchorMax.Y - AnchorMin.Y > eps;
+        var stretchX = AnchorMax.X - AnchorMin.X > UiLayoutConstants.AxisEpsilon;
+        var stretchY = AnchorMax.Y - AnchorMin.Y > UiLayoutConstants.AxisEpsilon;
 
         var innerMaxW = constraints.MaxWidth - Padding.Horizontal - Margin.Horizontal;
 
@@ -93,12 +92,12 @@ public class UiScrollView : UiElement
         if (!Visible)
             return;
 
-        ClampContentOffset();
+        ClampVerticalOffset();
 
         var inner = ComputedBounds.Deflate(Padding);
         var contentW = MathF.Max(0f, inner.Width - Content.Margin.Horizontal);
         var contentH = Content.MeasuredSize.Y + Content.Margin.Vertical;
-        Content.Arrange(new UiRect(inner.X - ContentOffset.X, inner.Y - ContentOffset.Y, contentW, contentH));
+        Content.Arrange(new UiRect(inner.X, inner.Y - VerticalOffset, contentW, contentH));
     }
 
     /// <inheritdoc />

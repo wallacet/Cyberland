@@ -1,5 +1,7 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Rendering;
@@ -18,13 +20,22 @@ namespace Cyberland.Engine.Scene.Systems;
 /// </summary>
 /// <remarks>
 /// World-space documents still layout and draw, but pointer routing is implemented only for <see cref="CoordinateSpace.ViewportSpace"/> in v1.
+/// This system is intentionally serial: it coordinates input edges, document ordering, and renderer submission state
+/// that currently relies on main-thread-only host services.
+/// Candidate parallel work is limited to future per-document layout preparation that proves thread-safe against shared
+/// font/glyph services; this orchestrator remains serial to preserve deterministic input consumption and draw ordering.
 /// </remarks>
 public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 {
+    private const int MaxMeasureArrangesPerFrame = 128;
     private readonly GameHostServices _host;
     private readonly List<(EntityId Id, UiDocumentRoot Root)> _rows = new();
+    private readonly List<EntityId> _activeRootIds = new();
+    private readonly List<FrameDocument> _frameDocuments = new();
     private bool _prevPrimary;
+    private EntityId _armedDocumentId;
     private UiButton? _armedButton;
+    private bool _reportedLayoutBudgetBackpressure;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<UiDocumentRoot>();
@@ -42,6 +53,7 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
     /// <inheritdoc />
     public void OnLateUpdate(ChunkQueryAll query, float deltaSeconds)
     {
+        using var frameScope = FrameProfilerScope.Enter("ui.frame");
         _ = deltaSeconds;
 
         var renderer = _host.Renderer;
@@ -64,21 +76,36 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
         var wheel = input?.MouseWheelDelta ?? Vector2.Zero;
 
-        _rows.Clear();
-        foreach (var chunk in query)
+        using (FrameProfilerScope.Enter("ui.query.collect_roots"))
         {
-            var ents = chunk.Entities;
-            var cols = chunk.Column<UiDocumentRoot>();
-            for (var i = 0; i < chunk.Count; i++)
-                _rows.Add((ents[i], cols[i]));
+            _rows.Clear();
+            _activeRootIds.Clear();
+            foreach (var chunk in query)
+            {
+                var ents = chunk.Entities;
+                var cols = chunk.Column<UiDocumentRoot>();
+                for (var i = 0; i < chunk.Count; i++)
+                {
+                    _rows.Add((ents[i], cols[i]));
+                    _activeRootIds.Add(ents[i]);
+                }
+            }
+
+            _host.UiDocuments.PruneToEntities(CollectionsMarshal.AsSpan(_activeRootIds));
         }
 
-        _rows.Sort(static (a, b) =>
+        using (FrameProfilerScope.Enter("ui.query.sort_roots"))
         {
-            var order = a.Root.SortKeyBase.CompareTo(b.Root.SortKeyBase);
-            return order != 0 ? order : a.Id.Raw.CompareTo(b.Id.Raw);
-        });
+            _rows.Sort(static (a, b) =>
+            {
+                var order = a.Root.SortKeyBase.CompareTo(b.Root.SortKeyBase);
+                return order != 0 ? order : a.Id.Raw.CompareTo(b.Id.Raw);
+            });
+        }
 
+        using var docLoopScope = FrameProfilerScope.Enter("ui.documents.loop");
+        _frameDocuments.Clear();
+        var measureArrangeCount = 0;
         foreach (var row in _rows)
         {
             ref readonly var cfg = ref row.Root;
@@ -98,36 +125,68 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
             var incremental = UiLayoutGating.UseIncrementalDocumentFrames;
             var rootStable = RootRectNearlyEquals(rootRect, doc.LastArrangedRootRect);
-            var hasViewportPointer =
-                cfg.CoordinateSpace == CoordinateSpace.ViewportSpace && viewportPointer.HasValue;
-            var ptVp = viewportPointer.GetValueOrDefault();
-            var wheelY = hasViewportPointer ? wheel.Y : 0f;
-            var pointerNeedsFrame = hasViewportPointer &&
-                (wheelY != 0f || primaryPressed || primaryReleased);
 
             // Font/localization propagation can mark the document dirty; always run the cheap stale check first.
+            using var docScope = FrameProfilerScope.Enter("ui.document.process");
             doc.PrepareFontsAndLocalizationIfNeeded(fonts, loc);
 
             // Submissions are discarded at the start of each render tick (see IRenderer.ResetPendingSubmissionsForNewTick).
             // We may skip MeasureArrange when layout is clean, but we must call DrawVisuals every frame so HUD persists.
             var skipMeasure = incremental && !doc.LayoutDirty && rootStable;
-            if (!skipMeasure)
-                doc.MeasureArrange(rootRect);
-
-            if (pointerNeedsFrame && hasViewportPointer)
+            if (!skipMeasure && measureArrangeCount < MaxMeasureArrangesPerFrame)
             {
-                if (wheelY != 0f)
-                {
-                    TryApplyWheel(doc, ptVp, wheelY, rootRect);
-                    doc.MeasureArrange(rootRect);
-                }
-
-                if (primaryPressed)
-                    PointerPress(doc, ptVp, rootRect);
-                else if (primaryReleased)
-                    PointerRelease(doc, ptVp, rootRect);
+                using var measureScope = FrameProfilerScope.Enter("ui.document.measure_arrange");
+                doc.MeasureArrange(rootRect);
+                measureArrangeCount++;
+            }
+            else if (!skipMeasure && !_reportedLayoutBudgetBackpressure)
+            {
+                EngineDiagnostics.Report(
+                    EngineErrorSeverity.Warning,
+                    "Cyberland.Engine.UiDocumentFrameSystem",
+                    $"UI measure/arrange budget reached ({MaxMeasureArrangesPerFrame}) for this frame; remaining dirty documents reuse prior layout until next frame.");
+                _reportedLayoutBudgetBackpressure = true;
             }
 
+            _frameDocuments.Add(new FrameDocument(row.Id, cfg, doc, rootRect));
+        }
+
+        if (viewportPointer.HasValue && (wheel.Y != 0f || primaryPressed || primaryReleased))
+        {
+            using var pointerScope = FrameProfilerScope.Enter("ui.pointer.route");
+            var ptVp = viewportPointer.GetValueOrDefault();
+            var routed = TryGetTopmostViewportDocumentAtPoint(ptVp, out var target);
+
+            if (wheel.Y != 0f && routed)
+            {
+                using var wheelScope = FrameProfilerScope.Enter("ui.document.wheel");
+                if (TryApplyWheel(target.Document, ptVp, wheel.Y, target.RootRect))
+                    target.Document.MeasureArrange(target.RootRect);
+            }
+
+            if (primaryPressed)
+            {
+                if (routed)
+                    PointerPress(target.Id, target.Document, ptVp, target.RootRect);
+                else
+                    CancelArmedButton();
+            }
+            else if (primaryReleased)
+            {
+                if (routed)
+                    PointerRelease(target.Id, target.Document, ptVp, target.RootRect);
+                else
+                    PointerReleaseWithoutHit();
+            }
+        }
+
+        foreach (var frameDoc in _frameDocuments)
+        {
+            var cfg = frameDoc.Root;
+            var doc = frameDoc.Document;
+            var rootRect = frameDoc.RootRect;
+
+            using var drawScope = FrameProfilerScope.Enter("ui.document.draw_visuals");
             doc.DrawVisuals(renderer, fonts, cache, cfg.CoordinateSpace, cfg.SortKeyBase, rootRect);
             doc.ClearVisualDirty();
         }
@@ -146,16 +205,35 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             _ => throw new ArgumentOutOfRangeException(nameof(preset), preset, "Unsupported UiDocumentRoot preset."),
         };
 
-    private void PointerPress(UiDocument doc, Vector2D<float> pointer, UiRect clip)
+    private bool TryGetTopmostViewportDocumentAtPoint(Vector2D<float> pointer, out FrameDocument target)
+    {
+        for (var i = _frameDocuments.Count - 1; i >= 0; i--)
+        {
+            var doc = _frameDocuments[i];
+            if (doc.Root.CoordinateSpace != CoordinateSpace.ViewportSpace)
+                continue;
+            if (!doc.RootRect.Contains(pointer))
+                continue;
+
+            target = doc;
+            return true;
+        }
+
+        target = default;
+        return false;
+    }
+
+    private void PointerPress(EntityId documentId, UiDocument doc, Vector2D<float> pointer, UiRect clip)
     {
         var hit = doc.HitTest(pointer, clip);
         var btn = FindAncestorButton(hit);
-        _armedButton?.NotifyCancelPress();
+        CancelArmedButton();
+        _armedDocumentId = documentId;
         _armedButton = btn;
         btn?.NotifyPressStarted();
     }
 
-    private void PointerRelease(UiDocument doc, Vector2D<float> pointer, UiRect clip)
+    private void PointerRelease(EntityId documentId, UiDocument doc, Vector2D<float> pointer, UiRect clip)
     {
         var hit = doc.HitTest(pointer, clip);
         MaybeSelectRadio(hit);
@@ -164,10 +242,29 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
         if (_armedButton is { } armed)
         {
-            var releasedOnSelf = ReferenceEquals(btnHit, armed) && armed.Interactable;
+            var releasedOnSelf =
+                _armedDocumentId.Equals(documentId) &&
+                ReferenceEquals(btnHit, armed) &&
+                armed.Interactable;
             armed.NotifyPressEnded(releasedOnSelf);
         }
 
+        _armedDocumentId = default;
+        _armedButton = null;
+    }
+
+    private void PointerReleaseWithoutHit()
+    {
+        if (_armedButton is { } armed)
+            armed.NotifyPressEnded(false);
+        _armedDocumentId = default;
+        _armedButton = null;
+    }
+
+    private void CancelArmedButton()
+    {
+        _armedButton?.NotifyCancelPress();
+        _armedDocumentId = default;
         _armedButton = null;
     }
 
@@ -194,10 +291,15 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
         return null;
     }
 
-    private static void TryApplyWheel(UiDocument doc, Vector2D<float> pointer, float wheelY, UiRect clip)
+    private static bool TryApplyWheel(UiDocument doc, Vector2D<float> pointer, float wheelY, UiRect clip)
     {
         var sv = FindDeepestScrollView(doc.Root, pointer, clip);
-        sv?.ApplyWheel(wheelY);
+        if (sv is null)
+            return false;
+
+        var before = sv.VerticalOffset;
+        sv.ApplyWheel(wheelY);
+        return before != sv.VerticalOffset;
     }
 
     /// <summary>
@@ -228,4 +330,6 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
         return e is UiScrollView sv ? sv : null;
     }
+
+    private readonly record struct FrameDocument(EntityId Id, UiDocumentRoot Root, UiDocument Document, UiRect RootRect);
 }

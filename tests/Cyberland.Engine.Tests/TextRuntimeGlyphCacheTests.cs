@@ -303,6 +303,80 @@ public sealed class TextRuntimeGlyphCacheTests
     }
 
     [Fact]
+    public void TextRuntimeBuilder_reuses_cached_glyphs_when_only_baseline_changes()
+    {
+        var renderer = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        var style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var bt = new BitmapText
+        {
+            Visible = true,
+            Content = "Move",
+            IsLocalizationKey = false,
+            CoordinateSpace = CoordinateSpace.WorldSpace,
+            SortKey = 4f,
+            Style = style
+        };
+
+        var cache = new TextSpriteCache();
+        var fingerprint = default(TextBuildFingerprint);
+        var t0 = Transform.Identity;
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in t0, host, renderer, out var baseline, out _));
+        Assert.NotNull(cache.CachedGlyphs);
+        Assert.True(cache.GlyphCount > 0);
+        var firstArray = cache.CachedGlyphs!;
+        var firstCenter = firstArray[0].Center;
+
+        // Simulate a previously prepared row stored at a different baseline while content/style/viewport inputs still match.
+        var offset = new Vector2D<float>(25f, 8f);
+        cache.BaselineAuthored = baseline + offset;
+        fingerprint.BaselineWorldX = cache.BaselineAuthored.X;
+        fingerprint.BaselineWorldY = cache.BaselineAuthored.Y;
+        firstArray[0].Center += offset;
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in t0, host, renderer, out _, out _));
+
+        Assert.Same(firstArray, cache.CachedGlyphs);
+        var shiftedBackCenter = cache.CachedGlyphs![0].Center;
+        Assert.Equal(firstCenter.X, shiftedBackCenter.X, 4);
+        Assert.Equal(firstCenter.Y, shiftedBackCenter.Y, 4);
+    }
+
+    [Fact]
+    public void TextRuntimeBuilder_viewport_reuse_applies_rounded_baseline_delta()
+    {
+        var renderer = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(new Vector2D<int>(640, 360));
+        var style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var bt = new BitmapText
+        {
+            Visible = true,
+            Content = "Move",
+            IsLocalizationKey = false,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            SortKey = 4f,
+            Style = style
+        };
+
+        var cache = new TextSpriteCache();
+        var fingerprint = default(TextBuildFingerprint);
+        var transform = Transform.Identity;
+        transform.LocalPosition = new Vector2D<float>(10.2f, 20.2f);
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, host, renderer, out _, out _));
+        var firstCenter = cache.CachedGlyphs![0].Center;
+
+        transform.LocalPosition = new Vector2D<float>(11.7f, 21.7f);
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, host, renderer, out _, out _));
+        var secondCenter = cache.CachedGlyphs![0].Center;
+
+        // Rounded authored baseline moves from (10,20) to (12,22), so glyph centers shift by +2,+2.
+        Assert.Equal(firstCenter.X + 2f, secondCenter.X, 3);
+        Assert.Equal(firstCenter.Y + 2f, secondCenter.Y, 3);
+    }
+
+    [Fact]
     public void TextRuntimeBuilder_discards_prepared_row_when_sort_key_changes()
     {
         var renderer = new RecordingRenderer();

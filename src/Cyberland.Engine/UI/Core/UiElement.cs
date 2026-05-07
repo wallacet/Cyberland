@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -14,12 +15,17 @@ namespace Cyberland.Engine.UI.Core;
 public class UiElement
 {
     private readonly List<UiElement> _children = new();
+    private readonly ChildIndexComparer _childIndexComparer;
     private UiDocument? _hostDocument;
     private UiElement[]? _sortedChildrenScratch;
+    private int[]? _sortedChildIndexScratch;
     private int _sortedChildCount;
     private bool _sortedChildrenDirty = true;
     private bool _visible = true;
     private float _sortKey;
+
+    /// <summary>Creates a retained UI element with stable child-sort helpers allocated once.</summary>
+    public UiElement() => _childIndexComparer = new ChildIndexComparer(_children);
 
     /// <summary>Parent in the UI graph (not scene <see cref="Scene.Transform"/>).</summary>
     public UiElement? Parent { get; private set; }
@@ -55,7 +61,7 @@ public class UiElement
                 return;
             _sortKey = value;
             _sortedChildrenDirty = true;
-            InvalidateLayout();
+            InvalidateVisual();
         }
     }
 
@@ -290,6 +296,7 @@ public class UiElement
         var n = _children.Count;
         if (n == 0)
         {
+            _sortedChildrenScratch ??= Array.Empty<UiElement>();
             _sortedChildCount = 0;
             _sortedChildrenDirty = false;
             return;
@@ -297,13 +304,14 @@ public class UiElement
 
         if (_sortedChildrenScratch is null || _sortedChildrenScratch.Length < n)
             _sortedChildrenScratch = new UiElement[Math.Max(16, n)];
+        if (_sortedChildIndexScratch is null || _sortedChildIndexScratch.Length < n)
+            _sortedChildIndexScratch = new int[Math.Max(16, n)];
 
-        var keys = new int[n];
         for (var i = 0; i < n; i++)
-            keys[i] = i;
-        Array.Sort(keys, 0, n, new ChildIndexComparer(_children));
+            _sortedChildIndexScratch[i] = i;
+        Array.Sort(_sortedChildIndexScratch, 0, n, _childIndexComparer);
         for (var i = 0; i < n; i++)
-            _sortedChildrenScratch[i] = _children[keys[i]];
+            _sortedChildrenScratch[i] = _children[_sortedChildIndexScratch[i]];
 
         _sortedChildCount = n;
         _sortedChildrenDirty = false;
@@ -317,7 +325,7 @@ public class UiElement
         return (_sortedChildrenScratch ?? Array.Empty<UiElement>()).AsSpan(0, _sortedChildCount);
     }
 
-    private readonly struct ChildIndexComparer : IComparer<int>
+    private sealed class ChildIndexComparer : IComparer<int>
     {
         private readonly List<UiElement> _children;
 
@@ -351,13 +359,12 @@ public class UiElement
     /// </summary>
     protected static float ClampInnerMaxHeightForBand(UiElement self, float innerMaxH)
     {
-        const float eps = 1e-4f;
-        var stretchY = self.AnchorMax.Y - self.AnchorMin.Y > eps;
+        var stretchY = self.AnchorMax.Y - self.AnchorMin.Y > UiLayoutConstants.AxisEpsilon;
         if (stretchY)
             return innerMaxH;
 
         var band = self.SizeDelta.Y - self.Padding.Vertical;
-        if (band <= eps)
+        if (band <= UiLayoutConstants.AxisEpsilon)
             return innerMaxH;
 
         return MathF.Min(innerMaxH, band);
@@ -386,7 +393,9 @@ public class UiElement
             StretchBottom);
     }
 
-    /// <summary>Draw hook; default walks children with clipping rules.</summary>
+    /// <summary>
+    /// Draw hook; default walks children in <see cref="SortedChildren"/> order so debug traversal matches visual/hit ordering.
+    /// </summary>
     public virtual void Draw(UiRenderContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -399,8 +408,9 @@ public class UiElement
 
         var childClip = ClipMode == UiClipMode.IntersectParent ? selfClip : inherited;
         context.PushClip(childClip);
-        foreach (var child in _children)
-            child.Draw(context);
+        var span = SortedChildren();
+        for (var i = 0; i < span.Length; i++)
+            span[i].Draw(context);
         context.PopClip();
     }
 
@@ -424,11 +434,11 @@ public class UiElement
 
         var selfClip = ComputedBounds.Intersect(inheritedClip);
         var mine = accumulatedSortKey + SortKey;
-        DrawSelfVisuals(renderer, fonts, cache, space, mine, selfClip, inheritedClip);
+        using (FrameProfilerScope.Enter("ui.element.draw_self"))
+            DrawSelfVisuals(renderer, fonts, cache, space, mine, selfClip, inheritedClip);
 
-        if (_sortedChildrenDirty)
-            RebuildSortedChildrenSnapshot();
-        var span = _sortedChildrenScratch.AsSpan(0, _sortedChildCount);
+        var span = SortedChildren();
+        using var childScope = FrameProfilerScope.Enter("ui.element.draw_children");
         for (var i = 0; i < span.Length; i++)
         {
             var rank = i + 1;
@@ -479,10 +489,7 @@ public class UiElement
             return null;
 
         var childClip = e.ClipMode == UiClipMode.IntersectParent ? selfClip : clip;
-
-        if (e._sortedChildrenDirty)
-            e.RebuildSortedChildrenSnapshot();
-        var span = e._sortedChildrenScratch.AsSpan(0, e._sortedChildCount);
+        var span = e.SortedChildren();
         for (var i = span.Length - 1; i >= 0; i--)
         {
             var hit = HitTestRecursive(span[i], p, childClip);
@@ -496,9 +503,8 @@ public class UiElement
     /// <summary>Leaf/default sizing: collapsed axes honor <see cref="SizeDelta"/>; stretched axes expand to constraint maxima.</summary>
     protected virtual Vector2D<float> MeasureCore(in UiSizeConstraints constraints)
     {
-        const float eps = 1e-4f;
-        var stretchX = AnchorMax.X - AnchorMin.X > eps;
-        var stretchY = AnchorMax.Y - AnchorMin.Y > eps;
+        var stretchX = AnchorMax.X - AnchorMin.X > UiLayoutConstants.AxisEpsilon;
+        var stretchY = AnchorMax.Y - AnchorMin.Y > UiLayoutConstants.AxisEpsilon;
 
         var dw = stretchX ? constraints.MaxWidth : SizeDelta.X + Margin.Horizontal;
         var dh = stretchY ? constraints.MaxHeight : SizeDelta.Y + Margin.Vertical;
