@@ -11,19 +11,31 @@ namespace Cyberland.Engine.Tests;
 public sealed class SpriteBatchRunsTests
 {
     [Fact]
-    public void ResolveNormalTextureId_uses_default_when_MaxValue()
+    public void EffectiveNormalTextureIdForDeferredSprite_uses_default_when_slot_missing()
     {
         var def = (TextureId)42u;
-        var s = new SpriteDrawRequest { NormalTextureId = TextureId.MaxValue };
-        Assert.Equal(def, SpriteBatchRuns.ResolveNormalTextureId(in s, def));
+        var sMax = new SpriteDrawRequest { NormalTextureId = TextureId.MaxValue };
+        Assert.Equal(def, SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(in sMax, def, false));
+
+        var sBad = new SpriteDrawRequest { NormalTextureId = 7u };
+        Assert.Equal(def, SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(in sBad, def, false));
     }
 
     [Fact]
-    public void ResolveNormalTextureId_preserves_explicit_normal()
+    public void EffectiveNormalTextureIdForDeferredSprite_preserves_when_slot_exists()
     {
         var def = (TextureId)1u;
-        var s = new SpriteDrawRequest { NormalTextureId = 7u };
-        Assert.Equal(7u, SpriteBatchRuns.ResolveNormalTextureId(in s, def));
+        var s = new SpriteDrawRequest { AlbedoTextureId = 3u, NormalTextureId = 7u };
+        Assert.Equal(7u, SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(in s, def, true));
+    }
+
+    [Fact]
+    public void EffectiveNormalTextureIdForDeferredSprite_falls_back_when_normal_equals_albedo_even_if_slot_exists()
+    {
+        var def = (TextureId)99u;
+        var s = new SpriteDrawRequest { AlbedoTextureId = 5u, NormalTextureId = 5u };
+        Assert.Equal(def, SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(in s, def, true));
+        Assert.Equal(def, SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(in s, def, false));
     }
 
     [Fact]

@@ -5,8 +5,26 @@ namespace Cyberland.Engine.Rendering;
 /// </summary>
 internal static class SpriteBatchRuns
 {
-    public static TextureId ResolveNormalTextureId(in SpriteDrawRequest s, TextureId defaultNormalTextureId) =>
-        s.NormalTextureId != TextureId.MaxValue ? s.NormalTextureId : defaultNormalTextureId;
+    /// <summary>
+    /// Chooses the normal-map texture id for deferred opaque and swapchain overlay sprite batches.
+    /// Matches GPU binding in <c>VulkanRenderer.Deferred.Recording</c>: use the requested slot when it exists,
+    /// otherwise fall back to the renderer default flat normal (same rule as MaxValue / missing registration).
+    /// </summary>
+    /// <remarks>
+    /// When <see cref="SpriteDrawRequest.NormalTextureId"/> equals <see cref="SpriteDrawRequest.AlbedoTextureId"/>,
+    /// the same GPU texture would be sampled as both albedo and tangent normal. Slot 0 is usually the white albedo;
+    /// treating it as a normal map corrupts G-buffer normals and deferred lighting can erase visible shading even
+    /// though instanced draws still execute — a common partial-authoring footgun (<c>default</c> ids or copy mistakes).
+    /// </remarks>
+    public static TextureId EffectiveNormalTextureIdForDeferredSprite(
+        in SpriteDrawRequest s,
+        TextureId defaultNormalTextureId,
+        bool requestedNormalSlotExists)
+    {
+        if (s.NormalTextureId == s.AlbedoTextureId)
+            return defaultNormalTextureId;
+        return requestedNormalSlotExists ? s.NormalTextureId : defaultNormalTextureId;
+    }
 
     public static bool DeferredEmissiveRunCanExtend(
         in SpriteDrawRequest prev,

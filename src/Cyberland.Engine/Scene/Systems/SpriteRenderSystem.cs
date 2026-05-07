@@ -14,6 +14,11 @@ namespace Cyberland.Engine.Scene.Systems;
 /// Default engine sprite pass: walks <see cref="Sprite"/> chunks with <see cref="Transform"/> and
 /// submits <see cref="SpriteDrawRequest"/>s. Mods normally attach components and let this system draw—no custom <see cref="IRenderer.SubmitSprite"/> calls.
 /// </summary>
+/// <remarks>
+/// Deferred routing uses <see cref="ClassifyDeferredTransparent"/> so straight-alpha tints (via <see cref="Sprite.ColorMultiply"/>.W)
+/// cannot land in the opaque G-buffer when <see cref="Sprite.Alpha"/> is still 1 — matching shader sampling (<c>texture * ColorMultiply</c>).
+/// World sprites are not CPU-frustum-culled here; the GPU clips quads cheaply and conservative circle tests were dropping small gameplay sprites.
+/// </remarks>
 public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
 {
     private const int ParallelRangeSize = 128;
@@ -39,18 +44,17 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
-        var camera = _host.CameraRuntimeState;
         foreach (var chunk in query)
         {
             if (chunk.Count <= SmallChunkSerialThreshold)
             {
-                SubmitChunkRange(chunk, 0, chunk.Count, in camera, r);
+                SubmitChunkRange(chunk, 0, chunk.Count, r);
                 continue;
             }
 
             Parallel.ForEach(Partitioner.Create(0, chunk.Count, ParallelRangeSize), parallelOptions, range =>
             {
-                SubmitChunkRange(chunk, range.Item1, range.Item2, in camera, r);
+                SubmitChunkRange(chunk, range.Item1, range.Item2, r);
             });
         }
     }
@@ -59,7 +63,6 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
         in MultiComponentChunkView chunk,
         int start,
         int endExclusive,
-        in CameraRuntimeState camera,
         IRenderer renderer)
     {
         var requests = ArrayPool<SpriteDrawRequest>.Shared.Rent(endExclusive - start);
@@ -80,8 +83,6 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
                 TransformMath.DecomposeToPRS(transform.WorldMatrix, out var worldPos, out var worldRad, out var worldScale);
                 var hx = spr.HalfExtents.X * worldScale.X;
                 var hy = spr.HalfExtents.Y * worldScale.Y;
-                if (IsOutsideActiveCamera(in spr, worldPos, hx, hy, in camera))
-                    continue;
 
                 requests[requestCount++] = new SpriteDrawRequest
                 {
@@ -99,7 +100,7 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
                     EmissiveIntensity = spr.EmissiveIntensity,
                     DepthHint = spr.DepthHint,
                     UvRect = spr.UvRect,
-                    Transparent = spr.Transparent,
+                    Transparent = ClassifyDeferredTransparent(in spr),
                     Space = spr.Space
                 };
             }
@@ -113,29 +114,11 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
         }
     }
 
-    private static bool IsOutsideActiveCamera(
-        in Sprite sprite,
-        Vector2D<float> spriteCenterWorld,
-        float halfExtentX,
-        float halfExtentY,
-        in CameraRuntimeState camera)
-    {
-        if (!camera.Valid || sprite.Space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace)
-            return false;
-
-        var viewport = new Vector2D<float>(camera.ViewportSizeWorld.X, camera.ViewportSizeWorld.Y);
-        if (viewport.X <= 0f || viewport.Y <= 0f)
-            return false;
-
-        var centerVp = CameraProjection.WorldToViewportPixel(
-            spriteCenterWorld,
-            camera.PositionWorld,
-            camera.RotationRadians,
-            viewport);
-        var radius = MathF.Sqrt((halfExtentX * halfExtentX) + (halfExtentY * halfExtentY));
-        return centerVp.X + radius < 0f ||
-               centerVp.Y + radius < 0f ||
-               centerVp.X - radius > viewport.X ||
-               centerVp.Y - radius > viewport.Y;
-    }
+    /// <summary>
+    /// Routes sprites into deferred opaque vs weighted transparency using the same factors the fragment shader applies:
+    /// straight-alpha from <see cref="Sprite.ColorMultiply"/>.W and an explicit <see cref="Sprite.Alpha"/> scalar, plus the
+    /// authored <see cref="Sprite.Transparent"/> toggle when kept in sync by mods.
+    /// </summary>
+    internal static bool ClassifyDeferredTransparent(in Sprite spr) =>
+        spr.Transparent || spr.Alpha < 1f || spr.ColorMultiply.W < 1f;
 }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Silk.NET.Input;
@@ -23,6 +24,7 @@ public sealed class SilkInputService : IInputService, IDisposable
 {
     private readonly IInputContext _input;
     private readonly IRenderer? _renderer;
+    private readonly GameHostServices? _host;
     private readonly Dictionary<string, bool> _actionDown = new(StringComparer.Ordinal);
     private readonly Dictionary<string, bool> _prevActionDown = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float> _axisValues = new(StringComparer.Ordinal);
@@ -38,10 +40,18 @@ public sealed class SilkInputService : IInputService, IDisposable
     private bool _hasMousePosition;
 
     /// <summary>Create a service backed by the provided Silk input context.</summary>
-    public SilkInputService(IInputContext input, IRenderer? renderer = null)
+    /// <param name="input">Silk input context (keyboard/mouse).</param>
+    /// <param name="renderer">Optional renderer for swapchain size and camera mapping fallbacks.</param>
+    /// <param name="host">
+    /// When non-null and <see cref="GameHostServices.CameraRuntimeState"/> is valid with a positive viewport,
+    /// world-space mouse mapping matches the ECS-published camera that <see cref="Scene.Systems.SpriteRenderSystem"/>
+    /// uses for frustum tests — avoiding divergence from <see cref="IRenderer.ActiveCameraView"/> tie-break or ordering.
+    /// </param>
+    public SilkInputService(IInputContext input, IRenderer? renderer = null, GameHostServices? host = null)
     {
         _input = input ?? throw new ArgumentNullException(nameof(input));
         _renderer = renderer;
+        _host = host;
         Bindings = new InputBindings();
         SubscribeExistingKeyboards();
     }
@@ -374,9 +384,28 @@ public sealed class SilkInputService : IInputService, IDisposable
             return (fallbackCamera, fallbackPhysical);
         }
 
-        var camera = _renderer.ActiveCameraView;
         var swapchain = _renderer.SwapchainPixelSize;
-        var physical = CameraProjection.ComputePhysicalViewport(camera.ViewportSizeWorld, swapchain);
-        return (camera, physical);
+        if (_host is not null)
+        {
+            var crs = _host.CameraRuntimeState;
+            if (crs.Valid && crs.ViewportSizeWorld.X > 0 && crs.ViewportSizeWorld.Y > 0)
+            {
+                var camera = new CameraViewRequest
+                {
+                    PositionWorld = crs.PositionWorld,
+                    RotationRadians = crs.RotationRadians,
+                    ViewportSizeWorld = crs.ViewportSizeWorld,
+                    Priority = crs.Priority,
+                    Enabled = true,
+                    BackgroundColor = crs.BackgroundColor
+                };
+                var physical = CameraProjection.ComputePhysicalViewport(crs.ViewportSizeWorld, swapchain);
+                return (camera, physical);
+            }
+        }
+
+        var cameraFromRenderer = _renderer.ActiveCameraView;
+        var physicalFromRenderer = CameraProjection.ComputePhysicalViewport(cameraFromRenderer.ViewportSizeWorld, swapchain);
+        return (cameraFromRenderer, physicalFromRenderer);
     }
 }

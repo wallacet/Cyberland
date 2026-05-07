@@ -58,6 +58,8 @@ public struct Sprite : IComponent
     {
         this = default;
         Alpha = 1f;
+        // Match <see cref="DefaultWhiteUnlit"/>: MaxValue means no emissive map. Default(uint)=0 collides with a valid texture slot.
+        EmissiveTextureId = TextureId.MaxValue;
     }
 
     /// <summary>Convenience preset: white quad, default layer, fully opaque, no emissive.</summary>
@@ -75,9 +77,11 @@ public struct Sprite : IComponent
         s.EmissiveTint = default;
         s.EmissiveIntensity = 0f;
         s.DepthHint = 0f;
-        s.UvRect = default;
+        // Same interpretation as TryBuildSpriteInstance: all zeros mean full UV; explicit (0,0,1,1) avoids "default" ambiguity.
+        s.UvRect = new Vector4D<float>(0f, 0f, 1f, 1f);
         s.Transparent = false;
         s.Visible = true;
+        s.Space = CoordinateSpace.WorldSpace;
         return s;
     }
 }

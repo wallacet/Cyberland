@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Reflection;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
@@ -245,6 +246,63 @@ public sealed class KeyBindingAndInputTests
     }
 
     [Fact]
+    public void SilkInputService_prefers_host_camera_runtime_state_for_world_mouse_when_valid()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var pos = new Vector2(640f, 360f);
+        var renderer = CreateRendererForInput(
+            swapchain: new Vector2D<int>(1280, 720),
+            camera: new CameraViewRequest
+            {
+                PositionWorld = new Vector2D<float>(0f, 0f),
+                RotationRadians = 0f,
+                ViewportSizeWorld = new Vector2D<int>(1280, 720),
+                Priority = 0,
+                Enabled = true,
+                BackgroundColor = new Vector4D<float>(0f, 0f, 0f, 1f)
+            });
+        var host = new GameHostServices { Renderer = renderer.Object };
+        host.CameraRuntimeState = new CameraRuntimeState(
+            ViewportSizeWorld: new Vector2D<int>(1280, 720),
+            PositionWorld: new Vector2D<float>(640f, 360f),
+            RotationRadians: 0f,
+            BackgroundColor: default,
+            Priority: 0,
+            Valid: true);
+
+        var service = CreateService(pressedKeys, pressedButtons, () => pos, renderer: renderer.Object, host: host);
+        service.BeginFrame();
+        // If ActiveCameraView (0,0) were used, the window center would map to world (640, 360) away from the wrong origin.
+        // Host runtime state matches the gameplay camera at (640, 360) so the viewport center maps back to (640, 360).
+        AssertVectorNear(new Vector2(640f, 360f), service.GetMousePosition(CoordinateSpace.WorldSpace), 0.001f);
+    }
+
+    [Fact]
+    public void SilkInputService_falls_back_to_renderer_when_host_camera_runtime_state_invalid()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var pos = new Vector2(640f, 360f);
+        var rendererCam = new CameraViewRequest
+        {
+            PositionWorld = new Vector2D<float>(111f, 222f),
+            RotationRadians = 0f,
+            ViewportSizeWorld = new Vector2D<int>(1280, 720),
+            Priority = 0,
+            Enabled = true,
+            BackgroundColor = new Vector4D<float>(0f, 0f, 0f, 1f)
+        };
+        var renderer = CreateRendererForInput(new Vector2D<int>(1280, 720), rendererCam);
+        var host = new GameHostServices { Renderer = renderer.Object };
+        host.CameraRuntimeState = default;
+
+        var service = CreateService(pressedKeys, pressedButtons, () => pos, renderer: renderer.Object, host: host);
+        service.BeginFrame();
+        AssertVectorNear(new Vector2(111f, 222f), service.GetMousePosition(CoordinateSpace.WorldSpace), 0.001f);
+    }
+
+    [Fact]
     public void SilkInputService_reports_mouse_wheel_delta_from_primary_wheel()
     {
         var pressedKeys = new HashSet<Key>();
@@ -440,7 +498,8 @@ public sealed class KeyBindingAndInputTests
         HashSet<MouseButton> pressedButtons,
         Func<Vector2> mousePosition,
         Func<IReadOnlyList<ScrollWheel>>? mouseWheels = null,
-        IRenderer? renderer = null)
+        IRenderer? renderer = null,
+        GameHostServices? host = null)
     {
         var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
         keyboard.Setup(x => x.IsKeyPressed(It.IsAny<Key>())).Returns<Key>(key => pressedKeys.Contains(key));
@@ -455,7 +514,7 @@ public sealed class KeyBindingAndInputTests
         input.SetupGet(x => x.Mice).Returns(new[] { mouse.Object });
         input.Setup(x => x.Dispose());
 
-        return new SilkInputService(input.Object, renderer);
+        return new SilkInputService(input.Object, renderer, host);
     }
 
     private static Mock<IRenderer> CreateRendererForInput(Vector2D<int> swapchain, CameraViewRequest camera)

@@ -62,6 +62,17 @@ public sealed unsafe partial class VulkanRenderer
         var sortIdx = framePlan.SortIndices;
         var sprites = framePlan.Sprites;
         var nSprite = framePlan.SpriteCount;
+        var overlaySpriteCap = framePlan.ViewportUiOverlaySpriteCount;
+        // Host-visible instance VB is reused across emissive / opaque / transparent / overlay sprite passes. Recording the
+        // full command buffer before submit means later CPU fills overwrite earlier draws unless each pass uses a
+        // disjoint region (gpu executes after all writes — without regions, transparent pass clobbered opaque).
+        var deferredStride = nSprite;
+        var spriteInstanceCapacity = nSprite == 0 ? overlaySpriteCap : deferredStride * 3 + overlaySpriteCap;
+        EnsureSpriteInstanceBufferCapacity(spriteInstanceCapacity);
+        var emissiveInstanceBase = 0;
+        var opaqueInstanceBase = deferredStride;
+        var transparentInstanceBase = deferredStride * 2;
+        var overlaySpriteInstanceBase = deferredStride * 3;
         var post = framePlan.ResolvedPost;
         ResetSpriteFrameCounters();
         _lastFrameSubmittedPointLights = framePlan.PointLightCount;
@@ -141,7 +152,7 @@ public sealed unsafe partial class VulkanRenderer
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.EmissiveSprites");
 #endif
-            RecordDeferredSpritesEmissiveInstanced(cmd, in framePlan, sortIdx, sprites, nSprite);
+            RecordDeferredSpritesEmissiveInstanced(cmd, in framePlan, sortIdx, sprites, nSprite, emissiveInstanceBase);
         }
 
         _vk.CmdEndRenderPass(cmd);
@@ -182,7 +193,7 @@ public sealed unsafe partial class VulkanRenderer
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.GbufferSprites");
 #endif
-            RecordDeferredSpritesOpaqueInstanced(cmd, in framePlan, sortIdx, sprites, nSprite);
+            RecordDeferredSpritesOpaqueInstanced(cmd, in framePlan, sortIdx, sprites, nSprite, opaqueInstanceBase);
         }
 
         _vk.CmdEndRenderPass(cmd);
@@ -309,7 +320,7 @@ public sealed unsafe partial class VulkanRenderer
 
         var hasTransparentSprites = framePlan.TransparentSpriteCount > 0;
         if (hasTransparentSprites)
-            RecordTransparentWboitAndResolve(cmd, in framePlan, in vp, in sci, sortIdx, sprites, nSprite, in cHdr, screenPushHdr);
+            RecordTransparentWboitAndResolve(cmd, in framePlan, in vp, in sci, sortIdx, sprites, nSprite, transparentInstanceBase, in cHdr, screenPushHdr);
 
         RecordPostProcessAndSwapchainOverlay(
             cmd,
@@ -319,7 +330,8 @@ public sealed unsafe partial class VulkanRenderer
             in vp,
             in sci,
             in post,
-            hasTransparentSprites);
+            hasTransparentSprites,
+            overlaySpriteInstanceBase);
 
         }
         finally
@@ -339,6 +351,7 @@ public sealed unsafe partial class VulkanRenderer
         int[] sortIdx,
         SpriteDrawRequest[] sprites,
         int nSprite,
+        int transparentInstanceBase,
         in ClearValue hdrClearColor,
         float* screenPushHdr)
     {
@@ -383,7 +396,7 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
         _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
 
-        RecordDeferredSpritesTransparentInstanced(cmd, in framePlan, sortIdx, sprites, nSprite);
+        RecordDeferredSpritesTransparentInstanced(cmd, in framePlan, sortIdx, sprites, nSprite, transparentInstanceBase);
 
         _vk.CmdEndRenderPass(cmd);
         _offsWrittenWboit = true;
@@ -439,7 +452,8 @@ public sealed unsafe partial class VulkanRenderer
         in Viewport vp,
         in Rect2D sci,
         in GlobalPostProcessSettings post,
-        bool hasTransparentSprites)
+        bool hasTransparentSprites,
+        int overlaySpriteInstanceBase)
     {
         UpdateSceneHdrSourcesForPostProcess(hasTransparentSprites ? _viewHdrComposite : _viewHdr);
 
@@ -499,7 +513,7 @@ public sealed unsafe partial class VulkanRenderer
 #if DEBUG
                 using var __ = FrameProfilerScope.Enter("Record.SwapchainOverlay");
 #endif
-                RecordSwapchainUiOverlay(cmd, swapUiOverlayFb, in framePlan, in vp, in sci);
+                RecordSwapchainUiOverlay(cmd, swapUiOverlayFb, in framePlan, in vp, in sci, overlaySpriteInstanceBase);
             }
             finally
             {
@@ -529,7 +543,7 @@ public sealed unsafe partial class VulkanRenderer
             null);
     }
 
-    private void RecordSwapchainUiOverlay(CommandBuffer cmd, Framebuffer uiFb, in FramePlan framePlan, in Viewport vp, in Rect2D sci)
+    private void RecordSwapchainUiOverlay(CommandBuffer cmd, Framebuffer uiFb, in FramePlan framePlan, in Viewport vp, in Rect2D sci, int overlaySpriteInstanceBase)
     {
         var n = framePlan.ViewportUiOverlaySpriteCount;
         var textCount = framePlan.TextGlyphCount;
@@ -559,7 +573,7 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
 
         if (n > 0)
-            RecordSwapchainOverlaySpritesInstanced(cmd, in framePlan, sciUi);
+            RecordSwapchainOverlaySpritesInstanced(cmd, in framePlan, sciUi, overlaySpriteInstanceBase);
 
         if (textCount > 0)
             DrawTextSwapchainUi(cmd, in framePlan, sciUi);
@@ -893,7 +907,8 @@ public sealed unsafe partial class VulkanRenderer
         if (uv.X == 0f && uv.Y == 0f && uv.Z == 0f && uv.W == 0f)
             uv = new Vector4D<float>(0f, 0f, 1f, 1f);
 
-        var useEm = TryGetTextureSlot(s.EmissiveTextureId) is not null ? 1 : 0;
+        // MaxValue = no emissive map (see Sprite). Do not treat slot 0 as "has map" when authors used default/new Sprite().
+        var useEm = s.EmissiveTextureId != TextureId.MaxValue && TryGetTextureSlot(s.EmissiveTextureId) is not null ? 1 : 0;
         inst = new SpriteInstanceGpu
         {
             CenterHalfPx = new Vector4D<float>(px.X, px.Y, halfX, halfY),
@@ -906,16 +921,18 @@ public sealed unsafe partial class VulkanRenderer
     }
 
     private void RecordDeferredSpritesEmissiveInstanced(CommandBuffer cmd, in FramePlan plan, int[] sortIdx,
-        SpriteDrawRequest[] sprites, int nSprite)
+        SpriteDrawRequest[] sprites, int nSprite, int instanceBase)
     {
+        if (nSprite == 0)
+            return;
         var push = BuildSpriteInstancingPush(in plan);
         var rented = ArrayPool<int>.Shared.Rent(nSprite);
         var emissiveTextureIds = ArrayPool<TextureId>.Shared.Rent(nSprite);
         var emissiveEnabled = ArrayPool<int>.Shared.Rent(nSprite);
         try
         {
-            EnsureSpriteInstanceBufferCapacity(nSprite);
-            var upload = new Span<SpriteInstanceGpu>(_spriteInstanceBufferMapped, nSprite);
+            var upload = new Span<SpriteInstanceGpu>(
+                (SpriteInstanceGpu*)_spriteInstanceBufferMapped! + instanceBase, nSprite);
             var valid = 0;
             for (var si = 0; si < nSprite; si++)
             {
@@ -925,7 +942,9 @@ public sealed unsafe partial class VulkanRenderer
                     continue;
                 if (!TryBuildSpriteInstance(in s, in plan, out var inst))
                     continue;
-                var emissiveSlot = TryGetTextureSlot(s.EmissiveTextureId);
+                GpuTexture? emissiveSlot = null;
+                if (s.EmissiveTextureId != TextureId.MaxValue)
+                    emissiveSlot = TryGetTextureSlot(s.EmissiveTextureId);
                 emissiveEnabled[valid] = emissiveSlot is not null ? 1 : 0;
                 emissiveTextureIds[valid] = emissiveEnabled[valid] != 0 ? s.EmissiveTextureId : _blackTextureId;
                 upload[valid] = inst;
@@ -984,7 +1003,7 @@ public sealed unsafe partial class VulkanRenderer
                 setsE[0] = al.DescriptorSet;
                 setsE[1] = emSlotStart.DescriptorSet;
                 _vk!.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plSpriteTwoTexture, 0, 2, setsE, 0, null);
-                _vk.CmdDrawIndexed(cmd, 6, (uint)run, 0, 0, (uint)first);
+                _vk.CmdDrawIndexed(cmd, 6, (uint)run, 0, 0, (uint)(instanceBase + first));
                 batchCount++;
                 drawCount++;
                 first += run;
@@ -1008,14 +1027,16 @@ public sealed unsafe partial class VulkanRenderer
     }
 
     private void RecordDeferredSpritesOpaqueInstanced(CommandBuffer cmd, in FramePlan plan, int[] sortIdx,
-        SpriteDrawRequest[] sprites, int nSprite)
+        SpriteDrawRequest[] sprites, int nSprite, int instanceBase)
     {
+        if (nSprite == 0)
+            return;
         var push = BuildSpriteInstancingPush(in plan);
         var rented = ArrayPool<int>.Shared.Rent(nSprite);
         try
         {
-            EnsureSpriteInstanceBufferCapacity(nSprite);
-            var upload = new Span<SpriteInstanceGpu>(_spriteInstanceBufferMapped, nSprite);
+            var upload = new Span<SpriteInstanceGpu>(
+                (SpriteInstanceGpu*)_spriteInstanceBufferMapped! + instanceBase, nSprite);
             var valid = 0;
             for (var si = 0; si < nSprite; si++)
             {
@@ -1055,7 +1076,10 @@ public sealed unsafe partial class VulkanRenderer
                     continue;
                 }
 
-                var nid = TryGetTextureSlot(startS.NormalTextureId) is not null ? startS.NormalTextureId : _defaultNormalTextureId;
+                var nid = SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(
+                    in startS,
+                    _defaultNormalTextureId,
+                    TryGetTextureSlot(startS.NormalTextureId) is not null);
                 var nt = TryGetTextureSlot(nid);
                 if (nt is null)
                 {
@@ -1068,8 +1092,14 @@ public sealed unsafe partial class VulkanRenderer
                 {
                     ref readonly var prevS = ref sprites[rented[first + run - 1]];
                     ref readonly var nextS = ref sprites[rented[first + run]];
-                    var nPrev = SpriteBatchRuns.ResolveNormalTextureId(in prevS, _defaultNormalTextureId);
-                    var nNext = SpriteBatchRuns.ResolveNormalTextureId(in nextS, _defaultNormalTextureId);
+                    var nPrev = SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(
+                        in prevS,
+                        _defaultNormalTextureId,
+                        TryGetTextureSlot(prevS.NormalTextureId) is not null);
+                    var nNext = SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(
+                        in nextS,
+                        _defaultNormalTextureId,
+                        TryGetTextureSlot(nextS.NormalTextureId) is not null);
                     if (!SpriteBatchRuns.DeferredOpaqueRunCanExtend(in prevS, in nextS, nPrev, nNext))
                         break;
                     run++;
@@ -1078,7 +1108,7 @@ public sealed unsafe partial class VulkanRenderer
                 setsG[0] = al.DescriptorSet;
                 setsG[1] = nt.DescriptorSet;
                 _vk!.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plSpriteTwoTexture, 0, 2, setsG, 0, null);
-                _vk.CmdDrawIndexed(cmd, 6, (uint)run, 0, 0, (uint)first);
+                _vk.CmdDrawIndexed(cmd, 6, (uint)run, 0, 0, (uint)(instanceBase + first));
                 batchCount++;
                 drawCount++;
                 first += run;
@@ -1100,14 +1130,16 @@ public sealed unsafe partial class VulkanRenderer
     }
 
     private void RecordDeferredSpritesTransparentInstanced(CommandBuffer cmd, in FramePlan plan, int[] sortIdx,
-        SpriteDrawRequest[] sprites, int nSprite)
+        SpriteDrawRequest[] sprites, int nSprite, int instanceBase)
     {
+        if (nSprite == 0)
+            return;
         var push = BuildSpriteInstancingPush(in plan);
         var rented = ArrayPool<int>.Shared.Rent(nSprite);
         try
         {
-            EnsureSpriteInstanceBufferCapacity(nSprite);
-            var upload = new Span<SpriteInstanceGpu>(_spriteInstanceBufferMapped, nSprite);
+            var upload = new Span<SpriteInstanceGpu>(
+                (SpriteInstanceGpu*)_spriteInstanceBufferMapped! + instanceBase, nSprite);
             var valid = 0;
             for (var si = 0; si < nSprite; si++)
             {
@@ -1160,7 +1192,7 @@ public sealed unsafe partial class VulkanRenderer
                 setsW[0] = al.DescriptorSet;
                 setsW[1] = _dsHdrOpaqueForTransparent;
                 _vk!.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plSpriteTwoTexture, 0, 2, setsW, 0, null);
-                _vk.CmdDrawIndexed(cmd, 6, (uint)run, 0, 0, (uint)first);
+                _vk.CmdDrawIndexed(cmd, 6, (uint)run, 0, 0, (uint)(instanceBase + first));
                 batchCount++;
                 drawCount++;
                 first += run;
@@ -1181,7 +1213,7 @@ public sealed unsafe partial class VulkanRenderer
         }
     }
 
-    private void RecordSwapchainOverlaySpritesInstanced(CommandBuffer cmd, in FramePlan plan, in Rect2D passScissor)
+    private void RecordSwapchainOverlaySpritesInstanced(CommandBuffer cmd, in FramePlan plan, in Rect2D passScissor, int instanceBase)
     {
         var n = plan.ViewportUiOverlaySpriteCount;
         if (n <= 0)
@@ -1193,8 +1225,8 @@ public sealed unsafe partial class VulkanRenderer
         var rented = ArrayPool<int>.Shared.Rent(n);
         try
         {
-            EnsureSpriteInstanceBufferCapacity(n);
-            var upload = new Span<SpriteInstanceGpu>(_spriteInstanceBufferMapped, n);
+            var upload = new Span<SpriteInstanceGpu>(
+                (SpriteInstanceGpu*)_spriteInstanceBufferMapped! + instanceBase, n);
             var valid = 0;
             for (var si = 0; si < n; si++)
             {
@@ -1233,7 +1265,10 @@ public sealed unsafe partial class VulkanRenderer
                     continue;
                 }
 
-                var nidStart = SpriteBatchRuns.ResolveNormalTextureId(in startS, _defaultNormalTextureId);
+                var nidStart = SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(
+                    in startS,
+                    _defaultNormalTextureId,
+                    TryGetTextureSlot(startS.NormalTextureId) is not null);
                 var nt = TryGetTextureSlot(nidStart);
                 if (nt is null)
                 {
@@ -1259,8 +1294,14 @@ public sealed unsafe partial class VulkanRenderer
                 {
                     ref readonly var prevS = ref sprites[rented[first + run - 1]];
                     ref readonly var nextS = ref sprites[rented[first + run]];
-                    var nPrev = SpriteBatchRuns.ResolveNormalTextureId(in prevS, _defaultNormalTextureId);
-                    var nNext = SpriteBatchRuns.ResolveNormalTextureId(in nextS, _defaultNormalTextureId);
+                    var nPrev = SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(
+                        in prevS,
+                        _defaultNormalTextureId,
+                        TryGetTextureSlot(prevS.NormalTextureId) is not null);
+                    var nNext = SpriteBatchRuns.EffectiveNormalTextureIdForDeferredSprite(
+                        in nextS,
+                        _defaultNormalTextureId,
+                        TryGetTextureSlot(nextS.NormalTextureId) is not null);
                     if (!SpriteBatchRuns.OverlayRunCanExtend(in prevS, in nextS, nPrev, nNext))
                         break;
                     run++;
@@ -1269,7 +1310,7 @@ public sealed unsafe partial class VulkanRenderer
                 setsOv[0] = al.DescriptorSet;
                 setsOv[1] = nt.DescriptorSet;
                 _vk!.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plSpriteTwoTexture, 0, 2, setsOv, 0, null);
-                _vk.CmdDrawIndexed(cmd, 6, (uint)run, 0, 0, (uint)first);
+                _vk.CmdDrawIndexed(cmd, 6, (uint)run, 0, 0, (uint)(instanceBase + first));
                 batchCount++;
                 drawCount++;
                 first += run;

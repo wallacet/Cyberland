@@ -50,6 +50,7 @@ public static class SceneSetup
 
         var player = CreateSprite(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(260f, 360f), new Vector2D<float>(22f, 22f), new Vector4D<float>(0.2f, 0.95f, 1f, 1f));
+
         world.GetOrAdd<PlayerTag>(player);
         world.GetOrAdd<Trigger>(player) = new Trigger
         {
@@ -67,9 +68,10 @@ public static class SceneSetup
             BoundsMinWorld = new Vector2D<float>(130f, 130f),
             BoundsMaxWorld = new Vector2D<float>(1150f, 590f)
         };
-
+        
         var collectible = CreateSprite(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(920f, 300f), new Vector2D<float>(16f, 16f), new Vector4D<float>(1f, 0.7f, 0.2f, 1f));
+
         world.GetOrAdd<CollectibleTag>(collectible);
         world.GetOrAdd<SpriteLocalizedAsset>(collectible) = new SpriteLocalizedAsset
         {
@@ -84,7 +86,7 @@ public static class SceneSetup
             Shape = TriggerShapeKind.Circle,
             Radius = 20f
         };
-
+        
         var enterZone = CreateZone(world, renderer.WhiteTextureId, renderer.DefaultNormalTextureId,
             new Vector2D<float>(450f, 480f), new Vector2D<float>(120f, 42f), new Vector4D<float>(0.2f, 0.8f, 0.25f, 0.4f));
         world.GetOrAdd<EnterZoneTag>(enterZone);
@@ -125,7 +127,7 @@ public static class SceneSetup
 
         var hud = CreateHudDocument(world, context);
 
-        ApplyGlobalPost(world);
+        //ApplyGlobalPost(world);
 
         await Task.CompletedTask.ConfigureAwait(false);
         return hud;
@@ -138,12 +140,18 @@ public static class SceneSetup
         var xf = Transform.Identity;
         xf.WorldPosition = worldPos;
         world.GetOrAdd<Transform>(entity) = xf;
-        var renderer = Sprite.DefaultWhiteUnlit(whiteTextureId, defaultNormalTextureId, halfExtents);
-        renderer.Visible = true;
-        renderer.Transparent = tint.W < 1f;
-        renderer.ColorMultiply = tint;
-        renderer.Layer = (int)SpriteLayer.World;
-        world.GetOrAdd<Sprite>(entity) = renderer;
+        ref var spr = ref world.GetOrAdd<Sprite>(entity);
+        
+        // var spr = Sprite.DefaultWhiteUnlit(whiteTextureId, defaultNormalTextureId, halfExtents));
+        spr.Visible = true;
+        spr.Transparent = tint.W < 1f;
+        spr.AlbedoTextureId = whiteTextureId;
+        spr.NormalTextureId = defaultNormalTextureId;
+        spr.HalfExtents = halfExtents;
+        spr.ColorMultiply = tint;
+        spr.Layer = (int)SpriteLayer.World;
+
+        // world.GetOrAdd<Sprite>(entity) = spr;
         return entity;
     }
 

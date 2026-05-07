@@ -186,7 +186,7 @@ public sealed class GameApplication : IDisposable
         }
         LogStartupStage("audio.initialize", startupStageSw);
 
-        _input = new SilkInputService(_window.CreateInput(), _renderer);
+        _input = new SilkInputService(_window.CreateInput(), _renderer, _host);
         _host.Renderer = _renderer;
         _host.Input = _input;
         _host.Tilemaps ??= new TilemapDataStore();

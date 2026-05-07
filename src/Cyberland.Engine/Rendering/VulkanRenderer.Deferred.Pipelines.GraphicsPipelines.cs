@@ -778,15 +778,16 @@ public sealed unsafe partial class VulkanRenderer
             RasterizationSamples = SampleCountFlags.Count1Bit
         };
 
-        var premul = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.PremultipliedAlpha;
         var straightOver = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.StraightAlphaOver;
         var off = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.Off;
         var hdrAdd = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.HdrRgbAdditive;
         var wAccum = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.WboitAccum;
         var wReveal = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.WboitReveal;
 
+        // G-buffer RT0 matches sprite_gbuffer.frag: straight RGBA (texture * tint per channel). Premultiplied blend
+        // factors assume premultiplied fragment output and distort RGB when alpha overlaps another layer below 1.
         var cbGb = stackalloc PipelineColorBlendAttachmentState[2];
-        cbGb[0] = premul;
+        cbGb[0] = straightOver;
         cbGb[1] = off;
 
         var cbHdrBase = stackalloc PipelineColorBlendAttachmentState[1];

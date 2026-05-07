@@ -15,7 +15,7 @@ namespace Cyberland.Engine.Tests;
 public sealed class RenderingCullingTests
 {
     [Fact]
-    public void SpriteRenderSystem_culls_world_sprites_outside_active_camera_but_keeps_viewport_space()
+    public void SpriteRenderSystem_submits_world_sprites_without_cpu_frustum_cull_but_keeps_viewport_space_tags()
     {
         var renderer = new RecordingRenderer();
         var host = new GameHostServices { Renderer = renderer };
@@ -70,7 +70,27 @@ public sealed class RenderingCullingTests
         sys.OnStart(world, query);
         sys.OnParallelLateUpdate(query, 0.016f, new ParallelismSettings().CreateParallelOptions());
 
-        Assert.Equal(2, renderer.Sprites.Count);
+        Assert.Equal(3, renderer.Sprites.Count);
+    }
+
+    [Fact]
+    public void ClassifyDeferredTransparent_straight_alpha_tint_routes_transparent_even_when_component_flag_false()
+    {
+        Sprite s = default;
+        s.Alpha = 1f;
+        s.Transparent = false;
+        s.ColorMultiply = new Vector4D<float>(0.2f, 0.8f, 0.25f, 0.4f);
+        Assert.True(SpriteRenderSystem.ClassifyDeferredTransparent(in s));
+    }
+
+    [Fact]
+    public void ClassifyDeferredTransparent_fully_opaque_mouse_chase_courier_is_not_transparent()
+    {
+        Sprite s = default;
+        s.Alpha = 1f;
+        s.Transparent = false;
+        s.ColorMultiply = new Vector4D<float>(0.2f, 0.95f, 1f, 1f);
+        Assert.False(SpriteRenderSystem.ClassifyDeferredTransparent(in s));
     }
 
     [Fact]
@@ -130,6 +150,43 @@ public sealed class RenderingCullingTests
         };
         ref var tf = ref world.Get<Transform>(spriteEntity);
         tf.WorldPosition = new Vector2D<float>(500f, 500f);
+
+        var sys = new SpriteRenderSystem(host);
+        var query = world.QueryChunks(SystemQuerySpec.All<Sprite, Transform>());
+        sys.OnParallelLateUpdate(query, 0.016f, new ParallelismSettings().CreateParallelOptions());
+        Assert.Single(renderer.Sprites);
+    }
+
+    [Fact]
+    public void SpriteRenderSystem_submits_mouse_chase_like_opaque_courier_pose()
+    {
+        var renderer = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = renderer };
+        host.CameraRuntimeState = new CameraRuntimeState(
+            ViewportSizeWorld: new Vector2D<int>(1280, 720),
+            PositionWorld: new Vector2D<float>(640f, 360f),
+            RotationRadians: 0f,
+            BackgroundColor: default,
+            Priority: 0,
+            Valid: true);
+
+        var world = new World();
+        var courier = world.CreateEntity();
+        world.GetOrAdd<Transform>(courier) = Transform.Identity;
+        ref var tf = ref world.Get<Transform>(courier);
+        tf.WorldPosition = new Vector2D<float>(260f, 360f);
+        world.GetOrAdd<Sprite>(courier) = new Sprite
+        {
+            Visible = true,
+            HalfExtents = new Vector2D<float>(22f, 22f),
+            AlbedoTextureId = renderer.WhiteTextureId,
+            NormalTextureId = renderer.DefaultNormalTextureId,
+            Layer = (int)SpriteLayer.World,
+            Space = CoordinateSpace.WorldSpace,
+            Transparent = false,
+            ColorMultiply = new Vector4D<float>(0.2f, 0.95f, 1f, 1f),
+            Alpha = 1f
+        };
 
         var sys = new SpriteRenderSystem(host);
         var query = world.QueryChunks(SystemQuerySpec.All<Sprite, Transform>());
