@@ -52,6 +52,19 @@ public sealed class EcsTests
     }
 
     [Fact]
+    public void EntityRegistry_Destroy_stale_id_is_noop()
+    {
+        var r = new EntityRegistry();
+        var first = r.Create();
+        r.Destroy(first);
+        // Stale destroy should not advance generation or duplicate-free the slot.
+        r.Destroy(first);
+        var next = r.Create();
+        Assert.Equal(first.Index, next.Index);
+        Assert.Equal(first.Generation + 1, next.Generation);
+    }
+
+    [Fact]
     public void EntityRegistry_IsAlive_rejects_out_of_range()
     {
         var r = new EntityRegistry();

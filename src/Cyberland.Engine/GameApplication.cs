@@ -33,7 +33,10 @@ namespace Cyberland.Engine;
 /// The host wires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Input"/> after graphics init so mods receive a working <see cref="Modding.ModLoadContext"/>.
 /// </para>
 /// <para>
-/// Core engine systems (transforms, triggers, sprite animation, particles; after mods: viewport anchors, lighting, post-process volumes, tilemaps, sprites, particles, text staging, bitmap text) register on the scheduler before and after <see cref="Modding.ModLoader.LoadAll"/> (each mod’s <see cref="Modding.IMod.OnLoadAsync"/> completes synchronously on the load thread); mods add their own serial or parallel systems via <see cref="Modding.ModLoadContext.RegisterSerial"/> / <see cref="Modding.ModLoadContext.RegisterParallel"/>, implementing <see cref="Core.Ecs.IEarlyUpdate"/> / <see cref="Core.Ecs.IFixedUpdate"/> / <see cref="Core.Ecs.ILateUpdate"/> (or parallel equivalents) as needed.
+/// Scheduler registration order is defined in <see cref="OnLoad"/>. The host registers a small core set before
+/// <see cref="Modding.ModLoader.LoadAll"/>, then mods register their systems, then the host registers renderer-facing
+/// late systems (camera/runtime state, anchors, lighting, tilemaps, sprites, text, UI). Keep comments and behavior in
+/// sync with the concrete register calls in <see cref="OnLoad"/> when modifying ordering.
 /// </para>
 /// <para>
 /// <see cref="Core.Tasks.SystemScheduler.RunFrame(Cyberland.Engine.Core.Ecs.World, float)"/> runs once per window <strong>Render</strong> tick (not per <strong>Update</strong>), with <c>deltaSeconds</c> equal to Silk’s <c>Render</c> callback argument (the render stopwatch interval from <c>DoRender</c>). Avoid a <c>minimum</c> frame duration clamp: at high refresh + mailbox, real intervals can fall below 2 ms; a floor would add fake time every tick and make fixed-step sim run faster than wall clock. Only cap large hitches (max) to keep the accumulator bounded. Silk may call <strong>Update</strong> more often than <strong>Render</strong>; running the full ECS from <strong>Update</strong> advanced gameplay multiple times per presented frame and made HUD frame timing misleading.
@@ -259,7 +262,7 @@ public sealed class GameApplication : IDisposable
                 _scheduler.RegisterSerial("cyberland.engine/sprite-localized-assets", new SpriteLocalizedAssetSystem(_host));
                 _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
                 _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem(_host));
+                _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem());
                 // Bitmap text build is folded into TextRenderSystem; it parallelizes per chunk/range and submits thread-safe requests.
                 _scheduler.RegisterParallel("cyberland.engine/text-render", new TextRenderSystem(_host));
                 _scheduler.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(_host));

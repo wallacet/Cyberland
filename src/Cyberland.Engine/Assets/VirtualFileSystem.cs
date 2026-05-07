@@ -4,7 +4,7 @@ namespace Cyberland.Engine.Assets;
 
 /// <summary>
 /// Layered read-only view: later roots shadow earlier ones (mods override base content).
-/// Paths use forward slashes and are normalized to lowercase for case-insensitive lookups on Windows.
+/// Paths use forward slashes and trim leading slash/whitespace; case-insensitive lookups come from OrdinalIgnoreCase matching.
 /// </summary>
 public sealed class VirtualFileSystem
 {

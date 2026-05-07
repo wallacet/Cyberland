@@ -127,13 +127,20 @@ public sealed unsafe partial class VulkanRenderer
                 sortIndices = [];
             else
             {
-#if DEBUG
-                using var __ = FrameProfilerScope.Enter("FramePlan.Sort.Sprites");
-#endif
                 EnsureFrameScratch(ref _r._frameScratchSortIndices, drainedSpriteCount);
                 sortIndices = _r._frameScratchSortIndices!;
-                // Grow-only scratch may be longer than spriteCount; sort only [0, spriteCount) so stale tail slots are not compared.
-                SpriteDrawSorter.SortByLayerOrder(sortIndices, sprites, drainedSpriteCount);
+                if (drainedSpriteCount > 1)
+                {
+#if DEBUG
+                    using var __ = FrameProfilerScope.Enter("FramePlan.Sort.Sprites");
+#endif
+                    // Grow-only scratch may be longer than spriteCount; sort only [0, spriteCount) so stale tail slots are not compared.
+                    SpriteDrawSorter.SortByLayerOrder(sortIndices, sprites, drainedSpriteCount);
+                }
+                else
+                {
+                    sortIndices[0] = 0;
+                }
             }
             LightSubmissionPolicy.ClampWithDropCount(drainedSpriteCount, DeferredRenderingConstants.MaxDeferredSprites, out var droppedDeferredSprites);
             spriteCount = drainedSpriteCount - droppedDeferredSprites;
@@ -169,12 +176,19 @@ public sealed unsafe partial class VulkanRenderer
                 voSort = [];
             else
             {
-#if DEBUG
-                using var __ = FrameProfilerScope.Enter("FramePlan.Sort.Overlay");
-#endif
                 EnsureFrameScratch(ref _r._frameScratchViewportUiSortIndices, voCount);
                 voSort = _r._frameScratchViewportUiSortIndices!;
-                SpriteDrawSorter.SortByLayerOrder(voSort, voSprites, voCount);
+                if (voCount > 1)
+                {
+#if DEBUG
+                    using var __ = FrameProfilerScope.Enter("FramePlan.Sort.Overlay");
+#endif
+                    SpriteDrawSorter.SortByLayerOrder(voSort, voSprites, voCount);
+                }
+                else
+                {
+                    voSort[0] = 0;
+                }
             }
 
             int textCount;
@@ -196,8 +210,10 @@ public sealed unsafe partial class VulkanRenderer
             {
                 EnsureFrameScratch(ref _r._frameScratchTextSortIndices, textCount);
                 textSort = _r._frameScratchTextSortIndices!;
-                for (var i = 0; i < textCount; i++)
-                    textSort[i] = i;
+                if (textCount > 1)
+                    TextGlyphSortComparer.SortByOrder(textSort, textGlyphs, textCount);
+                else
+                    textSort[0] = 0;
             }
 
             if (pointCount > DeferredRenderingConstants.MaxPointLights)
@@ -260,11 +276,13 @@ public sealed unsafe partial class VulkanRenderer
 
     private sealed class PostProcessGraph
     {
+        private readonly VulkanRenderer _r;
         private readonly IPostEffect _bloom;
         private readonly IPostEffect _composite;
 
         public PostProcessGraph(VulkanRenderer renderer)
         {
+            _r = renderer;
             renderer.EnsureBloomPipelineInitialized();
             _bloom = new BloomEffect(renderer);
             _composite = new CompositeEffect(renderer);
@@ -287,10 +305,39 @@ public sealed unsafe partial class VulkanRenderer
 
             ImageView current = default;
             if (bloomOn)
-                current = ((BloomEffect)_bloom).RecordBloom(in context, bloomRadius);
+            {
+                _r.BeginGpuLabel(context.Cmd, "Pass.Bloom");
+                try
+                {
+                    current = ((BloomEffect)_bloom).RecordBloom(in context, bloomRadius);
+                }
+                finally
+                {
+                    _r.EndGpuLabel(context.Cmd);
+                }
+            }
             else
-                current = ((BloomEffect)_bloom).ClearBloom(in context);
-            ((CompositeEffect)_composite).RecordComposite(in context, in post, current, bloomGain);
+            {
+                _r.BeginGpuLabel(context.Cmd, "Pass.Bloom.Clear");
+                try
+                {
+                    current = ((BloomEffect)_bloom).ClearBloom(in context);
+                }
+                finally
+                {
+                    _r.EndGpuLabel(context.Cmd);
+                }
+            }
+
+            _r.BeginGpuLabel(context.Cmd, "Pass.CompositeToSwapchain");
+            try
+            {
+                ((CompositeEffect)_composite).RecordComposite(in context, in post, current, bloomGain);
+            }
+            finally
+            {
+                _r.EndGpuLabel(context.Cmd);
+            }
         }
     }
 
@@ -307,13 +354,13 @@ public sealed unsafe partial class VulkanRenderer
 
         public void Record(in PostEffectContext context, ref ImageView workingView) => workingView = RecordBloom(in context, context.FramePlan.ResolvedPost.BloomRadius);
 
-        public ImageView RecordBloom(in PostEffectContext context, float bloomIntensity)
+        public ImageView RecordBloom(in PostEffectContext context, float bloomRadius)
         {
             var rp = context.FramePlan.ResolvedPost;
             _r._bloomPipeline!.Record(
                 context.Cmd,
-                bloomIntensity > 0f,
-                bloomIntensity,
+                bloomRadius > 0f,
+                bloomRadius,
                 rp.EmissiveToBloomGain,
                 rp.BloomExtractThreshold,
                 rp.BloomExtractKnee,

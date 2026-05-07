@@ -242,4 +242,21 @@ public sealed class RenderingArchitectureContractsTests
     {
         Assert.Equal(6, RenderPassDependencyModel.Dependencies.Length);
     }
+
+    [Fact]
+    public void RenderPassDependencyModel_rejects_duplicate_stage_entries()
+    {
+        RenderPassDependencyModel.PassStage[] order =
+        [
+            RenderPassDependencyModel.PassStage.EmissivePrepass,
+            RenderPassDependencyModel.PassStage.GBufferOpaque,
+            RenderPassDependencyModel.PassStage.DeferredLighting,
+            RenderPassDependencyModel.PassStage.TransparentWboit,
+            RenderPassDependencyModel.PassStage.TransparentResolve,
+            RenderPassDependencyModel.PassStage.Bloom,
+            RenderPassDependencyModel.PassStage.Bloom
+        ];
+
+        Assert.False(RenderPassDependencyModel.IsExecutionOrderValid(order));
+    }
 }

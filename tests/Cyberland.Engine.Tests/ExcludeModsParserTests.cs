@@ -37,6 +37,14 @@ public sealed class ExcludeModsParserTests
     }
 
     [Fact]
+    public void TryParse_empty_when_next_token_is_another_flag()
+    {
+        var r = ExcludeModsParser.TryParse(new[] { "--exclude-mods", "--lang", "en" });
+        Assert.NotNull(r);
+        Assert.Empty(r!);
+    }
+
+    [Fact]
     public void TryParse_empty_when_only_commas()
     {
         var r = ExcludeModsParser.TryParse(new[] { "--exclude-mods", "," });

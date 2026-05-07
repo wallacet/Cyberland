@@ -2,7 +2,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
-using Cyberland.Engine.Hosting;
 
 namespace Cyberland.Engine.Scene.Systems;
 
@@ -21,7 +20,7 @@ public sealed class TextStagingSystem : IParallelSystem, IParallelLateUpdate
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<BitmapText, Transform>();
 
     /// <summary>Creates the system.</summary>
-    public TextStagingSystem(GameHostServices host) => _ = host;
+    public TextStagingSystem() { }
 
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll archetype)

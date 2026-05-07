@@ -35,7 +35,12 @@ internal static class RenderPassDependencyModel
         Span<int> indexByStage = stackalloc int[7];
         indexByStage.Fill(-1);
         for (var i = 0; i < order.Length; i++)
-            indexByStage[(int)order[i]] = i;
+        {
+            var idx = (int)order[i];
+            if (indexByStage[idx] >= 0)
+                return false;
+            indexByStage[idx] = i;
+        }
 
         foreach (var edge in RequiredEdges)
         {

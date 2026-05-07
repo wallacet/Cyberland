@@ -79,7 +79,7 @@ public sealed class SilkInputService : IInputService, IDisposable
 
         foreach (var actionId in Bindings.ActionIds)
         {
-            if (!Bindings.TryGetBindings(actionId, out var bindings) || bindings.Count == 0)
+            if (!Bindings.TryGetBindingsList(actionId, out var bindings) || bindings is null || bindings.Count == 0)
                 continue;
 
             bool down = false;

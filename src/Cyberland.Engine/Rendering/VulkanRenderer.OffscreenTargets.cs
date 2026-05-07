@@ -181,6 +181,7 @@ public sealed unsafe partial class VulkanRenderer
 
             CreateBloomHalfResTargets();
             _r.ResetOffscreenAttachmentWrittenFlags();
+            _r.NameHdrOffscreenTargetsForRenderDoc();
         }
 
         public void CreateBloomHalfResTargets()

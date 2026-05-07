@@ -150,8 +150,18 @@ public sealed class TextGlyphCache
         {
             // Family was resolved above; TryCreateFontUnlocked uses the same id and cannot fail here.
             _ = fonts.TryCreateFontUnlocked(in style, out var font, out _);
-            _ = GlyphRasterizer.TryCreateGlyphMsdf(font, utf16Glyph, out rgba, out atlasW, out atlasH,
-                out drawW, out drawH, out adv, out cx, out cyW, out msdfRange);
+            _ = GlyphRasterizer.TryCreateGlyphMsdf(
+                font,
+                utf16Glyph,
+                out rgba,
+                out atlasW,
+                out atlasH,
+                out drawW,
+                out drawH,
+                out adv,
+                out cx,
+                out cyW,
+                out msdfRange);
         }
         Interlocked.Add(ref s_rasterizeTicks, Stopwatch.GetTimestamp() - rasterStart);
 

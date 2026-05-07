@@ -76,7 +76,7 @@ public sealed class SystemScheduler
     /// <summary>Raised when <see cref="SetEnabled"/> transitions an entry from disabled to enabled (not on initial <c>Register*</c>).</summary>
     public event Action<string>? SystemEnabled;
 
-    /// <summary>Raised when <see cref="SetEnabled"/> transitions an entry from disabled to enabled.</summary>
+    /// <summary>Raised when <see cref="SetEnabled"/> transitions an entry from enabled to disabled.</summary>
     public event Action<string>? SystemDisabled;
 
     /// <summary>Raised after <see cref="TryUnregister"/> removes an entry.</summary>
@@ -276,7 +276,7 @@ public sealed class SystemScheduler
     /// The stock host passes a callback into the three-parameter <c>RunFrame</c> overload so
     /// <see cref="Hosting.GameHostServices.FixedAccumulatorSeconds"/> is updated <strong>before</strong> late phase, allowing
     /// <see cref="ILateUpdate"/> to extrapolate visuals with the current frame remainder (not the previous frame).
-/// Mixed serial/parallel systems still execute in one deterministic registration/constraint order inside each phase.
+    /// Mixed serial/parallel systems still execute in one deterministic registration/constraint order inside each phase.
     /// </remarks>
     /// <param name="world">ECS world: used to build <see cref="ChunkQueryAll"/> and passed only to <see cref="ISystem.OnStart"/> / <see cref="IParallelSystem.OnStart"/>.</param>
     /// <param name="deltaSeconds">Real elapsed frame time in seconds (variable).</param>

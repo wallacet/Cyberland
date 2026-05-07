@@ -69,4 +69,14 @@ public sealed class FpsMovingAverageTests
         Assert.True(m.TryGetAverageFps(out var fps));
         Assert.Equal(10f, fps, 2);
     }
+
+    [Fact]
+    public void Non_positive_window_is_clamped_on_use()
+    {
+        var m = new FpsMovingAverage(0.5f) { WindowSeconds = 0f };
+        m.AddFrameDeltaSeconds(0.01f);
+        m.AddFrameDeltaSeconds(0.02f);
+        Assert.True(m.TryGetAverageFps(out var fps));
+        Assert.Equal(50f, fps, 2);
+    }
 }

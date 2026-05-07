@@ -289,7 +289,7 @@ public class UiElement
     /// <summary>Marks the owning document for redraw without forcing a full measure (rare; most callers use <see cref="InvalidateLayout"/>).</summary>
     protected void InvalidateVisual() => _hostDocument?.NotifyVisualDirty();
 
-    /// <summary>Measures desired border-box size under parent constraints (+Y down).</summary>
+    /// <summary>Rebuilds the cached child draw/hit order snapshot (<see cref="SortedChildren"/>).</summary>
     internal void RebuildSortedChildrenSnapshot()
     {
         var n = _children.Count;

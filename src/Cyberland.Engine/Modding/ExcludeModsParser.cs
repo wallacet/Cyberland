@@ -25,8 +25,9 @@ public static class ExcludeModsParser
             if (i + 1 >= args.Length)
                 return Array.Empty<string>();
 
-            var rest = args[i + 1].AsSpan();
-            if (rest.IsWhiteSpace())
+            var next = args[i + 1];
+            var rest = next.AsSpan();
+            if (rest.IsWhiteSpace() || next.StartsWith("-", StringComparison.Ordinal))
                 return Array.Empty<string>();
 
             return SplitCommaTrimmed(rest);

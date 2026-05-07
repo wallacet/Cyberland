@@ -26,6 +26,7 @@ public sealed unsafe partial class VulkanRenderer
         AllocateLightingDescriptorSet();
         EnsurePointLightSsbo();
         AllocateDeferredDescriptorSets();
+        ApplyDeferredGpuDebugNamesAfterBootstrap();
     }
 
     private void RecreateSwapchainDependent()
@@ -60,6 +61,9 @@ public sealed unsafe partial class VulkanRenderer
             framebufferInfo.RenderPass = _rpSwapchainUiOverlay;
             if (_vk.CreateFramebuffer(_device, in framebufferInfo, null, out _swapchainUiOverlayFramebuffers[i]) != Result.Success)
                 throw new GraphicsInitializationException("vkCreateFramebuffer (swapchain UI overlay) failed.");
+
+            SetGpuObjectName(ObjectType.Framebuffer, VkHandle(_swapchainFramebuffers[i]), $"fb.SwapchainComposite[{i}]");
+            SetGpuObjectName(ObjectType.Framebuffer, VkHandle(_swapchainUiOverlayFramebuffers[i]), $"fb.SwapchainUiOverlay[{i}]");
         }
     }
 

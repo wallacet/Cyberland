@@ -78,7 +78,7 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
             ViewportAnchorPreset.BottomLeft => new Vector2D<float>(ox, h - oy),
             ViewportAnchorPreset.BottomRight => new Vector2D<float>(w - ox, h - oy),
             ViewportAnchorPreset.Center => new Vector2D<float>(w * 0.5f + ox, h * 0.5f + oy),
-            ViewportAnchorPreset.LeftCenter => new Vector2D<float>(ox, h * 0.5f),
+            ViewportAnchorPreset.LeftCenter => new Vector2D<float>(ox, h * 0.5f + oy),
             _ => new Vector2D<float>(ox, oy)
         };
     }

@@ -6,7 +6,11 @@ namespace Cyberland.Engine.Audio;
 /// <summary>
 /// Minimal OpenAL Soft bootstrap: opens the default device, creates a context, and exposes <see cref="Al"/> for future playback code.
 /// </summary>
-/// <remarks>Constructors may throw if no audio backend is available; the host can catch and continue silent.</remarks>
+/// <remarks>
+/// Constructors may throw if no audio backend is available; the host can catch and continue silent.
+/// The context is made current in the constructor and cleared during <see cref="Dispose"/>, so creation/use/disposal
+/// should stay on one thread unless callers explicitly manage context switching.
+/// </remarks>
 [ExcludeFromCodeCoverage(Justification = "Requires an OpenAL device at runtime.")]
 public sealed class OpenALAudioDevice : IDisposable
 {
@@ -14,6 +18,7 @@ public sealed class OpenALAudioDevice : IDisposable
     private readonly AL _al;
     private unsafe readonly Device* _device;
     private unsafe readonly Context* _context;
+    private bool _disposed;
 
     /// <summary>Opens the default output device and makes a context current on this thread.</summary>
     public unsafe OpenALAudioDevice()
@@ -37,6 +42,10 @@ public sealed class OpenALAudioDevice : IDisposable
     /// <summary>Destroys context and device.</summary>
     public unsafe void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         _alc.MakeContextCurrent(null);
         if (_context != null)
             _alc.DestroyContext(_context);

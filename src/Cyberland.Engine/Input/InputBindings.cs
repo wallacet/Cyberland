@@ -63,6 +63,12 @@ public sealed class InputBindings
     }
 
     /// <summary>
+    /// Returns the live binding list for frame-local hot paths. Callers must treat the list as read-only.
+    /// </summary>
+    internal bool TryGetBindingsList(string actionId, out List<InputBinding>? bindings) =>
+        _map.TryGetValue(actionId, out bindings);
+
+    /// <summary>
     /// Loads host-wide defaults. Demo mods add gameplay bindings via
     /// <c>Cyberland.Engine.Modding.ModLoadContext.AddDefaultInputBinding</c> in <c>IMod.OnLoadAsync</c>.
     /// </summary>

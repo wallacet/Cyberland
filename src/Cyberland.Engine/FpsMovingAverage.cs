@@ -9,6 +9,7 @@ namespace Cyberland.Engine;
 /// </summary>
 public sealed class FpsMovingAverage
 {
+    private const float MinWindowSeconds = 1e-6f;
     /// <summary>Default window (seconds) for demo HUDs: half a second of recent frames.</summary>
     public const float DefaultWindowSeconds = 0.5f;
 
@@ -29,7 +30,7 @@ public sealed class FpsMovingAverage
 
         _deltas.Enqueue(deltaSeconds);
         _sum += deltaSeconds;
-        var w = WindowSeconds;
+        var w = MathF.Max(WindowSeconds, MinWindowSeconds);
         while (_sum > w && _deltas.Count > 1)
             _sum -= _deltas.Dequeue();
     }

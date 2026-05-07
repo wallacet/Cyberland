@@ -34,9 +34,9 @@ public static class UserMessageDialog
                 MessageBoxW(0, shown, title, MbOk | MbIconError);
                 return;
             }
-            catch
+            catch (Exception ex)
             {
-                // Fall through to console.
+                WriteDiagnosticToStderr("WARNING", "UserMessageDialog.ShowError fallback", ex.ToString());
             }
         }
 
@@ -59,9 +59,9 @@ public static class UserMessageDialog
                 MessageBoxW(0, shown, title, MbOk | MbIconWarning);
                 return;
             }
-            catch
+            catch (Exception ex)
             {
-                // Fall through to console.
+                WriteDiagnosticToStderr("WARNING", "UserMessageDialog.ShowWarning fallback", ex.ToString());
             }
         }
 

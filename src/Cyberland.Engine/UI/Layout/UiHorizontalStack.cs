@@ -9,10 +9,21 @@ namespace Cyberland.Engine.UI.Layout;
 public class UiHorizontalStack : UiElement
 {
     /// <summary>Gap between successive visible children on the main axis.</summary>
-    public float Spacing { get; set; }
+    public float Spacing
+    {
+        get => _spacing;
+        set
+        {
+            if (MathF.Abs(_spacing - value) <= 1e-4f)
+                return;
+            _spacing = value;
+            InvalidateLayout();
+        }
+    }
 
     /// <summary>How children align against the vertical track.</summary>
     public UiCrossAlignment CrossAlignment { get; set; }
+    private float _spacing;
 
     /// <inheritdoc />
     protected override Vector2D<float> MeasureCore(in UiSizeConstraints constraints)

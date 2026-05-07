@@ -50,7 +50,7 @@ public readonly struct UiRect : IEquatable<UiRect>
     }
 
     /// <summary>
-    /// Intersects this rect with <paramref name="clip"/> (both treated as half-open if needed — uses min/max clamp).
+    /// Intersects this rect with <paramref name="clip"/> by clamping inclusive min/max edges.
     /// </summary>
     public UiRect Intersect(in UiRect clip)
     {

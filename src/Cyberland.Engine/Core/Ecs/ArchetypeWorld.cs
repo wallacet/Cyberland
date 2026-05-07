@@ -27,7 +27,7 @@ internal sealed class ArchetypeWorld
     /// <summary>Increments when a new archetype row is added to <see cref="_archetypes"/>; chunk query prep caches key off this.</summary>
     internal int StructureVersion { get; private set; }
 
-    private readonly Dictionary<int, ChunkQueryEnumeratorPrep> _chunkEnumeratorPrep = new();
+    private readonly Dictionary<SystemQuerySpec, ChunkQueryEnumeratorPrep> _chunkEnumeratorPrep = new();
 
     public ArchetypeWorld()
     {
@@ -47,14 +47,14 @@ internal sealed class ArchetypeWorld
     internal bool TryGetChunkEnumeratorPrep(SystemQuerySpec spec, out ChunkQueryEnumeratorPrep? prep)
     {
         prep = null;
-        if (!_chunkEnumeratorPrep.TryGetValue(spec.GetHashCode(), out var p) || p.StructureVersion != StructureVersion)
+        if (!_chunkEnumeratorPrep.TryGetValue(spec, out var p) || p.StructureVersion != StructureVersion)
             return false;
         prep = p;
         return true;
     }
 
     internal void StoreChunkEnumeratorPrep(SystemQuerySpec spec, ChunkQueryEnumeratorPrep prep) =>
-        _chunkEnumeratorPrep[spec.GetHashCode()] = prep;
+        _chunkEnumeratorPrep[spec] = prep;
 
     public ref EntityRecord GetRecordRef(EntityId entity)
     {

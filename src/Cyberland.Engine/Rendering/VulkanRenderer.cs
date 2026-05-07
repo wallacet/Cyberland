@@ -575,8 +575,16 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 #if DEBUG
                 using var __ = FrameProfilerScope.Enter("DrawFrame.QueueSubmit");
 #endif
-                if (_vk.QueueSubmit(_graphicsQueue, 1, in submitInfo, _inFlightFences[_currentFrame]) != Result.Success)
-                    throw new InvalidOperationException("QueueSubmit failed.");
+                BeginGpuQueueLabel("Queue.FrameSubmit");
+                try
+                {
+                    if (_vk.QueueSubmit(_graphicsQueue, 1, in submitInfo, _inFlightFences[_currentFrame]) != Result.Success)
+                        throw new InvalidOperationException("QueueSubmit failed.");
+                }
+                finally
+                {
+                    EndGpuQueueLabel();
+                }
             }
 
             var swapChains = stackalloc[] { _swapchain };
@@ -685,7 +693,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             _khrSurface?.DestroySurface(_instance, _surface, null);
 
         if (_instance.Handle != default)
+        {
+            DisposeExtDebugUtils();
             _vk.DestroyInstance(_instance, null);
+        }
 
         _vk.Dispose();
         _vk = null;
@@ -729,13 +740,15 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             _instance = default;
             throw new GraphicsInitializationException("VK_KHR_surface extension is not available on this Vulkan instance.");
         }
+
+        TryInitializeExtDebugUtilsExtension();
     }
 
     private static string[] GetInstanceExtensions(IVkSurface vkSurface)
     {
         var glfwExtensions = vkSurface.GetRequiredExtensions(out var glfwExtensionCount);
         var extensions = SilkMarshal.PtrToStringArray((nint)glfwExtensions, (int)glfwExtensionCount);
-        return extensions;
+        return AppendDebugUtilsInstanceExtension(extensions);
     }
 
     private void CreateSurface()
@@ -859,6 +872,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         if (!_vk.TryGetDeviceExtension(_instance, _device, out _khrSwapchain))
             throw new GraphicsInitializationException("VK_KHR_swapchain extension is not available on this device.");
+
+        RefreshGpuDebugMarkersEnabled();
     }
 
     private QueueFamilyIndices FindQueueFamilies(PhysicalDevice device)
@@ -975,6 +990,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         if (_khrSwapchain!.CreateSwapchain(_device, in creatInfo, null, out _swapchain) != Result.Success)
             throw new GraphicsInitializationException("vkCreateSwapchainKHR failed.");
 
+        SetGpuObjectName(ObjectType.SwapchainKhr, VkHandle(_swapchain), "swapchain.Present");
+
         _khrSwapchain.GetSwapchainImages(_device, _swapchain, ref imageCount, null);
         _swapchainImages = new Image[imageCount];
         fixed (Image* swapChainImagesPtr = _swapchainImages)
@@ -1017,6 +1034,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             if (_vk!.CreateImageView(_device, in createInfo, null, out _swapchainImageViews[i]) != Result.Success)
                 throw new GraphicsInitializationException("vkCreateImageView failed.");
         }
+
+        NameSwapchainImagesAndViewsForRenderDoc();
     }
 
     private void CreateCommandPool()
@@ -1032,6 +1051,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         if (_vk!.CreateCommandPool(_device, in poolInfo, null, out _commandPool) != Result.Success)
             throw new GraphicsInitializationException("vkCreateCommandPool failed.");
+        SetGpuObjectName(ObjectType.CommandPool, VkHandle(_commandPool), "pool.FrameCommands");
 
         CommandPoolCreateInfo uploadPoolInfo = new()
         {
@@ -1041,6 +1061,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         };
         if (_vk.CreateCommandPool(_device, in uploadPoolInfo, null, out _uploadCommandPool) != Result.Success)
             throw new GraphicsInitializationException("vkCreateCommandPool (upload) failed.");
+        SetGpuObjectName(ObjectType.CommandPool, VkHandle(_uploadCommandPool), "pool.Upload");
     }
 
     private void CreateCommandBuffers()
@@ -1060,6 +1081,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             if (_vk!.AllocateCommandBuffers(_device, in allocInfo, commandBuffersPtr) != Result.Success)
                 throw new GraphicsInitializationException("vkAllocateCommandBuffers failed.");
         }
+
+        for (var i = 0; i < _commandBuffers.Length; i++)
+            SetGpuObjectName(ObjectType.CommandBuffer, VkHandle(_commandBuffers[i]), $"cmd.Frame[{i}]");
     }
 
     private void RecordCommandBuffer(CommandBuffer commandBuffer, Framebuffer framebuffer, Framebuffer swapchainUiOverlayFramebuffer) =>
@@ -1101,9 +1125,14 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         indices.CopyTo(new Span<ushort>((ushort*)data, indices.Length));
         _vk.UnmapMemory(_device, _indexBufferMemory);
+
+        SetGpuObjectName(ObjectType.Buffer, VkHandle(_vertexBuffer), "buf.SpriteQuad.Vertices");
+        SetGpuObjectName(ObjectType.DeviceMemory, VkHandle(_vertexBufferMemory), "mem.SpriteQuad.Vertices");
+        SetGpuObjectName(ObjectType.Buffer, VkHandle(_indexBuffer), "buf.SpriteQuad.Indices");
+        SetGpuObjectName(ObjectType.DeviceMemory, VkHandle(_indexBufferMemory), "mem.SpriteQuad.Indices");
     }
 
-    private ShaderModule CreateShaderModule(uint[] code)
+    private ShaderModule CreateShaderModule(uint[] code, string? debugName = null)
     {
         fixed (uint* codePtr = code)
         {
@@ -1117,6 +1146,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             if (_vk!.CreateShaderModule(_device, in createInfo, null, out var module) != Result.Success)
                 throw new GraphicsInitializationException("vkCreateShaderModule failed.");
 
+            if (debugName is not null)
+                SetGpuObjectName(ObjectType.ShaderModule, VkHandle(module), debugName);
             return module;
         }
     }
@@ -1147,6 +1178,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             throw new GraphicsInitializationException("vkAllocateMemory failed.");
 
         _vk.BindBufferMemory(_device, buffer, memory, 0);
+
+        // Caller assigns descriptive names at stable creation sites (sprite/text/light buffers).
     }
 
     private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
@@ -1220,6 +1253,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             {
                 throw new GraphicsInitializationException("Failed to create Vulkan synchronization objects (semaphores/fences).");
             }
+
+            SetGpuObjectName(ObjectType.Semaphore, VkHandle(_imageAvailableSemaphores[i]), $"sem.ImageAvailable[{i}]");
+            SetGpuObjectName(ObjectType.Semaphore, VkHandle(_renderFinishedSemaphores[i]), $"sem.RenderFinished[{i}]");
+            SetGpuObjectName(ObjectType.Fence, VkHandle(_inFlightFences[i]), $"fence.InFlight[{i}]");
         }
     }
 

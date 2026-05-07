@@ -55,6 +55,9 @@ public sealed unsafe partial class VulkanRenderer
         if (_vk.BeginCommandBuffer(cmd, in beginInfo) != Result.Success)
             throw new InvalidOperationException("vkBeginCommandBuffer failed.");
 
+        BeginGpuLabel(cmd, "Frame");
+        try
+        {
         var screen = framePlan.Screen;
         var sortIdx = framePlan.SortIndices;
         var sprites = framePlan.Sprites;
@@ -71,8 +74,16 @@ public sealed unsafe partial class VulkanRenderer
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.LightingUpload");
 #endif
-            UpdateLightingFrameData(in framePlan);
-            UploadPointLightSsboData(in framePlan);
+            BeginGpuLabel(cmd, "LightingUpload");
+            try
+            {
+                UpdateLightingFrameData(in framePlan);
+                UploadPointLightSsboData(in framePlan);
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
         }
 
         // Viewport / scissor bound to the physical (letterboxed) rectangle so offscreen passes don't waste
@@ -97,6 +108,9 @@ public sealed unsafe partial class VulkanRenderer
         };
         var passRenderArea = sci;
 
+        var vb = stackalloc[] { _vertexBuffer };
+        var off = stackalloc ulong[] { 0 };
+
         ClearValue cEm = new()
         {
             Color = new ClearColorValue { Float32_0 = 0f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f }
@@ -112,13 +126,14 @@ public sealed unsafe partial class VulkanRenderer
             PClearValues = &cEm
         };
 
+        BeginGpuLabel(cmd, "Pass.EmissivePrepass");
+        try
+        {
         _vk.CmdBeginRenderPass(cmd, &rpEm, SubpassContents.Inline);
         _vk.CmdSetViewport(cmd, 0, 1, &vp);
         _vk.CmdSetScissor(cmd, 0, 1, &sci);
         _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeEmissive);
 
-        var vb = stackalloc[] { _vertexBuffer };
-        var off = stackalloc ulong[] { 0 };
         _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
         _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
 
@@ -131,6 +146,11 @@ public sealed unsafe partial class VulkanRenderer
 
         _vk.CmdEndRenderPass(cmd);
         _offsWrittenEmissive = true;
+        }
+        finally
+        {
+            EndGpuLabel(cmd);
+        }
 
         ClearValue cGb0 = cEm;
         ClearValue cGb1 = cEm;
@@ -148,6 +168,9 @@ public sealed unsafe partial class VulkanRenderer
             PClearValues = cGbuf
         };
 
+        BeginGpuLabel(cmd, "Pass.GBufferOpaque");
+        try
+        {
         _vk.CmdBeginRenderPass(cmd, &rpGb, SubpassContents.Inline);
         _vk.CmdSetViewport(cmd, 0, 1, &vp);
         _vk.CmdSetScissor(cmd, 0, 1, &sci);
@@ -164,6 +187,11 @@ public sealed unsafe partial class VulkanRenderer
 
         _vk.CmdEndRenderPass(cmd);
         _offsWrittenGbuffer = true;
+        }
+        finally
+        {
+            EndGpuLabel(cmd);
+        }
 
         // Camera-driven HDR clear: the active camera's background color doubles as the letterbox bar color
         // (pixels outside the scissor never get written by any pass, so the clear we pick here is what shows
@@ -174,22 +202,6 @@ public sealed unsafe partial class VulkanRenderer
             Color = new ClearColorValue { Float32_0 = bg.X, Float32_1 = bg.Y, Float32_2 = bg.Z, Float32_3 = bg.W }
         };
 
-        RenderPassBeginInfo rpH = new()
-        {
-            SType = StructureType.RenderPassBeginInfo,
-            RenderPass = OffscreenRpFor(_offsWrittenHdr),
-            Framebuffer = _fbHdr,
-            RenderArea = passRenderArea,
-            ClearValueCount = 1,
-            PClearValues = &cHdr
-        };
-
-        _vk.CmdBeginRenderPass(cmd, &rpH, SubpassContents.Inline);
-        _vk.CmdSetViewport(cmd, 0, 1, &vp);
-        _vk.CmdSetScissor(cmd, 0, 1, &sci);
-
-        // Fullscreen deferred fragments only need swapchain size for UVs; point-light quads also need the
-        // letterboxed VkViewport rect so clip-space matches sprite rendering.
         var screenPushHdr = stackalloc float[4];
         screenPushHdr[0] = screen.X;
         screenPushHdr[1] = screen.Y;
@@ -206,46 +218,93 @@ public sealed unsafe partial class VulkanRenderer
         pointPushHdr[6] = 0f;
         pointPushHdr[7] = 0f;
 
+        RenderPassBeginInfo rpH = new()
+        {
+            SType = StructureType.RenderPassBeginInfo,
+            RenderPass = OffscreenRpFor(_offsWrittenHdr),
+            Framebuffer = _fbHdr,
+            RenderArea = passRenderArea,
+            ClearValueCount = 1,
+            PClearValues = &cHdr
+        };
+
+        BeginGpuLabel(cmd, "Pass.DeferredLighting");
+        try
+        {
+        _vk.CmdBeginRenderPass(cmd, &rpH, SubpassContents.Inline);
+        _vk.CmdSetViewport(cmd, 0, 1, &vp);
+        _vk.CmdSetScissor(cmd, 0, 1, &sci);
+
         {
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.DeferredLighting");
 #endif
-            _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBase);
-            var setsBase = stackalloc DescriptorSet[2];
-            setsBase[0] = _dsGbufferRead;
-            setsBase[1] = _dsLighting;
-            _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBase, 0, 2, setsBase, 0, null);
-            _vk.CmdPushConstants(cmd, _plDeferredBase, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
-            _vk.CmdDraw(cmd, 3, 1, 0, 0);
-
-            _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredPoint);
-            var setsPt = stackalloc DescriptorSet[2];
-            setsPt[0] = _dsGbufferRead;
-            setsPt[1] = _dsPointSsbo;
-            _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredPoint, 0, 2, setsPt, 0, null);
-            _vk.CmdPushConstants(cmd, _plDeferredPoint, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
-                (uint)(sizeof(float) * 8), pointPushHdr);
-            var nPt = LightSubmissionPolicy.ClampWithDropCount(
-                framePlan.PointLightCount,
-                DeferredRenderingConstants.MaxPointLights,
-                out _);
-            if (nPt > 0)
+            BeginGpuLabel(cmd, "Draw.DeferredBase");
+            try
             {
-                _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
-                _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
-                _vk.CmdDrawIndexed(cmd, 6, (uint)nPt, 0, 0, 0);
+                _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBase);
+                var setsBase = stackalloc DescriptorSet[2];
+                setsBase[0] = _dsGbufferRead;
+                setsBase[1] = _dsLighting;
+                _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBase, 0, 2, setsBase, 0, null);
+                _vk.CmdPushConstants(cmd, _plDeferredBase, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
+                _vk.CmdDraw(cmd, 3, 1, 0, 0);
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
             }
 
-            _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBleed);
-            var setsBl = stackalloc DescriptorSet[2];
-            setsBl[0] = _dsGbufferRead;
-            setsBl[1] = _dsEmissiveScene;
-            _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBleed, 0, 2, setsBl, 0, null);
-            _vk.CmdPushConstants(cmd, _plDeferredBleed, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
-            _vk.CmdDraw(cmd, 3, 1, 0, 0);
+            BeginGpuLabel(cmd, "Draw.PointLights");
+            try
+            {
+                _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredPoint);
+                var setsPt = stackalloc DescriptorSet[2];
+                setsPt[0] = _dsGbufferRead;
+                setsPt[1] = _dsPointSsbo;
+                _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredPoint, 0, 2, setsPt, 0, null);
+                _vk.CmdPushConstants(cmd, _plDeferredPoint, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
+                    (uint)(sizeof(float) * 8), pointPushHdr);
+                var nPt = LightSubmissionPolicy.ClampWithDropCount(
+                    framePlan.PointLightCount,
+                    DeferredRenderingConstants.MaxPointLights,
+                    out _);
+                if (nPt > 0)
+                {
+                    _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
+                    _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
+                    _vk.CmdDrawIndexed(cmd, 6, (uint)nPt, 0, 0, 0);
+                }
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
+
+            BeginGpuLabel(cmd, "Draw.DeferredBleedEmissive");
+            try
+            {
+                _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBleed);
+                var setsBl = stackalloc DescriptorSet[2];
+                setsBl[0] = _dsGbufferRead;
+                setsBl[1] = _dsEmissiveScene;
+                _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBleed, 0, 2, setsBl, 0, null);
+                _vk.CmdPushConstants(cmd, _plDeferredBleed, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
+                _vk.CmdDraw(cmd, 3, 1, 0, 0);
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
 
             _vk.CmdEndRenderPass(cmd);
             _offsWrittenHdr = true;
+        }
+
+        }
+        finally
+        {
+            EndGpuLabel(cmd);
         }
 
         var hasTransparentSprites = framePlan.TransparentSpriteCount > 0;
@@ -261,6 +320,12 @@ public sealed unsafe partial class VulkanRenderer
             in sci,
             in post,
             hasTransparentSprites);
+
+        }
+        finally
+        {
+            EndGpuLabel(cmd);
+        }
 
         if (_vk.EndCommandBuffer(cmd) != Result.Success)
             throw new InvalidOperationException("vkEndCommandBuffer failed.");
@@ -280,6 +345,11 @@ public sealed unsafe partial class VulkanRenderer
 #if DEBUG
         using var __ = FrameProfilerScope.Enter("Record.TransparentWboit");
 #endif
+        var vpLocal = vp;
+        var sciLocal = sci;
+        BeginGpuLabel(cmd, "Pass.TransparentWboit");
+        try
+        {
         ClearValue cWAccum = new()
         {
             Color = new ClearColorValue { Float32_0 = 0f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f }
@@ -303,8 +373,8 @@ public sealed unsafe partial class VulkanRenderer
         };
 
         _vk!.CmdBeginRenderPass(cmd, &rpW, SubpassContents.Inline);
-        var vpLocal = vp;
-        var sciLocal = sci;
+        vpLocal = vp;
+        sciLocal = sci;
         _vk.CmdSetViewport(cmd, 0, 1, &vpLocal);
         _vk.CmdSetScissor(cmd, 0, 1, &sciLocal);
         _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTransparentWboit);
@@ -318,6 +388,15 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdEndRenderPass(cmd);
         _offsWrittenWboit = true;
 
+        }
+        finally
+        {
+            EndGpuLabel(cmd);
+        }
+
+        BeginGpuLabel(cmd, "Pass.TransparentResolve");
+        try
+        {
         // Keep transparent resolve bars consistent with the opaque-only path: use camera-driven HDR clear.
         ClearValue cRes = hdrClearColor;
         RenderPassBeginInfo rpRes = new()
@@ -345,6 +424,11 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdDraw(cmd, 3, 1, 0, 0);
         _vk.CmdEndRenderPass(cmd);
         _offsWrittenHdrComposite = true;
+        }
+        finally
+        {
+            EndGpuLabel(cmd);
+        }
     }
 
     private void RecordPostProcessAndSwapchainOverlay(
@@ -363,6 +447,9 @@ public sealed unsafe partial class VulkanRenderer
         var bloomOn = bloomGain > 0f;
         var bloomRadius = post.BloomRadius;
 
+        BeginGpuLabel(cmd, "Pass.PostProcess");
+        try
+        {
         Viewport vpHalf = new()
         {
             X = 0f,
@@ -388,14 +475,36 @@ public sealed unsafe partial class VulkanRenderer
             _postProcessGraph.Record(in ppContext, bloomOn, bloomGain, bloomRadius, post);
         }
 
-        if (framePlan.ViewportUiOverlaySpriteCount > 0 || framePlan.TextGlyphCount > 0)
-            BarrierCompositeColorToSwapchainUiOverlay(cmd);
-
+        }
+        finally
         {
+            EndGpuLabel(cmd);
+        }
+
+        if (framePlan.ViewportUiOverlaySpriteCount > 0 || framePlan.TextGlyphCount > 0)
+        {
+            BeginGpuLabel(cmd, "Transition.CompositeToSwapchainOverlay");
+            try
+            {
+                BarrierCompositeColorToSwapchainUiOverlay(cmd);
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
+
+            BeginGpuLabel(cmd, "Pass.SwapchainOverlay");
+            try
+            {
 #if DEBUG
-            using var __ = FrameProfilerScope.Enter("Record.SwapchainOverlay");
+                using var __ = FrameProfilerScope.Enter("Record.SwapchainOverlay");
 #endif
-            RecordSwapchainUiOverlay(cmd, swapUiOverlayFb, in framePlan, in vp, in sci);
+                RecordSwapchainUiOverlay(cmd, swapUiOverlayFb, in framePlan, in vp, in sci);
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
         }
     }
 
@@ -509,6 +618,9 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdPushConstants(cmd, _plTextMsdf, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
             (uint)sizeof(TextMsdfPushData), &push);
 
+        BeginGpuLabel(cmd, "Draw.TextUi.Batch");
+        try
+        {
         var first = 0;
         var batchCount = 0;
         var drawCount = 0;
@@ -550,6 +662,11 @@ public sealed unsafe partial class VulkanRenderer
         _lastFrameTextGlyphInstances = valid;
         _lastFrameTextBatchCount = batchCount;
         _lastFrameTextDrawCalls = drawCount;
+        }
+        finally
+        {
+            EndGpuLabel(cmd);
+        }
     }
 
     private bool TryBuildTextGlyphInstance(in TextGlyphDrawRequest g, in FramePlan plan, out TextGlyphInstanceGpu outInst)
@@ -818,6 +935,9 @@ public sealed unsafe partial class VulkanRenderer
             if (valid == 0)
                 return;
 
+            BeginGpuLabel(cmd, "Draw.SpritesEmissive.Batch");
+            try
+            {
             var instBind = stackalloc[] { _spriteInstanceBuffer };
             var instOff = stackalloc ulong[] { 0 };
             _vk!.CmdBindVertexBuffers(cmd, 1, 1, instBind, instOff);
@@ -873,6 +993,11 @@ public sealed unsafe partial class VulkanRenderer
             _lastFrameDeferredEmissiveSpriteInstances = valid;
             _lastFrameDeferredEmissiveSpriteBatchCount = batchCount;
             _lastFrameDeferredEmissiveSpriteDrawCalls = drawCount;
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
         }
         finally
         {
@@ -907,6 +1032,9 @@ public sealed unsafe partial class VulkanRenderer
             if (valid == 0)
                 return;
 
+            BeginGpuLabel(cmd, "Draw.SpritesOpaque.Batch");
+            try
+            {
             var instBind = stackalloc[] { _spriteInstanceBuffer };
             var instOff = stackalloc ulong[] { 0 };
             _vk!.CmdBindVertexBuffers(cmd, 1, 1, instBind, instOff);
@@ -959,6 +1087,11 @@ public sealed unsafe partial class VulkanRenderer
             _lastFrameDeferredOpaqueSpriteInstances = valid;
             _lastFrameDeferredOpaqueSpriteBatchCount = batchCount;
             _lastFrameDeferredOpaqueSpriteDrawCalls = drawCount;
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
         }
         finally
         {
@@ -991,6 +1124,9 @@ public sealed unsafe partial class VulkanRenderer
             if (valid == 0)
                 return;
 
+            BeginGpuLabel(cmd, "Draw.SpritesTransparent.Batch");
+            try
+            {
             var instBind = stackalloc[] { _spriteInstanceBuffer };
             var instOff = stackalloc ulong[] { 0 };
             _vk!.CmdBindVertexBuffers(cmd, 1, 1, instBind, instOff);
@@ -1033,6 +1169,11 @@ public sealed unsafe partial class VulkanRenderer
             _lastFrameDeferredTransparentSpriteInstances = valid;
             _lastFrameDeferredTransparentSpriteBatchCount = batchCount;
             _lastFrameDeferredTransparentSpriteDrawCalls = drawCount;
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
         }
         finally
         {
@@ -1068,6 +1209,9 @@ public sealed unsafe partial class VulkanRenderer
             if (valid == 0)
                 return;
 
+            BeginGpuLabel(cmd, "Draw.SpritesOverlay.Batch");
+            try
+            {
             var instBind = stackalloc[] { _spriteInstanceBuffer };
             var instOff = stackalloc ulong[] { 0 };
             _vk!.CmdBindVertexBuffers(cmd, 1, 1, instBind, instOff);
@@ -1134,6 +1278,11 @@ public sealed unsafe partial class VulkanRenderer
             _lastFrameOverlaySpriteInstances = valid;
             _lastFrameOverlaySpriteBatchCount = batchCount;
             _lastFrameOverlaySpriteDrawCalls = drawCount;
+            }
+            finally
+            {
+                EndGpuLabel(cmd);
+            }
         }
         finally
         {

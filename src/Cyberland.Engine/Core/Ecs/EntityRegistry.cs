@@ -31,10 +31,10 @@ public sealed class EntityRegistry
     /// </remarks>
     public void Destroy(EntityId id)
     {
-        var index = (int)id.Index;
-        if (index < 0 || index >= _generations.Count)
+        if (!IsAlive(id))
             return;
 
+        var index = (int)id.Index;
         _generations[index]++;
         _free.Push(id.Index);
     }
@@ -43,7 +43,7 @@ public sealed class EntityRegistry
     public bool IsAlive(EntityId id)
     {
         var index = (int)id.Index;
-        if (index < 0 || index >= _generations.Count)
+        if (index >= _generations.Count)
             return false;
 
         return _generations[index] == id.Generation;

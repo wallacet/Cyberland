@@ -35,6 +35,9 @@ public sealed unsafe partial class VulkanRenderer
         public void Record(CommandBuffer cmd, bool bloomOn, float bloomRadius, float emissiveToBloomGain, float extractThreshold, float extractKnee, Viewport vpHalf, Rect2D sciHalf, out ImageView bloomFinalView)
         {
             bloomFinalView = _r._viewBloom0;
+            _r.BeginGpuLabel(cmd, "Pass.Bloom.Pipeline");
+            try
+            {
             if (!bloomOn)
             {
                 ClearValue cBl = new()
@@ -65,10 +68,18 @@ public sealed unsafe partial class VulkanRenderer
             RecordSmallestBlur(cmd, radiusScale);
             RecordUpsampleAndRecombineBlur(cmd, radiusScale, vpHalf, sciHalf);
             bloomFinalView = _r._viewBloom0;
+            }
+            finally
+            {
+                _r.EndGpuLabel(cmd);
+            }
         }
 
         private void RecordPrefilter(CommandBuffer cmd, Viewport vpHalf, Rect2D sciHalf, float emissiveToBloomGain, float extractThreshold, float extractKnee)
         {
+            _r.BeginGpuLabel(cmd, "Pass.Bloom.Prefilter");
+            try
+            {
             ClearValue cEx = new()
             {
                 Color = new ClearColorValue { Float32_0 = 0f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f }
@@ -106,12 +117,20 @@ public sealed unsafe partial class VulkanRenderer
             _r._vk.CmdEndRenderPass(cmd);
             _r._offsWrittenBloom0 = true;
             InsertWriteToSampleBarrier(cmd);
+            }
+            finally
+            {
+                _r.EndGpuLabel(cmd);
+            }
         }
 
         private void RecordDownsampleChain(CommandBuffer cmd)
         {
             for (var i = 0; i < DeferredRenderingConstants.BloomDownsampleLevels; i++)
             {
+                _r.BeginGpuLabel(cmd, $"Pass.Bloom.Downsample[{i}]");
+                try
+                {
                 Viewport vpDown = new()
                 {
                     X = 0f,
@@ -166,11 +185,19 @@ public sealed unsafe partial class VulkanRenderer
                 _r._vk.CmdEndRenderPass(cmd);
                 _r._offsWrittenBloomDown[i] = true;
                 InsertWriteToSampleBarrier(cmd);
+                }
+                finally
+                {
+                    _r.EndGpuLabel(cmd);
+                }
             }
         }
 
         private void RecordSmallestBlur(CommandBuffer cmd, float radiusScale)
         {
+            _r.BeginGpuLabel(cmd, "Pass.Bloom.Blur.Smallest");
+            try
+            {
             Rect2D sciBloom1Full = new()
             {
                 Offset = default,
@@ -248,6 +275,11 @@ public sealed unsafe partial class VulkanRenderer
                 _r._offsWrittenBloomDown[smallest] = true;
                 InsertWriteToSampleBarrier(cmd);
             }
+            }
+            finally
+            {
+                _r.EndGpuLabel(cmd);
+            }
         }
 
         private void RecordUpsampleAndRecombineBlur(CommandBuffer cmd, float radiusScale, Viewport vpHalf, Rect2D sciHalf)
@@ -260,6 +292,9 @@ public sealed unsafe partial class VulkanRenderer
 
             for (var i = DeferredRenderingConstants.BloomDownsampleLevels - 2; i >= 0; i--)
             {
+                _r.BeginGpuLabel(cmd, $"Pass.Bloom.UpsampleStage[{i}]");
+                try
+                {
                 Viewport vpUp = new()
                 {
                     X = 0f,
@@ -386,8 +421,16 @@ public sealed unsafe partial class VulkanRenderer
                 _r._vk.CmdDraw(cmd, 3, 1, 0, 0);
                 _r._vk.CmdEndRenderPass(cmd);
                 InsertWriteToSampleBarrier(cmd);
+                }
+                finally
+                {
+                    _r.EndGpuLabel(cmd);
+                }
             }
 
+            _r.BeginGpuLabel(cmd, "Pass.Bloom.UpsampleToHalfRes");
+            try
+            {
             ClearValue cUpHalf = new() { Color = new ClearColorValue { Float32_0 = 0f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f } };
             RenderPassBeginInfo rpUpHalf = new()
             {
@@ -421,10 +464,18 @@ public sealed unsafe partial class VulkanRenderer
             _r._vk.CmdDraw(cmd, 3, 1, 0, 0);
             _r._vk.CmdEndRenderPass(cmd);
             InsertWriteToSampleBarrier(cmd);
+            }
+            finally
+            {
+                _r.EndGpuLabel(cmd);
+            }
         }
 
         private void InsertWriteToSampleBarrier(CommandBuffer cmd)
         {
+            _r.BeginGpuLabel(cmd, "Transition.Bloom.ColorAttachmentToSample");
+            try
+            {
             MemoryBarrier barrier = new()
             {
                 SType = StructureType.MemoryBarrier,
@@ -442,6 +493,11 @@ public sealed unsafe partial class VulkanRenderer
                 null,
                 0,
                 null);
+            }
+            finally
+            {
+                _r.EndGpuLabel(cmd);
+            }
         }
     }
 

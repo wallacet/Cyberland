@@ -17,13 +17,31 @@ public class UiGrid : UiElement
     public int ColumnCount
     {
         get => _columnCount;
-        set => _columnCount = Math.Max(1, value);
+        set
+        {
+            var next = Math.Max(1, value);
+            if (_columnCount == next)
+                return;
+            _columnCount = next;
+            InvalidateLayout();
+        }
     }
 
     /// <summary>Gap between columns and between rows (pixels).</summary>
-    public float Spacing { get; set; }
+    public float Spacing
+    {
+        get => _spacing;
+        set
+        {
+            if (MathF.Abs(_spacing - value) <= 1e-4f)
+                return;
+            _spacing = value;
+            InvalidateLayout();
+        }
+    }
 
     private int _columnCount = 1;
+    private float _spacing;
 
     /// <inheritdoc />
     protected override Vector2D<float> MeasureCore(in UiSizeConstraints constraints)

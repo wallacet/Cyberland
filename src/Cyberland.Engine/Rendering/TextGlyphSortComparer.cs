@@ -45,9 +45,13 @@ internal static class TextGlyphSortComparer
     public static int Compare(in TextGlyphDrawRequest a, in TextGlyphDrawRequest b)
     {
         var delta = a.SortKey - b.SortKey;
-        if (MathF.Abs(delta) <= SortKeyEpsilon)
-            return 0;
-        return delta < 0f ? -1 : 1;
+        if (MathF.Abs(delta) > SortKeyEpsilon)
+            return delta < 0f ? -1 : 1;
+
+        var depth = a.DepthHint.CompareTo(b.DepthHint);
+        if (depth != 0)
+            return depth;
+        return 0;
     }
 
     private static int CompareIndicesNoAlloc(int ia, int ib)

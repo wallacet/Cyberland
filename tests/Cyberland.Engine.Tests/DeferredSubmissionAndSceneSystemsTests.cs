@@ -49,7 +49,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         Assert.Equal(SystemQuerySpec.All<PointLightSource, Transform>(), new PointLightSystem(h).QuerySpec);
         Assert.Equal(SystemQuerySpec.All<PostProcessVolumeSource, Transform>(), new PostProcessVolumeSystem(h).QuerySpec);
         Assert.Equal(SystemQuerySpec.All<ViewportAnchor2D, Transform>(), new ViewportAnchorSystem(h).QuerySpec);
-        Assert.Equal(SystemQuerySpec.All<BitmapText, Transform>(), new TextStagingSystem(h).QuerySpec);
+        Assert.Equal(SystemQuerySpec.All<BitmapText, Transform>(), new TextStagingSystem().QuerySpec);
         var textRow = SystemQuerySpec.All<BitmapText, Transform, TextBuildFingerprint, TextSpriteCache>();
         Assert.Equal(textRow, new TextRenderSystem(h).QuerySpec);
     }
@@ -202,7 +202,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     {
         var r = new RecordingRenderer();
         var h = Host(r);
-        var sys = new TextStagingSystem(h);
+        var sys = new TextStagingSystem();
         var w = new World();
         var spec = SystemQuerySpec.All<BitmapText, Transform>();
         var q0 = w.QueryChunks(spec);
@@ -541,7 +541,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         {
             var r = new RecordingRenderer();
             var h = Host(r);
-            var sys = new TextStagingSystem(h);
+            var sys = new TextStagingSystem();
             var w = new World();
             sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()));
 
@@ -564,7 +564,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     public void TextStagingSystem_OnStart_allows_null_renderer()
     {
         var h = new GameHostServices() { Renderer = new RecordingRenderer() };
-        var sys = new TextStagingSystem(h);
+        var sys = new TextStagingSystem();
         var w = new World();
         sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<BitmapText, Transform>()));
     }
@@ -574,7 +574,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     {
         var r = new RecordingRenderer();
         var h = Host(r);
-        var sys = new TextStagingSystem(h);
+        var sys = new TextStagingSystem();
         var w = new World();
         var spec = SystemQuerySpec.All<BitmapText, Transform>();
         sys.OnStart(w, w.QueryChunks(spec));

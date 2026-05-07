@@ -25,6 +25,7 @@ internal sealed class SignatureComparer : IEqualityComparer<uint[]>
 
     public int GetHashCode(uint[] obj)
     {
+        ArgumentNullException.ThrowIfNull(obj);
         unchecked
         {
             var h = 17;

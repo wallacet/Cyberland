@@ -164,6 +164,26 @@ public sealed class UiLayoutTests
     }
 
     [Fact]
+    public void UiGrid_property_changes_invalidate_layout()
+    {
+        var doc = new UiDocument();
+        var grid = doc.Root.AddChild(new UiGrid { ColumnCount = 1, Spacing = 0f });
+        UiLayoutPresets.StretchAll(grid);
+        var a = grid.AddChild(new UiElement());
+        UiLayoutPresets.TopLeftFixed(a, 20f, 10f);
+        var b = grid.AddChild(new UiElement());
+        UiLayoutPresets.TopLeftFixed(b, 20f, 10f);
+
+        doc.MeasureArrange(new Vector2D<float>(100f, 40f));
+        Assert.Equal(0f, b.ComputedBounds.X);
+
+        grid.ColumnCount = 2;
+        grid.Spacing = 4f;
+        doc.MeasureArrange(new Vector2D<float>(100f, 40f));
+        Assert.True(b.ComputedBounds.X > 0f);
+    }
+
+    [Fact]
     public void UiGrid_when_invisible_skips_child_arrange_slots()
     {
         var grid = new UiGrid { Visible = false, ColumnCount = 2 };
@@ -311,5 +331,24 @@ public sealed class UiLayoutTests
         row.Arrange(new UiRect(0f, 0f, 200f, 50f));
 
         Assert.Equal(10f + 3f, b.ComputedBounds.X);
+    }
+
+    [Fact]
+    public void UiHorizontalStack_spacing_change_invalidates_layout()
+    {
+        var doc = new UiDocument();
+        var row = doc.Root.AddChild(new UiHorizontalStack { Spacing = 0f });
+        UiLayoutPresets.StretchAll(row);
+        var a = row.AddChild(new UiElement());
+        UiLayoutPresets.TopLeftFixed(a, 10f, 10f);
+        var b = row.AddChild(new UiElement());
+        UiLayoutPresets.TopLeftFixed(b, 10f, 10f);
+
+        doc.MeasureArrange(new Vector2D<float>(80f, 30f));
+        Assert.Equal(10f, b.ComputedBounds.X);
+
+        row.Spacing = 7f;
+        doc.MeasureArrange(new Vector2D<float>(80f, 30f));
+        Assert.Equal(17f, b.ComputedBounds.X);
     }
 }

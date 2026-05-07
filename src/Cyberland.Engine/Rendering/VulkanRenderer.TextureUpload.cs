@@ -133,6 +133,10 @@ public sealed unsafe partial class VulkanRenderer
                         width,
                         height);
                     var id = (TextureId)_r._textureSlots.Count;
+                    _r.SetGpuObjectName(ObjectType.Image, VulkanRenderer.VkHandle(img), $"img.TextureSlot[{(int)id}]");
+                    _r.SetGpuObjectName(ObjectType.DeviceMemory, VulkanRenderer.VkHandle(mem), $"mem.TextureSlot[{(int)id}]");
+                    _r.SetGpuObjectName(ObjectType.ImageView, VulkanRenderer.VkHandle(view), $"view.TextureSlot[{(int)id}]");
+                    _r.SetGpuObjectName(ObjectType.DescriptorSet, VulkanRenderer.VkHandle(ds), $"ds.TextureSlot[{(int)id}]");
                     _r._textureSlots.Add(slot);
                     _r._textureSlotsSnapshot[(int)id] = slot;
                     Volatile.Write(ref _r._textureSlotsSnapshotCount, _r._textureSlots.Count);
@@ -277,7 +281,15 @@ public sealed unsafe partial class VulkanRenderer
                     if (_r._vk.BeginCommandBuffer(cmd, in bi) != Result.Success)
                         throw new GraphicsInitializationException("begin 1cmd");
 
-                    record(cmd);
+                    _r.BeginGpuLabel(cmd, "Upload.Texture.OneShot");
+                    try
+                    {
+                        record(cmd);
+                    }
+                    finally
+                    {
+                        _r.EndGpuLabel(cmd);
+                    }
 
                     if (_r._vk.EndCommandBuffer(cmd) != Result.Success)
                         throw new GraphicsInitializationException("end 1cmd");

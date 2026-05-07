@@ -216,7 +216,9 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
         if (frameElapsedMs >= 16d && _loggedFrameSpikes < 12)
         {
             _loggedFrameSpikes++;
-            Console.WriteLine(
+            EngineDiagnostics.Report(
+                EngineErrorSeverity.Warning,
+                "Cyberland.Engine.UiDocumentFrameSystem",
                 $"UI frame spike | frame_ms={frameElapsedMs:0.###} docs={_frameDocuments.Count} measure_arranges={measureArrangeCount}");
         }
     }

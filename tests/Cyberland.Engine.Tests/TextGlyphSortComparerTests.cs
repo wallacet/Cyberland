@@ -9,13 +9,13 @@ public sealed class TextGlyphSortComparerTests
     public void SortByOrder_orders_sort_key_then_depth_then_index()
     {
         var glyphs = new TextGlyphDrawRequest[3];
-        glyphs[0] = new TextGlyphDrawRequest { SortKey = 10f, DepthHint = 1f };
+        glyphs[0] = new TextGlyphDrawRequest { SortKey = 10f, DepthHint = 2f };
         glyphs[1] = new TextGlyphDrawRequest { SortKey = 5f, DepthHint = 99f };
-        glyphs[2] = new TextGlyphDrawRequest { SortKey = 10f, DepthHint = 2f };
+        glyphs[2] = new TextGlyphDrawRequest { SortKey = 10f, DepthHint = 1f };
 
         var indices = new int[glyphs.Length];
         TextGlyphSortComparer.SortByOrder(indices, glyphs, glyphs.Length);
-        Assert.Equal(new[] { 1, 0, 2 }, indices);
+        Assert.Equal(new[] { 1, 2, 0 }, indices);
     }
 
     [Fact]

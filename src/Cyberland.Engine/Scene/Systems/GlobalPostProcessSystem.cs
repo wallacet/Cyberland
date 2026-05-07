@@ -51,5 +51,7 @@ public sealed class GlobalPostProcessSystem : ISystem, ILateUpdate
 
         if (found)
             renderer.SetGlobalPostProcess(best);
+        else
+            renderer.SetGlobalPostProcess(EngineDefaultGlobalPostProcess.DefaultSettings);
     }
 }

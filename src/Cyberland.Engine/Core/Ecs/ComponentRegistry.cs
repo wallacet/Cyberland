@@ -9,6 +9,10 @@ namespace Cyberland.Engine.Core.Ecs;
 /// </summary>
 internal sealed class ComponentRegistry
 {
+    private static readonly MethodInfo GetOrRegisterGenericMethod = typeof(ComponentRegistry)
+        .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+        .Single(m => m.Name == nameof(GetOrRegister) && m.IsGenericMethodDefinition && m.GetParameters().Length == 0);
+
     private readonly Dictionary<Type, ComponentId> _byType = new();
     private readonly Dictionary<ComponentId, Type> _byId = new();
     private readonly Dictionary<ComponentId, Func<int, ColumnBase>> _columnFactories = new();
@@ -40,11 +44,7 @@ internal sealed class ComponentRegistry
         if (_byType.TryGetValue(type, out var id))
             return id;
 
-        var generic = typeof(ComponentRegistry)
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Single(m => m.Name == nameof(GetOrRegister) && m.IsGenericMethodDefinition && m.GetParameters().Length == 0);
-
-        return (ComponentId)generic.MakeGenericMethod(type).Invoke(this, null)!;
+        return (ComponentId)GetOrRegisterGenericMethod.MakeGenericMethod(type).Invoke(this, null)!;
     }
 
     public ColumnBase CreateColumn(ComponentId id, int capacity) => _columnFactories[id](capacity);

@@ -14,6 +14,7 @@ namespace Cyberland.Engine.UI.Text;
 /// </summary>
 public class UiTextBlock : UiElement
 {
+    private const int MaxShrinkToFitIterations = 24;
     private sealed class CachedDrawRun
     {
         public string Text = string.Empty;
@@ -291,10 +292,9 @@ public class UiTextBlock : UiElement
         // Match Arrange: collapsed anchors still use SizeDelta width/height; floor measured size so stacked siblings
         // (e.g. gather-card detail + buttons) do not overlap when intrinsic text is narrower than the slot.
         // Cap the height floor so large TopLeftFixed boxes (scroll hosts) still report intrinsic text height.
-        const float collapsedHeightFloorMaxPx = 256f;
         if (!stretchX && SizeDelta.X > eps)
             dw = MathF.Max(dw, SizeDelta.X + Margin.Horizontal);
-        if (!stretchY && SizeDelta.Y > eps && !topStretchBand && SizeDelta.Y <= collapsedHeightFloorMaxPx)
+        if (!stretchY && SizeDelta.Y > eps && !topStretchBand && SizeDelta.Y <= UiLayoutConstants.CollapsedHeightFloorMaxPx)
             dh = MathF.Max(dh, SizeDelta.Y + Margin.Vertical);
 
         return constraints.ClampSize(new Vector2D<float>(dw, dh));
@@ -361,7 +361,7 @@ public class UiTextBlock : UiElement
         var lo = qLo;
         var hi = qHi;
         var guard = 0;
-        while (lo < hi && guard++ < 24)
+        while (lo < hi && guard++ < MaxShrinkToFitIterations)
         {
             var mid = (lo + hi + 1) / 2;
             if (FitsQuant(mid))
