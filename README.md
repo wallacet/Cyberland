@@ -203,33 +203,31 @@ scripts/
 ## High-level architecture
 
 ```mermaid
-graph TB
-  subgraph HP[Host process]
-    GA[GameApplication]
-    WIN[Silk.NET Window]
-    VK[VulkanRenderer]
-    SCHED[SystemScheduler]
-    ECS[World ECS]
-    VFS[VirtualFileSystem]
-    ML[ModLoader]
-    MODS[IMod DLLs: Game/Demo]
-    SYS[ISystem + IParallelSystem + ISingletonSystem]
-    SVC[GameHostServices]
-    INP[IInputService]
+flowchart TB
+  GA["GameApplication"]
+  WIN["Silk.NET Window"]
+  VK["VulkanRenderer"]
+  SCHED["SystemScheduler"]
+  ECS["World ECS"]
+  VFS["VirtualFileSystem"]
+  ML["ModLoader"]
+  MODS["IMod DLLs: Game and Demo"]
+  SYS["ISystem, IParallelSystem, ISingletonSystem"]
+  SVC["GameHostServices"]
+  INP["IInputService"]
 
-    GA --> WIN
-    GA --> VK
-    GA --> SCHED
-    GA --> ECS
-    GA --> VFS
-    GA --> ML
-    ML --> MODS
-    MODS --> SYS
-    SYS --> ECS
-    SYS --> SVC
-    SVC --> VK
-    SVC --> INP
-  end
+  GA --> WIN
+  GA --> VK
+  GA --> SCHED
+  GA --> ECS
+  GA --> VFS
+  GA --> ML
+  ML --> MODS
+  MODS --> SYS
+  SYS --> ECS
+  SYS --> SVC
+  SVC --> VK
+  SVC --> INP
 ```
 
 1. **Host** creates the window, graphics, input service, input bindings, ECS world, scheduler, and VFS, then calls **`ModLoader.LoadAll`** on `AppContext.BaseDirectory/Mods`.
