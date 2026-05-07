@@ -1,3 +1,4 @@
+#if DEBUG
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
@@ -5,7 +6,7 @@ using System.Text;
 namespace Cyberland.Engine.Diagnostics;
 
 /// <summary>
-/// Pure aggregation for frame profiler samples (unit-tested; no GPU or threading).
+/// Pure aggregation for frame profiler samples (unit-tested; no GPU or threading). Compiled only in Debug builds.
 /// </summary>
 internal sealed class FrameProfilerScopeStats
 {
@@ -70,7 +71,12 @@ internal static class FrameProfilerStats
             Buckets[name] = new FrameProfilerScopeStats();
     }
 
-    internal static void Record(string name, long ticks, long allocDeltaBytes)
+    /// <summary>Accumulates one hierarchical profiler sample for <paramref name="name"/>.</summary>
+    /// <param name="name">Scope label (e.g. system or subsystem name).</param>
+    /// <param name="ticks">Elapsed time for this scope in <see cref="Stopwatch"/> ticks.</param>
+    /// <param name="allocDeltaBytes">Byte delta from <see cref="GC.GetAllocatedBytesForCurrentThread"/> when allocation tracking is on.</param>
+    /// <param name="includeAllocSample">When false, skips per-scope allocation accounting (keeps hot paths cheap).</param>
+    internal static void Record(string name, long ticks, long allocDeltaBytes, bool includeAllocSample = true)
     {
         lock (Gate)
         {
@@ -81,7 +87,8 @@ internal static class FrameProfilerStats
             }
 
             s.AddTicks(ticks);
-            s.AddAllocDelta(allocDeltaBytes);
+            if (includeAllocSample)
+                s.AddAllocDelta(allocDeltaBytes);
         }
     }
 
@@ -156,3 +163,4 @@ internal static class FrameProfilerStats
         }
     }
 }
+#endif

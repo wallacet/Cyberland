@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
@@ -434,11 +433,9 @@ public class UiElement
 
         var selfClip = ComputedBounds.Intersect(inheritedClip);
         var mine = accumulatedSortKey + SortKey;
-        using (FrameProfilerScope.Enter("ui.element.draw_self"))
-            DrawSelfVisuals(renderer, fonts, cache, space, mine, selfClip, inheritedClip);
+        DrawSelfVisuals(renderer, fonts, cache, space, mine, selfClip, inheritedClip);
 
         var span = SortedChildren();
-        using var childScope = FrameProfilerScope.Enter("ui.element.draw_children");
         for (var i = 0; i < span.Length; i++)
         {
             var rank = i + 1;

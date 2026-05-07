@@ -105,4 +105,37 @@ internal static class UiTextMeasurer
 
         return true;
     }
+
+    /// <summary>
+    /// Reference ink span in baseline-left coordinates (+Y down): minimum <see cref="FontRectangle.Top"/> and maximum
+    /// <see cref="FontRectangle.Bottom"/> across segments, using <see cref="LineHeightReferenceSample"/>.
+    /// </summary>
+    internal static bool TryGetLineReferenceInkTopBottom(FontLibrary fonts, UiTextLayoutLine line, out float minTop,
+        out float maxBottom)
+    {
+        minTop = float.PositiveInfinity;
+        maxBottom = float.NegativeInfinity;
+        lock (fonts.FontRasterSync)
+        {
+            foreach (var seg in line.Segments)
+            {
+                if (!fonts.TryCreateFontUnlocked(in seg.Style, out var font, out _))
+                    continue;
+
+                var opts = new TextOptions(font) { Dpi = 96f };
+                var b = TextMeasurer.MeasureBounds(LineHeightReferenceSample, opts);
+                minTop = MathF.Min(minTop, b.Top);
+                maxBottom = MathF.Max(maxBottom, b.Bottom);
+            }
+        }
+
+        if (float.IsPositiveInfinity(minTop) || float.IsNegativeInfinity(maxBottom))
+        {
+            minTop = 0f;
+            maxBottom = 0f;
+            return false;
+        }
+
+        return true;
+    }
 }

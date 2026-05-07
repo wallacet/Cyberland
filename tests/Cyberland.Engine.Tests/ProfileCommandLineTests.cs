@@ -88,4 +88,32 @@ public sealed class ProfileCommandLineTests
         ReadOnlySpan<string> args = new[] { "other" };
         Assert.Null(ProfileCommandLine.TryParsePerfDump(args));
     }
+
+    [Fact]
+    public void TryParseProfileAlloc_flag_present()
+    {
+        ReadOnlySpan<string> args = new[] { ProfileCommandLine.AllocFlag };
+        Assert.True(ProfileCommandLine.TryParseProfileAlloc(args));
+    }
+
+    [Fact]
+    public void TryParseProfileAlloc_equals_true()
+    {
+        ReadOnlySpan<string> args = new[] { ProfileCommandLine.AllocFlag + "=1" };
+        Assert.True(ProfileCommandLine.TryParseProfileAlloc(args));
+    }
+
+    [Fact]
+    public void TryParseProfileAlloc_equals_false()
+    {
+        ReadOnlySpan<string> args = new[] { ProfileCommandLine.AllocFlag + "=false" };
+        Assert.False(ProfileCommandLine.TryParseProfileAlloc(args));
+    }
+
+    [Fact]
+    public void TryParseProfileAlloc_missing_returns_false()
+    {
+        ReadOnlySpan<string> args = new[] { ProfileCommandLine.DumpFlag + "=x.txt" };
+        Assert.False(ProfileCommandLine.TryParseProfileAlloc(args));
+    }
 }

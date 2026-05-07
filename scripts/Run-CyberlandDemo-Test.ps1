@@ -26,7 +26,10 @@ param(
     [switch] $SkipClearArtifacts,
     # Forces debug frame profiler scopes on (uses CYBERLAND_ENABLE_FRAME_PROFILER=1).
     [Parameter(Mandatory = $false)]
-    [switch] $EnableProfiler
+    [switch] $EnableProfiler,
+    # Debug-only: enables per-scope allocation columns in the profiler dump (expensive — use for alloc diagnosis only).
+    [Parameter(Mandatory = $false)]
+    [switch] $ProfileAlloc
 )
 
 if ([string]::IsNullOrEmpty($Demo)) {
@@ -102,6 +105,10 @@ try {
             $PerfDumpPath = [System.IO.Path]::ChangeExtension($ProfileDumpPath, ".perf.txt")
         }
         $hostArgs += "--perf-dump=$PerfDumpPath"
+    }
+
+    if ($ProfileAlloc.IsPresent) {
+        $hostArgs += "--profile-alloc"
     }
 
     if ($EnableProfiler.IsPresent -and $config -ne "Debug") {

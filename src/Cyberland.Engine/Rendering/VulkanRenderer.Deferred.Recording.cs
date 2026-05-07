@@ -68,7 +68,9 @@ public sealed unsafe partial class VulkanRenderer
         _lastFrameDroppedDirectionalLights = framePlan.DirectionalLightDroppedCount;
         _lastFrameDroppedSpotLights = framePlan.SpotLightDroppedCount;
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.LightingUpload");
+#endif
             UpdateLightingFrameData(in framePlan);
             UploadPointLightSsboData(in framePlan);
         }
@@ -121,7 +123,9 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
 
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.EmissiveSprites");
+#endif
             RecordDeferredSpritesEmissiveInstanced(cmd, in framePlan, sortIdx, sprites, nSprite);
         }
 
@@ -152,7 +156,9 @@ public sealed unsafe partial class VulkanRenderer
         _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
 
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.GbufferSprites");
+#endif
             RecordDeferredSpritesOpaqueInstanced(cmd, in framePlan, sortIdx, sprites, nSprite);
         }
 
@@ -201,7 +207,9 @@ public sealed unsafe partial class VulkanRenderer
         pointPushHdr[7] = 0f;
 
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.DeferredLighting");
+#endif
             _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBase);
             var setsBase = stackalloc DescriptorSet[2];
             setsBase[0] = _dsGbufferRead;
@@ -269,7 +277,9 @@ public sealed unsafe partial class VulkanRenderer
         in ClearValue hdrClearColor,
         float* screenPushHdr)
     {
+#if DEBUG
         using var __ = FrameProfilerScope.Enter("Record.TransparentWboit");
+#endif
         ClearValue cWAccum = new()
         {
             Color = new ClearColorValue { Float32_0 = 0f, Float32_1 = 0f, Float32_2 = 0f, Float32_3 = 0f }
@@ -370,7 +380,9 @@ public sealed unsafe partial class VulkanRenderer
         };
 
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.PostProcess");
+#endif
             _postProcessGraph ??= new PostProcessGraph(this);
             var ppContext = new PostEffectContext(cmd, swapFb, framePlan, vp, sci, vpHalf, sciHalf);
             _postProcessGraph.Record(in ppContext, bloomOn, bloomGain, bloomRadius, post);
@@ -380,7 +392,9 @@ public sealed unsafe partial class VulkanRenderer
             BarrierCompositeColorToSwapchainUiOverlay(cmd);
 
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.SwapchainOverlay");
+#endif
             RecordSwapchainUiOverlay(cmd, swapUiOverlayFb, in framePlan, in vp, in sci);
         }
     }

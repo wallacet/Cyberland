@@ -16,6 +16,11 @@ public static class FrameProfilerOverlay
     /// <param name="maxLines">Maximum number of scope lines.</param>
     public static void AppendHud(StringBuilder sb, int maxLines = DefaultMaxLines)
     {
+#if DEBUG
         FrameProfiler.AppendTopScopes(sb, maxLines);
+#else
+        _ = sb;
+        _ = maxLines;
+#endif
     }
 }

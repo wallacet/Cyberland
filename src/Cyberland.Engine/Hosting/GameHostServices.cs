@@ -30,6 +30,7 @@ public sealed class GameHostServices
         Fonts = new FontLibrary();
         BuiltinFonts.AddTo(Fonts);
         TextGlyphCache = new TextGlyphCache();
+        BakedMsdfAtlasLoader = new BakedMsdfAtlasLoader();
         UiDocuments = new UiDocumentRegistry();
         UiCommands = uiCommands ?? new UiCommandQueue();
     }
@@ -42,6 +43,9 @@ public sealed class GameHostServices
 
     /// <summary>Shared glyph atlas for bitmap text (thread-safe internal locking).</summary>
     public TextGlyphCache TextGlyphCache { get; }
+
+    /// <summary>Loader that seeds baked MSDF atlas pages/glyph entries before runtime fallback generation.</summary>
+    internal BakedMsdfAtlasLoader BakedMsdfAtlasLoader { get; }
 
     /// <summary>Maps ECS entities to retained UI documents processed by <see cref="Scene.Systems.UiDocumentFrameSystem"/>.</summary>
     public UiDocumentRegistry UiDocuments { get; }

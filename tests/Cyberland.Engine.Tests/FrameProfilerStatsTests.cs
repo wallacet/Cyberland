@@ -1,3 +1,4 @@
+#if DEBUG
 using System.Text;
 using Cyberland.Engine.Diagnostics;
 using Xunit;
@@ -81,3 +82,4 @@ public sealed class FrameProfilerStatsTests
         Assert.DoesNotContain("empty.bucket\t", sb.ToString(), StringComparison.Ordinal);
     }
 }
+#endif

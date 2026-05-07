@@ -12,6 +12,7 @@ using Cyberland.Engine.UI.Ecs;
 using Cyberland.Engine.UI.Layout;
 using Cyberland.Engine.UI.Text;
 using Silk.NET.Maths;
+using System.Diagnostics;
 
 namespace Cyberland.Demo.IdleGold;
 
@@ -124,10 +125,10 @@ public static class SceneSetup
         UiLayoutPresets.TopStretch(statsRow, 44f);
         var gold = TextBlock("0", 22f, new Vector4D<float>(1f, 0.78f, 0.28f, 1f));
         UiLayoutPresets.TopLeftFixed(gold, 168f, 38f);
-        gold.VerticalAlignment = UiTextVerticalAlignment.Center;
+        gold.VerticalAlignment = UiTextVerticalAlignment.CenterInk;
         var gps = TextBlock("0", 15f, new Vector4D<float>(0.58f, 0.82f, 0.62f, 1f));
         UiLayoutPresets.TopLeftFixed(gps, 260f, 38f);
-        gps.VerticalAlignment = UiTextVerticalAlignment.Center;
+        gps.VerticalAlignment = UiTextVerticalAlignment.CenterInk;
         statsRow.AddChild(gold);
         statsRow.AddChild(gps);
 
@@ -228,14 +229,26 @@ public static class SceneSetup
 
     private static void WireTabs(DocumentRefs refs)
     {
+        refs.CurrentTabId = NavGather;
+        var switchTimer = Stopwatch.StartNew();
+        var loggedTabs = new HashSet<string>(StringComparer.Ordinal);
         refs.NavGroup.SelectionChanged += (_, id) =>
         {
+            if (string.IsNullOrWhiteSpace(id))
+                return;
+            refs.CurrentTabId = id;
             refs.GatherPanel.Visible = id == NavGather;
             refs.CharacterPanel.Visible = id == NavCharacter;
             refs.BlacksmithPanel.Visible = id == NavBlacksmith;
             refs.LogPanel.Visible = id == NavLog;
+            if (loggedTabs.Add(id))
+            {
+                Console.WriteLine(
+                    $"IdleGold tab first-select | id={id} elapsed_ms={switchTimer.Elapsed.TotalMilliseconds:0.###}");
+            }
         };
     }
+
 
     private static void WirePurchases(GameHostServices host, DocumentRefs refs)
     {
@@ -271,7 +284,6 @@ public static class SceneSetup
         UiLayoutPresets.StretchAll(lab);
         lab.Text.Text = caption;
         lab.Text.HorizontalAlignment = UiTextHorizontalAlignment.Center;
-        lab.Text.VerticalAlignment = UiTextVerticalAlignment.Center;
         lab.Text.DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(0.93f, 0.95f, 1f, 1f), Bold: true);
         rb.AddChild(lab);
         rb.BackgroundColor = rb.NormalTint;
@@ -377,7 +389,7 @@ public static class SceneSetup
         UiLayoutPresets.TopStretch(desc, 22f);
         var detail = TextBlock(" ", 14f, new Vector4D<float>(0.52f, 0.88f, 0.96f, 1f));
         detail.HorizontalAlignment = UiTextHorizontalAlignment.End;
-        detail.VerticalAlignment = UiTextVerticalAlignment.Center;
+        detail.VerticalAlignment = UiTextVerticalAlignment.CenterInk;
 
         var unlock = TextButton(154f, 40f, "unlock",
             new Vector4D<float>(0.24f, 0.36f, 0.5f, 1f),
@@ -511,6 +523,8 @@ public static class SceneSetup
         var panel = new UiPanel { Spacing = 8f };
         var scroll = new UiScrollView();
         UiLayoutPresets.StretchAll(scroll);
+        // Inset matches other tabs; extra bottom keeps final log lines clear of the viewport clip (glyph quads vs line box).
+        scroll.Content.Margin = new UiThickness(8f, 6f, 16f, 10f);
         var host = new UiPanel { Spacing = 0f };
         UiLayoutPresets.StretchAll(host);
         var body = TextBlock(" ", 13f, new Vector4D<float>(0.78f, 0.82f, 0.88f, 1f));
@@ -541,7 +555,6 @@ public static class SceneSetup
         UiLayoutPresets.StretchAll(lab);
         lab.Text.Text = placeholder;
         lab.Text.HorizontalAlignment = UiTextHorizontalAlignment.Center;
-        lab.Text.VerticalAlignment = UiTextVerticalAlignment.Center;
         lab.Text.DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(0.96f, 0.97f, 1f, 1f), Bold: true);
         btn.AddChild(lab);
         return new TextButtonPair(btn, lab);

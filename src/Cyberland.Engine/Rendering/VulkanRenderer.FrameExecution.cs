@@ -67,7 +67,9 @@ public sealed unsafe partial class VulkanRenderer
         /// <inheritdoc cref="IFramePlanBuilder.Build"/>
         public FramePlan Build()
         {
+#if DEBUG
             using var __build = FrameProfilerScope.Enter("FramePlan.Build");
+#endif
             int spriteCount, pointCount, spotCount, directionalCount, ambientCount, volumeCount, cameraCount;
             SpriteDrawRequest[] sprites = [];
             PointLight[] pointLights = [];
@@ -78,7 +80,9 @@ public sealed unsafe partial class VulkanRenderer
             CameraViewRequest[] cameras = [];
             GlobalPostProcessSettings globalPost;
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("FramePlan.DrainQueues");
+#endif
                 spriteCount = DrainQueue(_r._spriteQueue, ref _r._frameScratchSprites, out sprites);
                 pointCount = DrainQueue(_r._pointLightQueue, ref _r._frameScratchPointLights, out pointLights);
                 spotCount = DrainQueue(_r._spotLightQueue, ref _r._frameScratchSpotLights, out spotLights);
@@ -108,7 +112,9 @@ public sealed unsafe partial class VulkanRenderer
 
             GlobalPostProcessSettings resolvedPost;
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("FramePlan.PostMerge");
+#endif
                 resolvedPost = PostProcessVolumeMerge.ResolveAtPoint(
                     in globalPost,
                     volumes.AsSpan(0, volumeCount),
@@ -121,7 +127,9 @@ public sealed unsafe partial class VulkanRenderer
                 sortIndices = [];
             else
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("FramePlan.Sort.Sprites");
+#endif
                 EnsureFrameScratch(ref _r._frameScratchSortIndices, drainedSpriteCount);
                 sortIndices = _r._frameScratchSortIndices!;
                 // Grow-only scratch may be longer than spriteCount; sort only [0, spriteCount) so stale tail slots are not compared.
@@ -161,7 +169,9 @@ public sealed unsafe partial class VulkanRenderer
                 voSort = [];
             else
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("FramePlan.Sort.Overlay");
+#endif
                 EnsureFrameScratch(ref _r._frameScratchViewportUiSortIndices, voCount);
                 voSort = _r._frameScratchViewportUiSortIndices!;
                 SpriteDrawSorter.SortByLayerOrder(voSort, voSprites, voCount);

@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Hosting;
@@ -36,6 +37,7 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
     private EntityId _armedDocumentId;
     private UiButton? _armedButton;
     private bool _reportedLayoutBudgetBackpressure;
+    private int _loggedFrameSpikes;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<UiDocumentRoot>();
@@ -53,7 +55,10 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
     /// <inheritdoc />
     public void OnLateUpdate(ChunkQueryAll query, float deltaSeconds)
     {
+#if DEBUG
         using var frameScope = FrameProfilerScope.Enter("ui.frame");
+#endif
+        var frameStartTicks = Stopwatch.GetTimestamp();
         _ = deltaSeconds;
 
         var renderer = _host.Renderer;
@@ -76,7 +81,9 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
         var wheel = input?.MouseWheelDelta ?? Vector2.Zero;
 
+#if DEBUG
         using (FrameProfilerScope.Enter("ui.query.collect_roots"))
+#endif
         {
             _rows.Clear();
             _activeRootIds.Clear();
@@ -94,7 +101,9 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             _host.UiDocuments.PruneToEntities(CollectionsMarshal.AsSpan(_activeRootIds));
         }
 
+#if DEBUG
         using (FrameProfilerScope.Enter("ui.query.sort_roots"))
+#endif
         {
             _rows.Sort(static (a, b) =>
             {
@@ -103,7 +112,9 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             });
         }
 
+#if DEBUG
         using var docLoopScope = FrameProfilerScope.Enter("ui.documents.loop");
+#endif
         _frameDocuments.Clear();
         var measureArrangeCount = 0;
         foreach (var row in _rows)
@@ -127,7 +138,9 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             var rootStable = RootRectNearlyEquals(rootRect, doc.LastArrangedRootRect);
 
             // Font/localization propagation can mark the document dirty; always run the cheap stale check first.
+#if DEBUG
             using var docScope = FrameProfilerScope.Enter("ui.document.process");
+#endif
             doc.PrepareFontsAndLocalizationIfNeeded(fonts, loc);
 
             // Submissions are discarded at the start of each render tick (see IRenderer.ResetPendingSubmissionsForNewTick).
@@ -135,7 +148,9 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             var skipMeasure = incremental && !doc.LayoutDirty && rootStable;
             if (!skipMeasure && measureArrangeCount < MaxMeasureArrangesPerFrame)
             {
+#if DEBUG
                 using var measureScope = FrameProfilerScope.Enter("ui.document.measure_arrange");
+#endif
                 doc.MeasureArrange(rootRect);
                 measureArrangeCount++;
             }
@@ -153,13 +168,17 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
         if (viewportPointer.HasValue && (wheel.Y != 0f || primaryPressed || primaryReleased))
         {
+#if DEBUG
             using var pointerScope = FrameProfilerScope.Enter("ui.pointer.route");
+#endif
             var ptVp = viewportPointer.GetValueOrDefault();
             var routed = TryGetTopmostViewportDocumentAtPoint(ptVp, out var target);
 
             if (wheel.Y != 0f && routed)
             {
+#if DEBUG
                 using var wheelScope = FrameProfilerScope.Enter("ui.document.wheel");
+#endif
                 if (TryApplyWheel(target.Document, ptVp, wheel.Y, target.RootRect))
                     target.Document.MeasureArrange(target.RootRect);
             }
@@ -186,9 +205,19 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             var doc = frameDoc.Document;
             var rootRect = frameDoc.RootRect;
 
+#if DEBUG
             using var drawScope = FrameProfilerScope.Enter("ui.document.draw_visuals");
+#endif
             doc.DrawVisuals(renderer, fonts, cache, cfg.CoordinateSpace, cfg.SortKeyBase, rootRect);
             doc.ClearVisualDirty();
+        }
+
+        var frameElapsedMs = (Stopwatch.GetTimestamp() - frameStartTicks) * 1000d / Stopwatch.Frequency;
+        if (frameElapsedMs >= 16d && _loggedFrameSpikes < 12)
+        {
+            _loggedFrameSpikes++;
+            Console.WriteLine(
+                $"UI frame spike | frame_ms={frameElapsedMs:0.###} docs={_frameDocuments.Count} measure_arranges={measureArrangeCount}");
         }
     }
 

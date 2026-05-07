@@ -1,6 +1,10 @@
 using Cyberland.Engine.Rendering;
 using Silk.NET.Maths;
 using SixLabors.Fonts;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 
 namespace Cyberland.Engine.Rendering.Text;
 
@@ -21,7 +25,25 @@ namespace Cyberland.Engine.Rendering.Text;
 /// </remarks>
 public sealed class TextGlyphCache
 {
+    [ExcludeFromCodeCoverage(Justification = "Telemetry snapshot DTO; counters are validated via SnapshotAndResetTelemetry tests.")]
+    internal readonly record struct GlyphCacheTelemetry(
+        long CacheHits,
+        long CacheMisses,
+        long UploadCalls,
+        long UploadBytes,
+        double RasterizeMs,
+        double UploadMs);
+
     private readonly object _lock = new();
+    private static long s_cacheHits;
+    private static long s_cacheMisses;
+    private static long s_uploadCalls;
+    private static long s_uploadBytes;
+    private static long s_rasterizeTicks;
+    private static long s_uploadTicks;
+    private static long s_bakedGlyphImports;
+    private static readonly ConcurrentDictionary<int, long> s_missCodepoints = new();
+    private static readonly ConcurrentDictionary<string, long> s_missGlyphKeys = new();
 
     /// <summary>Cached GPU glyph with layout metrics and atlas UVs (min.xy, max.zw).</summary>
     public readonly struct CachedGlyph
@@ -110,14 +132,20 @@ public sealed class TextGlyphCache
         {
             if (_glyphs.TryGetValue(key, out var existing))
             {
+                Interlocked.Increment(ref s_cacheHits);
                 glyph = existing;
                 return true;
             }
         }
+        Interlocked.Increment(ref s_cacheMisses);
+        s_missCodepoints.AddOrUpdate(codePoint, 1, static (_, c) => c + 1);
+        var missKey = $"{style.FontFamilyId}|{faceKind}|q{sizeQ}|U+{codePoint:X4}";
+        s_missGlyphKeys.AddOrUpdate(missKey, 1, static (_, c) => c + 1);
 
         byte[]? rgba;
         int atlasW, atlasH;
         float drawW, drawH, adv, cx, cyW, msdfRange;
+        var rasterStart = Stopwatch.GetTimestamp();
         lock (fonts.FontRasterSync)
         {
             // Family was resolved above; TryCreateFontUnlocked uses the same id and cannot fail here.
@@ -125,6 +153,7 @@ public sealed class TextGlyphCache
             _ = GlyphRasterizer.TryCreateGlyphMsdf(font, utf16Glyph, out rgba, out atlasW, out atlasH,
                 out drawW, out drawH, out adv, out cx, out cyW, out msdfRange);
         }
+        Interlocked.Add(ref s_rasterizeTicks, Stopwatch.GetTimestamp() - rasterStart);
 
         lock (_lock)
         {
@@ -163,6 +192,7 @@ public sealed class TextGlyphCache
         out TextureId textureId,
         out Vector4D<float> uvRect)
     {
+        var uploadStart = Stopwatch.GetTimestamp();
         textureId = TextureId.MaxValue;
         uvRect = default;
 
@@ -188,12 +218,94 @@ public sealed class TextGlyphCache
                 return false;
             page.TextureId = id;
             textureId = id;
+            Interlocked.Increment(ref s_uploadCalls);
+            Interlocked.Add(ref s_uploadBytes, (long)GlyphAtlasPage.SizePx * GlyphAtlasPage.SizePx * 4L);
+            Interlocked.Add(ref s_uploadTicks, Stopwatch.GetTimestamp() - uploadStart);
             return true;
         }
 
         if (!renderer.TryUploadTextureRgbaSubregion(page.TextureId, ox, oy, w, h, rgba))
             return false;
         textureId = page.TextureId;
+        Interlocked.Increment(ref s_uploadCalls);
+        Interlocked.Add(ref s_uploadBytes, (long)w * h * 4L);
+        Interlocked.Add(ref s_uploadTicks, Stopwatch.GetTimestamp() - uploadStart);
         return true;
+    }
+
+    internal void RegisterBakedGlyph(
+        string familyId,
+        FontFaceKind face,
+        int sizeQuant,
+        int codePoint,
+        int rasterRevision,
+        in CachedGlyph glyph)
+    {
+        var key = (familyId, face, sizeQuant, codePoint, rasterRevision);
+        lock (_lock)
+        {
+            _glyphs[key] = glyph;
+        }
+        Interlocked.Increment(ref s_bakedGlyphImports);
+    }
+
+    internal static GlyphCacheTelemetry SnapshotAndResetTelemetry()
+    {
+        var hits = Interlocked.Exchange(ref s_cacheHits, 0);
+        var misses = Interlocked.Exchange(ref s_cacheMisses, 0);
+        var uploadCalls = Interlocked.Exchange(ref s_uploadCalls, 0);
+        var uploadBytes = Interlocked.Exchange(ref s_uploadBytes, 0);
+        var rasterTicks = Interlocked.Exchange(ref s_rasterizeTicks, 0);
+        var uploadTicks = Interlocked.Exchange(ref s_uploadTicks, 0);
+        _ = Interlocked.Exchange(ref s_bakedGlyphImports, 0);
+        return new GlyphCacheTelemetry(
+            hits,
+            misses,
+            uploadCalls,
+            uploadBytes,
+            rasterTicks * 1000d / Stopwatch.Frequency,
+            uploadTicks * 1000d / Stopwatch.Frequency);
+    }
+
+    internal static long SnapshotAndResetBakedImportCount() =>
+        Interlocked.Exchange(ref s_bakedGlyphImports, 0);
+
+    internal static string SnapshotAndResetMissCodepointSummary(int topN = 12)
+    {
+        var pairs = s_missCodepoints.ToArray();
+        s_missCodepoints.Clear();
+        if (pairs.Length == 0)
+            return "none";
+        Array.Sort(pairs, static (a, b) => b.Value.CompareTo(a.Value));
+        var sb = new System.Text.StringBuilder(96);
+        var limit = Math.Min(topN, pairs.Length);
+        for (var i = 0; i < limit; i++)
+        {
+            if (i > 0)
+                sb.Append(", ");
+            var cp = pairs[i].Key;
+            sb.Append("U+").Append(cp.ToString("X4")).Append(":").Append(pairs[i].Value);
+        }
+
+        return sb.ToString();
+    }
+
+    internal static string SnapshotAndResetMissGlyphKeySummary(int topN = 12)
+    {
+        var pairs = s_missGlyphKeys.ToArray();
+        s_missGlyphKeys.Clear();
+        if (pairs.Length == 0)
+            return "none";
+        Array.Sort(pairs, static (a, b) => b.Value.CompareTo(a.Value));
+        var sb = new System.Text.StringBuilder(128);
+        var limit = Math.Min(topN, pairs.Length);
+        for (var i = 0; i < limit; i++)
+        {
+            if (i > 0)
+                sb.Append(", ");
+            sb.Append(pairs[i].Key).Append(":").Append(pairs[i].Value);
+        }
+
+        return sb.ToString();
     }
 }

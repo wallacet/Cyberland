@@ -10,11 +10,15 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Cyberland.Engine.Tests" />
+    <InternalsVisibleTo Include="Cyberland.MsdfAtlasBaker" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Rendering\Shaders\*.glsl" />
     <EmbeddedResource Include="Rendering\Text\Builtin\*.ttf" />
+    <EmbeddedResource Include="Rendering\Text\Builtin\coverage-null-literal.json" />
+    <EmbeddedResource Include="Rendering\Text\Baked\*.json" />
+    <EmbeddedResource Include="Rendering\Text\Baked\*.png" />
   </ItemGroup>
 
   <ItemGroup>

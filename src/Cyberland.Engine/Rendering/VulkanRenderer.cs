@@ -500,14 +500,18 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         try
         {
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("DrawFrame.WaitForFences");
+#endif
                 _vk.WaitForFences(_device, 1, in _inFlightFences![_currentFrame], true, ulong.MaxValue);
             }
 
             uint imageIndex = 0;
             Result acquire;
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("DrawFrame.AcquireNextImageKHR");
+#endif
                 acquire = _khrSwapchain!.AcquireNextImage(
                     _device,
                     _swapchain,
@@ -532,7 +536,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
             if (_imagesInFlight![imageIndex].Handle != default)
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("DrawFrame.WaitForImageFence");
+#endif
                 _vk.WaitForFences(_device, 1, in _imagesInFlight[imageIndex], true, ulong.MaxValue);
             }
 
@@ -543,7 +549,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             var buffer = _commandBuffers![_currentFrame];
 
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("DrawFrame.RecordCommandBuffer");
+#endif
                 RecordCommandBuffer(buffer, _swapchainFramebuffers![imageIndex], _swapchainUiOverlayFramebuffers![imageIndex]);
             }
 
@@ -564,7 +572,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             _vk.ResetFences(_device, 1, in _inFlightFences[_currentFrame]);
 
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("DrawFrame.QueueSubmit");
+#endif
                 if (_vk.QueueSubmit(_graphicsQueue, 1, in submitInfo, _inFlightFences[_currentFrame]) != Result.Success)
                     throw new InvalidOperationException("QueueSubmit failed.");
             }
@@ -582,7 +592,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
             Result present;
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("DrawFrame.QueuePresentKHR");
+#endif
                 present = _khrSwapchain.QueuePresent(_presentQueue, &presentInfo);
             }
 
@@ -592,7 +604,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
                 throw new InvalidOperationException($"QueuePresent failed: {present}");
 
             {
+#if DEBUG
                 using var __ = FrameProfilerScope.Enter("DrawFrame.ApplyLimitedCpuPacingIfNeeded");
+#endif
                 ApplyLimitedCpuPacingIfNeeded();
             }
 

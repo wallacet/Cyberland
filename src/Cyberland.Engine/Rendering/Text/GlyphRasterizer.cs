@@ -14,7 +14,7 @@ internal static class GlyphRasterizer
     internal const float MsdfPixelRange = TextMsdfDefaults.PixelRange;
 
     /// <summary>Bump when MSDF generation or metrics change so glyph caches miss stale tiles.</summary>
-    internal const int RasterRevision = 5;
+    internal const int RasterRevision = 7;
 
 
     /// <summary>

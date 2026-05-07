@@ -4,6 +4,7 @@ using System.Reflection;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
+using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
 using Cyberland.Engine.UI.Text;
 using Silk.NET.Maths;
@@ -54,6 +55,67 @@ public sealed class UiTextBlockTests
         block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
 
         Assert.True(r.Sprites.Count >= 4);
+    }
+
+    [Fact]
+    public void UiTextBlock_DrawGlyphs_second_pass_replays_cached_runs()
+    {
+        var (fonts, cache) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "Replay cache keeps static HUD text cheap",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)),
+            FitMode = UiTextFitMode.None
+        };
+        UiLayoutPresets.StretchAll(block);
+        block.Measure(UiSizeConstraints.Loose(400f, 200f));
+        block.Arrange(new UiRect(0f, 0f, 400f, 200f));
+
+        var renderer = new RecordingRenderer();
+        block.DrawGlyphs(renderer, fonts, cache, CoordinateSpace.ViewportSpace);
+        var firstGlyphCount = renderer.Sprites.Count;
+        Assert.True(firstGlyphCount > 0);
+
+        renderer.Sprites.Clear();
+        block.DrawGlyphs(renderer, fonts, cache, CoordinateSpace.ViewportSpace);
+        Assert.Equal(firstGlyphCount, renderer.Sprites.Count);
+    }
+
+    [Fact]
+    public void UiTextBlock_Text_change_invalidates_draw_run_replay_so_glyphs_refresh()
+    {
+        var (fonts, cache) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "1111",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)),
+            FitMode = UiTextFitMode.None
+        };
+        UiLayoutPresets.StretchAll(block);
+        block.Measure(UiSizeConstraints.Loose(400f, 200f));
+        block.Arrange(new UiRect(0f, 0f, 400f, 200f));
+
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+        Assert.True(r.TextGlyphs.Count > 0);
+        var uv0 = r.TextGlyphs[0].UvRect;
+
+        // Prime replay path (same string, same bounds): second draw must not rebuild layout.
+        r.TextGlyphs.Clear();
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+        Assert.True(r.TextGlyphs.Count > 0);
+        Assert.Equal(uv0, r.TextGlyphs[0].UvRect);
+
+        block.Text = "9999";
+        block.Measure(UiSizeConstraints.Loose(400f, 200f));
+        block.Arrange(new UiRect(0f, 0f, 400f, 200f));
+        r.TextGlyphs.Clear();
+
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+        Assert.True(r.TextGlyphs.Count > 0);
+        Assert.NotEqual(uv0, r.TextGlyphs[0].UvRect);
     }
 
     [Fact]
@@ -409,10 +471,34 @@ public sealed class UiTextBlockTests
         }
 
         var start = MinTop(UiTextVerticalAlignment.Start);
+        var centerInk = MinTop(UiTextVerticalAlignment.CenterInk);
         var center = MinTop(UiTextVerticalAlignment.Center);
+        var endInk = MinTop(UiTextVerticalAlignment.EndInk);
         var end = MinTop(UiTextVerticalAlignment.End);
         Assert.True(center > start);
         Assert.True(end > center);
+        // Ink-relative vertical centering sits higher than line-box center for typical Latin caps.
+        Assert.True(centerInk < center);
+        Assert.True(centerInk > start);
+        Assert.True(endInk > center);
+    }
+
+    [Fact]
+    public void UiLabel_Text_defaults_to_CenterInk_vertical_alignment()
+    {
+        var lab = new UiLabel();
+        Assert.Equal(UiTextVerticalAlignment.CenterInk, lab.Text.VerticalAlignment);
+    }
+
+    [Fact]
+    public void UiTextMeasurer_TryGetLineReferenceInkTopBottom_resolves_for_line()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var line = new UiTextLayoutLine();
+        line.Segments.Add(("x", new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f)), 0f));
+        Assert.True(UiTextMeasurer.TryGetLineReferenceInkTopBottom(lib, line, out var top, out var bottom));
+        Assert.True(top < bottom);
     }
 
     [Fact]
@@ -613,11 +699,14 @@ public sealed class UiTextBlockTests
             450f,
             CoordinateSpace.ViewportSpace,
             false,
-            0,
             default(UiRect)
         };
         m.Invoke(block, invokeArgs);
-        Assert.Equal(1, (int)invokeArgs[9]);
+        var cacheField = typeof(UiTextBlock).GetField("_drawRunCache", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(cacheField);
+        var drawRunCache = (System.Collections.ICollection?)cacheField!.GetValue(block);
+        Assert.NotNull(drawRunCache);
+        Assert.True(drawRunCache!.Count == 1);
         Assert.Empty(r.Sprites);
     }
 
@@ -631,7 +720,7 @@ public sealed class UiTextBlockTests
         var m = typeof(UiTextBlock).GetMethod("DrawRun",
             BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(m);
-        // DrawRun(renderer, fonts, cache, text, style, baselineLeft, sortKey, space, applyVpClip, ref drawRunCursor, viewportClip)
+        // DrawRun(renderer, fonts, cache, text, style, baselineLeft, sortKey, space, applyVpClip, viewportClip)
         var primeArgs = new object[]
         {
             r,
@@ -643,11 +732,9 @@ public sealed class UiTextBlockTests
             450f,
             CoordinateSpace.ViewportSpace,
             false,
-            0,
             default(UiRect)
         };
         m.Invoke(block, primeArgs);
-        Assert.Equal(1, (int)primeArgs[9]);
         r.Sprites.Clear();
         r.TextGlyphs.Clear();
 
@@ -662,11 +749,14 @@ public sealed class UiTextBlockTests
             450f,
             CoordinateSpace.ViewportSpace,
             false,
-            0,
             default(UiRect)
         };
         m.Invoke(block, emptyReuseSlotArgs);
-        Assert.Equal(1, (int)emptyReuseSlotArgs[9]);
+        var cacheField = typeof(UiTextBlock).GetField("_drawRunCache", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(cacheField);
+        var drawRunCache = (System.Collections.ICollection?)cacheField!.GetValue(block);
+        Assert.NotNull(drawRunCache);
+        Assert.Equal(2, drawRunCache!.Count);
         Assert.Empty(r.Sprites);
     }
 
@@ -692,5 +782,130 @@ public sealed class UiTextBlockTests
         block.Measure(UiSizeConstraints.Loose(200f, 120f));
         block.Arrange(new UiRect(0f, 0f, 200f, 120f));
         block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+    }
+
+    private static bool CallTryGetLayoutInkMinMax(
+        FontLibrary fonts,
+        UiTextLayoutEngine layout,
+        out float inkMin,
+        out float inkMax)
+    {
+        var m = typeof(UiTextBlock).GetMethod(
+            "TryGetLayoutInkMinMax",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(m);
+        var args = new object?[] { fonts, layout, 0f, 0f };
+        var ok = (bool)m.Invoke(null, args)!;
+        inkMin = (float)args[2]!;
+        inkMax = (float)args[3]!;
+        return ok;
+    }
+
+    private static float CallBaselineFromLineTopForDraw(FontLibrary fonts, UiTextLayoutLine line)
+    {
+        var m = typeof(UiTextBlock).GetMethod(
+            "BaselineFromLineTopForDraw",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(m);
+        return (float)m.Invoke(null, new object[] { fonts, line })!;
+    }
+
+    [Fact]
+    public void TryGetLayoutInkMinMax_false_when_no_line_resolves_reference_ink()
+    {
+        var (fonts, _) = TestFonts();
+        var bad = new TextStyle("__missing__", 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var layout = UiTextLayoutEngine.Build(fonts, null, null, bad, [new TextRun("a\nb", bad)], 400f, 0f, 0f);
+        Assert.False(CallTryGetLayoutInkMinMax(fonts, layout, out var min, out var max));
+        Assert.Equal(0f, min);
+        Assert.Equal(0f, max);
+    }
+
+    [Fact]
+    public void TryGetLayoutInkMinMax_skips_lines_that_fail_ink_but_keeps_good_lines()
+    {
+        var (fonts, _) = TestFonts();
+        var bad = new TextStyle("__missing__", 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var good = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var layout = UiTextLayoutEngine.Build(fonts, null, null, good,
+            [new TextRun("a\n", bad), new TextRun("b", good)], 400f, 0f, 0f);
+        Assert.True(CallTryGetLayoutInkMinMax(fonts, layout, out var min, out var max));
+        Assert.True(min < max);
+    }
+
+    [Fact]
+    public void BaselineFromLineTopForDraw_uses_scaled_max_line_height_when_baseline_unset()
+    {
+        var (fonts, _) = TestFonts();
+        var good = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var line = new UiTextLayoutLine();
+        line.Segments.Add(("x", good, 0f));
+        line.BaselineFromLineTopPx = 0f;
+        line.MaxLineHeightPx = 20f;
+        var b = CallBaselineFromLineTopForDraw(fonts, line);
+        Assert.Equal(20f * 0.82f, b, 5);
+
+        line.MaxLineHeightPx = 0f;
+        var b2 = CallBaselineFromLineTopForDraw(fonts, line);
+        Assert.True(b2 > 0f && MathF.Abs(b2 - line.MaxLineHeight(fonts) * 0.82f) < 1e-3f);
+    }
+
+    [Fact]
+    public void UiTextMeasurer_TryGetLineReferenceInkTopBottom_empty_line_returns_false()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var line = new UiTextLayoutLine();
+        Assert.False(UiTextMeasurer.TryGetLineReferenceInkTopBottom(lib, line, out var t, out var b));
+        Assert.Equal(0f, t);
+        Assert.Equal(0f, b);
+    }
+
+    [Fact]
+    public void UiTextMeasurer_TryGetLineReferenceInkTopBottom_false_when_no_font_resolves()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var bad = new TextStyle("__missing__", 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var line = new UiTextLayoutLine();
+        line.Segments.Add(("x", bad, 0f));
+        Assert.False(UiTextMeasurer.TryGetLineReferenceInkTopBottom(lib, line, out _, out _));
+    }
+
+    [Fact]
+    public void UiTextMeasurer_TryGetLineReferenceInkTopBottom_continues_past_unresolvable_segment()
+    {
+        var lib = new FontLibrary();
+        BuiltinFonts.AddTo(lib);
+        var bad = new TextStyle("__missing__", 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var good = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var line = new UiTextLayoutLine();
+        line.Segments.Add(("x", bad, 0f));
+        line.Segments.Add(("y", good, 0f));
+        Assert.True(UiTextMeasurer.TryGetLineReferenceInkTopBottom(lib, line, out var top, out var bottom));
+        Assert.True(top < bottom);
+    }
+
+    [Fact]
+    public void UiTextBlock_CenterInk_and_EndInk_use_line_box_extent_when_ink_metrics_unavailable()
+    {
+        var (fonts, cache) = TestFonts();
+        var bad = new TextStyle("__missing__", 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var r = new RecordingRenderer();
+        foreach (var v in new[] { UiTextVerticalAlignment.CenterInk, UiTextVerticalAlignment.EndInk })
+        {
+            var block = new UiTextBlock
+            {
+                Fonts = fonts,
+                Text = "x",
+                DefaultStyle = bad,
+                VerticalAlignment = v,
+                FitMode = UiTextFitMode.None
+            };
+            UiLayoutPresets.StretchAll(block);
+            block.Measure(UiSizeConstraints.Loose(220f, 80f));
+            block.Arrange(new UiRect(0f, 0f, 220f, 80f));
+            block.DrawGlyphs(r, fonts, cache, CoordinateSpace.ViewportSpace);
+        }
     }
 }

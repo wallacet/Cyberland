@@ -7,8 +7,12 @@ using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
+using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
 using Cyberland.TestMod;
 using Moq;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using Silk.NET.Input;
 
 namespace Cyberland.Engine.Tests;
@@ -228,6 +232,10 @@ public sealed class ModdingTests
                 new World(),
                 new SystemScheduler(new ParallelismSettings()),
                 new GameHostServices());
+
+            Assert.NotNull(loader.LastLoadTiming);
+            Assert.Equal(2, loader.LastLoadTiming!.ManifestCount);
+            Assert.Equal(2, loader.LastLoadTiming.LoadedModCount);
 
             Assert.Equal(2, TestModEntry.OnLoadCount);
             Assert.Equal(2, loader.LoadedManifests.Count);
@@ -606,6 +614,94 @@ public sealed class ModdingTests
         {
             UnloadModsAndGc(loader);
             Directory.Delete(modsRoot, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoadContext_LoadBakedMsdfAtlas_returns_false_when_load_fails()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb mod atlas bad " + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "bad.json"), "{}");
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var host = new GameHostServices { Renderer = new RecordingRenderer() };
+            var ctx = new ModLoadContext(
+                new ModManifest { Id = "x", ContentRoot = "Content" },
+                root,
+                vfs,
+                TestLoc(vfs),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                host);
+            Assert.False(ctx.LoadBakedMsdfAtlas("bad.json"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void ModLoadContext_LoadBakedMsdfAtlas_succeeds_for_valid_manifest_on_vfs()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb mod atlas ok " + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+        using (var img = new Image<Rgba32>(8, 8))
+        using (var ms = new MemoryStream())
+        {
+            img.SaveAsPng(ms);
+            File.WriteAllBytes(Path.Combine(root, "page0.png"), ms.ToArray());
+        }
+
+        var manifest = new BakedMsdfAtlasManifest
+        {
+            FamilyId = "mod.test",
+            Face = "Regular",
+            SizePixels = 14f,
+            RasterRevision = GlyphRasterizer.RasterRevision,
+            PageSizePixels = 8,
+            Pages = [new BakedMsdfAtlasPageRef { Path = "page0.png" }],
+            Glyphs =
+            [
+                new BakedMsdfGlyphEntry
+                {
+                    CodePoint = 77,
+                    PageIndex = 0,
+                    X = 0,
+                    Y = 0,
+                    Width = 2,
+                    Height = 2,
+                    DrawWidthPx = 2f,
+                    DrawHeightPx = 2f,
+                    AdvancePx = 2f,
+                    MsdfPixelRange = 2f
+                }
+            ]
+        };
+        File.WriteAllText(
+            Path.Combine(root, "good.json"),
+            JsonSerializer.Serialize(manifest, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var host = new GameHostServices { Renderer = new RecordingRenderer() };
+            var ctx = new ModLoadContext(
+                new ModManifest { Id = "x", ContentRoot = "Content" },
+                root,
+                vfs,
+                TestLoc(vfs),
+                new World(),
+                new SystemScheduler(new ParallelismSettings()),
+                host);
+            Assert.True(ctx.LoadBakedMsdfAtlas("good.json"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
         }
     }
 

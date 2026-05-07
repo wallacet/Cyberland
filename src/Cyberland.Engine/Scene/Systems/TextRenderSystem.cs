@@ -64,12 +64,16 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate, IParallelSystem, IP
     /// <inheritdoc />
     public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions options)
     {
+#if DEBUG
         using var frameScope = FrameProfilerScope.Enter("text.render.frame");
+#endif
         _ = deltaSeconds;
         var r = _host.Renderer;
         foreach (var chunk in query)
         {
+#if DEBUG
             using var chunkScope = FrameProfilerScope.Enter("text.render.chunk");
+#endif
             if (chunk.Count <= SmallChunkSerialThreshold || options.MaxDegreeOfParallelism == 1)
             {
                 SubmitChunkRange(chunk, 0, chunk.Count, r);
@@ -91,7 +95,9 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate, IParallelSystem, IP
         var caches = chunk.Column<TextSpriteCache>();
         for (var i = start; i < endExclusive; i++)
         {
+#if DEBUG
             using var rowScope = FrameProfilerScope.Enter("text.render.row");
+#endif
             ref var bt = ref texts[i];
             ref var fingerprint = ref fingerprints[i];
             ref var cache = ref caches[i];

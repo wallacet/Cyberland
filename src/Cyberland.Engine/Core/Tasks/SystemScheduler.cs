@@ -318,7 +318,9 @@ public sealed class SystemScheduler
             if (!e.Enabled)
                 continue;
 
+#if DEBUG
             using var __scope = FrameProfilerScope.Enter($"Scheduler.Early.{e.Id}");
+#endif
             switch (e)
             {
                 case SerialEntry se:
@@ -344,7 +346,9 @@ public sealed class SystemScheduler
                 if (!e.Enabled)
                     continue;
 
+#if DEBUG
                 using var __scope = FrameProfilerScope.Enter($"Scheduler.Fixed.{e.Id}");
+#endif
                 switch (e)
                 {
                     case SerialEntry se:
@@ -372,7 +376,9 @@ public sealed class SystemScheduler
             if (!e.Enabled)
                 continue;
 
+#if DEBUG
             using var __scope = FrameProfilerScope.Enter($"Scheduler.Late.{e.Id}");
+#endif
             switch (e)
             {
                 case SerialEntry se:
@@ -395,7 +401,9 @@ public sealed class SystemScheduler
         if (e.Started)
             return;
 
+#if DEBUG
         using var __scope = FrameProfilerScope.Enter($"Scheduler.Start.{e.Id}");
+#endif
         e.Start.Invoke(world);
 
         e.Started = true;

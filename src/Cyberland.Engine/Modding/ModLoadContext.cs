@@ -4,6 +4,7 @@ using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
+using Cyberland.Engine.Rendering.Text;
 
 namespace Cyberland.Engine.Modding;
 
@@ -124,5 +125,23 @@ public sealed class ModLoadContext
         }
 
         Host.Input.Bindings.AddBinding(actionId, binding);
+    }
+
+    /// <summary>
+    /// Loads a pre-baked MSDF atlas manifest from the layered VFS and seeds glyph cache entries for this process.
+    /// Mods should call this after mounting content and registering any custom font family id referenced by the manifest.
+    /// </summary>
+    public bool LoadBakedMsdfAtlas(string manifestPath)
+    {
+        var assets = new AssetManager(VirtualFileSystem);
+        var result = Host.BakedMsdfAtlasLoader.LoadFromVfs(assets, Host.Renderer, Host.TextGlyphCache, manifestPath);
+        if (!result.Loaded)
+        {
+            Console.WriteLine($"Mod baked atlas load failed | manifest={manifestPath} reason={result.Message}");
+            return false;
+        }
+
+        Console.WriteLine($"Mod baked atlas load | manifest={manifestPath} glyphs={result.GlyphCount} pages={result.PageCount}");
+        return true;
     }
 }

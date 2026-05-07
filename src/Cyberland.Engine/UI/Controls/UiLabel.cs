@@ -14,6 +14,7 @@ public sealed class UiLabel : UiPanel
     /// <summary>Creates a label with a stretched text child.</summary>
     public UiLabel()
     {
+        Text.VerticalAlignment = UiTextVerticalAlignment.CenterInk;
         AddChild(Text);
         UiLayoutPresets.StretchAll(Text);
     }

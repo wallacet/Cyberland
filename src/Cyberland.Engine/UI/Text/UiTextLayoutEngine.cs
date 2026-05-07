@@ -101,8 +101,33 @@ internal sealed class UiTextLayoutEngine
         if (lines.Count == 0)
             return new UiTextLayoutEngine(0f, 0f, lines, 0f);
 
-        return new UiTextLayoutEngine(MathF.Min(maxContentWidth, maxLineW), contentBottom, lines, maxLineW);
+        var totalHeight = ExpandTotalHeightToReferenceInkBottom(fonts, lines, contentBottom);
+        return new UiTextLayoutEngine(MathF.Min(maxContentWidth, maxLineW), totalHeight, lines, maxLineW);
     }
+
+    /// <summary>
+    /// Line-box stacking (<see cref="FlushLine"/>) matches reference metrics, but MSDF quads can extend slightly past
+    /// the box bottom; scroll clips use <see cref="UiTextBlock"/> layout height, so widen the block to the deepest
+    /// reference ink bottom per line (same sample as draw baseline rules).
+    /// </summary>
+    private static float ExpandTotalHeightToReferenceInkBottom(FontLibrary fonts, List<UiTextLayoutLine> lines,
+        float contentBottom)
+    {
+        var bottom = contentBottom;
+        foreach (var line in lines)
+        {
+            var baselineFromTop = BaselineFromLineTopForLayout(fonts, line);
+            if (UiTextMeasurer.TryGetLineReferenceInkTopBottom(fonts, line, out _, out var inkBottom))
+                bottom = MathF.Max(bottom, line.LineTop + baselineFromTop + inkBottom);
+        }
+
+        return bottom;
+    }
+
+    private static float BaselineFromLineTopForLayout(FontLibrary fonts, UiTextLayoutLine line) =>
+        line.BaselineFromLineTopPx > 0f
+            ? line.BaselineFromLineTopPx
+            : (line.MaxLineHeightPx > 0f ? line.MaxLineHeightPx : line.MaxLineHeight(fonts)) * 0.82f;
 
     private static List<List<StyledFragment>> BuildParagraphs(
         string? singleText,
@@ -266,7 +291,8 @@ internal sealed class UiTextLayoutEngine
             line.BaselineFromLineTopPx = line.MaxLineHeightPx * 0.82f;
         lines.Add(line);
 
-        contentBottom += lh + lineSpacingExtra;
+        var lineStep = line.MaxLineHeightPx > 0f ? line.MaxLineHeightPx : lh;
+        contentBottom += lineStep + lineSpacingExtra;
         pending.Clear();
         pen = 0f;
     }

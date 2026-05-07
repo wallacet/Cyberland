@@ -41,7 +41,18 @@ public enum UiTextVerticalAlignment
     Center,
 
     /// <summary>The whole layout is bottom-aligned when shorter than the content box height.</summary>
-    End
+    End,
+
+    /// <summary>
+    /// Like <see cref="Center"/>, but uses reference glyph ink extent (ascenders/descenders) instead of the line box
+    /// height so single-line captions look visually centered in fixed-height slots (buttons, nav pills).
+    /// </summary>
+    CenterInk,
+
+    /// <summary>
+    /// Like <see cref="End"/>, but aligns to the bottom of reference ink instead of the line box.
+    /// </summary>
+    EndInk
 }
 
 /// <summary>

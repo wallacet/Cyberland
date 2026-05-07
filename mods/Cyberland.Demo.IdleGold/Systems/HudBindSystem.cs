@@ -119,10 +119,25 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
             }
         }
 
-        BindSources(ref wallet, ref sources, ref stats, ref eq);
-        BindStats(ref wallet, ref stats, ref sources, ref eq, globalRate);
-        BindEquipment(ref wallet, ref eq);
-        BindLog(row.World, row.Entity);
+        // Only update the visible tab panel each frame; hidden tabs keep their last text and avoid dirtying layout.
+        switch (_refs.CurrentTabId)
+        {
+            case SceneSetup.NavGather:
+                BindSources(ref wallet, ref sources, ref stats, ref eq);
+                break;
+            case SceneSetup.NavCharacter:
+                BindStats(ref wallet, ref stats, ref sources, ref eq, globalRate);
+                break;
+            case SceneSetup.NavBlacksmith:
+                BindEquipment(ref wallet, ref eq);
+                break;
+            case SceneSetup.NavLog:
+                BindLog(row.World, row.Entity);
+                break;
+            default:
+                BindSources(ref wallet, ref sources, ref stats, ref eq);
+                break;
+        }
 
         if (_refs.HasFpsHud)
         {
@@ -221,7 +236,9 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
 
     private void BindStats(ref Wallet wallet, ref Stats stats, ref Sources sources, ref Equipment eq, double globalRate)
     {
-        var rateMoved = Math.Abs(_lastStatSummaryRate - globalRate) > 1e-9;
+        // Match chrome HUD cadence: tiny float jitter in TotalGoldPerSecond should not rewrite four stat rows every frame.
+        var rateMoved = double.IsNaN(_lastStatSummaryRate) ||
+                        Math.Abs(_lastStatSummaryRate - globalRate) >= 0.01d;
         for (var i = 0; i < StatOrder.Length; i++)
         {
             var kind = StatOrder[i];

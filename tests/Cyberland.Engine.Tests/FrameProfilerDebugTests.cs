@@ -176,6 +176,7 @@ public sealed class FrameProfilerDebugTests
         {
             Environment.SetEnvironmentVariable(FrameProfilerEnvVar, prev);
             FrameProfiler.SetEnabled(true);
+            FrameProfiler.TrackSessionAllocations = false;
         }
     }
 
@@ -209,6 +210,38 @@ public sealed class FrameProfilerDebugTests
         {
             Environment.SetEnvironmentVariable(FrameProfilerEnvVar, prev);
             FrameProfiler.SetEnabled(true);
+            FrameProfiler.TrackSessionAllocations = false;
+        }
+    }
+
+    private const string FrameProfilerTrackAllocEnvVar = "CYBERLAND_FRAME_PROFILER_TRACK_ALLOC";
+
+    [Fact]
+    public void FrameProfiler_ApplyEnvironmentDefaults_track_alloc_from_env()
+    {
+        var prevAlloc = Environment.GetEnvironmentVariable(FrameProfilerTrackAllocEnvVar);
+        try
+        {
+            FrameProfiler.TrackSessionAllocations = false;
+
+            Environment.SetEnvironmentVariable(FrameProfilerTrackAllocEnvVar, "1");
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.True(FrameProfiler.TrackSessionAllocations);
+
+            FrameProfiler.TrackSessionAllocations = false;
+            Environment.SetEnvironmentVariable(FrameProfilerTrackAllocEnvVar, "TRUE");
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.True(FrameProfiler.TrackSessionAllocations);
+
+            FrameProfiler.TrackSessionAllocations = true;
+            Environment.SetEnvironmentVariable(FrameProfilerTrackAllocEnvVar, "  ");
+            FrameProfiler.ApplyEnvironmentDefaults();
+            Assert.True(FrameProfiler.TrackSessionAllocations);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(FrameProfilerTrackAllocEnvVar, prevAlloc);
+            FrameProfiler.TrackSessionAllocations = false;
         }
     }
 

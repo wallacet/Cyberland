@@ -32,6 +32,12 @@ public class UiTextBlock : UiElement
     private readonly UiTextLayoutCache _cache = new();
     private TextGlyphDrawRequest[]? _drawGlyphScratch;
     private readonly List<CachedDrawRun> _drawRunCache = new();
+    private bool _drawRunReplayValid;
+    private CoordinateSpace _drawRunReplaySpace;
+    private float _drawRunReplaySortKey;
+    private bool _drawRunReplayViewportClipEnabled;
+    private UiRect _drawRunReplayViewportClip;
+    private UiRect _drawRunReplayInnerBounds;
     private string _text = string.Empty;
     private TextStyle _defaultStyle;
     private List<TextRun>? _runs;
@@ -58,8 +64,8 @@ public class UiTextBlock : UiElement
             if (string.Equals(_text, value, StringComparison.Ordinal))
                 return;
             _text = value;
-            _cache.Clear();
-            base.InvalidateLayout();
+            // Must clear draw-run replay (via this InvalidateLayout), not only base — same bounds can replay stale glyphs.
+            InvalidateLayout();
         }
     }
 
@@ -432,6 +438,8 @@ public class UiTextBlock : UiElement
         _cache.Clear();
         _shrinkFitCacheKey = 0;
         _shrinkFitCachedLayout = null;
+        _drawRunReplayValid = false;
+        _drawRunCache.Clear();
         base.InvalidateLayout();
     }
 
@@ -465,6 +473,9 @@ public class UiTextBlock : UiElement
         bool clipGlyphs,
         UiRect viewportClip)
     {
+#if DEBUG
+        using var drawScope = FrameProfilerScope.Enter("ui.textblock.draw_total");
+#endif
         ArgumentNullException.ThrowIfNull(renderer);
         ArgumentNullException.ThrowIfNull(fonts);
         ArgumentNullException.ThrowIfNull(cache);
@@ -477,7 +488,17 @@ public class UiTextBlock : UiElement
 
         var inner = ComputedBounds.Deflate(Padding);
         var applyVpClip = clipGlyphs && space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace;
-        var drawRunCursor = 0;
+        if (_drawRunReplayValid &&
+            _drawRunReplaySpace == space &&
+            _drawRunReplaySortKey == sortKey &&
+            _drawRunReplayViewportClipEnabled == applyVpClip &&
+            _drawRunReplayViewportClip.Equals(viewportClip) &&
+            _drawRunReplayInnerBounds.Equals(inner))
+        {
+            ReplayCachedRuns(renderer);
+            return;
+        }
+        _drawRunCache.Clear();
 
         // TotalHeight can include slack vs tight line boxes; center using ink extent so single-line captions sit
         // visually centered in buttons (IdleGold nav / gather actions).
@@ -486,15 +507,20 @@ public class UiTextBlock : UiElement
         {
             UiTextVerticalAlignment.Center => MathF.Max(0f, (inner.Height - extentH) * 0.5f),
             UiTextVerticalAlignment.End => MathF.Max(0f, inner.Height - extentH),
+            UiTextVerticalAlignment.CenterInk =>
+                TryGetLayoutInkMinMax(fonts, _layout, out var inkMid0, out var inkMid1)
+                    ? MathF.Max(0f, inner.Height * 0.5f - (inkMid0 + inkMid1) * 0.5f)
+                    : MathF.Max(0f, (inner.Height - extentH) * 0.5f),
+            UiTextVerticalAlignment.EndInk =>
+                TryGetLayoutInkMinMax(fonts, _layout, out _, out var inkEndMax)
+                    ? MathF.Max(0f, inner.Height - inkEndMax)
+                    : MathF.Max(0f, inner.Height - extentH),
             _ => 0f
         };
 
         foreach (var line in _layout.Lines)
         {
-            using var lineScope = FrameProfilerScope.Enter("ui.textblock.draw_line");
-            var baselineFromLineTop = line.BaselineFromLineTopPx > 0f
-                ? line.BaselineFromLineTopPx
-                : (line.MaxLineHeightPx > 0f ? line.MaxLineHeightPx : line.MaxLineHeight(fonts)) * 0.82f;
+            var baselineFromLineTop = BaselineFromLineTopForDraw(fonts, line);
             var baselineY = inner.Y + blockShiftY + line.LineTop + baselineFromLineTop;
 
             var lineShift = HorizontalAlignment switch
@@ -507,15 +533,41 @@ public class UiTextBlock : UiElement
 
             foreach (var seg in line.Segments)
             {
-                using var segScope = FrameProfilerScope.Enter("ui.textblock.draw_segment");
                 var baselineLeft = new Vector2D<float>(inner.X + lineShift + seg.PenStart, baselineY);
-                DrawRun(renderer, fonts, cache, seg.Text, seg.Style, baselineLeft, sortKey, space, applyVpClip, ref drawRunCursor,
+                DrawRun(renderer, fonts, cache, seg.Text, seg.Style, baselineLeft, sortKey, space, applyVpClip,
                     viewportClip);
             }
         }
 
-        if (drawRunCursor < _drawRunCache.Count)
-            _drawRunCache.RemoveRange(drawRunCursor, _drawRunCache.Count - drawRunCursor);
+        _drawRunReplayValid = true;
+        _drawRunReplaySpace = space;
+        _drawRunReplaySortKey = sortKey;
+        _drawRunReplayViewportClipEnabled = applyVpClip;
+        _drawRunReplayViewportClip = viewportClip;
+        _drawRunReplayInnerBounds = inner;
+    }
+
+    private void ReplayCachedRuns(IRenderer renderer)
+    {
+        for (var i = 0; i < _drawRunCache.Count; i++)
+        {
+            var cached = _drawRunCache[i];
+            if (cached.GlyphCount > 0)
+                renderer.SubmitTextGlyphs(cached.Glyphs.AsSpan(0, cached.GlyphCount));
+
+            TextRenderer.SubmitTextDecorations(
+                renderer,
+                in cached.Style,
+                cached.BaselineLeft,
+                0f,
+                cached.PenAfter,
+                cached.SortKey,
+                renderer.WhiteTextureId,
+                renderer.DefaultNormalTextureId,
+                cached.Space,
+                cached.ApplyViewportClip,
+                cached.ViewportClip);
+        }
     }
 
     private static float LayoutInkExtentHeight(FontLibrary fonts, UiTextLayoutEngine layout)
@@ -525,6 +577,45 @@ public class UiTextBlock : UiElement
             bottom = MathF.Max(bottom, line.LineTop + line.MaxLineHeight(fonts));
 
         return bottom;
+    }
+
+    /// <summary>
+    /// Baseline distance from line top (+Y down), matching layout flush and draw fallback rules.
+    /// </summary>
+    private static float BaselineFromLineTopForDraw(FontLibrary fonts, UiTextLayoutLine line) =>
+        line.BaselineFromLineTopPx > 0f
+            ? line.BaselineFromLineTopPx
+            : (line.MaxLineHeightPx > 0f ? line.MaxLineHeightPx : line.MaxLineHeight(fonts)) * 0.82f;
+
+    /// <summary>
+    /// Min/max Y of reference ink in layout coordinates (line tops + baseline + SixLabors bounds Top/Bottom).
+    /// </summary>
+    private static bool TryGetLayoutInkMinMax(FontLibrary fonts, UiTextLayoutEngine layout, out float inkMin,
+        out float inkMax)
+    {
+        inkMin = float.PositiveInfinity;
+        inkMax = float.NegativeInfinity;
+        var any = false;
+        foreach (var line in layout.Lines)
+        {
+            var baselineFromLineTop = BaselineFromLineTopForDraw(fonts, line);
+            if (!UiTextMeasurer.TryGetLineReferenceInkTopBottom(fonts, line, out var refTop, out var refBottom))
+                continue;
+            any = true;
+            var top = line.LineTop + baselineFromLineTop + refTop;
+            var bottom = line.LineTop + baselineFromLineTop + refBottom;
+            inkMin = MathF.Min(inkMin, top);
+            inkMax = MathF.Max(inkMax, bottom);
+        }
+
+        if (!any)
+        {
+            inkMin = 0f;
+            inkMax = 0f;
+            return false;
+        }
+
+        return true;
     }
 
     private static float LineContentAdvance(UiTextLayoutLine line) => line.LineAdvance;
@@ -583,47 +674,13 @@ public class UiTextBlock : UiElement
         float sortKey,
         CoordinateSpace space,
         bool applyVpClip,
-        ref int drawRunCursor,
         UiRect viewportClip)
     {
-        CachedDrawRun? cached = null;
-        if (drawRunCursor < _drawRunCache.Count)
-            cached = _drawRunCache[drawRunCursor];
-
-        if (cached is not null &&
-            string.Equals(cached.Text, text, StringComparison.Ordinal) &&
-            cached.Style.Equals(style) &&
-            cached.BaselineLeft.Equals(baselineLeft) &&
-            cached.SortKey == sortKey &&
-            cached.Space == space &&
-            cached.ApplyViewportClip == applyVpClip &&
-            cached.ViewportClip.Equals(viewportClip))
-        {
-            if (cached.GlyphCount > 0)
-                renderer.SubmitTextGlyphs(cached.Glyphs.AsSpan(0, cached.GlyphCount));
-            TextRenderer.SubmitTextDecorations(
-                renderer,
-                in style,
-                baselineLeft,
-                0f,
-                cached.PenAfter,
-                sortKey,
-                renderer.WhiteTextureId,
-                renderer.DefaultNormalTextureId,
-                space,
-                applyVpClip,
-                viewportClip);
-            drawRunCursor++;
-            return;
-        }
+        var write = new CachedDrawRun();
 
         if (string.IsNullOrEmpty(text))
         {
-            if (cached is null)
-                _drawRunCache.Add(new CachedDrawRun());
-            else
-                cached.GlyphCount = 0;
-            drawRunCursor++;
+            _drawRunCache.Add(write);
             return;
         }
 
@@ -660,7 +717,6 @@ public class UiTextBlock : UiElement
             applyVpClip,
             viewportClip);
 
-        var write = cached ?? new CachedDrawRun();
         write.Text = text;
         write.Style = style;
         write.BaselineLeft = baselineLeft;
@@ -677,9 +733,7 @@ public class UiTextBlock : UiElement
             dest[..n].CopyTo(write.Glyphs);
         }
 
-        if (cached is null)
-            _drawRunCache.Add(write);
-        drawRunCursor++;
+        _drawRunCache.Add(write);
     }
 
     private void EnsureDrawScratchCapacity(int needed)

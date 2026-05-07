@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
@@ -30,6 +32,25 @@ namespace Cyberland.Engine.Modding;
 /// </remarks>
 public sealed class ModLoader
 {
+    [ExcludeFromCodeCoverage(Justification = "Timing entry DTO; phase totals are validated via ModLoader.LoadAll tests.")]
+    internal sealed record ModLoadEntryTiming(
+        string ModId,
+        double AssemblyLoadMs,
+        double TypeResolveMs,
+        double OnLoadMs);
+
+    [ExcludeFromCodeCoverage(Justification = "Timing aggregate DTO; phase totals are validated via ModLoader.LoadAll tests.")]
+    internal sealed record ModLoadTiming(
+        double EnumerateDirectoriesMs,
+        double ParseManifestsMs,
+        double SortManifestsMs,
+        double MountContentMs,
+        double LoadAssembliesAndModsMs,
+        double TotalMs,
+        int ManifestCount,
+        int LoadedModCount,
+        IReadOnlyList<ModLoadEntryTiming> Entries);
+
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     static ModLoader()
@@ -39,6 +60,7 @@ public sealed class ModLoader
 
     /// <summary>Manifests successfully staged in the last <see cref="LoadAll"/> (content pass + assembly load pass).</summary>
     public IReadOnlyList<ModManifest> LoadedManifests => _manifests;
+    internal ModLoadTiming? LastLoadTiming { get; private set; }
     private readonly List<ModManifest> _manifests = new();
     private readonly List<IMod> _instances = new();
 
@@ -105,13 +127,21 @@ public sealed class ModLoader
         GameHostServices host,
         IReadOnlySet<string>? excludedModIds = null)
     {
+        var totalSw = Stopwatch.StartNew();
+        LastLoadTiming = null;
         if (!Directory.Exists(modsRootDirectory))
+        {
+            LastLoadTiming = new ModLoadTiming(0d, 0d, 0d, 0d, 0d, totalSw.Elapsed.TotalMilliseconds, 0, 0, Array.Empty<ModLoadEntryTiming>());
             return;
+        }
 
         UnloadAll();
 
+        var enumSw = Stopwatch.StartNew();
         var dirs = Directory.GetDirectories(modsRootDirectory);
+        enumSw.Stop();
         var manifests = new List<(string Dir, ModManifest M)>();
+        var parseManifestSw = Stopwatch.StartNew();
 
         foreach (var dir in dirs)
         {
@@ -129,7 +159,9 @@ public sealed class ModLoader
 
             manifests.Add((dir, m));
         }
+        parseManifestSw.Stop();
 
+        var sortSw = Stopwatch.StartNew();
         manifests.Sort(static (a, b) =>
         {
             var c = a.M.LoadOrder.CompareTo(b.M.LoadOrder);
@@ -137,7 +169,9 @@ public sealed class ModLoader
                 return c;
             return string.CompareOrdinal(a.M.Id, b.M.Id);
         });
+        sortSw.Stop();
 
+        var mountSw = Stopwatch.StartNew();
         foreach (var entry in manifests)
         {
             _manifests.Add(entry.M);
@@ -149,7 +183,10 @@ public sealed class ModLoader
                     vfs.BlockPath(rel);
             }
         }
+        mountSw.Stop();
 
+        var loadSw = Stopwatch.StartNew();
+        var entryTimings = new List<ModLoadEntryTiming>(manifests.Count);
         foreach (var entry in manifests)
         {
             if (string.IsNullOrWhiteSpace(entry.M.EntryAssembly))
@@ -164,16 +201,20 @@ public sealed class ModLoader
             try
             {
                 Assembly asm;
+                var assemblySw = Stopwatch.StartNew();
                 try
                 {
                     asm = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(dll));
                 }
                 catch (BadImageFormatException)
                 {
+                    assemblySw.Stop();
                     continue;
                 }
+                assemblySw.Stop();
 
                 Type? modType = null;
+                var resolveTypeSw = Stopwatch.StartNew();
                 if (!string.IsNullOrWhiteSpace(entry.M.EntryType))
                 {
                     var hinted = asm.GetType(entry.M.EntryType!, throwOnError: false, ignoreCase: false);
@@ -192,20 +233,41 @@ public sealed class ModLoader
                         }
                     }
                 }
+                resolveTypeSw.Stop();
 
                 if (modType is null)
                     continue;
 
                 var mod = (IMod)Activator.CreateInstance(modType)!;
                 var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localizedContent, world, scheduler, host);
+                var onLoadSw = Stopwatch.StartNew();
                 mod.OnLoadAsync(ctx).GetAwaiter().GetResult();
+                onLoadSw.Stop();
                 _instances.Add(mod);
+                entryTimings.Add(
+                    new ModLoadEntryTiming(
+                        entry.M.Id,
+                        assemblySw.Elapsed.TotalMilliseconds,
+                        resolveTypeSw.Elapsed.TotalMilliseconds,
+                        onLoadSw.Elapsed.TotalMilliseconds));
             }
             finally
             {
                 SatelliteResolutionModDirectory = null;
             }
         }
+        loadSw.Stop();
+        totalSw.Stop();
+        LastLoadTiming = new ModLoadTiming(
+            enumSw.Elapsed.TotalMilliseconds,
+            parseManifestSw.Elapsed.TotalMilliseconds,
+            sortSw.Elapsed.TotalMilliseconds,
+            mountSw.Elapsed.TotalMilliseconds,
+            loadSw.Elapsed.TotalMilliseconds,
+            totalSw.Elapsed.TotalMilliseconds,
+            manifests.Count,
+            _instances.Count,
+            entryTimings);
     }
 
     /// <summary>Calls <see cref="IMod.OnUnload"/> on loaded mods in reverse order and clears the manifest list.</summary>

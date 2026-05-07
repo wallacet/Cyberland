@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -12,6 +13,7 @@ using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
 using Cyberland.Engine.UI.Core;
@@ -61,12 +63,21 @@ public sealed class GameApplication : IDisposable
     private SilkInputService? _input;
 
     private readonly double? _profileWallSeconds;
+#if DEBUG
     private readonly string? _profileDumpPath;
+#endif
     private readonly string? _perfDumpPath;
     private Stopwatch? _profileWall;
     private bool _profileWallStarted;
     private bool _profileCloseRequested;
     private int _profilePresentedFrames;
+    private Stopwatch? _startupWall;
+    private bool _firstPresentLogged;
+    private double _startupLoadCallbackMs;
+    private double _startupFirstPresentMs;
+    private int _bakedGlyphImports;
+    private readonly int _bakedAtlasPageBudget;
+    private TextGlyphCache.GlyphCacheTelemetry _lastGlyphTelemetry;
 #if DEBUG
     private bool _profileHudInTitle;
     private int _profileTitleThrottle;
@@ -79,17 +90,23 @@ public sealed class GameApplication : IDisposable
     public GameApplication(string[]? commandLineArgs = null)
     {
         _commandLineArgs = commandLineArgs ?? Array.Empty<string>();
+#if DEBUG
         FrameProfiler.ApplyEnvironmentDefaults();
-        _profileWallSeconds = ProfileCommandLine.TryParseProfileSeconds(_commandLineArgs);
         _profileDumpPath = ProfileCommandLine.TryParseProfileDump(_commandLineArgs);
-        _perfDumpPath = ProfileCommandLine.TryParsePerfDump(_commandLineArgs);
-#if !DEBUG
-        if (_profileWallSeconds is not null || !string.IsNullOrEmpty(_profileDumpPath) || !string.IsNullOrEmpty(_perfDumpPath))
+        // Per-scope allocation sampling uses GC.GetAllocatedBytesForCurrentThread on every Push/Pop — far too
+        // expensive for high-FPS timing dumps. Opt in via --profile-alloc or CYBERLAND_FRAME_PROFILER_TRACK_ALLOC.
+        if (ProfileCommandLine.TryParseProfileAlloc(_commandLineArgs))
+            FrameProfiler.TrackSessionAllocations = true;
+#else
+        if (!string.IsNullOrEmpty(ProfileCommandLine.TryParseProfileDump(_commandLineArgs)))
         {
             Console.Error.WriteLine(
-                "Cyberland: --profile-seconds auto-close works in all configs. --profile-dump requires Debug; use --perf-dump for Release perf summaries.");
+                "Cyberland: --profile-dump is ignored in Release builds (hierarchical frame profiler is Debug-only).");
         }
 #endif
+        _profileWallSeconds = ProfileCommandLine.TryParseProfileSeconds(_commandLineArgs);
+        _perfDumpPath = ProfileCommandLine.TryParsePerfDump(_commandLineArgs);
+        _bakedAtlasPageBudget = ParseBakedAtlasPageBudget();
         UiLayoutGating.ApplyEnvironmentDefaults();
         _scheduler = new SystemScheduler(_parallelism);
         _host = new GameHostServices();
@@ -117,13 +134,16 @@ public sealed class GameApplication : IDisposable
     {
         if (_window is null)
             return;
+        _startupWall = Stopwatch.StartNew();
+        _firstPresentLogged = false;
+        var startupStageSw = Stopwatch.StartNew();
 
 #if DEBUG
         Console.WriteLine(
-            $"Cyberland startup | Configuration=Debug | FrameProfilerEnabled={FrameProfiler.IsEnabled} | UiIncremental={UiLayoutGating.UseIncrementalDocumentFrames}");
+            $"Cyberland startup | Configuration=Debug | FrameProfilerEnabled={FrameProfiler.IsEnabled} | FrameProfilerTrackAlloc={FrameProfiler.TrackSessionAllocations} | UiIncremental={UiLayoutGating.UseIncrementalDocumentFrames} | BakedAtlasPageBudget={_bakedAtlasPageBudget}");
 #else
         Console.WriteLine(
-            $"Cyberland startup | Configuration=Release | UiIncremental={UiLayoutGating.UseIncrementalDocumentFrames}");
+            $"Cyberland startup | Configuration=Release | UiIncremental={UiLayoutGating.UseIncrementalDocumentFrames} | BakedAtlasPageBudget={_bakedAtlasPageBudget}");
 #endif
 
         // Bootstrap order: Vulkan + audio + input → assign Host.Renderer/Input → baseline HDR once (EngineDefaultGlobalPostProcess)
@@ -134,6 +154,7 @@ public sealed class GameApplication : IDisposable
         try
         {
             _renderer.Initialize();
+            LogStartupStage("renderer.initialize", startupStageSw);
         }
         catch (GraphicsInitializationException ex)
         {
@@ -160,6 +181,7 @@ public sealed class GameApplication : IDisposable
 #endif
             _audio = null;
         }
+        LogStartupStage("audio.initialize", startupStageSw);
 
         _input = new SilkInputService(_window.CreateInput(), _renderer);
         _host.Renderer = _renderer;
@@ -168,6 +190,8 @@ public sealed class GameApplication : IDisposable
         _host.CameraRuntimeState = Hosting.CameraRuntimeState.CreateDefault(_renderer.SwapchainPixelSize);
         _host.EnsureCoreServicesReady();
         _renderer.RequestClose = () => _window?.Close();
+        LoadBuiltInBakedAtlases(_renderer);
+        LogStartupStage("host.services", startupStageSw);
 
         if (_profileWallSeconds is not null)
         {
@@ -181,14 +205,17 @@ public sealed class GameApplication : IDisposable
         }
 
         EngineDefaultGlobalPostProcess.Apply(_renderer);
+        LogStartupStage("renderer.postprocess-defaults", startupStageSw);
 
         var bindingsFile = Path.Combine(AppContext.BaseDirectory, "input-bindings.json");
         _input.Bindings.LoadOrCreateUserFileAsync(bindingsFile).GetAwaiter().GetResult();
+        LogStartupStage("input.bindings.load", startupStageSw);
 
         var languageFile = Path.Combine(AppContext.BaseDirectory, "language.json");
         var primaryCulture = LanguagePreference.Resolve(_commandLineArgs, languageFile);
         _localizedContent = new LocalizedContent(_localization, _vfs, primaryCulture);
         _host.LocalizedContent = _localizedContent;
+        LogStartupStage("localization.bootstrap", startupStageSw);
 
         try
         {
@@ -212,6 +239,8 @@ public sealed class GameApplication : IDisposable
                     _scheduler,
                     _host,
                     excludedSet);
+                LogStartupStage("mods.load_all", startupStageSw);
+                LogModLoadTiming(_mods.LastLoadTiming);
 
                 _scheduler.RegisterParallel("cyberland.engine/camera-follow", new CameraFollowSystem());
                 _scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
@@ -235,13 +264,19 @@ public sealed class GameApplication : IDisposable
                 _scheduler.RegisterParallel("cyberland.engine/text-render", new TextRenderSystem(_host));
                 _scheduler.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(_host));
                 _scheduler.RegisterSerial("cyberland.engine/ui-command-drain", new UiCommandDrainSystem(_host));
+                LogStartupStage("scheduler.register-systems", startupStageSw);
             }
             finally
             {
                 _scheduler.EndDeferExecutionOrderRebuilds();
             }
+            LogStartupStage("scheduler.rebuild-order", startupStageSw);
 
             _localizedContent.MergeStringTable("strings.json");
+            _startupLoadCallbackMs = _startupWall.Elapsed.TotalMilliseconds;
+            LogStartupStage("localization.merge-strings", startupStageSw);
+            Console.WriteLine(
+                $"Startup milestone | load_callback_total_ms={_startupLoadCallbackMs.ToString("0.###", CultureInfo.InvariantCulture)}");
         }
         catch (Exception ex)
         {
@@ -274,7 +309,9 @@ public sealed class GameApplication : IDisposable
         if (_window is null)
             return;
 
+#if DEBUG
         using var __frame = FrameProfilerScope.Enter("OnRender.Total");
+#endif
 
         // Same value Silk computed in DoRender from the render stopwatch (interval since the previous successful Render).
         float dt = (float)silkRenderDelta;
@@ -289,17 +326,23 @@ public sealed class GameApplication : IDisposable
         // Render tick order (see IRenderer remarks): discard stale CPU submits first so a missed DrawFrame cannot merge
         // with this tick's Submit*, then simulate + submit sprites/lights/camera, then encode/present.
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Game.ResetPendingSubmissions");
+#endif
             _renderer?.ResetPendingSubmissionsForNewTick();
         }
 
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Input.BeginFrame");
+#endif
             _host.Input?.BeginFrame();
         }
 
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Scheduler.RunFrame");
+#endif
             // Publish fixed-step remainder before ILateUpdate so visual extrapolation (e.g. pos + vel * acc) uses this frame's alpha.
             _scheduler.RunFrame(_world, dt, acc => _host.FixedAccumulatorSeconds = acc);
         }
@@ -307,11 +350,21 @@ public sealed class GameApplication : IDisposable
         _host.FixedDeltaSeconds = _scheduler.FixedDeltaSeconds;
 
         {
+#if DEBUG
             using var __ = FrameProfilerScope.Enter("Vulkan.DrawFrame");
+#endif
             _renderer?.DrawFrame();
         }
 
         _host.LastPresentDeltaSeconds = dt;
+        if (!_firstPresentLogged && _startupWall is not null)
+        {
+            _firstPresentLogged = true;
+            _startupWall.Stop();
+            _startupFirstPresentMs = _startupWall.Elapsed.TotalMilliseconds;
+            Console.WriteLine(
+                $"Startup milestone | first_present_ms={_startupFirstPresentMs.ToString("0.###", CultureInfo.InvariantCulture)}");
+        }
         if (_profileWallSeconds is not null && _profileWall is not null)
         {
             if (!_profileWallStarted)
@@ -350,6 +403,9 @@ public sealed class GameApplication : IDisposable
 
     private void OnClosing()
     {
+        _lastGlyphTelemetry = TextGlyphCache.SnapshotAndResetTelemetry();
+        var missCodepoints = TextGlyphCache.SnapshotAndResetMissCodepointSummary();
+        var missGlyphKeys = TextGlyphCache.SnapshotAndResetMissGlyphKeySummary();
         if (_profileWallSeconds is not null && _profileWall is not null)
         {
             var wallSeconds = _profileWall.Elapsed.TotalSeconds;
@@ -357,8 +413,12 @@ public sealed class GameApplication : IDisposable
             Console.WriteLine(
                 $"Perf summary | frames={_profilePresentedFrames} wallSeconds={wallSeconds.ToString("0.###", CultureInfo.InvariantCulture)} fps={fps.ToString("0.###", CultureInfo.InvariantCulture)}");
             if (!string.IsNullOrWhiteSpace(_perfDumpPath))
-                WritePerfDump(_perfDumpPath, _profilePresentedFrames, wallSeconds, fps);
+                WritePerfDump(_perfDumpPath, _profilePresentedFrames, wallSeconds, fps, _startupLoadCallbackMs, _startupFirstPresentMs, _lastGlyphTelemetry, _bakedGlyphImports);
         }
+        Console.WriteLine(
+            $"Glyph cache telemetry | hits={_lastGlyphTelemetry.CacheHits} misses={_lastGlyphTelemetry.CacheMisses} baked_imports={_bakedGlyphImports} raster_ms={_lastGlyphTelemetry.RasterizeMs.ToString("0.###", CultureInfo.InvariantCulture)} uploads={_lastGlyphTelemetry.UploadCalls} upload_mb={(_lastGlyphTelemetry.UploadBytes / (1024d * 1024d)).ToString("0.###", CultureInfo.InvariantCulture)} upload_ms={_lastGlyphTelemetry.UploadMs.ToString("0.###", CultureInfo.InvariantCulture)}");
+        Console.WriteLine($"Glyph miss codepoints | {missCodepoints}");
+        Console.WriteLine($"Glyph miss keys | {missGlyphKeys}");
 #if DEBUG
         if (!string.IsNullOrEmpty(_profileDumpPath))
             FrameProfiler.WriteDump(_profileDumpPath);
@@ -366,7 +426,15 @@ public sealed class GameApplication : IDisposable
         _mods.UnloadAll();
     }
 
-    private static void WritePerfDump(string path, int frames, double wallSeconds, double fps)
+    private static void WritePerfDump(
+        string path,
+        int frames,
+        double wallSeconds,
+        double fps,
+        double startupLoadCallbackMs,
+        double startupFirstPresentMs,
+        TextGlyphCache.GlyphCacheTelemetry glyphTelemetry,
+        int bakedGlyphImports)
     {
         var dir = Path.GetDirectoryName(Path.GetFullPath(path));
         if (!string.IsNullOrEmpty(dir))
@@ -376,7 +444,107 @@ public sealed class GameApplication : IDisposable
         sb.Append("frames=").Append(frames.ToString(CultureInfo.InvariantCulture)).AppendLine();
         sb.Append("wallSeconds=").Append(wallSeconds.ToString("0.###", CultureInfo.InvariantCulture)).AppendLine();
         sb.Append("fps=").Append(fps.ToString("0.###", CultureInfo.InvariantCulture)).AppendLine();
+        sb.Append("startupLoadCallbackMs=").Append(startupLoadCallbackMs.ToString("0.###", CultureInfo.InvariantCulture)).AppendLine();
+        sb.Append("startupFirstPresentMs=").Append(startupFirstPresentMs.ToString("0.###", CultureInfo.InvariantCulture)).AppendLine();
+        sb.Append("glyphCacheHits=").Append(glyphTelemetry.CacheHits.ToString(CultureInfo.InvariantCulture)).AppendLine();
+        sb.Append("glyphCacheMisses=").Append(glyphTelemetry.CacheMisses.ToString(CultureInfo.InvariantCulture)).AppendLine();
+        sb.Append("glyphBakedImports=").Append(bakedGlyphImports.ToString(CultureInfo.InvariantCulture)).AppendLine();
         File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+    }
+
+    private static void LogStartupStage(string stageName, Stopwatch startupStageSw)
+    {
+        startupStageSw.Stop();
+        Console.WriteLine(
+            $"Startup stage | {stageName}={startupStageSw.Elapsed.TotalMilliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms");
+        startupStageSw.Restart();
+    }
+
+    private static void LogModLoadTiming(ModLoader.ModLoadTiming? timing)
+    {
+        if (timing is null)
+            return;
+
+        Console.WriteLine(
+            $"Mod load timing | manifests={timing.ManifestCount} loaded={timing.LoadedModCount} total={timing.TotalMs.ToString("0.###", CultureInfo.InvariantCulture)}ms parse={timing.ParseManifestsMs.ToString("0.###", CultureInfo.InvariantCulture)}ms mount={timing.MountContentMs.ToString("0.###", CultureInfo.InvariantCulture)}ms load={timing.LoadAssembliesAndModsMs.ToString("0.###", CultureInfo.InvariantCulture)}ms");
+        foreach (var entry in timing.Entries)
+        {
+            Console.WriteLine(
+                $"Mod load entry | id={entry.ModId} asm={entry.AssemblyLoadMs.ToString("0.###", CultureInfo.InvariantCulture)}ms type={entry.TypeResolveMs.ToString("0.###", CultureInfo.InvariantCulture)}ms onload={entry.OnLoadMs.ToString("0.###", CultureInfo.InvariantCulture)}ms");
+        }
+    }
+
+    private void LoadBuiltInBakedAtlases(IRenderer renderer)
+    {
+        if (_bakedAtlasPageBudget <= 0)
+        {
+            Console.WriteLine("Baked atlas load | skipped (page budget <= 0)");
+            return;
+        }
+
+        try
+        {
+            foreach (var atlas in BuiltinFonts.EnumerateBakedAtlasResources())
+            {
+                var manifest = LimitBakedAtlasManifestPages(atlas.Manifest, _bakedAtlasPageBudget);
+                var result = _host.BakedMsdfAtlasLoader.LoadFromResource(
+                    atlas.Label,
+                    manifest,
+                    atlas.ReadPageBytes,
+                    renderer,
+                    _host.TextGlyphCache);
+                if (result.Loaded)
+                {
+                    _bakedGlyphImports += result.GlyphCount;
+                    Console.WriteLine(
+                        $"Baked atlas load | source={result.ManifestPath} glyphs={result.GlyphCount} pages={result.PageCount}");
+                }
+                else
+                {
+                    Console.WriteLine(
+                        $"Baked atlas load | source={result.ManifestPath} skipped={result.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Baked atlas load | skipped due to exception: {ex.Message}");
+        }
+    }
+
+    private static int ParseBakedAtlasPageBudget()
+    {
+        var raw = Environment.GetEnvironmentVariable("CYBERLAND_BAKED_ATLAS_PAGE_BUDGET");
+        if (string.IsNullOrWhiteSpace(raw))
+            return 1;
+        if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+            return Math.Max(0, parsed);
+        return 1;
+    }
+
+    private static BakedMsdfAtlasManifest LimitBakedAtlasManifestPages(BakedMsdfAtlasManifest source, int pageBudget)
+    {
+        if (source.Pages.Length <= pageBudget)
+            return source;
+
+        var keptPages = source.Pages.AsSpan(0, pageBudget).ToArray();
+        var keptGlyphs = new List<BakedMsdfGlyphEntry>(source.Glyphs.Length);
+        foreach (var glyph in source.Glyphs)
+        {
+            if (glyph.PageIndex < pageBudget)
+                keptGlyphs.Add(glyph);
+        }
+        return new BakedMsdfAtlasManifest
+        {
+            Version = source.Version,
+            FamilyId = source.FamilyId,
+            Face = source.Face,
+            SizePixels = source.SizePixels,
+            RasterRevision = source.RasterRevision,
+            PageSizePixels = source.PageSizePixels,
+            Pages = keptPages,
+            Glyphs = keptGlyphs.ToArray()
+        };
     }
 
     /// <summary>

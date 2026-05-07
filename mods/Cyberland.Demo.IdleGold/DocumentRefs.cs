@@ -28,6 +28,7 @@ public sealed class DocumentRefs
 
     public UiScrollView LogScroll { get; init; } = null!;
     public UiTextBlock LogBody { get; init; } = null!;
+    public string CurrentTabId { get; set; } = SceneSetup.NavGather;
 
     public bool HasFpsHud { get; set; }
 

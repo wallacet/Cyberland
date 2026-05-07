@@ -10,7 +10,10 @@ param(
     [double] $ProfileSeconds = 10.0,
 
     [Parameter(Mandatory = $false)]
-    [string] $ProfileDump = "artifacts/profiles/demo-profile.txt"
+    [string] $ProfileDump = "artifacts/profiles/demo-profile.txt",
+
+    [Parameter(Mandatory = $false)]
+    [string] $PerfDump = "artifacts/profiles/demo-perf.txt"
 )
 
 Set-StrictMode -Version Latest
@@ -61,15 +64,19 @@ try {
     Set-ManifestDisabled -LiteralPath $manifestPath -Disabled $false
 
     $dumpPath = if ([System.IO.Path]::IsPathRooted($ProfileDump)) { $ProfileDump } else { Join-Path $repoRoot $ProfileDump }
-    $dumpDir = Split-Path -Parent $dumpPath
-    if (-not [string]::IsNullOrEmpty($dumpDir) -and -not (Test-Path -LiteralPath $dumpDir)) {
-        New-Item -ItemType Directory -Path $dumpDir | Out-Null
+    $perfPath = if ([System.IO.Path]::IsPathRooted($PerfDump)) { $PerfDump } else { Join-Path $repoRoot $PerfDump }
+    foreach ($path in @($dumpPath, $perfPath)) {
+        $dir = Split-Path -Parent $path
+        if (-not [string]::IsNullOrEmpty($dir) -and -not (Test-Path -LiteralPath $dir)) {
+            New-Item -ItemType Directory -Path $dir | Out-Null
+        }
     }
 
-    Write-Host "Profiling ${ProfileSeconds}s → $dumpPath ..."
+    Write-Host "Profiling ${ProfileSeconds}s → $dumpPath (perf: $perfPath) ..."
     dotnet run --project (Join-Path $repoRoot "src\Cyberland.Host\Cyberland.Host.csproj") -c Debug -- `
         "--profile-seconds=$ProfileSeconds" `
-        "--profile-dump=$dumpPath"
+        "--profile-dump=$dumpPath" `
+        "--perf-dump=$perfPath"
 }
 finally {
     try {

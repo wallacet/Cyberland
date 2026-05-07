@@ -14,6 +14,9 @@ public static class ProfileCommandLine
     /// <summary>Long-form CLI token for <see cref="TryParsePerfDump"/>.</summary>
     public const string PerfDumpFlag = "--perf-dump";
 
+    /// <summary>Long-form CLI token for <see cref="TryParseProfileAlloc"/>.</summary>
+    public const string AllocFlag = "--profile-alloc";
+
     /// <summary>Returns wall-clock profile duration in seconds, or <c>null</c> if profiling is disabled.</summary>
     public static double? TryParseProfileSeconds(ReadOnlySpan<string> args)
     {
@@ -41,7 +44,7 @@ public static class ProfileCommandLine
         return null;
     }
 
-    /// <summary>Returns dump file path, or <c>null</c> if absent.</summary>
+    /// <summary>Returns dump file path, or <c>null</c> if absent. Release builds ignore dumps; <see cref="GameApplication"/> logs when set.</summary>
     public static string? TryParseProfileDump(ReadOnlySpan<string> args)
     {
         for (var i = 0; i < args.Length; i++)
@@ -71,5 +74,31 @@ public static class ProfileCommandLine
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// When true, debug builds should enable per-scope allocation tracking on <c>FrameProfiler</c> for the session.
+    /// Presence of <c>--profile-alloc</c> enables; <c>--profile-alloc=false</c> does not (explicit off for scripts that
+    /// forward unknown flags).
+    /// </summary>
+    public static bool TryParseProfileAlloc(ReadOnlySpan<string> args)
+    {
+        for (var i = 0; i < args.Length; i++)
+        {
+            var a = args[i];
+            if (a.StartsWith(AllocFlag + "=", StringComparison.OrdinalIgnoreCase))
+            {
+                var tail = a[(AllocFlag + "=").Length..].Trim();
+                if (tail.Equals("0", StringComparison.OrdinalIgnoreCase) ||
+                    tail.Equals("false", StringComparison.OrdinalIgnoreCase))
+                    return false;
+                return true;
+            }
+
+            if (a.Equals(AllocFlag, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 }
