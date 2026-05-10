@@ -5,18 +5,18 @@ using Cyberland.Engine.Modding;
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
-/// Breakout sample: many entities, chunk-parallel layout and win detection, and trigger-based hits after the engine
-/// <c>TriggerSystem</c> runs in the fixed chain.
+/// Breakout sample: chunk-parallel layout, grid brick hits (only ball + paddle use <c>TriggerSystem</c>), and cheap win via
+/// <see cref="GameState.ActiveBricks"/>.
 /// </summary>
 /// <remarks>
 /// <para><b>Where to read next:</b> registration order mirrors the HDR demo—see <see cref="SceneSetup"/> for the static scene recipe,
 /// then follow phase responsibilities below.</para>
 /// <para><b>Frame flow (simplified):</b>
-/// <see cref="Systems.InputSystem"/> (early singleton) →
+/// <see cref="Systems.InputSystem"/> (early movement + frame gameplay commands → <see cref="Control"/>) →
 /// <see cref="Systems.ArenaLayoutSystem"/> (early, parallel) →
 /// <see cref="Systems.RoundStartSystem"/> → <see cref="Systems.ReactivateSystem"/> →
 /// <see cref="Systems.PaddleMoveSystem"/> / <see cref="Systems.BallLaunchSystem"/> / <see cref="Systems.BallIntegrateSystem"/> / <see cref="Systems.TriggerResolveSystem"/> →
-/// <see cref="Systems.WinLoseSystem"/> (fixed, parallel) →
+/// <see cref="Systems.WinLoseSystem"/> (fixed singleton) →
 /// <see cref="Systems.LightsFillSystem"/> (late) →
 /// multiple query-driven <c>brick/*</c> late sprite and HUD systems (see individual types).</para>
 /// <para><b>Registration order matters</b> for <see cref="GameState.PendingReactivation"/> and win detection: round start and
@@ -30,6 +30,7 @@ public sealed class Mod : IMod
         context.MountDefaultContent();
         InputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("brick.json");
+        BrickBreakerHudGlyphWarmup.Warm(context);
 
         var host = context.Host;
 
@@ -43,7 +44,7 @@ public sealed class Mod : IMod
         context.RegisterSingleton("cyberland.demo.brick/ball-launch", new BallLaunchSystem());
         context.RegisterSingleton("cyberland.demo.brick/ball-integrate", new BallIntegrateSystem());
         context.RegisterSingleton("cyberland.demo.brick/trigger-resolve", new TriggerResolveSystem());
-        context.RegisterParallel("cyberland.demo.brick/winlose", new WinLoseSystem());
+        context.RegisterSingleton("cyberland.demo.brick/winlose", new WinLoseSystem());
         context.RegisterSingleton("cyberland.demo.brick/lights", new LightsFillSystem());
 
         context.RegisterParallel("cyberland.demo.brick/cell-sprites", new CellSpriteSyncSystem());

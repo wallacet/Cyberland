@@ -1,5 +1,7 @@
 # Enables one demo mod in its manifest, clears artifacts, runs the host until exit, then restores "disabled": true.
 # Use from VS Code / Cursor: Tasks → Cyberland: Test demo (…).
+# Manual PowerShell: if execution policy blocks this file, use scripts\Run-CyberlandDemo-Test.cmd or:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Run-CyberlandDemo-Test.ps1 -Demo hdr
 # If you kill the task or close the terminal during the game, the finally block may not run — re-disable the mod in manifest.json manually if needed.
 [CmdletBinding()]
 param(

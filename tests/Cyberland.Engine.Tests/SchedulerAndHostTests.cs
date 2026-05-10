@@ -317,6 +317,7 @@ public sealed class SchedulerAndHostTests
         public System.Numerics.Vector2 GetMousePosition(Scene.CoordinateSpace space = Scene.CoordinateSpace.ViewportSpace) => default;
         public System.Numerics.Vector2 GetMouseDelta(Scene.CoordinateSpace space = Scene.CoordinateSpace.ViewportSpace) => default;
         public System.Numerics.Vector2 MouseWheelDelta => default;
+        public IReadOnlyList<InputGameplayCommand> FrameGameplayCommands => Array.Empty<InputGameplayCommand>();
         public void BeginFrame() { }
         public bool IsDown(string actionId) => false;
         public bool WasPressed(string actionId) => false;

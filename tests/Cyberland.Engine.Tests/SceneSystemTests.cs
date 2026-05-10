@@ -899,6 +899,90 @@ public sealed class SceneSystemTests
     }
 
     [Fact]
+    public void TriggerSystem_clears_buffered_events_when_trigger_disabled_mid_session()
+    {
+        var w = new World();
+        var a = AddTriggerEntity(w, 0f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 2f
+        });
+        var b = AddTriggerEntity(w, 1f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 2f
+        });
+
+        var sys = new TriggerSystem();
+        StartEcs(sys, w);
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        Assert.NotEmpty(EventSet(w, a));
+
+        ref var tb = ref w.Get<Trigger>(b);
+        tb.Enabled = false;
+
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        Assert.True(w.TryGet<TriggerEvents>(b, out var te));
+        Assert.NotNull(te.Events);
+        Assert.Empty(te.Events);
+    }
+
+    [Fact]
+    public void TriggerSystem_skips_merged_exit_when_overlap_partner_destroyed()
+    {
+        var w = new World();
+        var a = AddTriggerEntity(w, 0f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 2f
+        });
+        var b = AddTriggerEntity(w, 1f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 2f
+        });
+
+        var sys = new TriggerSystem();
+        StartEcs(sys, w);
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+        Assert.NotEmpty(EventSet(w, a));
+
+        w.DestroyEntity(b);
+
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+    }
+
+    [Fact]
+    public void TriggerSystem_skips_merged_exit_when_overlap_partner_loses_trigger()
+    {
+        var w = new World();
+        var a = AddTriggerEntity(w, 0f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 2f
+        });
+        var b = AddTriggerEntity(w, 1f, 0f, new Trigger
+        {
+            Enabled = true,
+            Shape = TriggerShapeKind.Circle,
+            Radius = 2f
+        });
+
+        var sys = new TriggerSystem();
+        StartEcs(sys, w);
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+
+        w.Remove<Trigger>(b);
+
+        sys.OnParallelFixedUpdate(w.QueryChunks(SystemQuerySpec.All<Trigger>()), 1f / 60f, ParOpts());
+    }
+
+    [Fact]
     public void TriggerSystem_parallel_and_single_thread_membership_match()
     {
         var parallelWorld = new World();

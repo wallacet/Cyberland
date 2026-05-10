@@ -30,17 +30,15 @@ public sealed class ReactivateSystem : IParallelSystem, IParallelFixedUpdate
             return;
 
         game.PendingReactivation = false;
+        game.ActiveBricks = Constants.Cols * Constants.Rows;
 
         foreach (var chunk in query)
         {
             Parallel.For(0, chunk.Count, parallelOptions, i =>
             {
-                var entities = chunk.Entities;
                 var states = chunk.Column<ArenaCellState>();
                 ref var bs = ref states[i];
                 bs.Active = true;
-                ref var t = ref _world.Get<Trigger>(entities[i]);
-                t.Enabled = true;
             });
         }
     }

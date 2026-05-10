@@ -3,6 +3,7 @@ using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Input;
 
 namespace Cyberland.Demo;
 
@@ -61,7 +62,7 @@ public sealed class InputSystem : IParallelSystem, IParallelEarlyUpdate
             return;
         }
 
-        if (input.WasPressed("cyberland.demo/toggle_velocity_damp"))
+        if (input.HasActionPressedThisFrame("cyberland.demo/toggle_velocity_damp"))
         {
             var id = "cyberland.demo/velocity-damp";
             _scheduler.SetEnabled(id, !_scheduler.IsEnabled(id));

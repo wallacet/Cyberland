@@ -38,6 +38,9 @@ public sealed unsafe partial class VulkanRenderer
         _framePlanBuilder ??= new FramePlanBuilder(this);
         _renderBackendExecutor ??= new RenderBackendExecutor(this);
         var framePlan = _framePlanBuilder.Build();
+#if DEBUG
+        using var __encodeFramePlan = FrameProfilerScope.Enter("DrawFrame.Record.EncodeFramePlan");
+#endif
         _renderBackendExecutor.Record(cmd, swapFb, swapUiOverlayFb, in framePlan);
     }
 

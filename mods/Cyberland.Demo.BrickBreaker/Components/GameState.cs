@@ -27,4 +27,7 @@ public struct GameState : IComponent
 
     /// <summary>Set by <see cref="RoundStartSystem"/>; consumed by <see cref="ReactivateSystem"/> in the same fixed pass.</summary>
     public bool PendingReactivation;
+
+    /// <summary>Active bricks remaining; reset when blocks reactivate, decremented on breaks for cheap win checks.</summary>
+    public int ActiveBricks;
 }

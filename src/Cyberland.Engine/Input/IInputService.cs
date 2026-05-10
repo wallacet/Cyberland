@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Cyberland.Engine.Scene;
 
@@ -11,10 +12,11 @@ namespace Cyberland.Engine.Input;
 /// Query methods are then stable for the rest of that frame.
 /// </remarks>
 /// <remarks>
-/// Input semantics split into two categories:
+/// Input semantics split into three categories:
 /// <list type="bullet">
 /// <item><description><b>Level reads</b> (<see cref="IsDown"/>, <see cref="ReadAxis"/>, mouse position/delta properties) are frame snapshots and may be read in early/fixed/late without consuming state.</description></item>
-/// <item><description><b>Event/delta reads</b> (<see cref="ConsumePressed"/>, <see cref="ConsumeReleased"/>, <see cref="ConsumeAxisDelta"/>) are buffered across frames until consumed. Use these for one-shot gameplay intents consumed from fixed update.</description></item>
+/// <item><description><b>Frame gameplay commands</b> (<see cref="FrameGameplayCommands"/> and <see cref="InputGameplayCommandExtensions"/>) list logical press/release edges for the current render tick; the collection is stable across early/fixed/late until the next <see cref="BeginFrame"/>.</description></item>
+/// <item><description><b>Event/delta reads</b> (<see cref="ConsumePressed"/>, <see cref="ConsumeReleased"/>, <see cref="ConsumeAxisDelta"/>) buffer counts/deltas across frames until consumed — useful when fixed update may not run on the same render tick as the edge.</description></item>
 /// </list>
 /// The stock <see cref="SilkInputService"/> merges keyboard <c>KeyDown</c> pulses into the sampled state so brief taps are not
 /// lost when ECS runs at present rate.
@@ -45,6 +47,16 @@ public interface IInputService
 
     /// <summary>Samples physical devices and recomputes per-frame action/axis state.</summary>
     void BeginFrame();
+
+    /// <summary>
+    /// Press and release edges sampled during the most recent <see cref="BeginFrame"/>, in binding iteration order.
+    /// </summary>
+    /// <remarks>
+    /// Parallel to pending counters used by <see cref="ConsumePressed"/> / <see cref="ConsumeReleased"/>: each edge here also
+    /// increments the corresponding pending count. Demos can read this list (or extension helpers) from any ECS phase in the
+    /// same frame without ordering surprises relative to <see cref="WasPressed"/>.
+    /// </remarks>
+    IReadOnlyList<InputGameplayCommand> FrameGameplayCommands { get; }
 
     /// <summary>True if any binding for <paramref name="actionId"/> is currently active.</summary>
     bool IsDown(string actionId);

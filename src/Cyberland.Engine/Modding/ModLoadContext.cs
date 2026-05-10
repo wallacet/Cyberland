@@ -112,7 +112,7 @@ public sealed class ModLoadContext
     /// <c>input-bindings.json</c> before <see cref="IMod.OnLoadAsync"/>, so user files replace the seed first; this call then
     /// adds (or appends) bindings the mod requires.
     /// </summary>
-    /// <param name="actionId">Action id for <c>IInputService</c> (e.g. <c>WasPressed</c> / <c>ReadAxis</c>).</param>
+    /// <param name="actionId">Action id for <c>IInputService</c> (e.g. <c>HasActionPressedThisFrame</c>, <c>ReadAxis</c>).</param>
     /// <param name="binding">One physical control (repeat for multiple keys).</param>
     public void AddDefaultInputBinding(string actionId, InputBinding binding)
     {

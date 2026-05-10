@@ -1,15 +1,15 @@
-using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Input;
 
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>
-/// Early update: maps actions to <see cref="Control"/> and forwards common quit to the host renderer’s close request.
+/// Early update: paddle axes, quit, and one-shot gameplay intents via <see cref="InputGameplayCommandExtensions"/>.
 /// </summary>
 /// <remarks>
-/// <see cref="ISingletonSystem"/> on the control row (<see cref="ControlTag"/> + <see cref="Control"/>); session phase is read from the
-/// <see cref="SessionTag"/> entity resolved once at startup.
+/// <see cref="Control.StartRound"/> / <see cref="Control.LaunchBall"/> stay latched until fixed systems consume them — safe when
+/// fixed substeps are zero for several render ticks at high refresh.
 /// </remarks>
 public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
 {
@@ -47,12 +47,11 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
         switch (phase)
         {
             case Phase.Title:
-                if (input.ConsumePressed("cyberland.demo.brickbreaker/start_round") || input.ConsumePressed("cyberland.common/start"))
-                    c.StartRound = true;
-                break;
             case Phase.GameOver:
             case Phase.Won:
-                if (input.ConsumePressed("cyberland.demo.brickbreaker/start_round") || input.ConsumePressed("cyberland.common/start"))
+                if (input.HasAnyActionPressedThisFrame(
+                        "cyberland.demo.brickbreaker/start_round",
+                        "cyberland.common/start"))
                     c.StartRound = true;
                 break;
             case Phase.Playing:
@@ -61,7 +60,7 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
                     c.MoveLeft = true;
                 if (move > 0f)
                     c.MoveRight = true;
-                if (input.ConsumePressed("cyberland.demo.brickbreaker/launch_ball"))
+                if (input.HasActionPressedThisFrame("cyberland.demo.brickbreaker/launch_ball"))
                     c.LaunchBall = true;
                 break;
         }

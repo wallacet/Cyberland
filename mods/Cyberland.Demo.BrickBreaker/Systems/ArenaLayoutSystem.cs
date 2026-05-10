@@ -14,8 +14,8 @@ namespace Cyberland.Demo.BrickBreaker;
 public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    /// <remarks>Brick cells carry <see cref="Cell"/>, <see cref="Transform"/>, and <see cref="Trigger"/>; layout updates both world placement and trigger AABBs from the same chunk columns.</remarks>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Cell, Transform, Trigger>();
+    /// <remarks>Brick cells carry <see cref="Cell"/> + <see cref="Transform"/>; hits use <see cref="ArenaBrickGrid"/> + layout metrics, not brick triggers.</remarks>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Cell, Transform>();
 
     /// <summary>
     /// <see cref="OnStart"/> runs before the parallel early phase; use one worker so layout matches
@@ -78,8 +78,6 @@ public sealed class ArenaLayoutSystem : IParallelSystem, IParallelEarlyUpdate
                 var by = brickTopY - (cell.Y + 0.5f) * brickH;
                 ref var transform = ref chunk.Column<Transform>()[i];
                 transform.LocalPosition = new Vector2D<float>(bx, by);
-                ref var trigger = ref chunk.Column<Trigger>()[i];
-                trigger.HalfExtents = new Vector2D<float>(brickW * 0.46f, brickH * 0.45f);
             });
         }
     }

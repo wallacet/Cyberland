@@ -24,7 +24,7 @@ public sealed class Mod : IMod
 
         var host = context.Host;
         context.RegisterSingleton("cyberland.demo.mousechase/input", new InputSystem(host));
-        context.RegisterSingleton("cyberland.demo.mousechase/reset", new RoundResetSystem(host));
+        context.RegisterSingleton("cyberland.demo.mousechase/reset", new RoundResetSystem());
         context.RegisterSingleton("cyberland.demo.mousechase/movement", new PlayerMovementSystem(host));
         context.RegisterSingleton("cyberland.demo.mousechase/camera-zoom", new CameraZoomSystem(host));
         context.RegisterSerial("cyberland.demo.mousechase/trigger-resolve", new TriggerResolveSystem());

@@ -22,4 +22,7 @@ public struct GameState : IComponent
     public bool StayZoneSeen;
     public bool ExitZoneSeen;
     public bool LocaleSpriteSeen;
+
+    /// <summary>Set from early input while the round is won/lost; consumed when fixed update resets the round.</summary>
+    public bool PendingRestartRequest;
 }

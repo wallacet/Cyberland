@@ -14,13 +14,11 @@ namespace Cyberland.Demo.BrickBreaker;
 /// </summary>
 /// <remarks>
 /// Marker tags (see <see cref="SessionTag"/>, <see cref="BallTag"/>, etc.) let runtime systems resolve singletons without embedding
-/// <see cref="EntityId"/> values in <see cref="Mod.OnLoadAsync"/>. Call <see cref="SetupSceneAsync"/> from mod load before registering ECS systems.
+/// <see cref="EntityId"/> values in <see cref="Mod.OnLoadAsync"/> where possible.
 /// </remarks>
 public static class SceneSetup
 {
-    /// <summary>
-    /// Spawns the BrickBreaker ECS scene into <see cref="ModLoadContext.World"/>.
-    /// </summary>
+    /// <summary>Spawns the BrickBreaker ECS scene into <see cref="ModLoadContext.World"/>.</summary>
     /// <remarks>
     /// <see cref="Task.CompletedTask"/> is a placeholder await for future async scene definition I/O (e.g. reading layout from disk).
     /// </remarks>
@@ -98,20 +96,18 @@ public static class SceneSetup
         w.GetOrAdd<LifePipSlot>(life2) = new LifePipSlot { Index = 2 };
 
         var cells = new EntityId[Constants.Cols, Constants.Rows];
+        var brickFlat = new EntityId[Constants.Cols * Constants.Rows];
         for (var cx = 0; cx < Constants.Cols; cx++)
         for (var cy = 0; cy < Constants.Rows; cy++)
         {
             var cellEntity = Sprite(w);
             cells[cx, cy] = cellEntity;
+            brickFlat[cx + cy * Constants.Cols] = cellEntity;
             w.GetOrAdd<Cell>(cellEntity) = new Cell { X = cx, Y = cy };
             w.GetOrAdd<ArenaCellState>(cellEntity) = new ArenaCellState { Active = false };
-            w.GetOrAdd<Trigger>(cellEntity) = new Trigger
-            {
-                Enabled = false,
-                Shape = TriggerShapeKind.Rectangle,
-                HalfExtents = new Vector2D<float>(1f, 1f)
-            };
         }
+
+        w.GetOrAdd<ArenaBrickGrid>(stateEntity) = new ArenaBrickGrid { CellEntities = brickFlat };
 
         static EntityId HudTextRow<TTag>(World world, float sortKey) where TTag : struct, IComponent
         {
@@ -123,7 +119,7 @@ public static class SceneSetup
             bt.Content = " ";
             bt.SortKey = sortKey;
             bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
-            bt.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
+            bt.Style = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(1f, 1f, 1f, 1f));
             bt.IsLocalizationKey = false;
             return e;
         }

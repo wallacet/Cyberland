@@ -1,12 +1,11 @@
 using Cyberland.Demo.MouseChase.Components;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
 
 namespace Cyberland.Demo.MouseChase.Systems;
 
-/// <summary>Consumes restart input in fixed update and resets poses.</summary>
+/// <summary>Consumes <see cref="GameState.PendingRestartRequest"/> from early input and resets poses.</summary>
 public sealed class RoundResetSystem : ISingletonSystem, ISingletonFixedUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
@@ -14,10 +13,7 @@ public sealed class RoundResetSystem : ISingletonSystem, ISingletonFixedUpdate
 
     private EntityId _playerEntity;
     private EntityId _collectibleEntity;
-    private readonly GameHostServices _host;
     private readonly Random _rng = new(424242);
-
-    public RoundResetSystem(GameHostServices host) => _host = host;
 
     /// <inheritdoc />
     public void OnSingletonStart(in SingletonEntity stateRow)
@@ -37,10 +33,10 @@ public sealed class RoundResetSystem : ISingletonSystem, ISingletonFixedUpdate
         if (state.Phase is not (RoundPhase.Won or RoundPhase.Lost))
             return;
 
-        var input = _host.Input;
-        if (!input.ConsumePressed("cyberland.demo.mousechase/restart") &&
-            !input.ConsumePressed("cyberland.common/start"))
+        if (!state.PendingRestartRequest)
             return;
+
+        state.PendingRestartRequest = false;
 
         MouseChaseRoundLogic.ResetState(ref state);
 

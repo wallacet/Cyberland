@@ -17,8 +17,11 @@ namespace Cyberland.Engine.Input;
 /// <see cref="IKeyboard.IsKeyPressed"/> is used — the key is down and released before the next snapshot.
 /// We therefore latch <see cref="IKeyboard.KeyDown"/> edges into <see cref="_keyboardPulseDown"/> and OR them into
 /// the same-frame poll so <see cref="WasPressed"/> and <see cref="IsDown"/> still observe the press.
-/// Event/delta consumers should prefer <see cref="ConsumePressed"/>, <see cref="ConsumeReleased"/>, and
-/// <see cref="ConsumeAxisDelta"/> so fixed-phase gameplay does not lose intent when a render frame has zero fixed substeps.
+/// Frame edges are also appended to <see cref="FrameGameplayCommands"/> each <see cref="BeginFrame"/> (parallel to the pending
+/// counters backing <see cref="ConsumePressed"/> / <see cref="ConsumeReleased"/>). Demos can scan that list or use
+/// <see cref="InputGameplayCommandExtensions"/> for consistent reads across early/fixed/late within the same tick.
+/// Event/delta consumers should still use <see cref="ConsumePressed"/>, <see cref="ConsumeReleased"/>, and
+/// <see cref="ConsumeAxisDelta"/> when intent must survive a render tick with zero fixed substeps unless gameplay latches it earlier.
 /// </remarks>
 public sealed class SilkInputService : IInputService, IDisposable
 {
@@ -38,6 +41,7 @@ public sealed class SilkInputService : IInputService, IDisposable
     private Vector2 _mouseDelta;
     private Vector2 _mouseWheelDelta;
     private bool _hasMousePosition;
+    private readonly List<InputGameplayCommand> _frameGameplayCommands = new();
 
     /// <summary>Create a service backed by the provided Silk input context.</summary>
     /// <param name="input">Silk input context (keyboard/mouse).</param>
@@ -58,6 +62,9 @@ public sealed class SilkInputService : IInputService, IDisposable
 
     /// <inheritdoc />
     public InputBindings Bindings { get; }
+
+    /// <inheritdoc />
+    public IReadOnlyList<InputGameplayCommand> FrameGameplayCommands => _frameGameplayCommands;
 
     /// <inheritdoc />
     public Vector2 MousePosition => _mousePosition;
@@ -83,6 +90,8 @@ public sealed class SilkInputService : IInputService, IDisposable
         foreach (var (id, isDown) in _actionDown)
             _prevActionDown[id] = isDown;
 
+        _frameGameplayCommands.Clear();
+
         _actionDown.Clear();
         _axisValues.Clear();
         UpdateMouseSnapshot();
@@ -106,9 +115,15 @@ public sealed class SilkInputService : IInputService, IDisposable
 
             var before = _prevActionDown.TryGetValue(actionId, out var prevDown) && prevDown;
             if (down && !before)
+            {
                 IncrementCounter(_pendingPressCounts, actionId);
+                _frameGameplayCommands.Add(new InputGameplayCommand(InputGameplayCommandKind.ActionPressed, actionId));
+            }
             else if (!down && before)
+            {
                 IncrementCounter(_pendingReleaseCounts, actionId);
+                _frameGameplayCommands.Add(new InputGameplayCommand(InputGameplayCommandKind.ActionReleased, actionId));
+            }
 
             var axisDelta = AccumulateDeltaAxis(bindings);
             if (axisDelta != 0f)

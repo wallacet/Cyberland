@@ -15,6 +15,9 @@ public sealed class FpsHudSystem : ISingletonSystem, ISingletonLateUpdate
 
     private readonly GameHostServices _host;
     private readonly FpsMovingAverage _fps = new(Constants.FpsAverageWindowSeconds);
+    /// <summary>Last rounded FPS written to <see cref="BitmapText.Content"/>; <see cref="float.NaN"/> until first numeric publish.</summary>
+    private float _lastPublishedRounded = float.NaN;
+    private bool _publishedDash;
 
     public FpsHudSystem(GameHostServices host) => _host = host;
 
@@ -27,13 +30,35 @@ public sealed class FpsHudSystem : ISingletonSystem, ISingletonLateUpdate
     {
         var r = _host.Renderer;
         var frame = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
-        _fps.AddFrameDeltaSeconds(frame);
-        var label = _fps.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
         ref var t = ref fpsRow.Get<Transform>();
         t.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
         ref var bt = ref fpsRow.Get<BitmapText>();
         bt.Visible = fb.X > 0 && fb.Y > 0;
-        bt.Content = label;
+        if (!bt.Visible)
+        {
+            _lastPublishedRounded = float.NaN;
+            _publishedDash = false;
+            return;
+        }
+
+        _fps.AddFrameDeltaSeconds(frame);
+        if (_fps.TryGetAverageFps(out var f))
+        {
+            var rounded = MathF.Round(f);
+            if (!float.IsNaN(_lastPublishedRounded) && rounded == _lastPublishedRounded)
+                return;
+            _lastPublishedRounded = rounded;
+            _publishedDash = false;
+            bt.Content = $"FPS {rounded}";
+        }
+        else
+        {
+            if (_publishedDash)
+                return;
+            _publishedDash = true;
+            _lastPublishedRounded = float.NaN;
+            bt.Content = Constants.FpsHudAwaitingLabel;
+        }
     }
 }

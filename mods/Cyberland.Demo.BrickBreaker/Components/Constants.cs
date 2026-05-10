@@ -7,6 +7,9 @@ public static class Constants
     /// <summary>Sliding window (seconds) for the FPS HUD moving average. Tunable for debugging.</summary>
     public const float FpsAverageWindowSeconds = FpsMovingAverage.DefaultWindowSeconds;
 
+    /// <summary>Viewport FPS row before the moving average is ready (uses U+2014 em dash; keep in sync with glyph warmup).</summary>
+    public const string FpsHudAwaitingLabel = "FPS \u2014";
+
     /// <summary>
     /// Design-time virtual canvas (world pixels) for the mod’s <see cref="Cyberland.Engine.Scene.Camera2D"/> and simulation
     /// layout (<see cref="GameState"/> arena metrics, <see cref="ArenaLayoutSystem"/>). Matches HDR’s fixed virtual canvas pattern.

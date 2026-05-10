@@ -8,13 +8,17 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.BrickBreaker;
 
 /// <summary>Shared typography for HUD BitmapText rows.</summary>
+/// <remarks>
+/// Pixel sizes and faces align with <see cref="BuiltinFonts"/> shipped MSDF atlases so startup glyph warmup hits the baked cache
+/// instead of rasterizing dozens of glyphs synchronously on the load thread (Debug MSDF work dominated BrickBreaker OnLoad timing).
+/// </remarks>
 internal static class HudTextStyles
 {
-    internal static readonly TextStyle Title = new(BuiltinFonts.UiSans, 22f, new Vector4D<float>(0.45f, 0.78f, 1f, 1f), Bold: true);
+    internal static readonly TextStyle Title = new(BuiltinFonts.UiSans, 23f, new Vector4D<float>(0.45f, 0.78f, 1f, 1f), Bold: true);
     internal static readonly TextStyle Hint = new(BuiltinFonts.UiSans, 14f, new Vector4D<float>(0.55f, 0.62f, 0.72f, 0.9f));
-    internal static readonly TextStyle Hud = new(BuiltinFonts.UiSans, 16f, new Vector4D<float>(0.8f, 0.9f, 1f, 1f));
-    internal static readonly TextStyle Score = new(BuiltinFonts.Mono, 20f, new Vector4D<float>(1f, 0.85f, 0.35f, 1f));
-    internal static readonly TextStyle GameOver = new(BuiltinFonts.UiSans, 19f, new Vector4D<float>(1f, 0.5f, 0.35f, 1f), Italic: true);
+    internal static readonly TextStyle Hud = new(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.8f, 0.9f, 1f, 1f));
+    internal static readonly TextStyle Score = new(BuiltinFonts.Mono, 14f, new Vector4D<float>(1f, 0.85f, 0.35f, 1f));
+    internal static readonly TextStyle GameOver = new(BuiltinFonts.UiSans, 18f, new Vector4D<float>(1f, 0.5f, 0.35f, 1f), Italic: true);
 }
 
 /// <summary>Late: localized title line on the title screen.</summary>
@@ -91,7 +95,9 @@ public sealed class HudHintTitleTextSystem : ISingletonSystem, ISingletonLateUpd
         t.LocalPosition = new Vector2D<float>(36f, 100f);
         if (bt.Style != HudTextStyles.Hint) bt.Style = HudTextStyles.Hint;
         bt.IsLocalizationKey = true;
-        bt.Content = "demo.brick.hint_title";
+        const string key = "demo.brick.hint_title";
+        if (bt.Content != key)
+            bt.Content = key;
     }
 }
 
@@ -125,7 +131,8 @@ public sealed class HudGameOverTextSystem : ISingletonSystem, ISingletonLateUpda
         t.LocalPosition = new Vector2D<float>(fb.X * 0.5f - 100f, fb.Y * 0.45f - 28f);
         if (bt.Style != HudTextStyles.GameOver) bt.Style = HudTextStyles.GameOver;
         bt.IsLocalizationKey = true;
-        bt.Content = key;
+        if (bt.Content != key)
+            bt.Content = key;
     }
 }
 
@@ -159,7 +166,8 @@ public sealed class HudHintEndTextSystem : ISingletonSystem, ISingletonLateUpdat
         t.LocalPosition = new Vector2D<float>(36f, 118f);
         if (bt.Style != HudTextStyles.Hint) bt.Style = HudTextStyles.Hint;
         bt.IsLocalizationKey = true;
-        bt.Content = key;
+        if (bt.Content != key)
+            bt.Content = key;
     }
 }
 
@@ -192,7 +200,9 @@ public sealed class HudPlayingScoreTextSystem : ISingletonSystem, ISingletonLate
         t.LocalPosition = new Vector2D<float>(24f, fb.Y - 32f);
         if (bt.Style != HudTextStyles.Hud) bt.Style = HudTextStyles.Hud;
         bt.IsLocalizationKey = true;
-        bt.Content = "demo.brick.playing_score";
+        const string key = "demo.brick.playing_score";
+        if (bt.Content != key)
+            bt.Content = key;
     }
 }
 
@@ -233,6 +243,7 @@ public sealed class HudScoreNumTextSystem : ISingletonSystem, ISingletonLateUpda
         t.LocalPosition = new Vector2D<float>(130f, fb.Y - 32f);
         if (bt.Style != HudTextStyles.Score) bt.Style = HudTextStyles.Score;
         bt.IsLocalizationKey = false;
-        bt.Content = _scoreText;
+        if (bt.Content != _scoreText)
+            bt.Content = _scoreText;
     }
 }

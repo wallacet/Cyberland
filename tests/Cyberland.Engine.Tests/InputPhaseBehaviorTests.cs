@@ -5,6 +5,7 @@ using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Input;
 using Moq;
 using Silk.NET.Input;
+using System.Collections.Generic;
 
 namespace Cyberland.Engine.Tests;
 
@@ -45,6 +46,42 @@ public sealed class InputPhaseBehaviorTests
             Assert.True(down);
             Assert.Equal(1f, axis);
         }
+    }
+
+    [Fact]
+    public void InputBehavior_HasActionPressedThisFrame_matches_across_singleton_early_and_fixed_same_tick()
+    {
+        Action<IKeyboard, Key, int>? onKeyDown = null;
+        var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
+        keyboard.Setup(k => k.IsKeyPressed(It.IsAny<Key>())).Returns(false);
+        keyboard.SetupAdd(k => k.KeyDown += It.IsAny<Action<IKeyboard, Key, int>>())
+            .Callback((Action<IKeyboard, Key, int> h) => onKeyDown = h);
+        keyboard.SetupRemove(k => k.KeyDown -= It.IsAny<Action<IKeyboard, Key, int>>());
+
+        var input = new Mock<IInputContext>(MockBehavior.Strict);
+        input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });
+        input.SetupGet(x => x.Mice).Returns(Array.Empty<IMouse>());
+        input.Setup(x => x.Dispose());
+        var service = new SilkInputService(input.Object);
+        service.Bindings.SetBindings("fire", new[] { new InputBinding(InputControl.Keyboard(Key.Space)) });
+
+        var world = new World();
+        var singleton = world.CreateEntity();
+        world.GetOrAdd<ProbeSingletonTag>(singleton);
+
+        var scheduler = new SystemScheduler(new ParallelismSettings()) { FixedDeltaSeconds = 1f / 60f };
+        var hits = new List<bool>();
+        scheduler.RegisterSingleton("probe/frame-cmd", new SingletonFrameCmdProbe(service, hits));
+
+        Assert.NotNull(onKeyDown);
+        onKeyDown!(keyboard.Object, Key.Space, 0);
+        service.BeginFrame();
+        scheduler.RunFrame(world, 1f / 60f);
+
+        Assert.Equal(2, hits.Count);
+        Assert.All(hits, Assert.True);
+
+        service.Dispose();
     }
 
     [Fact]
@@ -317,5 +354,26 @@ public sealed class InputPhaseBehaviorTests
         public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ProbeSingletonTag>();
         public void OnSingletonStart(in SingletonEntity row) => _ = row;
         public void OnSingletonFixedUpdate(in SingletonEntity row, float fixedDeltaSeconds) { _ = row; _ = fixedDeltaSeconds; probe.Run(); }
+    }
+
+    private sealed class SingletonFrameCmdProbe(IInputService input, List<bool> hits) : ISingletonSystem, ISingletonEarlyUpdate, ISingletonFixedUpdate
+    {
+        public string SingletonLabel => "probe singleton";
+        public SystemQuerySpec QuerySpec => SystemQuerySpec.All<ProbeSingletonTag>();
+        public void OnSingletonStart(in SingletonEntity row) => _ = row;
+
+        public void OnSingletonEarlyUpdate(in SingletonEntity row, float deltaSeconds)
+        {
+            _ = row;
+            _ = deltaSeconds;
+            hits.Add(input.HasActionPressedThisFrame("fire"));
+        }
+
+        public void OnSingletonFixedUpdate(in SingletonEntity row, float fixedDeltaSeconds)
+        {
+            _ = row;
+            _ = fixedDeltaSeconds;
+            hits.Add(input.HasActionPressedThisFrame("fire"));
+        }
     }
 }

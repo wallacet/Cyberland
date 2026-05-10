@@ -391,7 +391,7 @@ public sealed class GameApplication : IDisposable
 #if DEBUG
         if (_input is not null && _window is not null)
         {
-            if (_input.WasPressed("cyberland.engine/profile-hud"))
+            if (_input.HasActionPressedThisFrame("cyberland.engine/profile-hud"))
                 _profileHudInTitle = !_profileHudInTitle;
             if (_profileHudInTitle && ++_profileTitleThrottle >= 30)
             {

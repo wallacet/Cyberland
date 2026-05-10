@@ -816,6 +816,8 @@ public sealed class UiDocumentFrameSystemTests
         public bool[] LeftSequence { get; set; } = Array.Empty<bool>();
         public System.Numerics.Vector2 MouseWheelDelta => Wheel;
 
+        public IReadOnlyList<InputGameplayCommand> FrameGameplayCommands => Array.Empty<InputGameplayCommand>();
+
         public System.Numerics.Vector2 GetMousePosition(CoordinateSpace space = CoordinateSpace.ViewportSpace) =>
             space == CoordinateSpace.ViewportSpace ? Viewport : throw new NotSupportedException();
 

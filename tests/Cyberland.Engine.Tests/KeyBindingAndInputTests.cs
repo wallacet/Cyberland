@@ -493,6 +493,53 @@ public sealed class KeyBindingAndInputTests
         input.Verify(x => x.Dispose(), Times.Once);
     }
 
+    [Fact]
+    public void SilkInputService_FrameGameplayCommands_records_press_and_release_edges()
+    {
+        Action<IKeyboard, Key, int>? onKeyDown = null;
+        var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
+        keyboard.Setup(k => k.IsKeyPressed(It.IsAny<Key>())).Returns(false);
+        keyboard.SetupAdd(k => k.KeyDown += It.IsAny<Action<IKeyboard, Key, int>>())
+            .Callback((Action<IKeyboard, Key, int> h) => onKeyDown = h);
+        keyboard.SetupRemove(k => k.KeyDown -= It.IsAny<Action<IKeyboard, Key, int>>());
+
+        var input = new Mock<IInputContext>(MockBehavior.Strict);
+        input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });
+        input.SetupGet(x => x.Mice).Returns(Array.Empty<IMouse>());
+        input.Setup(x => x.Dispose());
+
+        var service = new SilkInputService(input.Object);
+        service.Bindings.SetBindings("fire", new[] { new InputBinding(InputControl.Keyboard(Key.Space)) });
+
+        Assert.NotNull(onKeyDown);
+        onKeyDown!(keyboard.Object, Key.Space, 0);
+        service.BeginFrame();
+
+        Assert.True(service.HasActionPressedThisFrame("fire"));
+        Assert.False(service.HasActionReleasedThisFrame("fire"));
+        Assert.Contains(service.FrameGameplayCommands, c => c is { Kind: InputGameplayCommandKind.ActionPressed, Id: "fire" });
+        Assert.True(service.HasAnyActionPressedThisFrame("fire", "cyberland.common/start"));
+
+        Assert.True(service.ConsumePressed("fire"));
+
+        service.BeginFrame();
+        Assert.True(service.HasActionReleasedThisFrame("fire"));
+        Assert.Contains(service.FrameGameplayCommands, c => c is { Kind: InputGameplayCommandKind.ActionReleased, Id: "fire" });
+        Assert.False(service.HasActionPressedThisFrame("fire"));
+        Assert.False(service.HasAnyActionPressedThisFrame("fire", "cyberland.common/start"));
+
+        service.Dispose();
+    }
+
+    [Fact]
+    public void InputGameplayCommandExtensions_HasActionPressedThisFrame_throws_on_null_action_id()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var service = CreateService(pressedKeys, pressedButtons, () => new Vector2(0f, 0f));
+        Assert.Throws<ArgumentNullException>(() => service.HasActionPressedThisFrame(null!));
+    }
+
     private static SilkInputService CreateService(
         HashSet<Key> pressedKeys,
         HashSet<MouseButton> pressedButtons,

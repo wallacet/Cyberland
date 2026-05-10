@@ -279,7 +279,7 @@ Within each phase, order is still **global registration order**: each entry is *
 
 ### Input (`Input/`)
 
-- **`IInputService`** / **`SilkInputService`** — frame-stable input abstraction over Silk devices. The host calls **`BeginFrame()`** once per render tick before ECS updates; systems then read stable action, axis, and mouse state for that frame.
+- **`IInputService`** / **`SilkInputService`** — frame-stable input abstraction over Silk devices. The host calls **`BeginFrame()`** once per render tick before ECS updates; systems then read stable action, axis, and mouse state for that frame. **`FrameGameplayCommands`** lists logical press/release edges for that tick (stable across early/fixed/late); **`InputGameplayCommandExtensions`** (`HasActionPressedThisFrame`, etc.) scan them. **`ConsumePressed`** / **`ConsumeReleased`** / **`ConsumeAxisDelta`** still buffer across frames when fixed update may skip ticks.
 - **`InputBindings`** — runtime-editable map from action/axis ids to one or more **`InputBinding`** entries, loaded from `input-bindings.json` under the app base directory.
 - **`InputControl`** — persisted physical control token (`keyboard:*`, `mouse:*`, `mouseAxis:*`) used by binding JSON and runtime rebind APIs.
 
@@ -395,7 +395,7 @@ Use **`context.RegisterSerial`**, **`context.RegisterParallel`**, **`context.Reg
 
 | Member | Use |
 |--------|-----|
-| **`Input`** | Action/axis queries (`IsDown`, `WasPressed`, `ReadAxis`), mouse position/delta, runtime rebinds via `Input.Bindings`. |
+| **`Input`** | Action/axis queries (`IsDown`, `WasPressed`, `ReadAxis`), **`FrameGameplayCommands`** / extension helpers for same-frame edges, mouse position/delta, runtime rebinds via `Input.Bindings`. |
 | **`Renderer`** | **`IRenderer`**: **`SwapchainPixelSize`** / **`ActiveCameraViewportSize`**, **`SubmitSprite`**, **`SubmitPointLight`** / **`SubmitSpotLight`** / **`SubmitDirectionalLight`** / **`SubmitAmbientLight`**, **`SubmitPostProcessVolume`**, **`SetGlobalPostProcess`**, **`SubmitCamera`**, **`RegisterTextureRgba`**, **`RegisterTextureRgbaLinear`**, **`TryUploadTextureRgbaSubregion`**, **`RequestClose`** (e.g. **`Cyberland.Demo`**). |
 | **`Tilemaps`** | Optional; holds per-entity tile index buffers for **`TilemapRenderSystem`**. |
 | **`Particles`** | Optional; CPU particle buckets for **`ParticleSimulationSystem`** / **`ParticleRenderSystem`**. |
@@ -457,7 +457,7 @@ c = new MyComponent { Value = 1f };
 
 ### 6. Input and rendering
 
-- Read actions and axes through **`context.Host.Input`** (`IsDown`, `WasPressed`, `ReadAxis`) and update bindings through **`context.Host.Input.Bindings`** when supporting runtime rebind UI.
+- Read actions and axes through **`context.Host.Input`** (`IsDown`, `WasPressed`, `ReadAxis`, **`HasActionPressedThisFrame`**, **`ConsumePressed`**, …) and update bindings through **`context.Host.Input.Bindings`** when supporting runtime rebind UI.
 - **Lighting** — queue **`SubmitPointLight`**, **`SubmitSpotLight`**, **`SubmitDirectionalLight`**, and **`SubmitAmbientLight`** on **`context.Host.Renderer`** each frame you need them (same **`IRenderer`** as sprites). The deferred path accumulates **all** submitted ambients, **all** directionals and spots in the base fullscreen pass (up to engine caps), and **all** point lights in the instanced pass.
 - For drawing, prefer **`Sprite`** + **`Transform`** on entities; the engine’s **`SpriteRenderSystem`** submits **`SpriteDrawRequest`** in **world space** after your mod systems run. For HUD text, prefer **`BitmapText`** + **`Transform`** and **`TextRenderSystem`**. For one-off or procedural draws, build **`SpriteDrawRequest`** yourself and call **`context.Host.Renderer?.SubmitSprite(...)`** (and post volumes as needed).
 

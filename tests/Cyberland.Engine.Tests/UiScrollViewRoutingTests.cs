@@ -7,6 +7,7 @@ using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
 using Cyberland.Engine.UI.Ecs;
 using Silk.NET.Maths;
+using System.Collections.Generic;
 
 namespace Cyberland.Engine.Tests;
 
@@ -163,6 +164,8 @@ public sealed class UiScrollViewRoutingTests
         public System.Numerics.Vector2 Viewport { get; set; }
         public System.Numerics.Vector2 Wheel { get; set; }
         public System.Numerics.Vector2 MouseWheelDelta => Wheel;
+
+        public IReadOnlyList<InputGameplayCommand> FrameGameplayCommands => Array.Empty<InputGameplayCommand>();
 
         public System.Numerics.Vector2 GetMousePosition(CoordinateSpace space = CoordinateSpace.ViewportSpace) =>
             space == CoordinateSpace.ViewportSpace ? Viewport : throw new NotSupportedException();

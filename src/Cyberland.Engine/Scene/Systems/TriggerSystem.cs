@@ -13,6 +13,8 @@ namespace Cyberland.Engine.Scene.Systems;
 /// Detects trigger overlaps in fixed update and writes per-entity enter/stay/exit events.
 /// </summary>
 /// <remarks>
+/// Disabled <see cref="Trigger"/> volumes still get per-tick event buffers cleared but are omitted from the overlap snapshot so
+/// pair work scales with enabled triggers only.
 /// The system runs pair detection and transition classification in parallel. Event ordering inside each entity buffer is not
 /// deterministic, but event membership is deterministic for the same world state.
 /// Pairs are skipped when either entity is in the other entity's transform ancestry chain.
@@ -56,7 +58,6 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             return;
         }
 
-        ClearAllEventBuffers(world);
         BuildCurrentOverlapSet(world, parallelOptions);
         BuildMergedEvents(parallelOptions);
         CommitEventsToBuffers(world);
@@ -84,8 +85,32 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
                     continue;
 
                 var trigger = triggers[i];
+                // Omit disabled volumes from the overlap snapshot so pair work scales with enabled triggers only; do not
+                // call GetOrAdd here — structural changes during chunk iteration invalidate the query walk.
+                if (!trigger.Enabled)
+                    continue;
+
                 _snapshots.Add(new TriggerSnapshot(entity, trigger, in transform));
                 _activeThisTick[entity] = true;
+            }
+        }
+
+        // Clear stale events on disabled triggers that still carry a buffer (no snapshot row → CommitEventsToBuffers skips them).
+        foreach (var chunk in query)
+        {
+            var entities = chunk.Entities;
+            var triggers = chunk.Column<Trigger>();
+            for (var i = 0; i < chunk.Count; i++)
+            {
+                var entity = entities[i];
+                if (!w.TryGet<Transform>(entity, out _))
+                    continue;
+                if (triggers[i].Enabled)
+                    continue;
+                if (!w.TryGet<TriggerEvents>(entity, out _))
+                    continue;
+                ref var te = ref w.Get<TriggerEvents>(entity);
+                te.Events?.Clear();
             }
         }
 
@@ -94,18 +119,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             var entity = _snapshots[i].Entity;
             ref var triggerEvents = ref w.GetOrAdd<TriggerEvents>(entity);
             triggerEvents.Events ??= new List<TriggerEvent>(4);
-        }
-    }
-
-    private void ClearAllEventBuffers(World world)
-    {
-        _ = world;
-        var w = _world;
-        for (var idx = 0; idx < _snapshots.Count; idx++)
-        {
-            var entity = _snapshots[idx].Entity;
-            ref var ev = ref w.Get<TriggerEvents>(entity);
-            ev.Events?.Clear();
+            triggerEvents.Events.Clear();
         }
     }
 
@@ -122,14 +136,10 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             for (var i = range.Item1; i < range.Item2; i++)
             {
                 var a = _snapshots[i];
-                if (!a.Trigger.Enabled)
-                    continue;
 
                 for (var j = i + 1; j < _snapshots.Count; j++)
                 {
                     var b = _snapshots[j];
-                    if (!b.Trigger.Enabled)
-                        continue;
 
                     if (SharesTransformHierarchy(world, a.Entity, b.Entity))
                         continue;
@@ -161,6 +171,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
             snapshotByEntity[_snapshots[i].Entity] = _snapshots[i];
 
         var localBuckets = new ConcurrentBag<Dictionary<EntityId, List<TriggerEvent>>>();
+        var sys = this;
 
         var currentCount = _currentOverlaps.Count;
         var currentBuf = ArrayPool<TriggerPairKey>.Shared.Rent(currentCount);
@@ -181,7 +192,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
                     var kind = _previousOverlaps.Contains(pair)
                         ? TriggerEventKind.OnTriggerStay
                         : TriggerEventKind.OnTriggerEnter;
-                    AppendMirrored(local, snapshotByEntity, pair, kind);
+                    sys.AppendMirrored(local, snapshotByEntity, pair, kind);
                     return local;
                 },
                 local => localBuckets.Add(local));
@@ -210,7 +221,7 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
                     if (_currentOverlaps.Contains(pair))
                         return local;
 
-                    AppendMirrored(local, snapshotByEntity, pair, TriggerEventKind.OnTriggerExit);
+                    sys.AppendMirrored(local, snapshotByEntity, pair, TriggerEventKind.OnTriggerExit);
                     return local;
                 },
                 local => localBuckets.Add(local));
@@ -255,18 +266,47 @@ public sealed class TriggerSystem : IParallelSystem, IParallelFixedUpdate
         }
     }
 
-    private static void AppendMirrored(
+    private void AppendMirrored(
         Dictionary<EntityId, List<TriggerEvent>> local,
         Dictionary<EntityId, TriggerSnapshot> snapshotByEntity,
         TriggerPairKey pair,
         TriggerEventKind kind)
     {
+        if (!TryResolveSnapshot(snapshotByEntity, pair.A, out var snapA) ||
+            !TryResolveSnapshot(snapshotByEntity, pair.B, out var snapB))
+            return;
+
+        var aLayer = NormalizeLayer(snapA.Trigger.LayerMask);
+        var bLayer = NormalizeLayer(snapB.Trigger.LayerMask);
         var a = pair.A;
         var b = pair.B;
-        var aLayer = NormalizeLayer(snapshotByEntity[a].Trigger.LayerMask);
-        var bLayer = NormalizeLayer(snapshotByEntity[b].Trigger.LayerMask);
         Append(local, a, new TriggerEvent { Self = a, Other = b, Kind = kind, OtherLayerMask = bLayer });
         Append(local, b, new TriggerEvent { Self = b, Other = a, Kind = kind, OtherLayerMask = aLayer });
+    }
+
+    private bool TryResolveSnapshot(
+        Dictionary<EntityId, TriggerSnapshot> snapshotByEntity,
+        EntityId entity,
+        out TriggerSnapshot snapshot)
+    {
+        if (snapshotByEntity.TryGetValue(entity, out snapshot))
+            return true;
+
+        var w = _world;
+        if (!w.TryGet<Transform>(entity, out var transform))
+        {
+            snapshot = default;
+            return false;
+        }
+
+        if (!w.TryGet<Trigger>(entity, out var trigger))
+        {
+            snapshot = default;
+            return false;
+        }
+
+        snapshot = new TriggerSnapshot(entity, trigger, in transform);
+        return true;
     }
 
     private static void Append(

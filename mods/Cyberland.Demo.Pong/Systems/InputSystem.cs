@@ -2,6 +2,7 @@ using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Input;
 
 namespace Cyberland.Demo.Pong;
 
@@ -45,15 +46,21 @@ public sealed class InputSystem : ISingletonSystem, ISingletonEarlyUpdate
         var renderer = _host.Renderer;
         var input = _host.Input;
         var syncOn = _scheduler.IsEnabled("cyberland.demo.pong/visual-sync");
-        if (input.ConsumePressed("cyberland.demo.pong/toggle_visual_sync") && syncOn)
+        if (input.HasActionPressedThisFrame("cyberland.demo.pong/toggle_visual_sync") && syncOn)
             _scheduler.SetEnabled("cyberland.demo.pong/visual-sync", !syncOn);
         if (input.IsDown("cyberland.common/quit")) { renderer.RequestClose?.Invoke(); return; }
 
         ref var st = ref sessionRow.Get<State>();
         switch (st.Phase)
         {
-            case Phase.Title: if (input.ConsumePressed("cyberland.demo.pong/start_match") || input.ConsumePressed("cyberland.common/start")) c.StartMatch = true; break;
-            case Phase.GameOver: if (input.ConsumePressed("cyberland.demo.pong/start_match") || input.ConsumePressed("cyberland.common/start")) c.StartMatch = true; break;
+            case Phase.Title:
+                if (input.HasAnyActionPressedThisFrame("cyberland.demo.pong/start_match", "cyberland.common/start"))
+                    c.StartMatch = true;
+                break;
+            case Phase.GameOver:
+                if (input.HasAnyActionPressedThisFrame("cyberland.demo.pong/start_match", "cyberland.common/start"))
+                    c.StartMatch = true;
+                break;
             case Phase.Playing:
                 var y = input.ReadAxis("cyberland.demo.pong/paddle_y");
                 if (y > 0f) c.PaddleUp = true;

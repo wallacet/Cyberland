@@ -268,15 +268,19 @@ public sealed class SystemScheduler
     /// <paramref name="deltaSeconds"/> is small relative to <see cref="FixedDeltaSeconds"/> (common at high refresh). Input
     /// written in early is visible to every fixed substep in that frame — avoid resetting entire input components in early
     /// before fixed has a chance to consume latched intents (e.g. one-shot start flags).
-    /// Also avoid <c>boolFlag = input.WasPressed(...)</c> for flags consumed in fixed: when substeps are zero, the next early
-    /// pass clears <c>WasPressed</c> to false and drops the intent before fixed runs.
-    /// Prefer buffered consume APIs on <see cref="Input.IInputService"/> (<c>ConsumePressed</c>, <c>ConsumeReleased</c>,
-    /// <c>ConsumeAxisDelta</c>) or explicit ECS latches consumed in fixed.
+    /// Also avoid reading only <c>input.WasPressed(...)</c> inside fixed when you never latch elsewhere: when substeps are zero,
+    /// the next render tick's <c>BeginFrame</c> clears the edge before fixed runs.
+    /// Prefer <see cref="Cyberland.Engine.Input.InputGameplayCommandExtensions.HasActionPressedThisFrame"/> from early into ECS flags,
+    /// <see cref="Cyberland.Engine.Input.IInputService.FrameGameplayCommands"/> for the same edge view from any phase in one tick, buffered
+    /// consume APIs (<c>ConsumePressed</c>, <c>ConsumeReleased</c>, <c>ConsumeAxisDelta</c>), or explicit ECS latches consumed in fixed.
     /// After the fixed loop, <see cref="FixedAccumulator"/> holds the remainder for optional render extrapolation.
     /// The stock host passes a callback into the three-parameter <c>RunFrame</c> overload so
     /// <see cref="Hosting.GameHostServices.FixedAccumulatorSeconds"/> is updated <strong>before</strong> late phase, allowing
     /// <see cref="ILateUpdate"/> to extrapolate visuals with the current frame remainder (not the previous frame).
     /// Mixed serial/parallel systems still execute in one deterministic registration/constraint order inside each phase.
+    /// When interpreting <see cref="Diagnostics.FrameProfiler"/> dumps, the host wraps <see cref="RunFrame(World, float)"/> in a single
+    /// <c>Scheduler.RunFrame</c> scope: inclusive wall time can approach <see cref="MaxSubstepsPerFrame"/> times the cost of one full fixed pass after a large
+    /// <paramref name="deltaSeconds"/> hitch, while each <c>Scheduler.Fixed.*</c> row reflects per-invocation stats across the session (multiple substeps stack under the outer scope).
     /// </remarks>
     /// <param name="world">ECS world: used to build <see cref="ChunkQueryAll"/> and passed only to <see cref="ISystem.OnStart"/> / <see cref="IParallelSystem.OnStart"/>.</param>
     /// <param name="deltaSeconds">Real elapsed frame time in seconds (variable).</param>
@@ -339,33 +343,40 @@ public sealed class SystemScheduler
 
         _fixedAccumulator += deltaSeconds;
         var substeps = 0;
-        while (_fixedAccumulator >= fixedDt && substeps < maxSubsteps)
+#if DEBUG
+        using (FrameProfilerScope.Enter("Scheduler.FixedLoop"))
         {
-            foreach (var e in _entries)
+#endif
+            while (_fixedAccumulator >= fixedDt && substeps < maxSubsteps)
             {
-                if (!e.Enabled)
-                    continue;
+                foreach (var e in _entries)
+                {
+                    if (!e.Enabled)
+                        continue;
 
 #if DEBUG
-                using var __scope = FrameProfilerScope.Enter($"Scheduler.Fixed.{e.Id}");
+                    using var __scope = FrameProfilerScope.Enter($"Scheduler.Fixed.{e.Id}");
 #endif
-                switch (e)
-                {
-                    case SerialEntry se:
-                        se.Fixed?.Invoke(world, fixedDt);
-                        break;
-                    case SingletonEntry sing:
-                        sing.Fixed?.Invoke(world, fixedDt);
-                        break;
-                    case ParallelEntry pe:
-                        pe.ParallelFixed?.Invoke(world, fixedDt, opts);
-                        break;
+                    switch (e)
+                    {
+                        case SerialEntry se:
+                            se.Fixed?.Invoke(world, fixedDt);
+                            break;
+                        case SingletonEntry sing:
+                            sing.Fixed?.Invoke(world, fixedDt);
+                            break;
+                        case ParallelEntry pe:
+                            pe.ParallelFixed?.Invoke(world, fixedDt, opts);
+                            break;
+                    }
                 }
-            }
 
-            _fixedAccumulator -= fixedDt;
-            substeps++;
+                _fixedAccumulator -= fixedDt;
+                substeps++;
+            }
+#if DEBUG
         }
+#endif
 
         syncFixedAccumulatorBeforeLate?.Invoke(_fixedAccumulator);
 
