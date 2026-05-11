@@ -12,11 +12,24 @@ Directory.CreateDirectory(outputDir);
 var fonts = new FontLibrary();
 BuiltinFonts.AddTo(fonts);
 
+// General punctuation above U+024F (not in the main Latin loop). Baked first so a low page budget still loads them from page 0.
+var bakedExtraPunctuation = new[]
+{
+    0x2013, 0x2014, 0x2015, // en dash, em dash, horizontal bar
+    0x2018, 0x2019, 0x201C, 0x201D, // quotes
+    0x2022, 0x2026, // bullet, ellipsis
+    0x2039, 0x203A, // single guillemets
+    0x2044, // fraction slash
+    0x20AC // euro
+};
+
 BakeFamily("UiSansRegular12LatinExtended", BuiltinFonts.UiSans, 12f, false, false);
 BakeFamily("UiSansRegular13LatinExtended", BuiltinFonts.UiSans, 13f, false, false);
 BakeFamily("UiSansRegular14LatinExtended", BuiltinFonts.UiSans, 14f, false, false);
 BakeFamily("UiSansRegular15LatinExtended", BuiltinFonts.UiSans, 15f, false, false);
+BakeFamily("UiSansRegular16LatinExtended", BuiltinFonts.UiSans, 16f, false, false);
 BakeFamily("UiSansRegular18LatinExtended", BuiltinFonts.UiSans, 18f, false, false);
+BakeFamily("UiSansRegular20LatinExtended", BuiltinFonts.UiSans, 20f, false, false);
 BakeFamily("UiSansRegular22LatinExtended", BuiltinFonts.UiSans, 22f, false, false);
 BakeFamily("UiSansRegular23LatinExtended", BuiltinFonts.UiSans, 23f, false, false);
 BakeFamily("UiSansRegular24LatinExtended", BuiltinFonts.UiSans, 24f, false, false);
@@ -24,6 +37,7 @@ BakeFamily("UiSansBold14LatinExtended", BuiltinFonts.UiSans, 14f, true, false);
 BakeFamily("UiSansBold18LatinExtended", BuiltinFonts.UiSans, 18f, true, false);
 BakeFamily("UiSansBold23LatinExtended", BuiltinFonts.UiSans, 23f, true, false);
 BakeFamily("MonoRegular14LatinExtended", BuiltinFonts.Mono, 14f, false, false);
+BakeFamily("MonoRegular18LatinExtended", BuiltinFonts.Mono, 18f, false, false);
 
 Console.WriteLine($"Baked atlases written to: {outputDir}");
 
@@ -39,6 +53,9 @@ void BakeFamily(string atlasName, string familyId, float sizePx, bool bold, bool
     var glyphs = new List<BakedMsdfGlyphEntry>(512);
     var cpCount = 0;
     var glyphChars = new char[2];
+    foreach (var codePoint in bakedExtraPunctuation)
+        cpCount += BakeCodePoint(codePoint);
+
     for (var codePoint = 0x20; codePoint <= 0x024F; codePoint++)
     {
         var rune = new Rune(codePoint);
@@ -92,7 +109,6 @@ void BakeFamily(string atlasName, string familyId, float sizePx, bool bold, bool
         rowHeight = Math.Max(rowHeight, h + 1);
         cpCount++;
     }
-    cpCount += BakeCodePoint(0x2014);
 
     var manifest = new BakedMsdfAtlasManifest
     {

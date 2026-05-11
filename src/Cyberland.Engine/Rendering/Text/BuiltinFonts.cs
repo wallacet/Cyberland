@@ -35,14 +35,17 @@ public static class BuiltinFonts
         ("builtin-ui-regular13", "UiSansRegular13LatinExtended.manifest.json", "UiSansRegular13LatinExtended"),
         ("builtin-ui-regular14", "UiSansRegular14LatinExtended.manifest.json", "UiSansRegular14LatinExtended"),
         ("builtin-ui-regular15", "UiSansRegular15LatinExtended.manifest.json", "UiSansRegular15LatinExtended"),
+        ("builtin-ui-regular16", "UiSansRegular16LatinExtended.manifest.json", "UiSansRegular16LatinExtended"),
         ("builtin-ui-regular18", "UiSansRegular18LatinExtended.manifest.json", "UiSansRegular18LatinExtended"),
+        ("builtin-ui-regular20", "UiSansRegular20LatinExtended.manifest.json", "UiSansRegular20LatinExtended"),
         ("builtin-ui-regular22", "UiSansRegular22LatinExtended.manifest.json", "UiSansRegular22LatinExtended"),
         ("builtin-ui-regular23", "UiSansRegular23LatinExtended.manifest.json", "UiSansRegular23LatinExtended"),
         ("builtin-ui-regular24", "UiSansRegular24LatinExtended.manifest.json", "UiSansRegular24LatinExtended"),
         ("builtin-ui-bold14", "UiSansBold14LatinExtended.manifest.json", "UiSansBold14LatinExtended"),
         ("builtin-ui-bold18", "UiSansBold18LatinExtended.manifest.json", "UiSansBold18LatinExtended"),
         ("builtin-ui-bold23", "UiSansBold23LatinExtended.manifest.json", "UiSansBold23LatinExtended"),
-        ("builtin-mono-regular14", "MonoRegular14LatinExtended.manifest.json", "MonoRegular14LatinExtended")
+        ("builtin-mono-regular14", "MonoRegular14LatinExtended.manifest.json", "MonoRegular14LatinExtended"),
+        ("builtin-mono-regular18", "MonoRegular18LatinExtended.manifest.json", "MonoRegular18LatinExtended")
     ];
 
     /// <summary>Registers both built-in families on <paramref name="library"/> (no-op if streams are missing).</summary>

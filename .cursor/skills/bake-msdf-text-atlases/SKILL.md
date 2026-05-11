@@ -3,15 +3,16 @@ name: bake-msdf-text-atlases
 description: >-
   Regenerate embedded builtin MSDF text atlas manifests and PNG pages using
   tools/Cyberland.MsdfAtlasBaker. Use when adding/changing UiSans or Mono baked
-  atlas sizes in BuiltinFonts, after editing the baker’s Program.cs atlas list,
-  or when glyphs should ship pre-baked instead of runtime MSDF fallback.
+  atlas sizes in BuiltinFonts (e.g. adding UiSans Regular 16px), after editing
+  the baker’s Program.cs atlas list, or when glyphs should ship pre-baked instead
+  of runtime MSDF fallback.
 ---
 
 # Bake MSDF text atlases (Cyberland)
 
 ## What it does
 
-**`tools/Cyberland.MsdfAtlasBaker`** rasterizes the Latin Extended glyph range (plus em dash `U+2014`) into packed **2048²** RGBA MSDF atlas pages, writes **`*.manifest.json`** + **`*.pageN.png`** under **`src/Cyberland.Engine/Rendering/Text/Baked/`**, matching names registered in **`BuiltinFonts.CreateBakedAtlasResourceRows`**.
+**`tools/Cyberland.MsdfAtlasBaker`** rasterizes **U+0020–U+024F** plus a small **general-punctuation** set (en/em dash, quotes, bullet, ellipsis, guillemets, fraction slash, euro) **first** on each atlas so they pack toward page 0, then writes **`*.manifest.json`** + **`*.pageN.png`** under **`src/Cyberland.Engine/Rendering/Text/Baked/`**, matching **`BuiltinFonts.CreateBakedAtlasResourceRows`**. The host loads multiple pages per atlas by default (**`CYBERLAND_BAKED_ATLAS_PAGE_BUDGET`**, see **`GameApplication.ParseBakedAtlasPageBudget`**).
 
 **`Cyberland.Engine.csproj`** embeds **`Rendering\Text\Baked\*.json`** and **`*.png`** automatically—no csproj edit when adding new atlas files in that folder.
 

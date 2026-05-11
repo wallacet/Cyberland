@@ -519,11 +519,13 @@ public sealed class GameApplication : IDisposable
     private static int ParseBakedAtlasPageBudget()
     {
         var raw = Environment.GetEnvironmentVariable("CYBERLAND_BAKED_ATLAS_PAGE_BUDGET");
+        // Default must cover the largest shipped builtin atlas (UiSans 22–24px use three 2048² pages); otherwise
+        // glyphs on later pages (including punctuation packed after Latin) never load and the cache misses at runtime.
         if (string.IsNullOrWhiteSpace(raw))
-            return 1;
+            return 4;
         if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
             return Math.Max(0, parsed);
-        return 1;
+        return 4;
     }
 
     private static BakedMsdfAtlasManifest LimitBakedAtlasManifestPages(BakedMsdfAtlasManifest source, int pageBudget)

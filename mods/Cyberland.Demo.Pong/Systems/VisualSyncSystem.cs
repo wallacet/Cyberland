@@ -17,7 +17,7 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<State, Control>();
 
     private static readonly TextStyle TitleStyle = new(BuiltinFonts.UiSans, 26f, new Vector4D<float>(0.25f, 0.92f, 1f, 1f), Bold: true);
-    private static readonly TextStyle HintStyle = new(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.52f, 0.58f, 0.68f, 0.92f));
+    private static readonly TextStyle HintStyle = new(BuiltinFonts.UiSans, 16f, new Vector4D<float>(0.52f, 0.58f, 0.68f, 0.92f));
     private static readonly TextStyle HudStyle = new(BuiltinFonts.UiSans, 17f, new Vector4D<float>(0.72f, 0.88f, 1f, 1f));
     private static readonly TextStyle NumberStyle = new(BuiltinFonts.Mono, 20f, new Vector4D<float>(0.92f, 0.96f, 1f, 1f));
     private static readonly TextStyle GameOverStyle = new(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.42f, 0.48f, 1f), Underline: true);
