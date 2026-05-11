@@ -31,12 +31,14 @@ public static class BuiltinFonts
 
     private static (string Label, string ManifestSuffix, string PagePrefix)[] CreateBakedAtlasResourceRows() =>
     [
+        ("builtin-ui-regular12", "UiSansRegular12LatinExtended.manifest.json", "UiSansRegular12LatinExtended"),
         ("builtin-ui-regular13", "UiSansRegular13LatinExtended.manifest.json", "UiSansRegular13LatinExtended"),
         ("builtin-ui-regular14", "UiSansRegular14LatinExtended.manifest.json", "UiSansRegular14LatinExtended"),
         ("builtin-ui-regular15", "UiSansRegular15LatinExtended.manifest.json", "UiSansRegular15LatinExtended"),
         ("builtin-ui-regular18", "UiSansRegular18LatinExtended.manifest.json", "UiSansRegular18LatinExtended"),
         ("builtin-ui-regular22", "UiSansRegular22LatinExtended.manifest.json", "UiSansRegular22LatinExtended"),
         ("builtin-ui-regular23", "UiSansRegular23LatinExtended.manifest.json", "UiSansRegular23LatinExtended"),
+        ("builtin-ui-regular24", "UiSansRegular24LatinExtended.manifest.json", "UiSansRegular24LatinExtended"),
         ("builtin-ui-bold14", "UiSansBold14LatinExtended.manifest.json", "UiSansBold14LatinExtended"),
         ("builtin-ui-bold18", "UiSansBold18LatinExtended.manifest.json", "UiSansBold18LatinExtended"),
         ("builtin-ui-bold23", "UiSansBold23LatinExtended.manifest.json", "UiSansBold23LatinExtended"),

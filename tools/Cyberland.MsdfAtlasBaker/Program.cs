@@ -12,12 +12,14 @@ Directory.CreateDirectory(outputDir);
 var fonts = new FontLibrary();
 BuiltinFonts.AddTo(fonts);
 
+BakeFamily("UiSansRegular12LatinExtended", BuiltinFonts.UiSans, 12f, false, false);
 BakeFamily("UiSansRegular13LatinExtended", BuiltinFonts.UiSans, 13f, false, false);
 BakeFamily("UiSansRegular14LatinExtended", BuiltinFonts.UiSans, 14f, false, false);
 BakeFamily("UiSansRegular15LatinExtended", BuiltinFonts.UiSans, 15f, false, false);
 BakeFamily("UiSansRegular18LatinExtended", BuiltinFonts.UiSans, 18f, false, false);
 BakeFamily("UiSansRegular22LatinExtended", BuiltinFonts.UiSans, 22f, false, false);
 BakeFamily("UiSansRegular23LatinExtended", BuiltinFonts.UiSans, 23f, false, false);
+BakeFamily("UiSansRegular24LatinExtended", BuiltinFonts.UiSans, 24f, false, false);
 BakeFamily("UiSansBold14LatinExtended", BuiltinFonts.UiSans, 14f, true, false);
 BakeFamily("UiSansBold18LatinExtended", BuiltinFonts.UiSans, 18f, true, false);
 BakeFamily("UiSansBold23LatinExtended", BuiltinFonts.UiSans, 23f, true, false);

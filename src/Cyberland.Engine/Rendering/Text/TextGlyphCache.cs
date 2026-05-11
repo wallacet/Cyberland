@@ -4,6 +4,7 @@ using SixLabors.Fonts;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Threading;
 
 namespace Cyberland.Engine.Rendering.Text;
@@ -21,6 +22,11 @@ namespace Cyberland.Engine.Rendering.Text;
 /// </para>
 /// <para>
 /// Face/size keys use <see cref="FontLibrary.QuantizeEmSizePixels"/> so jittery float sizes map to stable buckets.
+/// </para>
+/// <para>
+/// In Debug builds, optional console warnings (enabled from <see cref="GameApplication"/> startup) fire once per distinct
+/// glyph key when this cache misses baked entries and falls back to runtime MSDF rasterization — shipped titles should rely on
+/// baked atlases instead.
 /// </para>
 /// </remarks>
 public sealed class TextGlyphCache
@@ -44,6 +50,18 @@ public sealed class TextGlyphCache
     private static long s_bakedGlyphImports;
     private static readonly ConcurrentDictionary<int, long> s_missCodepoints = new();
     private static readonly ConcurrentDictionary<string, long> s_missGlyphKeys = new();
+
+#if DEBUG
+    private static readonly ConcurrentDictionary<string, byte> s_msdfFallbackWarnOnceKeys = new();
+
+    /// <summary>
+    /// Debug-only: first runtime MSDF raster fallback per distinct miss key logs one console line when true.
+    /// Left false for engine unit tests (many deliberate misses); <c>GameApplication</c> sets this at startup.
+    /// </summary>
+    internal static bool EnableMsdfFallbackConsoleWarnings { get; set; }
+
+    internal static void ClearMsdfFallbackWarnOnceKeysForTests() => s_msdfFallbackWarnOnceKeys.Clear();
+#endif
 
     /// <summary>Cached GPU glyph with layout metrics and atlas UVs (min.xy, max.zw).</summary>
     public readonly struct CachedGlyph
@@ -141,6 +159,9 @@ public sealed class TextGlyphCache
         s_missCodepoints.AddOrUpdate(codePoint, 1, static (_, c) => c + 1);
         var missKey = $"{style.FontFamilyId}|{faceKind}|q{sizeQ}|U+{codePoint:X4}";
         s_missGlyphKeys.AddOrUpdate(missKey, 1, static (_, c) => c + 1);
+#if DEBUG
+        WarnRuntimeMsdfRasterFallbackOnce(missKey, in style, utf16Glyph);
+#endif
 
         byte[]? rgba;
         int atlasW, atlasH;
@@ -318,4 +339,22 @@ public sealed class TextGlyphCache
 
         return sb.ToString();
     }
+
+#if DEBUG
+    private static void WarnRuntimeMsdfRasterFallbackOnce(string missKey, in TextStyle style, ReadOnlySpan<char> utf16Glyph)
+    {
+        if (!EnableMsdfFallbackConsoleWarnings)
+            return;
+        if (!s_msdfFallbackWarnOnceKeys.TryAdd(missKey, 0))
+            return;
+
+        var grapheme = utf16Glyph.Length <= 64
+            ? utf16Glyph.ToString()
+            : string.Concat(utf16Glyph.Slice(0, 64).ToString(), "...");
+        grapheme = grapheme.Replace('\r', ' ').Replace('\n', ' ').Replace('"', '\'');
+
+        Console.WriteLine(
+            $"Cyberland | MSDF atlas miss — runtime raster fallback | {missKey} | sizePx={style.SizePixels.ToString(CultureInfo.InvariantCulture)} bold={style.Bold} italic={style.Italic} grapheme=\"{grapheme}\" (prefer baked MSDF atlases or align TextStyle with shipped BuiltinFonts coverage)");
+    }
+#endif
 }

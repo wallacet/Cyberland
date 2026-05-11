@@ -95,6 +95,7 @@ public sealed class GameApplication : IDisposable
         _commandLineArgs = commandLineArgs ?? Array.Empty<string>();
 #if DEBUG
         FrameProfiler.ApplyEnvironmentDefaults();
+        TextGlyphCache.EnableMsdfFallbackConsoleWarnings = true;
         _profileDumpPath = ProfileCommandLine.TryParseProfileDump(_commandLineArgs);
         // Per-scope allocation sampling uses GC.GetAllocatedBytesForCurrentThread on every Push/Pop — far too
         // expensive for high-FPS timing dumps. Opt in via --profile-alloc or CYBERLAND_FRAME_PROFILER_TRACK_ALLOC.

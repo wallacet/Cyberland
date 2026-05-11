@@ -98,4 +98,34 @@ public sealed class TextGlyphCacheTelemetryTests
         Assert.True(res.Loaded);
         Assert.True(TextGlyphCache.SnapshotAndResetBakedImportCount() >= 1);
     }
+
+#if DEBUG
+    [Fact]
+    public void TextGlyphCache_runtime_msdf_fallback_warning_path_runs_when_enabled()
+    {
+        TextGlyphCache.ClearMsdfFallbackWarnOnceKeysForTests();
+        var prev = TextGlyphCache.EnableMsdfFallbackConsoleWarnings;
+        try
+        {
+            var r = new RecordingRenderer();
+            var lib = new FontLibrary();
+            BuiltinFonts.AddTo(lib);
+            var style = new TextStyle(BuiltinFonts.UiSans, 99f, new Vector4D<float>(1f, 1f, 1f, 1f));
+            TextGlyphCache.EnableMsdfFallbackConsoleWarnings = false;
+            var cacheWarmup = new TextGlyphCache();
+            Assert.True(cacheWarmup.TryGetGlyph(r, lib, in style, 'V', "V", out _));
+
+            TextGlyphCache.EnableMsdfFallbackConsoleWarnings = true;
+            var cache = new TextGlyphCache();
+            Assert.True(cache.TryGetGlyph(r, lib, in style, 'W', "W", out _));
+            var cache2 = new TextGlyphCache();
+            Assert.True(cache2.TryGetGlyph(r, lib, in style, 'W', "W", out _));
+        }
+        finally
+        {
+            TextGlyphCache.EnableMsdfFallbackConsoleWarnings = prev;
+            TextGlyphCache.ClearMsdfFallbackWarnOnceKeysForTests();
+        }
+    }
+#endif
 }
