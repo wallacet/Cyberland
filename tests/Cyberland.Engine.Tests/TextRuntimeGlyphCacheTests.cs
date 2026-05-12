@@ -30,6 +30,62 @@ public sealed class TextRuntimeGlyphCacheTests
     }
 
     [Fact]
+    public void TextRuntimeBuilder_TryPrepare_rebuilds_when_glyph_cache_content_version_advances()
+    {
+        var renderer = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(new Vector2D<int>(800, 600));
+
+        var style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var bt = new BitmapText
+        {
+            Visible = true,
+            Content = "Ab",
+            IsLocalizationKey = false,
+            CoordinateSpace = CoordinateSpace.WorldSpace,
+            SortKey = 10f,
+            Style = style
+        };
+        var transform = Transform.Identity;
+        var cache = new TextSpriteCache();
+        var fingerprint = default(TextBuildFingerprint);
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, host, renderer,
+            out _, out _));
+        var fpAfterFirst = fingerprint;
+        var glyphCountFirst = cache.GlyphCount;
+        Assert.True(glyphCountFirst > 0);
+        Assert.Equal(TextGlyphCache.ContentVersion, fpAfterFirst.GlyphContentVersion);
+
+        // Any new renderable glyph data bumps the global version; BitmapText must not reuse CPU quads as if the prior
+        // prepare still matches atlas contents (e.g. async MSDF page landed after a no-ink row).
+        var dummyGlyph = new TextGlyphCache.CachedGlyph
+        {
+            TextureId = 99u,
+            WidthPx = 1f,
+            HeightPx = 1f,
+            OffsetPenToCenterX = 0f,
+            OffsetPenToCenterYWorld = 0f,
+            AdvancePx = 1f,
+            UvRect = default,
+            MsdfPixelRange = 4f
+        };
+        host.TextGlyphCache.RegisterBakedGlyph(
+            "__coverage_dummy_family__",
+            FontFaceKind.Regular,
+            1,
+            0x7FFFFFFF,
+            GlyphRasterizer.RasterRevision,
+            dummyGlyph);
+        Assert.NotEqual(fpAfterFirst.GlyphContentVersion, TextGlyphCache.ContentVersion);
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, host, renderer,
+            out _, out _));
+        Assert.Equal(glyphCountFirst, cache.GlyphCount);
+        Assert.Equal(TextGlyphCache.ContentVersion, fingerprint.GlyphContentVersion);
+    }
+
+    [Fact]
     public void BitmapTextPreparedRow_DiscardPrepared_clears_cache_and_fingerprint()
     {
         var cache = new TextSpriteCache
