@@ -1,6 +1,7 @@
 using Cyberland.Demo.MouseChase.Systems;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
+using Cyberland.Engine.Rendering.Text;
 
 namespace Cyberland.Demo.MouseChase;
 
@@ -19,6 +20,7 @@ public sealed class Mod : IMod
         context.MountDefaultContent();
         MouseChaseInputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("mouse_chase.json");
+        KickoffBuiltinAtlasLoads(context);
 
         var hud = await SceneSetup.SetupSceneAsync(context);
 
@@ -36,5 +38,12 @@ public sealed class Mod : IMod
     /// <inheritdoc />
     public void OnUnload()
     {
+    }
+
+    private static void KickoffBuiltinAtlasLoads(ModLoadContext context)
+    {
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular18);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular14);
     }
 }

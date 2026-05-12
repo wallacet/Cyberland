@@ -23,26 +23,77 @@ var bakedExtraPunctuation = new[]
     0x20AC // euro
 };
 
-BakeFamily("UiSansRegular12LatinExtended", BuiltinFonts.UiSans, 12f, false, false);
-BakeFamily("UiSansRegular13LatinExtended", BuiltinFonts.UiSans, 13f, false, false);
-BakeFamily("UiSansRegular14LatinExtended", BuiltinFonts.UiSans, 14f, false, false);
-BakeFamily("UiSansRegular15LatinExtended", BuiltinFonts.UiSans, 15f, false, false);
-BakeFamily("UiSansRegular16LatinExtended", BuiltinFonts.UiSans, 16f, false, false);
-BakeFamily("UiSansRegular18LatinExtended", BuiltinFonts.UiSans, 18f, false, false);
-BakeFamily("UiSansRegular20LatinExtended", BuiltinFonts.UiSans, 20f, false, false);
-BakeFamily("UiSansRegular22LatinExtended", BuiltinFonts.UiSans, 22f, false, false);
-BakeFamily("UiSansRegular23LatinExtended", BuiltinFonts.UiSans, 23f, false, false);
-BakeFamily("UiSansRegular24LatinExtended", BuiltinFonts.UiSans, 24f, false, false);
-BakeFamily("UiSansBold14LatinExtended", BuiltinFonts.UiSans, 14f, true, false);
-BakeFamily("UiSansBold18LatinExtended", BuiltinFonts.UiSans, 18f, true, false);
-BakeFamily("UiSansBold23LatinExtended", BuiltinFonts.UiSans, 23f, true, false);
-BakeFamily("MonoRegular14LatinExtended", BuiltinFonts.Mono, 14f, false, false);
-BakeFamily("MonoRegular18LatinExtended", BuiltinFonts.Mono, 18f, false, false);
+BakeFamily(outputDir, "UiSansRegular12LatinExtended", BuiltinFonts.UiSans, 12f, false, false);
+BakeFamily(outputDir, "UiSansRegular13LatinExtended", BuiltinFonts.UiSans, 13f, false, false);
+BakeFamily(outputDir, "UiSansRegular14LatinExtended", BuiltinFonts.UiSans, 14f, false, false);
+BakeFamily(outputDir, "UiSansRegular15LatinExtended", BuiltinFonts.UiSans, 15f, false, false);
+BakeFamily(outputDir, "UiSansRegular16LatinExtended", BuiltinFonts.UiSans, 16f, false, false);
+BakeFamily(outputDir, "UiSansRegular18LatinExtended", BuiltinFonts.UiSans, 18f, false, false);
+BakeFamily(outputDir, "UiSansRegular20LatinExtended", BuiltinFonts.UiSans, 20f, false, false);
+BakeFamily(outputDir, "UiSansRegular22LatinExtended", BuiltinFonts.UiSans, 22f, false, false);
+BakeFamily(outputDir, "UiSansRegular23LatinExtended", BuiltinFonts.UiSans, 23f, false, false);
+BakeFamily(outputDir, "UiSansRegular24LatinExtended", BuiltinFonts.UiSans, 24f, false, false);
+BakeFamily(outputDir, "UiSansBold14LatinExtended", BuiltinFonts.UiSans, 14f, true, false);
+BakeFamily(outputDir, "UiSansBold18LatinExtended", BuiltinFonts.UiSans, 18f, true, false);
+BakeFamily(outputDir, "UiSansBold23LatinExtended", BuiltinFonts.UiSans, 23f, true, false);
+BakeFamily(outputDir, "MonoRegular14LatinExtended", BuiltinFonts.Mono, 14f, false, false);
+BakeFamily(outputDir, "MonoRegular18LatinExtended", BuiltinFonts.Mono, 18f, false, false);
 
 Console.WriteLine($"Baked atlases written to: {outputDir}");
 
-void BakeFamily(string atlasName, string familyId, float sizePx, bool bold, bool italic)
+// -------------------------------------------------------------------------
+// FontTest mod: Jost (SIL OFL) — custom family id, manifests under mod Content (not engine builtins).
+// -------------------------------------------------------------------------
+var repoRoot = FindRepoRoot();
+var fontTestSourceDir = Path.Combine(repoRoot, "mods", "Cyberland.Demo.FontTest", "Content", "Fonts", "Source");
+var fontTestBakedDir = Path.Combine(repoRoot, "mods", "Cyberland.Demo.FontTest", "Content", "Fonts", "Baked");
+var jostRegular = Path.Combine(fontTestSourceDir, "Jost-Regular.ttf");
+var jostBold = Path.Combine(fontTestSourceDir, "Jost-Bold.ttf");
+const string FontTestJostFamilyId = "fonttest.jost";
+
+if (File.Exists(jostRegular))
 {
+    var regBytes = File.ReadAllBytes(jostRegular);
+    ReadOnlyMemory<byte>? boldMem = File.Exists(jostBold) ? File.ReadAllBytes(jostBold) : null;
+    fonts.RegisterFamilyFromBytes(FontTestJostFamilyId, regBytes, boldMem, null, null);
+    Directory.CreateDirectory(fontTestBakedDir);
+
+    // Same pixel sizes as built-in UiSans regular coverage, plus one non-standard (17) for custom-path stress.
+    foreach (var px in new[] { 12f, 13f, 14f, 15f, 16f, 17f, 18f, 20f, 22f, 23f, 24f })
+        BakeFamily(fontTestBakedDir, $"FontTestJostRegular{MathF.Round(px):0}LatinExtended", FontTestJostFamilyId, px, false,
+            false);
+    foreach (var px in new[] { 14f, 18f, 23f })
+        BakeFamily(fontTestBakedDir, $"FontTestJostBold{MathF.Round(px):0}LatinExtended", FontTestJostFamilyId, px, true,
+            false);
+
+    Console.WriteLine($"FontTest Jost atlases written to: {fontTestBakedDir}");
+}
+else
+{
+    Console.WriteLine(
+        $"FontTest Jost bake skipped (missing {jostRegular}). Add Jost-Regular.ttf (and optional Jost-Bold.ttf) under Source, then re-run.");
+}
+
+static string FindRepoRoot()
+{
+    var dir = Path.GetFullPath(AppContext.BaseDirectory);
+    for (var i = 0; i < 12; i++)
+    {
+        if (File.Exists(Path.Combine(dir, "Cyberland.sln")) && Directory.Exists(Path.Combine(dir, "mods")))
+            return dir;
+        var parent = Directory.GetParent(dir);
+        if (parent is null)
+            break;
+        dir = parent.FullName;
+    }
+
+    throw new InvalidOperationException(
+        "Could not locate repository root (expected Cyberland.sln and mods/ while walking up from the baker output directory).");
+}
+
+void BakeFamily(string bakeRoot, string atlasName, string familyId, float sizePx, bool bold, bool italic)
+{
+    Directory.CreateDirectory(bakeRoot);
     var style = new TextStyle(familyId, sizePx, default, bold, italic);
     var pages = new List<byte[]>();
     byte[] page = NewPage();
@@ -124,7 +175,7 @@ void BakeFamily(string atlasName, string familyId, float sizePx, bool bold, bool
         Glyphs = glyphs.ToArray()
     };
 
-    var atlasBase = Path.Combine(outputDir, atlasName);
+    var atlasBase = Path.Combine(bakeRoot, atlasName);
     for (var i = 0; i < pages.Count; i++)
     {
         var pagePath = $"{atlasBase}.page{i}.png";

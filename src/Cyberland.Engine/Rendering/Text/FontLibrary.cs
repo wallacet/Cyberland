@@ -1,6 +1,7 @@
 using System.Globalization;
 using Cyberland.Engine.Assets;
 using SixLabors.Fonts;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Cyberland.Engine.Rendering.Text;
 
@@ -73,7 +74,7 @@ public sealed class FontLibrary
             bi = collection.Add(s, CultureInfo.InvariantCulture);
         }
 
-        _families[familyId] = new RegisteredFamily(regFamily, b, i, bi);
+        _families[familyId] = new RegisteredFamily(regFamily, b, i, bi, regular, bold, italic, boldItalic);
     }
 
     /// <summary>
@@ -153,6 +154,83 @@ public sealed class FontLibrary
             return TryCreateFontUnlocked(in style, out font, out usedFace);
     }
 
+    /// <summary>
+    /// OS/2 outline distances scaled to the same quantized em px grid as <see cref="TextGlyphCache"/>.
+    /// <see cref="UnderlineCenterDeltaPositiveDownPx"/> / <see cref="StrikethroughCenterDeltaPositiveDownPx"/> are expressed as
+    /// **viewport-style +Y-down deltas**: add to baseline Y to reach the strip center (underline delta is non-negative from
+    /// OS/2 placement math). World-space submission applies the same magnitudes with the world +Y-up convention.
+    /// </summary>
+    internal readonly record struct OpenTypeTextDecorationLayout(
+        float UnderlineCenterDeltaPositiveDownPx,
+        float UnderlineThicknessPx,
+        float StrikethroughCenterDeltaPositiveDownPx,
+        float StrikethroughThicknessPx)
+    {
+        /// <summary>
+        /// Same vertical convention as <see cref="TextGlyphCache.CachedGlyph.OffsetPenToCenterYWorld"/> (+Y up): negative moves
+        /// the strip center below the typographic baseline.
+        /// </summary>
+        public float UnderlineCenterOffsetPenFontUp => -UnderlineCenterDeltaPositiveDownPx;
+
+        /// <inheritdoc cref="UnderlineCenterOffsetPenFontUp"/>
+        public float StrikethroughCenterOffsetPenFontUp => -StrikethroughCenterDeltaPositiveDownPx;
+    }
+
+    /// <summary>
+    /// Reads OS/2 underline + strikeout tables via SixLabors and converts to pixel deltas that match HUD (+Y down) placement.
+    /// </summary>
+    internal bool TryGetOpenTypeTextDecorationLayout(in TextStyle style, out OpenTypeTextDecorationLayout layout)
+    {
+        layout = default;
+        lock (_measureFontLock)
+        {
+            if (!TryCreateFontUnlocked(in style, out var font, out _))
+                return false;
+
+            var m = font.FontMetrics;
+            var emPx = EmQuantToPixels(QuantizeEmSizePixels(style.SizePixels));
+            var scale = emPx / m.UnitsPerEm;
+
+            // Underline: SixLabors exposes OS/2 distance to the top of the stroke from the baseline (negative = typical,
+            // below the baseline). Positive values mean "not below" per SixLabors docs — using a signed offset alone can
+            // flip strip placement to an overline. Decoration placement always treats the magnitude as distance downward from
+            // the baseline to the top edge, then offsets to strip center (same as legacy Abs behavior).
+            var uTopDown = MathF.Abs(m.UnderlinePosition * scale);
+            var uThick = MathF.Max(0.75f, MathF.Abs(m.UnderlineThickness * scale));
+            var underlineCenterDown = uTopDown + uThick * 0.5f;
+
+            // Strikeout: interpret SixLabors strike top relative to baseline in +Y-up font math, then map strip center to +Y-down delta.
+            var strikeTopUp = m.StrikeoutPosition * scale;
+            var sThick = MathF.Max(0.75f, MathF.Abs(m.StrikeoutSize * scale));
+            var strikeCenterUp = strikeTopUp - sThick * 0.5f;
+            var strikeCenterDown = -strikeCenterUp;
+
+            layout = new OpenTypeTextDecorationLayout(underlineCenterDown, uThick, strikeCenterDown, sThick);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Creates a non-cached font instance suitable for background workers.
+    /// This avoids sharing SixLabors font objects across threads.
+    /// </summary>
+    [ExcludeFromCodeCoverage(Justification = "Transient worker font path is validated through async glyph integration tests.")]
+    internal bool TryCreateTransientFont(TextStyle style, out Font font, out FontFaceKind usedFace)
+    {
+        font = null!;
+        usedFace = FontFaceKind.Regular;
+        if (!TryGetFamily(style.FontFamilyId, out var fam) || fam is null)
+            return false;
+
+        usedFace = SelectFace(style.Bold, style.Italic, fam);
+        var faceBytes = fam.GetFaceBytes(usedFace);
+        using var stream = OpenRead(faceBytes);
+        var collection = new FontCollection();
+        var loadedFace = collection.Add(stream, CultureInfo.InvariantCulture);
+        font = CreateFontAtPixelSize(loadedFace, EmQuantToPixels(QuantizeEmSizePixels(style.SizePixels)));
+        return true;
+    }
+
     /// <summary>Rounds nominal pixel size to a stable cache key (1/256 px resolution).</summary>
     internal static int QuantizeEmSizePixels(float sizePixels) =>
         (int)MathF.Round(Math.Clamp(sizePixels, 1f / 256f, 65536f) * 256f);
@@ -198,11 +276,28 @@ public sealed class FontLibrary
             FontFamily? bold,
             FontFamily? italic,
             FontFamily? boldItalic)
+            : this(regular, bold, italic, boldItalic, ReadOnlyMemory<byte>.Empty, null, null, null)
+        {
+        }
+
+        internal RegisteredFamily(
+            FontFamily regular,
+            FontFamily? bold,
+            FontFamily? italic,
+            FontFamily? boldItalic,
+            ReadOnlyMemory<byte> regularBytes,
+            ReadOnlyMemory<byte>? boldBytes,
+            ReadOnlyMemory<byte>? italicBytes,
+            ReadOnlyMemory<byte>? boldItalicBytes)
         {
             Regular = regular;
             Bold = bold;
             Italic = italic;
             BoldItalic = boldItalic;
+            RegularBytes = regularBytes;
+            BoldBytes = boldBytes;
+            ItalicBytes = italicBytes;
+            BoldItalicBytes = boldItalicBytes;
         }
 
         /// <summary>Regular face (always present).</summary>
@@ -217,6 +312,15 @@ public sealed class FontLibrary
         /// <summary>Optional bold-italic face.</summary>
         public FontFamily? BoldItalic { get; }
 
+        [ExcludeFromCodeCoverage(Justification = "Simple DTO accessor.")]
+        internal ReadOnlyMemory<byte> RegularBytes { get; }
+        [ExcludeFromCodeCoverage(Justification = "Simple DTO accessor.")]
+        internal ReadOnlyMemory<byte>? BoldBytes { get; }
+        [ExcludeFromCodeCoverage(Justification = "Simple DTO accessor.")]
+        internal ReadOnlyMemory<byte>? ItalicBytes { get; }
+        [ExcludeFromCodeCoverage(Justification = "Simple DTO accessor.")]
+        internal ReadOnlyMemory<byte>? BoldItalicBytes { get; }
+
         internal FontFamily GetFace(FontFaceKind kind) =>
             kind switch
             {
@@ -224,6 +328,16 @@ public sealed class FontLibrary
                 FontFaceKind.Italic => Italic ?? Regular,
                 FontFaceKind.BoldItalic => BoldItalic ?? Bold ?? Italic ?? Regular,
                 _ => Regular
+            };
+
+        [ExcludeFromCodeCoverage(Justification = "Fallback mapping is deterministic and exercised indirectly.")]
+        internal ReadOnlyMemory<byte> GetFaceBytes(FontFaceKind kind) =>
+            kind switch
+            {
+                FontFaceKind.Bold => BoldBytes ?? RegularBytes,
+                FontFaceKind.Italic => ItalicBytes ?? RegularBytes,
+                FontFaceKind.BoldItalic => BoldItalicBytes ?? BoldBytes ?? ItalicBytes ?? RegularBytes,
+                _ => RegularBytes
             };
     }
 }

@@ -9,6 +9,10 @@ namespace Cyberland.Engine.Modding;
 /// then calls <see cref="OnLoadAsync"/> once. Register ECS systems, spawn entities, and mount extra content paths there; release resources in <see cref="OnUnload"/>.
 /// </para>
 /// <para>
+/// <strong>Baked MSDF atlases:</strong> do not <c>await</c> <see cref="ModLoadContext.LoadBakedMsdfAtlasAsync"/> from <see cref="OnLoadAsync"/> while the host is still inside
+/// <see cref="ModLoader.LoadAll"/> (see that method’s remarks). Use fire-and-forget, the synchronous <see cref="ModLoadContext.LoadBakedMsdfAtlas"/>, or defer to post-startup code.
+/// </para>
+/// <para>
 /// <strong>Cold-start scene convention:</strong> put one-off entity authoring (camera, playfield, HUD, lights, global post) in a static helper
 /// (e.g. <c>SceneSetup.SetupSceneAsync</c>) and await it from <see cref="OnLoadAsync"/> before
 /// <see cref="ModLoadContext.RegisterSerial"/> / <see cref="ModLoadContext.RegisterParallel"/> / <see cref="ModLoadContext.RegisterSingleton"/>.

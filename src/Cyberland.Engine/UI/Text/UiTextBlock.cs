@@ -39,6 +39,7 @@ public class UiTextBlock : UiElement
     private bool _drawRunReplayViewportClipEnabled;
     private UiRect _drawRunReplayViewportClip;
     private UiRect _drawRunReplayInnerBounds;
+    private long _drawRunReplayGlyphContentVersion = -1;
     private string _text = string.Empty;
     private TextStyle _defaultStyle;
     private List<TextRun>? _runs;
@@ -493,9 +494,10 @@ public class UiTextBlock : UiElement
             _drawRunReplaySortKey == sortKey &&
             _drawRunReplayViewportClipEnabled == applyVpClip &&
             _drawRunReplayViewportClip.Equals(viewportClip) &&
-            _drawRunReplayInnerBounds.Equals(inner))
+            _drawRunReplayInnerBounds.Equals(inner) &&
+            _drawRunReplayGlyphContentVersion == TextGlyphCache.ContentVersion)
         {
-            ReplayCachedRuns(renderer);
+            ReplayCachedRuns(renderer, fonts);
             return;
         }
         _drawRunCache.Clear();
@@ -545,9 +547,10 @@ public class UiTextBlock : UiElement
         _drawRunReplayViewportClipEnabled = applyVpClip;
         _drawRunReplayViewportClip = viewportClip;
         _drawRunReplayInnerBounds = inner;
+        _drawRunReplayGlyphContentVersion = TextGlyphCache.ContentVersion;
     }
 
-    private void ReplayCachedRuns(IRenderer renderer)
+    private void ReplayCachedRuns(IRenderer renderer, FontLibrary fonts)
     {
         for (var i = 0; i < _drawRunCache.Count; i++)
         {
@@ -555,10 +558,22 @@ public class UiTextBlock : UiElement
             if (cached.GlyphCount > 0)
                 renderer.SubmitTextGlyphs(cached.Glyphs.AsSpan(0, cached.GlyphCount));
 
+            var decorBaseline = cached.BaselineLeft;
+            ReadOnlySpan<TextGlyphDrawRequest> inkReplay = default;
+            if (cached.GlyphCount > 0 && cached.Glyphs is not null)
+            {
+                inkReplay = cached.Glyphs.AsSpan(0, cached.GlyphCount);
+                if (cached.Space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace)
+                {
+                    var y = TextRenderer.RecoverBaselineYFromGlyph(in inkReplay[0]);
+                    decorBaseline = new Vector2D<float>(cached.BaselineLeft.X, y);
+                }
+            }
+
             TextRenderer.SubmitTextDecorations(
                 renderer,
                 in cached.Style,
-                cached.BaselineLeft,
+                decorBaseline,
                 0f,
                 cached.PenAfter,
                 cached.SortKey,
@@ -566,7 +581,9 @@ public class UiTextBlock : UiElement
                 renderer.DefaultNormalTextureId,
                 cached.Space,
                 cached.ApplyViewportClip,
-                cached.ViewportClip);
+                cached.ViewportClip,
+                fonts,
+                inkReplay);
         }
     }
 
@@ -704,10 +721,19 @@ public class UiTextBlock : UiElement
         if (n > 0)
             renderer.SubmitTextGlyphs(dest[..n]);
 
+        var decorBaseline = baselineLeft;
+        var ink = ReadOnlySpan<TextGlyphDrawRequest>.Empty;
+        if (n > 0)
+        {
+            ink = dest[..n];
+            if (space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace)
+                decorBaseline = new Vector2D<float>(baselineLeft.X, TextRenderer.RecoverBaselineYFromGlyph(in ink[0]));
+        }
+
         TextRenderer.SubmitTextDecorations(
             renderer,
             in style,
-            baselineLeft,
+            decorBaseline,
             0f,
             penAfter,
             sortKey,
@@ -715,7 +741,9 @@ public class UiTextBlock : UiElement
             renderer.DefaultNormalTextureId,
             space,
             applyVpClip,
-            viewportClip);
+            viewportClip,
+            fonts,
+            ink);
 
         write.Text = text;
         write.Style = style;

@@ -1,6 +1,7 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
+using Cyberland.Engine.Rendering.Text;
 
 namespace Cyberland.Demo.BrickBreaker;
 
@@ -30,6 +31,7 @@ public sealed class Mod : IMod
         context.MountDefaultContent();
         InputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("brick.json");
+        KickoffBuiltinAtlasLoads(context);
         BrickBreakerHudGlyphWarmup.Warm(context);
 
         var host = context.Host;
@@ -68,5 +70,14 @@ public sealed class Mod : IMod
     /// <inheritdoc />
     public void OnUnload()
     {
+    }
+
+    private static void KickoffBuiltinAtlasLoads(ModLoadContext context)
+    {
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular15);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular18);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansBold23);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular14);
     }
 }

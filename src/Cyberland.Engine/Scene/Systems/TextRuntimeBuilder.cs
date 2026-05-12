@@ -111,6 +111,7 @@ internal static class TextRuntimeBuilder
         fingerprint.FramebufferH = vpH;
         fingerprint.BaselineWorldX = baselineAuthored.X;
         fingerprint.BaselineWorldY = baselineAuthored.Y;
+        fingerprint.GlyphContentVersion = TextGlyphCache.ContentVersion;
     }
 
     /// <summary>
@@ -136,6 +137,8 @@ internal static class TextRuntimeBuilder
         if (fp.SortKey != bt.SortKey)
             return false;
         if (fp.FramebufferW != vpW || fp.FramebufferH != vpH)
+            return false;
+        if (fp.GlyphContentVersion != TextGlyphCache.ContentVersion)
             return false;
         return true;
     }

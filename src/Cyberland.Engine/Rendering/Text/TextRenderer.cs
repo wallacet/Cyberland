@@ -1,3 +1,4 @@
+using System;
 using System.Buffers;
 using System.Text;
 using System.Diagnostics.CodeAnalysis;
@@ -62,9 +63,8 @@ public static class TextRenderer
         if (renderer is null || string.IsNullOrEmpty(text))
             return;
 
-        var pen = FillGlyphRunAndSubmit(renderer, fonts, cache, text, in style, baselineLeft, 0f, sortKey, space);
-        SubmitTextDecorations(renderer, in style, baselineLeft, 0f, pen, sortKey, renderer.WhiteTextureId,
-            renderer.DefaultNormalTextureId, space, false, default);
+        _ = SubmitGlyphRunWithDecorations(renderer, fonts, cache, text, in style, baselineLeft, 0f, sortKey, space, false,
+            default);
     }
 
     /// <summary>Draws a localized string in world space.</summary>
@@ -99,9 +99,8 @@ public static class TextRenderer
         if (string.IsNullOrEmpty(resolved))
             return;
 
-        var pen = FillGlyphRunAndSubmit(renderer, fonts, cache, resolved, in style, baselineLeft, 0f, sortKey, space);
-        SubmitTextDecorations(renderer, in style, baselineLeft, 0f, pen, sortKey, renderer.WhiteTextureId,
-            renderer.DefaultNormalTextureId, space, false, default);
+        _ = SubmitGlyphRunWithDecorations(renderer, fonts, cache, resolved, in style, baselineLeft, 0f, sortKey, space, false,
+            default);
     }
 
     /// <summary>
@@ -169,10 +168,8 @@ public static class TextRenderer
 
             var st = run.Style;
             var runStart = pen;
-            pen = FillGlyphRunAndSubmit(renderer, fonts, cache, text, in st, baselineLeft, pen, sortKey, space);
-            var runEnd = pen;
-            SubmitTextDecorations(renderer, in st, baselineLeft, runStart, runEnd, sortKey, renderer.WhiteTextureId,
-                renderer.DefaultNormalTextureId, space, false, default);
+            pen = SubmitGlyphRunWithDecorations(renderer, fonts, cache, text, in st, baselineLeft, runStart, sortKey,
+                space, false, default);
         }
     }
 
@@ -262,29 +259,33 @@ public static class TextRenderer
         return n;
     }
 
-    private static float FillGlyphRunAndSubmit(
+    /// <summary>Rents a glyph buffer for <paramref name="text"/>, submits quads, then decorations (underline shares ink geometry for viewport guard).</summary>
+    private static float SubmitGlyphRunWithDecorations(
         IRenderer renderer,
         FontLibrary fonts,
         TextGlyphCache cache,
         string text,
         in TextStyle style,
         Vector2D<float> baselineLeft,
-        float pen,
+        float initialPen,
         float sortKey,
-        CoordinateSpace space)
+        CoordinateSpace space,
+        bool applyViewportClip,
+        UiRect viewportClip)
     {
-        // Callers skip empty strings; avoid a redundant branch the gate cannot hit.
         var span = text.AsSpan();
-
         var pool = ArrayPool<TextGlyphDrawRequest>.Shared;
         var buf = pool.Rent(span.Length);
         try
         {
             var dest = buf.AsSpan(0, span.Length);
-            var n = FillGlyphRunGlyphs(renderer, fonts, cache, text, in style, baselineLeft, pen, sortKey, dest,
-                out var penAfter, space);
+            var n = FillGlyphRunGlyphs(renderer, fonts, cache, text, in style, baselineLeft, initialPen, sortKey, dest,
+                out var penAfter, space, applyViewportClip, viewportClip);
+            var ink = n > 0 ? dest[..n] : ReadOnlySpan<TextGlyphDrawRequest>.Empty;
             if (n > 0)
-                renderer.SubmitTextGlyphs(dest[..n]);
+                renderer.SubmitTextGlyphs(ink);
+            SubmitTextDecorations(renderer, in style, baselineLeft, initialPen, penAfter, sortKey, renderer.WhiteTextureId,
+                renderer.DefaultNormalTextureId, space, applyViewportClip, viewportClip, fonts, ink);
             return penAfter;
         }
         finally
@@ -304,9 +305,22 @@ public static class TextRenderer
         TextureId defNormal,
         CoordinateSpace space = CoordinateSpace.WorldSpace,
         bool applyViewportClip = false,
-        UiRect viewportClip = default) =>
+        UiRect viewportClip = default,
+        FontLibrary? fonts = null,
+        ReadOnlySpan<TextGlyphDrawRequest> underlineInkGuardGlyphs = default) =>
         AddDecorations(renderer, in style, baselineLeft, penStart, penEnd, sortKey, whiteTex, defNormal, space,
-            applyViewportClip, viewportClip);
+            applyViewportClip, viewportClip, fonts, underlineInkGuardGlyphs);
+
+    /// <summary>
+    /// Recovers typographic baseline Y from a submitted glyph quad (inverse of <see cref="FillGlyphRunGlyphs"/> vertical math).
+    /// Decoration strips use this when the transform-authored baseline and actual glyph centers could diverge.
+    /// Uses <see cref="TextGlyphDrawRequest.Space"/> so recovery cannot disagree with the quad's own coordinate system.
+    /// </summary>
+    internal static float RecoverBaselineYFromGlyph(in TextGlyphDrawRequest g)
+    {
+        var ySign = ScreenSpaceYDown(g.Space) ? -1f : 1f;
+        return g.Center.Y - g.OffsetPenToCenterYWorld * ySign;
+    }
 
     /// <summary>Approximate em advance when a glyph cannot be cached so the rest of the string still lays out.</summary>
     private static float FallbackAdvanceWhenGlyphUnavailable(in TextStyle style) =>
@@ -337,6 +351,7 @@ public static class TextRenderer
         {
             Center = new Vector2D<float>(centerX, centerY),
             HalfExtents = new Vector2D<float>(g.WidthPx * 0.5f, g.HeightPx * 0.5f),
+            OffsetPenToCenterYWorld = g.OffsetPenToCenterYWorld,
             SortKey = sortKey,
             TextureId = g.TextureId,
             MsdfPixelRange = g.MsdfPixelRange,
@@ -360,29 +375,124 @@ public static class TextRenderer
         TextureId defNormal,
         CoordinateSpace space,
         bool applyViewportClip,
-        UiRect viewportClip)
+        UiRect viewportClip,
+        FontLibrary? fonts,
+        ReadOnlySpan<TextGlyphDrawRequest> underlineInkGuardGlyphs)
     {
         if (penEnd <= penStart)
             return;
 
         var cm = style.Color;
-        var lineHalfH = MathF.Max(1f, style.SizePixels * 0.06f);
-        // Viewport space grows +Y down so underlines sit just below the baseline (larger Y), strike mid-line
-        // goes slightly up (smaller Y). World space uses the opposite sign.
-        var underlineOffset = MathF.Max(1.5f, style.SizePixels * 0.12f);
-        var strikeOffset = style.SizePixels * 0.08f;
-        var ySign = ScreenSpaceYDown(space) ? -1f : 1f;
+        var defaultDecorLineHalfH = TextDecorationMetrics.DefaultDecorLineHalfHeight(style.SizePixels);
         var baselineOrigin = SnapBaselineForSpace(baselineLeft, space);
-        var underlineY = baselineOrigin.Y - underlineOffset * ySign;
-        var strikeY = baselineOrigin.Y + strikeOffset * ySign;
+        // Same vertical convention as FillGlyphRunGlyphs: cy = baselineOrigin.Y + OffsetPenToCenterYWorld * ySign.
+        var ySign = ScreenSpaceYDown(space) ? -1f : 1f;
+
+        float inkMinTopVp = float.NaN, inkMaxBottomVp = float.NaN;
+        if (underlineInkGuardGlyphs.Length > 0)
+        {
+            var t = float.PositiveInfinity;
+            var b = float.NegativeInfinity;
+            foreach (ref readonly var gr in underlineInkGuardGlyphs)
+            {
+                if (gr.Space != space)
+                    continue;
+                t = MathF.Min(t, gr.Center.Y - gr.HalfExtents.Y);
+                b = MathF.Max(b, gr.Center.Y + gr.HalfExtents.Y);
+            }
+
+            if (t < float.PositiveInfinity)
+            {
+                inkMinTopVp = t;
+                inkMaxBottomVp = b;
+            }
+        }
+        var hasViewportInkBand = ScreenSpaceYDown(space) && !float.IsNaN(inkMinTopVp) && !float.IsNaN(inkMaxBottomVp);
+
+        FontLibrary.OpenTypeTextDecorationLayout ot = default;
+        var hasOtLayout = (style.Underline || style.Strikethrough) && fonts is not null &&
+                          fonts.TryGetOpenTypeTextDecorationLayout(in style, out ot);
+
+        float underlineLineHalfH = defaultDecorLineHalfH;
+        var underlineY = baselineOrigin.Y;
+        if (style.Underline)
+        {
+            if (hasOtLayout)
+            {
+                underlineLineHalfH = MathF.Max(TextDecorationMetrics.OpenTypeDecorHalfThicknessMinPx,
+                    ot.UnderlineThicknessPx * 0.5f);
+                underlineY = baselineOrigin.Y + ot.UnderlineCenterOffsetPenFontUp * ySign;
+            }
+            else
+            {
+                var fallbackCenterDown = MathF.Max(TextDecorationMetrics.FallbackUnderlineCenterDownMinPx,
+                    style.SizePixels * TextDecorationMetrics.FallbackUnderlineCenterDownEm);
+                var fallbackUnderlineFontUp = -fallbackCenterDown;
+                underlineY = baselineOrigin.Y + fallbackUnderlineFontUp * ySign;
+            }
+
+            // Hard clamp: OpenType / fallback mistakes must never draw an "underline" strip above the typographic baseline
+            // in HUD (+Y down) or above it in world (+Y up). Uses Max/Min so the branch always runs (coverage-safe).
+            var minGap = TextDecorationMetrics.BaselineUnderlineMinimumGapPx(style.SizePixels);
+            if (ScreenSpaceYDown(space))
+                underlineY = MathF.Max(underlineY, baselineOrigin.Y + minGap);
+            else
+                underlineY = MathF.Min(underlineY, baselineOrigin.Y - minGap);
+
+            // With viewport glyph bounds, resolve underline in one clamped step:
+            // - stroke top stays below approximate ink bottom by a small clearance
+            // - stroke does not drift more than ceil(10% of visible line height) below that bottom
+            if (hasViewportInkBand)
+            {
+                underlineY = TextDecorationMetrics.ResolveViewportUnderlineCenterWithInkBand(
+                    baselineOrigin.Y,
+                    style.SizePixels,
+                    underlineY,
+                    underlineLineHalfH,
+                    inkMinTopVp,
+                    inkMaxBottomVp);
+            }
+            else if (ScreenSpaceYDown(space))
+            {
+                underlineY = MathF.Max(underlineY,
+                    baselineOrigin.Y + TextDecorationMetrics.ViewportUnderlineMinCenterBelowBaselinePx(style.SizePixels));
+            }
+        }
+
+        float strikeLineHalfH = defaultDecorLineHalfH;
+        var strikeY = baselineOrigin.Y;
+        if (style.Strikethrough)
+        {
+            if (hasOtLayout)
+            {
+                strikeLineHalfH = MathF.Max(TextDecorationMetrics.OpenTypeDecorHalfThicknessMinPx,
+                    ot.StrikethroughThicknessPx * 0.5f);
+                strikeY = baselineOrigin.Y + ot.StrikethroughCenterOffsetPenFontUp * ySign;
+            }
+            else
+            {
+                var fallbackStrikeFontUp = style.SizePixels * TextDecorationMetrics.FallbackStrikethroughFontUpEm;
+                strikeY = baselineOrigin.Y + fallbackStrikeFontUp * ySign;
+            }
+
+            if (hasViewportInkBand)
+            {
+                // Viewport HUD text should read as a true strikethrough on the visible glyph body, not typographic x-height.
+                strikeY = (inkMinTopVp + inkMaxBottomVp) * TextDecorationMetrics.InkBandVerticalMidpointFactor;
+            }
+        }
 
         if (style.Underline)
-            SubmitLine(renderer, baselineOrigin.X + penStart, baselineOrigin.X + penEnd, underlineY, lineHalfH,
-                cm, sortKey + 0.1f, whiteTex, defNormal, space, applyViewportClip, viewportClip);
+        {
+            SubmitLine(renderer, baselineOrigin.X + penStart, baselineOrigin.X + penEnd, underlineY, underlineLineHalfH,
+                cm, sortKey + TextDecorationMetrics.SortKeyUnderlineDelta, whiteTex, defNormal, space, applyViewportClip,
+                viewportClip);
+        }
 
         if (style.Strikethrough)
-            SubmitLine(renderer, baselineOrigin.X + penStart, baselineOrigin.X + penEnd, strikeY, lineHalfH,
-                cm, sortKey + 0.15f, whiteTex, defNormal, space, applyViewportClip, viewportClip);
+            SubmitLine(renderer, baselineOrigin.X + penStart, baselineOrigin.X + penEnd, strikeY, strikeLineHalfH,
+                cm, sortKey + TextDecorationMetrics.SortKeyStrikethroughDelta, whiteTex, defNormal, space,
+                applyViewportClip, viewportClip);
     }
 
     private static Vector2D<float> SnapBaselineForSpace(Vector2D<float> baselineLeft, CoordinateSpace space)

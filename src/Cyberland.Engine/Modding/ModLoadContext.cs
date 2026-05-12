@@ -5,6 +5,8 @@ using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Cyberland.Engine.Modding;
 
@@ -13,6 +15,10 @@ namespace Cyberland.Engine.Modding;
 /// </summary>
 /// <remarks>
 /// Prefer registering work through this type instead of static globals so load order and tests stay predictable.
+/// <para>
+/// <b>Baked MSDF atlases:</b> see remarks on <see cref="LoadBakedMsdfAtlas"/> and <see cref="LoadBakedMsdfAtlasAsync"/> — the async path must not be
+/// <c>await</c>ed from <see cref="IMod.OnLoadAsync"/> while the host still blocks inside <see cref="ModLoader.LoadAll"/> (deadlock vs render-thread drain).
+/// </para>
 /// </remarks>
 public sealed class ModLoadContext
 {
@@ -128,13 +134,60 @@ public sealed class ModLoadContext
     }
 
     /// <summary>
-    /// Loads a pre-baked MSDF atlas manifest from the layered VFS and seeds glyph cache entries for this process.
-    /// Mods should call this after mounting content and registering any custom font family id referenced by the manifest.
+    /// Loads a pre-baked MSDF atlas manifest from a virtual path and seeds glyph cache entries for this process.
+    /// The path may target mod content (<c>Content/...</c>) or an engine-shipped builtin virtual path from
+    /// <see cref="BuiltinFonts.BakedAtlasManifestPath"/>.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the <strong>synchronous</strong> path: decode + GPU upload run on the <strong>calling thread</strong> via
+    /// <see cref="Cyberland.Engine.Rendering.Text.BakedMsdfAtlasLoader.LoadFromPath"/>. During normal host startup, <see cref="IMod.OnLoadAsync"/> runs after the Vulkan
+    /// renderer exists, so calling this from <c>OnLoadAsync</c> is usually valid when you need the atlas before the first frame.
+    /// </para>
+    /// <para>
+    /// Use this when you must block in <c>OnLoadAsync</c> until the atlas is usable (glyph cache seeded before first frame).
+    /// To overlap CPU decode with other startup work instead, call <see cref="LoadBakedMsdfAtlasAsync"/> <strong>without</strong> awaiting
+    /// (see that method’s remarks — awaiting it from <c>OnLoadAsync</c> deadlocks).
+    /// </para>
+    /// </remarks>
     public bool LoadBakedMsdfAtlas(string manifestPath)
     {
         var assets = new AssetManager(VirtualFileSystem);
-        var result = Host.BakedMsdfAtlasLoader.LoadFromVfs(assets, Host.Renderer, Host.TextGlyphCache, manifestPath);
+        var result = Host.BakedMsdfAtlasLoader.LoadFromPath(assets, Host.Renderer, Host.TextGlyphCache, manifestPath);
+        if (!result.Loaded)
+        {
+            Console.WriteLine($"Mod baked atlas load failed | manifest={manifestPath} reason={result.Message}");
+            return false;
+        }
+
+        Console.WriteLine($"Mod baked atlas load | manifest={manifestPath} glyphs={result.GlyphCount} pages={result.PageCount}");
+        return true;
+    }
+
+    /// <summary>
+    /// Starts asynchronous atlas decode for <paramref name="manifestPath"/> and schedules GPU upload on the render-thread drain.
+    /// The returned task completes after upload and cache seeding finish.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Mod <see cref="IMod.OnLoadAsync"/> / startup safety:</strong> the returned <see cref="Task{TResult}"/> completes only after
+    /// <see cref="Cyberland.Engine.Rendering.Text.BakedMsdfAtlasLoader.DrainPendingUploads"/> runs on the render thread (see <see cref="Cyberland.Engine.GameApplication"/> draw path).
+    /// <see cref="ModLoader.LoadAll"/> invokes <c>OnLoadAsync(...).GetAwaiter().GetResult()</c> <strong>before</strong> the first frame is presented, so
+    /// <strong>awaiting</strong> this method from <c>OnLoadAsync</c> deadlocks: the load thread waits for GPU drain, but drain never runs until load returns.
+    /// </para>
+    /// <para>
+    /// <strong>Safe pattern from <c>OnLoadAsync</c>:</strong> kick off work without awaiting — e.g. <c>_ = context.LoadBakedMsdfAtlasAsync(path);</c> — same as shipped demos.
+    /// Await is fine from code that runs after the render loop is pumping (e.g. a later async scene setup that does not block <see cref="ModLoader.LoadAll"/>).
+    /// </para>
+    /// </remarks>
+    public async Task<bool> LoadBakedMsdfAtlasAsync(
+        string manifestPath,
+        CancellationToken cancellationToken = default)
+    {
+        var assets = new AssetManager(VirtualFileSystem);
+        var result = await Host.BakedMsdfAtlasLoader
+            .LoadFromPathAsync(assets, Host.TextGlyphCache, manifestPath, cancellationToken)
+            .ConfigureAwait(false);
         if (!result.Loaded)
         {
             Console.WriteLine($"Mod baked atlas load failed | manifest={manifestPath} reason={result.Message}");

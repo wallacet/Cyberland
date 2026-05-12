@@ -387,6 +387,28 @@ public sealed class UiTextBlockTests
     }
 
     [Fact]
+    public void UiTextBlock_replay_cached_runs_world_underline_recovers_decor_baseline_from_glyph()
+    {
+        var (fonts, cache) = TestFonts();
+        var block = new UiTextBlock
+        {
+            Fonts = fonts,
+            Text = "Replay",
+            DefaultStyle = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true)
+        };
+        UiLayoutPresets.StretchAll(block);
+        block.Measure(UiSizeConstraints.Loose(200f, 200f));
+        block.Arrange(new UiRect(0f, 0f, 200f, 200f));
+
+        var r = new RecordingRenderer();
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.WorldSpace);
+        var afterFirst = r.Sprites.Count;
+        block.DrawGlyphs(r, fonts, cache, CoordinateSpace.WorldSpace);
+        Assert.True(r.Sprites.Count >= afterFirst);
+        Assert.Contains(r.Sprites, s => s.AlbedoTextureId == r.WhiteTextureId);
+    }
+
+    [Fact]
     public void UiTextBlock_DrawGlyphs_no_ops_when_empty()
     {
         var (fonts, cache) = TestFonts();

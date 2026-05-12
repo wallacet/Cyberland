@@ -192,9 +192,9 @@ public sealed class GameApplication : IDisposable
         _host.Input = _input;
         _host.Tilemaps ??= new TilemapDataStore();
         _host.CameraRuntimeState = Hosting.CameraRuntimeState.CreateDefault(_renderer.SwapchainPixelSize);
+        _host.TextGlyphCache.UseAsyncRasterization = true;
         _host.EnsureCoreServicesReady();
         _renderer.RequestClose = () => _window?.Close();
-        LoadBuiltInBakedAtlases(_renderer);
         LogStartupStage("host.services", startupStageSw);
 
         if (_profileWallSeconds is not null)
@@ -245,6 +245,8 @@ public sealed class GameApplication : IDisposable
                     excludedSet);
                 LogStartupStage("mods.load_all", startupStageSw);
                 LogModLoadTiming(_mods.LastLoadTiming);
+                PreloadAllBuiltinAtlasesIfRequested(_renderer);
+                LogStartupStage("fonts.preload-builtins", startupStageSw);
 
                 _scheduler.RegisterParallel("cyberland.engine/camera-follow", new CameraFollowSystem());
                 _scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
@@ -312,6 +314,8 @@ public sealed class GameApplication : IDisposable
     {
         if (_window is null)
             return;
+        if (_renderer is null)
+            return;
 
 #if DEBUG
         using var __frame = FrameProfilerScope.Enter("OnRender.Total");
@@ -329,6 +333,18 @@ public sealed class GameApplication : IDisposable
 
         // Render tick order (see IRenderer remarks): discard stale CPU submits first so a missed DrawFrame cannot merge
         // with this tick's Submit*, then simulate + submit sprites/lights/camera, then encode/present.
+        {
+            _bakedGlyphImports += _host.BakedMsdfAtlasLoader.DrainPendingUploads(_renderer, result =>
+            {
+                if (!result.Loaded)
+                {
+                    Console.WriteLine(
+                        $"Baked atlas load | source={result.ManifestPath} skipped={result.Message}");
+                }
+            });
+            _host.TextGlyphCache.DrainPendingGlyphUploads(_renderer);
+        }
+
         {
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Game.ResetPendingSubmissions");
@@ -478,25 +494,28 @@ public sealed class GameApplication : IDisposable
         }
     }
 
-    private void LoadBuiltInBakedAtlases(IRenderer renderer)
+    private void PreloadAllBuiltinAtlasesIfRequested(IRenderer renderer)
     {
+        var raw = Environment.GetEnvironmentVariable("CYBERLAND_PRELOAD_ALL_ENGINE_FONT_ATLASES");
+        if (!IsTruthy(raw))
+            return;
         if (_bakedAtlasPageBudget <= 0)
         {
-            Console.WriteLine("Baked atlas load | skipped (page budget <= 0)");
+            Console.WriteLine("Baked atlas preload | skipped (page budget <= 0)");
             return;
         }
 
         try
         {
-            foreach (var atlas in BuiltinFonts.EnumerateBakedAtlasResources())
+            var assets = new AssetManager(_vfs);
+            foreach (var manifestPath in BuiltinFonts.EnumerateBakedAtlasManifestPaths())
             {
-                var manifest = LimitBakedAtlasManifestPages(atlas.Manifest, _bakedAtlasPageBudget);
-                var result = _host.BakedMsdfAtlasLoader.LoadFromResource(
-                    atlas.Label,
-                    manifest,
-                    atlas.ReadPageBytes,
+                var result = _host.BakedMsdfAtlasLoader.LoadFromPath(
+                    assets,
                     renderer,
-                    _host.TextGlyphCache);
+                    _host.TextGlyphCache,
+                    manifestPath,
+                    _bakedAtlasPageBudget);
                 if (result.Loaded)
                 {
                     _bakedGlyphImports += result.GlyphCount;
@@ -516,6 +535,13 @@ public sealed class GameApplication : IDisposable
         }
     }
 
+    private static bool IsTruthy(string? raw) =>
+        !string.IsNullOrWhiteSpace(raw) &&
+        (raw.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+         raw.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+         raw.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+         raw.Equals("on", StringComparison.OrdinalIgnoreCase));
+
     private static int ParseBakedAtlasPageBudget()
     {
         var raw = Environment.GetEnvironmentVariable("CYBERLAND_BAKED_ATLAS_PAGE_BUDGET");
@@ -528,37 +554,13 @@ public sealed class GameApplication : IDisposable
         return 4;
     }
 
-    private static BakedMsdfAtlasManifest LimitBakedAtlasManifestPages(BakedMsdfAtlasManifest source, int pageBudget)
-    {
-        if (source.Pages.Length <= pageBudget)
-            return source;
-
-        var keptPages = source.Pages.AsSpan(0, pageBudget).ToArray();
-        var keptGlyphs = new List<BakedMsdfGlyphEntry>(source.Glyphs.Length);
-        foreach (var glyph in source.Glyphs)
-        {
-            if (glyph.PageIndex < pageBudget)
-                keptGlyphs.Add(glyph);
-        }
-        return new BakedMsdfAtlasManifest
-        {
-            Version = source.Version,
-            FamilyId = source.FamilyId,
-            Face = source.Face,
-            SizePixels = source.SizePixels,
-            RasterRevision = source.RasterRevision,
-            PageSizePixels = source.PageSizePixels,
-            Pages = keptPages,
-            Glyphs = keptGlyphs.ToArray()
-        };
-    }
-
     /// <summary>
     /// Releases GPU, audio, and window resources. Safe to call once after <see cref="Run"/> returns.
     /// </summary>
     public void Dispose()
     {
         _input?.Dispose();
+        _host.TextGlyphCache.Shutdown();
         _renderer?.Dispose();
         _audio?.Dispose();
         _window?.Dispose();

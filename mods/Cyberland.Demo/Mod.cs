@@ -2,6 +2,7 @@ using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
+using Cyberland.Engine.Rendering.Text;
 
 namespace Cyberland.Demo;
 
@@ -32,6 +33,7 @@ public sealed class Mod : IMod
         context.MountDefaultContent();
         DemoInputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("demo_hdr.json");
+        KickoffBuiltinAtlasLoads(context);
 
         var host = context.Host;
 
@@ -54,5 +56,13 @@ public sealed class Mod : IMod
     /// <inheritdoc />
     public void OnUnload()
     {
+    }
+
+    private static void KickoffBuiltinAtlasLoads(ModLoadContext context)
+    {
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular15);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular22);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansBold23);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular14);
     }
 }

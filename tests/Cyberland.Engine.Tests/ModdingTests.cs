@@ -14,6 +14,7 @@ using Moq;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using Silk.NET.Input;
+using System.Threading.Tasks;
 
 namespace Cyberland.Engine.Tests;
 
@@ -703,6 +704,51 @@ public sealed class ModdingTests
         {
             Directory.Delete(root, true);
         }
+    }
+
+    [Fact]
+    public async Task ModLoadContext_LoadBakedMsdfAtlasAsync_succeeds_for_builtin_virtual_path()
+    {
+        var vfs = new VirtualFileSystem();
+        var host = new GameHostServices { Renderer = new RecordingRenderer() };
+        var ctx = new ModLoadContext(
+            new ModManifest { Id = "x", ContentRoot = "Content" },
+            Path.GetTempPath(),
+            vfs,
+            TestLoc(vfs),
+            new World(),
+            new SystemScheduler(new ParallelismSettings()),
+            host);
+
+        var pending = ctx.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14);
+        Assert.False(pending.IsCompleted);
+
+        for (var i = 0; i < 40 && !pending.IsCompleted; i++)
+        {
+            host.BakedMsdfAtlasLoader.DrainPendingUploads(host.Renderer);
+            await Task.Delay(5);
+        }
+
+        var completed = await Task.WhenAny(pending, Task.Delay(TimeSpan.FromSeconds(3)));
+        Assert.True(pending.IsCompleted, "Async atlas load did not complete before timeout.");
+        Assert.True(await pending);
+    }
+
+    [Fact]
+    public async Task ModLoadContext_LoadBakedMsdfAtlasAsync_returns_false_when_load_fails()
+    {
+        var vfs = new VirtualFileSystem();
+        var host = new GameHostServices { Renderer = new RecordingRenderer() };
+        var ctx = new ModLoadContext(
+            new ModManifest { Id = "x", ContentRoot = "Content" },
+            Path.GetTempPath(),
+            vfs,
+            TestLoc(vfs),
+            new World(),
+            new SystemScheduler(new ParallelismSettings()),
+            host);
+
+        Assert.False(await ctx.LoadBakedMsdfAtlasAsync("missing-atlas.json"));
     }
 
     [Fact]

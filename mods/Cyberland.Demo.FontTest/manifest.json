@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.fonttest",
+  "name": "Cyberland Font Test (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.FontTest.dll",
+  "contentRoot": "Content",
+  "loadOrder": 26,
+  "disabled": true
+}

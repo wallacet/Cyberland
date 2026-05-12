@@ -110,6 +110,11 @@ public struct TextGlyphDrawRequest
     public Vector2D<float> Center;
     /// <summary>Half-width / half-height in world / viewport units.</summary>
     public Vector2D<float> HalfExtents;
+    /// <summary>
+    /// Vertical offset from pen baseline to sprite center in +Y-up font space (same value used when placing
+    /// <see cref="Center"/>); decorations recover baseline via <c>Center.Y - OffsetPenToCenterYWorld * ySign</c>.
+    /// </summary>
+    public float OffsetPenToCenterYWorld;
     /// <summary>Atlas UV rectangle (min.xy, max.zw). Zero means full texture.</summary>
     public Vector4D<float> UvRect;
     /// <summary>Straight-alpha text tint color.</summary>

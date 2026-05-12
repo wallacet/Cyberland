@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Cyberland.Engine.Diagnostics;
+using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.UI.Core;
 using Glslang.NET;
 using Silk.NET.Maths;
@@ -906,6 +907,15 @@ public sealed unsafe partial class VulkanRenderer
 
         var halfX = s.HalfExtentsWorld.X * plan.Physical.Scale;
         var halfY = s.HalfExtentsWorld.Y * plan.Physical.Scale;
+        // Match TryBuildTextGlyphInstance: HUD sprites share the swapchain overlay pass with MSDF text; identical pixel
+        // snapping keeps decoration lines aligned with glyph quads under letterbox scaling.
+        if (s.Space == Scene.CoordinateSpace.ViewportSpace || s.Space == Scene.CoordinateSpace.SwapchainSpace)
+        {
+            px = new Vector2D<float>(MathF.Round(px.X), MathF.Round(px.Y));
+            halfX = MathF.Max(0.5f, MathF.Round(halfX * 2f) * 0.5f);
+            halfY = MathF.Max(0.5f, MathF.Round(halfY * 2f) * 0.5f);
+        }
+
         var uv = s.UvRect;
         if (uv.X == 0f && uv.Y == 0f && uv.Z == 0f && uv.W == 0f)
             uv = new Vector4D<float>(0f, 0f, 1f, 1f);

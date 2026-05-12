@@ -3,6 +3,8 @@ using Cyberland.Engine.Rendering.Text;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using Silk.NET.Maths;
+using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace Cyberland.Engine.Tests;
 
@@ -128,4 +130,46 @@ public sealed class TextGlyphCacheTelemetryTests
         }
     }
 #endif
+
+    [Fact]
+    public async Task TextGlyphCache_async_mode_enqueues_miss_then_becomes_available_after_drain()
+    {
+        var renderer = new RecordingRenderer();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var cache = new TextGlyphCache { UseAsyncRasterization = true };
+        var style = new TextStyle(BuiltinFonts.UiSans, 17f, new Vector4D<float>(1f, 1f, 1f, 1f));
+
+        Assert.False(cache.TryGetGlyph(renderer, fonts, in style, 'A', "A", out _));
+
+        var sw = Stopwatch.StartNew();
+        TextGlyphCache.CachedGlyph glyph = default;
+        while (sw.Elapsed < TimeSpan.FromSeconds(2))
+        {
+            cache.DrainPendingGlyphUploads(renderer);
+            if (cache.TryGetGlyph(renderer, fonts, in style, 'A', "A", out glyph))
+                break;
+            await Task.Delay(5);
+        }
+
+        Assert.True(glyph.TextureId != uint.MaxValue);
+    }
+
+    [Fact]
+    public void FontLibrary_TryCreateTransientFont_returns_font_for_registered_family()
+    {
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var style = new TextStyle(BuiltinFonts.UiSans, 12f, new Vector4D<float>(1f, 1f, 1f, 1f), Bold: true);
+        Assert.True(fonts.TryCreateTransientFont(style, out var font, out var usedFace));
+        Assert.NotNull(font);
+        Assert.Equal(FontFaceKind.Regular, usedFace);
+    }
+
+    [Fact]
+    public void TextGlyphCache_Shutdown_is_safe_to_call()
+    {
+        var cache = new TextGlyphCache { UseAsyncRasterization = true };
+        cache.Shutdown();
+    }
 }

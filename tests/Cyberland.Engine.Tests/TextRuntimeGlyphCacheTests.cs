@@ -567,4 +567,32 @@ public sealed class TextRuntimeGlyphCacheTests
         Assert.NotNull(cache.CachedGlyphs);
         Assert.True(cache.GlyphCount > 0);
     }
+
+    [Fact]
+    public void TextRuntimeBuilder_rebuild_discards_oversized_cached_glyph_array_when_content_is_much_shorter()
+    {
+        var renderer = new RecordingRenderer();
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        var style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f));
+        var bt = new BitmapText
+        {
+            Visible = true,
+            Content = "A",
+            IsLocalizationKey = false,
+            CoordinateSpace = CoordinateSpace.WorldSpace,
+            SortKey = 1f,
+            Style = style
+        };
+        var transform = Transform.Identity;
+        var cache = new TextSpriteCache();
+        var fingerprint = default(TextBuildFingerprint);
+
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, host, renderer, out _, out _));
+        cache.CachedGlyphs = new TextGlyphDrawRequest[32];
+        cache.GlyphCount = 99; // Invalid for resolved length=1: forces TryReusePreparedGlyphs line-161 guard path.
+        Assert.True(TextRuntimeBuilder.TryPrepare(ref bt, ref fingerprint, ref cache, in transform, host, renderer, out _, out _));
+        Assert.NotNull(cache.CachedGlyphs);
+        Assert.True(cache.CachedGlyphs!.Length <= 2, "Oversized glyph cache should shrink to current content capacity.");
+        Assert.True(cache.GlyphCount <= bt.Content.Length);
+    }
 }

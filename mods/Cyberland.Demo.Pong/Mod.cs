@@ -1,5 +1,6 @@
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
+using Cyberland.Engine.Rendering.Text;
 
 namespace Cyberland.Demo.Pong;
 
@@ -18,6 +19,7 @@ public sealed class Mod : IMod
         context.MountDefaultContent();
         PongInputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("pong.json");
+        KickoffBuiltinAtlasLoads(context);
 
         var scene = await SceneSetup.SetupSceneAsync(context);
 
@@ -30,4 +32,22 @@ public sealed class Mod : IMod
 
     /// <inheritdoc />
     public void OnUnload() { }
+
+    private static void KickoffBuiltinAtlasLoads(ModLoadContext context)
+    {
+        // Manifest SizePixels must match VisualSyncSystem TextStyles after FontLibrary.QuantizeEmSizePixels.
+        ReadOnlySpan<string> manifests =
+        [
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular16,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular18,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular20,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular23,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansBold23,
+            BuiltinFonts.BakedAtlasManifestPath.MonoRegular14,
+            BuiltinFonts.BakedAtlasManifestPath.MonoRegular18
+        ];
+        foreach (var path in manifests)
+            _ = context.LoadBakedMsdfAtlasAsync(path);
+    }
 }

@@ -1,5 +1,6 @@
 using Cyberland.Demo.IdleGold.Systems;
 using Cyberland.Engine.Modding;
+using Cyberland.Engine.Rendering.Text;
 
 namespace Cyberland.Demo.IdleGold;
 
@@ -13,6 +14,7 @@ public sealed class Mod : IMod
     {
         context.MountDefaultContent();
         context.LocalizedContent.MergeStringTable("idlegold.json");
+        KickoffBuiltinAtlasLoads(context);
 
         var boot = await SceneSetup.SetupSceneAsync(context);
 
@@ -29,5 +31,16 @@ public sealed class Mod : IMod
     /// <inheritdoc />
     public void OnUnload()
     {
+    }
+
+    private static void KickoffBuiltinAtlasLoads(ModLoadContext context)
+    {
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular13);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular15);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansBold14);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansBold18);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular22);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular14);
     }
 }

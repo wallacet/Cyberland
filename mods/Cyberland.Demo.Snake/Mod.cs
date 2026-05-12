@@ -1,5 +1,6 @@
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
+using Cyberland.Engine.Rendering.Text;
 
 namespace Cyberland.Demo.Snake;
 
@@ -18,6 +19,7 @@ public sealed class Mod : IMod
         context.MountDefaultContent();
         SnakeInputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("snake.json");
+        KickoffBuiltinAtlasLoads(context);
 
         await SceneSetup.SetupSceneAsync(context);
 
@@ -32,4 +34,14 @@ public sealed class Mod : IMod
 
     /// <inheritdoc />
     public void OnUnload() { }
+
+    private static void KickoffBuiltinAtlasLoads(ModLoadContext context)
+    {
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular16);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular20);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansBold23);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular14);
+        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular18);
+    }
 }

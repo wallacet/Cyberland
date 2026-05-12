@@ -117,6 +117,11 @@ public sealed class ModLoader
     /// Calling this again on the same <see cref="ModLoader"/> replaces the previous result: <see cref="UnloadAll"/> runs first
     /// (reverse <see cref="IMod.OnUnload"/>), then manifests and instances are repopulated. The host’s <see cref="VirtualFileSystem"/>
     /// is not cleared; mounts accumulate across repeated loads unless the host replaces or clears the <see cref="Assets.VirtualFileSystem"/>.
+    /// <para>
+    /// <see cref="IMod.OnLoadAsync"/> is completed synchronously via <c>GetAwaiter().GetResult()</c> on the load thread before the first render tick.
+    /// Therefore <strong>do not await</strong> <see cref="ModLoadContext.LoadBakedMsdfAtlasAsync"/> inside <c>OnLoadAsync</c> — the task only completes after
+    /// the render loop drains pending atlas uploads (deadlock). Use <c>_ = context.LoadBakedMsdfAtlasAsync(...)</c> or <see cref="ModLoadContext.LoadBakedMsdfAtlas"/>.
+    /// </para>
     /// </remarks>
     public void LoadAll(
         string modsRootDirectory,

@@ -44,4 +44,10 @@ public struct TextBuildFingerprint : IComponent
 
     /// <summary>Framebuffer height in pixels when <see cref="BitmapText.CoordinateSpace"/> was viewport space; otherwise 0.</summary>
     public int FramebufferH;
+
+    /// <summary>
+    /// <see cref="Rendering.Text.TextGlyphCache"/> content version observed at the last successful prepare.
+    /// When this changes, cached no-ink rows are rebuilt so glyphs can appear after async atlas/glyph uploads.
+    /// </summary>
+    public long GlyphContentVersion;
 }

@@ -1,3 +1,4 @@
+using System;
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Diagnostics;
@@ -136,10 +137,24 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate, IParallelSystem, IP
         var space = cache.Space;
         var applyViewportClip = TryGetDecorationClipRect(space, renderer, out var viewportClip);
 
+        // Viewport/swapchain: same baseline-left as FillGlyphRunGlyphs / SubmitGlyphRunWithDecorations — AddDecorations snaps.
+        // World space: recover Y from an emitted quad when camera-space baseline and quad centers can diverge.
+        var decorBaseline = baselineAuthored;
+        ReadOnlySpan<TextGlyphDrawRequest> ink = default;
+        if (glyphSubmitCount > 0 && cache.CachedGlyphs is not null)
+        {
+            ink = cache.CachedGlyphs.AsSpan(0, glyphSubmitCount);
+            if (space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace)
+            {
+                var y = TextRenderer.RecoverBaselineYFromGlyph(in ink[0]);
+                decorBaseline = new Vector2D<float>(baselineAuthored.X, y);
+            }
+        }
+
         TextRenderer.SubmitTextDecorations(
             renderer,
             in bt.Style,
-            baselineAuthored,
+            decorBaseline,
             0f,
             cache.PenAfter,
             bt.SortKey,
@@ -147,7 +162,9 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate, IParallelSystem, IP
             renderer.DefaultNormalTextureId,
             space,
             applyViewportClip,
-            viewportClip);
+            viewportClip,
+            _host.Fonts,
+            ink);
     }
 
     private static bool TryGetDecorationClipRect(CoordinateSpace space, IRenderer renderer, out UiRect viewportClip)

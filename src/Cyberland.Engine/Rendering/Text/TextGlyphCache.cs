@@ -41,6 +41,12 @@ public sealed class TextGlyphCache
         double UploadMs);
 
     private readonly object _lock = new();
+    private readonly ConcurrentQueue<RasterJob> _pendingRasterJobs = new();
+    private readonly ConcurrentQueue<RasterResult> _completedRasterJobs = new();
+    private readonly ConcurrentDictionary<(string FamilyId, FontFaceKind Face, int SizeQuant, int Codepoint, int RasterRevision), byte> _inFlightJobs = new();
+    private readonly AutoResetEvent _rasterWake = new(false);
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly Thread _rasterWorker;
     private static long s_cacheHits;
     private static long s_cacheMisses;
     private static long s_uploadCalls;
@@ -48,6 +54,7 @@ public sealed class TextGlyphCache
     private static long s_rasterizeTicks;
     private static long s_uploadTicks;
     private static long s_bakedGlyphImports;
+    private static long s_contentVersion;
     private static readonly ConcurrentDictionary<int, long> s_missCodepoints = new();
     private static readonly ConcurrentDictionary<string, long> s_missGlyphKeys = new();
 
@@ -96,6 +103,41 @@ public sealed class TextGlyphCache
         CachedGlyph> _glyphs = new();
 
     private readonly List<GlyphAtlasPage> _pages = new();
+
+    private readonly record struct RasterJob(
+        FontLibrary Fonts,
+        TextStyle Style,
+        string Glyph,
+        (string FamilyId, FontFaceKind Face, int SizeQuant, int Codepoint, int RasterRevision) Key);
+
+    private readonly record struct RasterResult(
+        (string FamilyId, FontFaceKind Face, int SizeQuant, int Codepoint, int RasterRevision) Key,
+        byte[] Rgba,
+        int AtlasWidth,
+        int AtlasHeight,
+        float DrawWidthPx,
+        float DrawHeightPx,
+        float AdvancePx,
+        float OffsetPenToCenterX,
+        float OffsetPenToCenterYWorld,
+        float MsdfPixelRange);
+
+    /// <summary>
+    /// When true, cache misses are rasterized on a background worker and become visible after a drain tick.
+    /// Runtime host enables this to avoid render-thread spikes; unit tests may keep the default synchronous behavior.
+    /// </summary>
+    public bool UseAsyncRasterization { get; set; }
+
+    /// <summary>Creates a glyph cache and starts the background raster worker.</summary>
+    public TextGlyphCache()
+    {
+        _rasterWorker = new Thread(() => RasterWorkerLoop(_shutdown.Token))
+        {
+            IsBackground = true,
+            Name = "Cyberland.TextGlyphCache.RasterWorker"
+        };
+        _rasterWorker.Start();
+    }
 
     /// <summary>
     /// Clears CPU-side glyph maps and atlas bookkeeping (does not destroy GPU textures). <see cref="FontLibrary"/> keeps
@@ -162,55 +204,77 @@ public sealed class TextGlyphCache
 #if DEBUG
         WarnRuntimeMsdfRasterFallbackOnce(missKey, in style, utf16Glyph);
 #endif
+        if (!UseAsyncRasterization)
+            return TryRasterizeAndUploadSynchronously(renderer, fonts, in style, utf16Glyph, key, out glyph);
 
-        byte[]? rgba;
-        int atlasW, atlasH;
-        float drawW, drawH, adv, cx, cyW, msdfRange;
-        var rasterStart = Stopwatch.GetTimestamp();
-        lock (fonts.FontRasterSync)
-        {
-            // Family was resolved above; TryCreateFontUnlocked uses the same id and cannot fail here.
-            _ = fonts.TryCreateFontUnlocked(in style, out var font, out _);
-            _ = GlyphRasterizer.TryCreateGlyphMsdf(
-                font,
-                utf16Glyph,
-                out rgba,
-                out atlasW,
-                out atlasH,
-                out drawW,
-                out drawH,
-                out adv,
-                out cx,
-                out cyW,
-                out msdfRange);
-        }
-        Interlocked.Add(ref s_rasterizeTicks, Stopwatch.GetTimestamp() - rasterStart);
+        EnqueueRasterJob(fonts, in style, utf16Glyph, key);
+        return false;
+    }
 
-        lock (_lock)
+    /// <summary>
+    /// Uploads completed background raster jobs onto the render thread and seeds cache entries.
+    /// Call once per render tick before text staging.
+    /// </summary>
+    [ExcludeFromCodeCoverage(Justification = "Render-thread drain sequencing is validated through runtime integration scenarios.")]
+    internal void DrainPendingGlyphUploads(IRenderer renderer)
+    {
+        while (_completedRasterJobs.TryDequeue(out var completed))
         {
-            if (_glyphs.TryGetValue(key, out var existingAfterRaster))
+            var key = completed.Key;
+            try
             {
-                glyph = existingAfterRaster;
-                return true;
+                lock (_lock)
+                {
+                    if (_glyphs.ContainsKey(key))
+                        continue;
+                    if (!TryPackAndUpload(renderer, completed.Rgba, completed.AtlasWidth, completed.AtlasHeight, out var texId, out var uv))
+                        continue;
+
+                    _glyphs[key] = new CachedGlyph
+                    {
+                        TextureId = texId,
+                        WidthPx = completed.DrawWidthPx,
+                        HeightPx = completed.DrawHeightPx,
+                        OffsetPenToCenterX = completed.OffsetPenToCenterX,
+                        OffsetPenToCenterYWorld = completed.OffsetPenToCenterYWorld,
+                        AdvancePx = completed.AdvancePx,
+                        UvRect = uv,
+                        MsdfPixelRange = completed.MsdfPixelRange
+                    };
+                    Interlocked.Increment(ref s_contentVersion);
+                }
             }
-
-            if (!TryPackAndUpload(renderer, rgba!, atlasW, atlasH, out var texId, out var uv))
-                return false;
-
-            var built = new CachedGlyph
+            finally
             {
-                TextureId = texId,
-                WidthPx = drawW,
-                HeightPx = drawH,
-                OffsetPenToCenterX = cx,
-                OffsetPenToCenterYWorld = cyW,
-                AdvancePx = adv,
-                UvRect = uv,
-                MsdfPixelRange = msdfRange
-            };
-            _glyphs[key] = built;
-            glyph = built;
-            return true;
+                _inFlightJobs.TryRemove(key, out _);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Content version increments whenever new glyph data becomes renderable.
+    /// Retained UI can watch this to invalidate cached no-ink replay states.
+    /// </summary>
+    internal static long ContentVersion => Interlocked.Read(ref s_contentVersion);
+
+    /// <summary>Stops the background raster worker.</summary>
+    [ExcludeFromCodeCoverage(Justification = "Worker shutdown path is process-lifecycle integration behavior.")]
+    public void Shutdown()
+    {
+        _shutdown.Cancel();
+        _rasterWake.Set();
+        try
+        {
+            _ = _rasterWorker.Join(250);
+        }
+        catch
+        {
+            // Best-effort shutdown; process teardown ends remaining work.
+        }
+        finally
+        {
+            _rasterWake.Dispose();
+            _shutdown.Dispose();
         }
     }
 
@@ -278,6 +342,7 @@ public sealed class TextGlyphCache
             _glyphs[key] = glyph;
         }
         Interlocked.Increment(ref s_bakedGlyphImports);
+        Interlocked.Increment(ref s_contentVersion);
     }
 
     internal static GlyphCacheTelemetry SnapshotAndResetTelemetry()
@@ -357,4 +422,134 @@ public sealed class TextGlyphCache
             $"Cyberland | MSDF atlas miss — runtime raster fallback | {missKey} | sizePx={style.SizePixels.ToString(CultureInfo.InvariantCulture)} bold={style.Bold} italic={style.Italic} grapheme=\"{grapheme}\" (prefer baked MSDF atlases or align TextStyle with shipped BuiltinFonts coverage)");
     }
 #endif
+
+    private void EnqueueRasterJob(
+        FontLibrary fonts,
+        in TextStyle style,
+        ReadOnlySpan<char> utf16Glyph,
+        (string FamilyId, FontFaceKind Face, int SizeQuant, int Codepoint, int RasterRevision) key)
+    {
+        if (!_inFlightJobs.TryAdd(key, 0))
+            return;
+
+        _pendingRasterJobs.Enqueue(new RasterJob(fonts, style, utf16Glyph.ToString(), key));
+        _rasterWake.Set();
+    }
+
+    [ExcludeFromCodeCoverage(Justification = "Background loop scheduling is timing-sensitive and covered by integration runs.")]
+    private void RasterWorkerLoop(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            if (!_pendingRasterJobs.TryDequeue(out var job))
+            {
+                _rasterWake.WaitOne(16);
+                continue;
+            }
+
+            try
+            {
+                var rasterStart = Stopwatch.GetTimestamp();
+                if (!job.Fonts.TryCreateTransientFont(job.Style, out var transientFont, out _))
+                {
+                    _inFlightJobs.TryRemove(job.Key, out _);
+                    continue;
+                }
+
+                if (!GlyphRasterizer.TryCreateGlyphMsdf(
+                    transientFont,
+                    job.Glyph,
+                    out var rgba,
+                    out var atlasW,
+                    out var atlasH,
+                    out var drawW,
+                    out var drawH,
+                    out var adv,
+                    out var cx,
+                    out var cyW,
+                    out var msdfRange))
+                {
+                    _inFlightJobs.TryRemove(job.Key, out _);
+                    continue;
+                }
+
+                Interlocked.Add(ref s_rasterizeTicks, Stopwatch.GetTimestamp() - rasterStart);
+                _completedRasterJobs.Enqueue(new RasterResult(
+                    job.Key,
+                    rgba!,
+                    atlasW,
+                    atlasH,
+                    drawW,
+                    drawH,
+                    adv,
+                    cx,
+                    cyW,
+                    msdfRange));
+            }
+            catch
+            {
+                _inFlightJobs.TryRemove(job.Key, out _);
+            }
+        }
+    }
+
+    private bool TryRasterizeAndUploadSynchronously(
+        IRenderer renderer,
+        FontLibrary fonts,
+        in TextStyle style,
+        ReadOnlySpan<char> utf16Glyph,
+        (string FamilyId, FontFaceKind Face, int SizeQuant, int Codepoint, int RasterRevision) key,
+        out CachedGlyph glyph)
+    {
+        glyph = default;
+        byte[]? rgba;
+        int atlasW, atlasH;
+        float drawW, drawH, adv, cx, cyW, msdfRange;
+        var rasterStart = Stopwatch.GetTimestamp();
+        lock (fonts.FontRasterSync)
+        {
+            _ = fonts.TryCreateFontUnlocked(in style, out var font, out _);
+            _ = GlyphRasterizer.TryCreateGlyphMsdf(
+                font,
+                utf16Glyph,
+                out rgba,
+                out atlasW,
+                out atlasH,
+                out drawW,
+                out drawH,
+                out adv,
+                out cx,
+                out cyW,
+                out msdfRange);
+        }
+        Interlocked.Add(ref s_rasterizeTicks, Stopwatch.GetTimestamp() - rasterStart);
+
+        lock (_lock)
+        {
+            if (_glyphs.TryGetValue(key, out var existingAfterRaster))
+            {
+                glyph = existingAfterRaster;
+                return true;
+            }
+
+            if (!TryPackAndUpload(renderer, rgba!, atlasW, atlasH, out var texId, out var uv))
+                return false;
+
+            var built = new CachedGlyph
+            {
+                TextureId = texId,
+                WidthPx = drawW,
+                HeightPx = drawH,
+                OffsetPenToCenterX = cx,
+                OffsetPenToCenterYWorld = cyW,
+                AdvancePx = adv,
+                UvRect = uv,
+                MsdfPixelRange = msdfRange
+            };
+            _glyphs[key] = built;
+            Interlocked.Increment(ref s_contentVersion);
+            glyph = built;
+            return true;
+        }
+    }
 }

@@ -700,6 +700,34 @@
       }
     },
     {
+      "label": "Cyberland: Test demo (Font Test)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "fonttest"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo.FontTest, clears artifacts/, runs the host until you exit, then disables the mod again.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
       "label": "Cyberland: Profile demo 30s (HDR / Vulkan intro)",
       "type": "shell",
       "command": "powershell.exe",

@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
@@ -332,6 +334,228 @@ public sealed class TextRenderSystemTests
             Assert.Equal(320f, s.ViewportClipRect.Width);
             Assert.Equal(180f, s.ViewportClipRect.Height);
         });
+    }
+
+    [Fact]
+    public void TextRenderSystem_viewport_underline_aligns_open_type_delta_to_snapped_baseline()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.ActiveCameraViewportSize = new Vector2D<int>(320, 240);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var transform = ref world.Get<Transform>(e);
+        transform.WorldPosition = new Vector2D<float>(20f, 30f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "HIGH";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        const float sizePx = 18f;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, sizePx, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.TextGlyphs);
+        var baselineSnappedY = MathF.Round(world.Get<TextSpriteCache>(e).BaselineAuthored.Y);
+        Assert.True(host.Fonts.TryGetOpenTypeTextDecorationLayout(in bt.Style, out var ot));
+        var otUnderlineCenter = baselineSnappedY + ot.UnderlineCenterDeltaPositiveDownPx;
+        var underline = r.Sprites.Single(s => s.AlbedoTextureId == r.WhiteTextureId);
+
+        var rowSortKey = bt.SortKey;
+        var rowGlyphs = r.TextGlyphs.Where(g =>
+            g.Space == CoordinateSpace.ViewportSpace && Math.Abs(g.SortKey - rowSortKey) < 1e-4f).ToList();
+        Assert.NotEmpty(rowGlyphs);
+        var inkMinTop = rowGlyphs.Min(g => g.Center.Y - g.HalfExtents.Y);
+        var inkMaxBottom = rowGlyphs.Max(g => g.Center.Y + g.HalfExtents.Y);
+        var resolved = TextDecorationMetrics.ResolveViewportUnderlineCenterWithInkBand(
+            baselineSnappedY,
+            bt.Style.SizePixels,
+            otUnderlineCenter,
+            underline.HalfExtentsWorld.Y,
+            inkMinTop,
+            inkMaxBottom);
+        Assert.Equal(resolved, underline.CenterWorld.Y, 3);
+        ViewportUnderlinePlacementAssert.FollowsTightVisibleBandRules(in underline, baselineSnappedY, bt.Style.SizePixels,
+            inkMinTop, inkMaxBottom);
+    }
+
+    [Fact]
+    public void TextRenderSystem_viewport_underline_follows_visible_band_placement_rules()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.ActiveCameraViewportSize = new Vector2D<int>(1280, 720);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(r.ActiveCameraViewportSize);
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var transform = ref world.Get<Transform>(e);
+        transform.WorldPosition = new Vector2D<float>(36f, 642f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "GAME OVER";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        bt.SortKey = 450f;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.42f, 0.48f, 1f), Underline: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.TextGlyphs);
+        var underline = Assert.Single(r.Sprites);
+        var rowSortKey = bt.SortKey;
+        var rowGlyphs = r.TextGlyphs.Where(g =>
+            g.Space == CoordinateSpace.ViewportSpace && Math.Abs(g.SortKey - rowSortKey) < 1e-4f).ToList();
+        Assert.NotEmpty(rowGlyphs);
+
+        // Placement rules compare the underline to a heuristic visible ink band (not full MSDF quads — padded boxes would
+        // falsely flag strokes that sit below glyph outlines but inside transparent slack).
+
+        var inkMinTop = rowGlyphs.Min(g => g.Center.Y - g.HalfExtents.Y);
+        var inkMaxBottom = rowGlyphs.Max(g => g.Center.Y + g.HalfExtents.Y);
+        var baselineSnapped = MathF.Round(world.Get<TextSpriteCache>(e).BaselineAuthored.Y);
+        ViewportUnderlinePlacementAssert.FollowsTightVisibleBandRules(in underline, baselineSnapped, bt.Style.SizePixels,
+            inkMinTop, inkMaxBottom);
+    }
+
+    [Fact]
+    public void TextRenderSystem_pong_game_over_underline_keeps_visible_clearance_below_clipped_ink()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.ActiveCameraViewportSize = new Vector2D<int>(1280, 720);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(r.ActiveCameraViewportSize);
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var transform = ref world.Get<Transform>(e);
+        // Mirrors Pong HUD game-over row: baseline-left x=36, y=viewportHeight-78 in viewport (+Y down) space.
+        transform.WorldPosition = new Vector2D<float>(36f, r.ActiveCameraViewportSize.Y - 78f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "GAME OVER";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        bt.SortKey = 450f;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.42f, 0.48f, 1f), Underline: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.TextGlyphs);
+        var underline = Assert.Single(r.Sprites);
+        var rowSortKey = bt.SortKey;
+        var rowGlyphs = r.TextGlyphs.Where(g =>
+            g.Space == CoordinateSpace.ViewportSpace && Math.Abs(g.SortKey - rowSortKey) < 1e-4f).ToList();
+        Assert.NotEmpty(rowGlyphs);
+
+        var baselineSnapped = MathF.Round(world.Get<TextSpriteCache>(e).BaselineAuthored.Y);
+        var styleSizePx = bt.Style.SizePixels;
+        var clippedInkBottom = rowGlyphs.Max(g =>
+            MathF.Min(
+                g.Center.Y + g.HalfExtents.Y,
+                baselineSnapped + MathF.Max(3f,
+                    styleSizePx * TextDecorationMetrics.ViewportUnderlineBaselineInkDescenderMaxEm)));
+        var strokeTop = underline.CenterWorld.Y - underline.HalfExtentsWorld.Y;
+        const float pongRequiredVisibleClearancePx = 2f;
+        var minVisibleClearancePx = MathF.Max(
+            pongRequiredVisibleClearancePx,
+            TextDecorationMetrics.ViewportUnderlineMinInkClearancePx(styleSizePx));
+        Assert.True(strokeTop >= clippedInkBottom + minVisibleClearancePx,
+            $"Pong game-over underline top {strokeTop:F3} should be at least {minVisibleClearancePx:F3}px below clipped ink bottom {clippedInkBottom:F3}.");
+    }
+
+    [Fact]
+    public void TextRenderSystem_viewport_underline_on_upper_row_clears_lower_row_ink_band()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.ActiveCameraViewportSize = new Vector2D<int>(1280, 720);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(r.ActiveCameraViewportSize);
+        var world = new World();
+
+        const float upperBaselineY = 120f;
+        const float lowerBaselineY = 380f;
+
+        var eUpper = world.CreateEntity();
+        world.GetOrAdd<Transform>(eUpper) = Transform.Identity;
+        ref var upperTransform = ref world.Get<Transform>(eUpper);
+        upperTransform.WorldPosition = new Vector2D<float>(40f, upperBaselineY);
+
+        ref var btUpper = ref world.GetOrAdd<BitmapText>(eUpper);
+        btUpper.Visible = true;
+        btUpper.Content = "UPPER";
+        btUpper.IsLocalizationKey = false;
+        btUpper.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        btUpper.SortKey = 200f;
+        btUpper.Style = new TextStyle(BuiltinFonts.UiSans, 18f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
+
+        var eLower = world.CreateEntity();
+        world.GetOrAdd<Transform>(eLower) = Transform.Identity;
+        ref var lowerTransform = ref world.Get<Transform>(eLower);
+        lowerTransform.WorldPosition = new Vector2D<float>(40f, lowerBaselineY);
+
+        ref var btLower = ref world.GetOrAdd<BitmapText>(eLower);
+        btLower.Visible = true;
+        btLower.Content = "LOWER";
+        btLower.IsLocalizationKey = false;
+        btLower.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        btLower.SortKey = 201f;
+        btLower.Style = new TextStyle(BuiltinFonts.UiSans, 18f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: false);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        var underline = r.Sprites.Single(s => s.AlbedoTextureId == r.WhiteTextureId);
+        var lowerGlyphs = r.TextGlyphs.Where(g => Math.Abs(g.SortKey - 201f) < 0.01f).ToList();
+        Assert.NotEmpty(lowerGlyphs);
+        var lowerInkTop = lowerGlyphs.Min(g => g.Center.Y - g.HalfExtents.Y);
+
+        Assert.True(underline.CenterWorld.Y < lowerInkTop - 8f,
+            "Underline on the upper viewport row must stay above the lower row's glyph ink (viewport decorations must use this row's authored baseline, not glyph-recovery drift toward another row).");
+    }
+
+    [Fact]
+    public void TextRenderSystem_world_underline_aligns_open_type_delta_to_baseline()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var transform = ref world.Get<Transform>(e);
+        transform.WorldPosition = new Vector2D<float>(10f, 200f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "Gy";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.WorldSpace;
+        const float sizePx = 16f;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, sizePx, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.TextGlyphs);
+        var baselineY = world.Get<TextSpriteCache>(e).BaselineAuthored.Y;
+        Assert.True(host.Fonts.TryGetOpenTypeTextDecorationLayout(in bt.Style, out var ot));
+        var expectedUnderlineCenter = baselineY - ot.UnderlineCenterDeltaPositiveDownPx;
+        var underline = r.Sprites.Single(s => s.AlbedoTextureId == r.WhiteTextureId);
+        Assert.Equal(expectedUnderlineCenter, underline.CenterWorld.Y, 4);
     }
 
     [Fact]
