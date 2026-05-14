@@ -2,6 +2,7 @@ using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Scene.Systems;
@@ -588,7 +589,7 @@ public sealed class SceneCoverageFillTests
     }
 
     /// <summary>
-    /// Registers stock <see cref="Scene.Systems"/> types like <see cref="GameApplication"/> so
+    /// Registers stock <see cref="Scene.Systems"/> types through <see cref="EngineDefaultSchedulerSystems"/> so
     /// <see cref="IEcsQuerySource.QuerySpec"/> getters are exercised for line coverage.
     /// </summary>
     [Fact]
@@ -596,13 +597,16 @@ public sealed class SceneCoverageFillTests
     {
         var sched = new SystemScheduler(new ParallelismSettings());
         var host = new GameHostServices();
-        sched.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
-        sched.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
-        sched.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
-        sched.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
-        sched.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(host));
-        sched.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(host));
-        sched.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(host));
-        sched.RegisterSerial("cyberland.engine/text-render", new TextRenderSystem(host));
+        var ctx = new ModLoadContext(
+            new ModManifest { Id = "coverage.mod", ContentRoot = "Content" },
+            Path.GetTempPath(),
+            new Assets.VirtualFileSystem(),
+            new Localization.LocalizedContent(new Localization.LocalizationManager(), new Assets.VirtualFileSystem(), "en"),
+            new World(),
+            sched,
+            host);
+
+        EngineDefaultSchedulerSystems.RegisterBeforeGameplayMods(ctx);
+        EngineDefaultSchedulerSystems.RegisterAfterGameplayMods(ctx);
     }
 }

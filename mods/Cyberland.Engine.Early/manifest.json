@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.engine.early",
+  "name": "EarlyCyberlandEngineSystems",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Engine.Early.dll",
+  "entryType": "Cyberland.EngineEarly.Mod",
+  "contentRoot": "Content",
+  "loadOrder": -10000
+}

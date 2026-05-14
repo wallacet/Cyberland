@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.engine.late",
+  "name": "LateCyberlandEngineSystems",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Engine.Late.dll",
+  "entryType": "Cyberland.EngineLate.Mod",
+  "contentRoot": "Content",
+  "loadOrder": 10000
+}

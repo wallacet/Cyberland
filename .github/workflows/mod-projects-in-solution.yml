@@ -5,6 +5,7 @@ on:
     paths:
       - "mods/**"
       - "Cyberland.sln"
+      - "scripts/assert-mod-projects-in-solution.sh"
       - ".github/workflows/mod-projects-in-solution.yml"
   push:
     branches:
@@ -12,6 +13,7 @@ on:
     paths:
       - "mods/**"
       - "Cyberland.sln"
+      - "scripts/assert-mod-projects-in-solution.sh"
       - ".github/workflows/mod-projects-in-solution.yml"
   workflow_dispatch:
 
@@ -29,25 +31,5 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Validate all mod csproj files are in solution
-        shell: pwsh
-        run: |
-          $slnProjects = dotnet sln "Cyberland.sln" list | Select-Object -Skip 2
-          $slnProjects = $slnProjects | ForEach-Object {
-            $_.Trim().Replace('\', '/')
-          }
-
-          $rootWithSlash = ($PWD.Path.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar)
-          $modProjects = Get-ChildItem "mods" -Recurse -Filter "*.csproj" | ForEach-Object {
-            $relative = $_.FullName.Substring($rootWithSlash.Length)
-            $relative.Replace('\', '/')
-          }
-
-          $missing = $modProjects | Where-Object { $slnProjects -notcontains $_ } | Sort-Object
-
-          if ($missing.Count -gt 0) {
-            Write-Host "The following mod projects are missing from Cyberland.sln:"
-            $missing | ForEach-Object { Write-Host "  - $_" }
-            exit 1
-          }
-
-          Write-Host "All mod projects are present in Cyberland.sln."
+        shell: bash
+        run: bash ./scripts/assert-mod-projects-in-solution.sh

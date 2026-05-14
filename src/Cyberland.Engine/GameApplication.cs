@@ -15,7 +15,6 @@ using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
-using Cyberland.Engine.Scene.Systems;
 using Cyberland.Engine.UI.Core;
 using Silk.NET.Input;
 using Silk.NET.Maths;
@@ -33,10 +32,9 @@ namespace Cyberland.Engine;
 /// The host wires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Input"/> after graphics init so mods receive a working <see cref="Modding.ModLoadContext"/>.
 /// </para>
 /// <para>
-/// Scheduler registration order is defined in <see cref="OnLoad"/>. The host registers a small core set before
-/// <see cref="Modding.ModLoader.LoadAll"/>, then mods register their systems, then the host registers renderer-facing
-/// late systems (camera/runtime state, anchors, lighting, tilemaps, sprites, text, UI). Keep comments and behavior in
-/// sync with the concrete register calls in <see cref="OnLoad"/> when modifying ordering.
+/// Scheduler registration order is defined by mod load order. Shipped engine mods call
+/// <see cref="EngineDefaultSchedulerSystems.RegisterBeforeGameplayMods"/> and
+/// <see cref="EngineDefaultSchedulerSystems.RegisterAfterGameplayMods"/> around gameplay mods.
 /// </para>
 /// <para>
 /// <see cref="Core.Tasks.SystemScheduler.RunFrame(Cyberland.Engine.Core.Ecs.World, float)"/> runs once per window <strong>Render</strong> tick (not per <strong>Update</strong>), with <c>deltaSeconds</c> equal to Silk’s <c>Render</c> callback argument (the render stopwatch interval from <c>DoRender</c>). Avoid a <c>minimum</c> frame duration clamp: at high refresh + mailbox, real intervals can fall below 2 ms; a floor would add fake time every tick and make fixed-step sim run faster than wall clock. Only cap large hitches (max) to keep the accumulator bounded. Silk may call <strong>Update</strong> more often than <strong>Render</strong>; running the full ECS from <strong>Update</strong> advanced gameplay multiple times per presented frame and made HUD frame timing misleading.
@@ -152,7 +150,7 @@ public sealed class GameApplication : IDisposable
 
         // Bootstrap order: Vulkan + audio + input → assign Host.Renderer/Input → baseline HDR once (EngineDefaultGlobalPostProcess)
         // → sync input bindings (window thread; GetAwaiter().GetResult avoids re-entrancy on the same thread)
-        // → register core parallel sim systems → ModLoader.LoadAll (mods register systems) → parallel render submit systems
+        // → ModLoader.LoadAll (mods register systems, including shipped engine early/late registration mods)
         // → locale bootstrap. First RunFrame runs after this returns.
         _renderer = new VulkanRenderer(_window);
         try
@@ -226,10 +224,6 @@ public sealed class GameApplication : IDisposable
             _scheduler.BeginDeferExecutionOrderRebuilds();
             try
             {
-                _scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
-                _scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
-                _scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
-
                 var excluded = ExcludeModsParser.TryParse(_commandLineArgs);
                 IReadOnlySet<string>? excludedSet = null;
                 if (excluded is not null)
@@ -247,29 +241,6 @@ public sealed class GameApplication : IDisposable
                 LogModLoadTiming(_mods.LastLoadTiming);
                 PreloadAllBuiltinAtlasesIfRequested(_renderer);
                 LogStartupStage("fonts.preload-builtins", startupStageSw);
-
-                _scheduler.RegisterParallel("cyberland.engine/camera-follow", new CameraFollowSystem());
-                _scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
-                // Publish camera runtime state before viewport anchors so gameplay/layout reads deterministic ECS-owned
-                // camera data instead of renderer queue snapshots.
-                _scheduler.RegisterSerial("cyberland.engine/camera-submit", new CameraSubmitSystem(_host));
-                _scheduler.RegisterSerial("cyberland.engine/camera-runtime-state", new CameraRuntimeStateSystem(_host));
-                _scheduler.RegisterSerial("cyberland.engine/viewport-layout", new ViewportAnchorSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/lighting-directional", new DirectionalLightSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/lighting-spot", new SpotLightSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/lighting-point", new PointLightSystem(_host));
-                _scheduler.RegisterSerial("cyberland.engine/global-post-process", new GlobalPostProcessSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/post-process-volumes", new PostProcessVolumeSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(_host));
-                _scheduler.RegisterSerial("cyberland.engine/sprite-localized-assets", new SpriteLocalizedAssetSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(_host));
-                _scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem());
-                // Bitmap text build is folded into TextRenderSystem; it parallelizes per chunk/range and submits thread-safe requests.
-                _scheduler.RegisterParallel("cyberland.engine/text-render", new TextRenderSystem(_host));
-                _scheduler.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(_host));
-                _scheduler.RegisterSerial("cyberland.engine/ui-command-drain", new UiCommandDrainSystem(_host));
                 LogStartupStage("scheduler.register-systems", startupStageSw);
             }
             finally

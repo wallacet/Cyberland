@@ -36,6 +36,32 @@ check_demo_mod_manifests_disabled() {
 
 check_demo_mod_manifests_disabled
 
+# Same logic as .github/workflows/mod-projects-in-solution.yml (scripts/assert-mod-projects-in-solution.sh).
+check_mod_projects_in_solution() {
+  if [ "${CYBERLAND_SKIP_MOD_SLN_CHECK:-0}" = "1" ]; then
+    echo "CYBERLAND_SKIP_MOD_SLN_CHECK=1 set; skipping mod/solution membership check."
+    return 0
+  fi
+
+  repo_root=$(git rev-parse --show-toplevel)
+  staged=$(git diff --cached --name-only)
+  if ! printf '%s\n' "$staged" | grep -qE '^Cyberland\.sln$|^mods/'; then
+    return 0
+  fi
+
+  if command -v bash >/dev/null 2>&1; then
+    bash "$repo_root/scripts/assert-mod-projects-in-solution.sh"
+  else
+    echo "ERROR: Commit blocked — need bash to run scripts/assert-mod-projects-in-solution.sh."
+    echo "  Git for Windows installs bash (use Git Bash or ensure bash is on PATH)."
+    echo "  Bypass (use sparingly): CYBERLAND_SKIP_MOD_SLN_CHECK=1 git commit ..."
+    echo "  Or: git commit --no-verify"
+    exit 1
+  fi
+}
+
+check_mod_projects_in_solution
+
 MAX_MB="${CYBERLAND_MAX_FILE_MB:-4}"
 ALLOW_LARGE="${CYBERLAND_ALLOW_LARGE_FILES:-0}"
 
