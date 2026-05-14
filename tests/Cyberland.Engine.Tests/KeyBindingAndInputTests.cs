@@ -225,10 +225,12 @@ public sealed class KeyBindingAndInputTests
 
         service.BeginFrame();
         Assert.Equal(new Vector2(100f, 200f), service.MousePosition);
+        Assert.Equal(service.MousePosition, service.MousePositionScreen);
         Assert.Equal(Vector2.Zero, service.MouseDelta);
         Assert.Equal(Vector2.Zero, service.MouseWheelDelta);
         AssertVectorNear(new Vector2(66.666664f, 133.33333f), service.GetMousePosition(CoordinateSpace.ViewportSpace), 0.0001f);
         AssertVectorNear(new Vector2(66.666664f, 586.6667f), service.GetMousePosition(CoordinateSpace.WorldSpace), 0.0001f);
+        AssertVectorNear(service.GetMousePosition(CoordinateSpace.WorldSpace), service.MousePositionWorld, 0.0001f);
         Assert.Equal(new Vector2(100f, 200f), service.GetMousePosition(CoordinateSpace.SwapchainSpace));
 
         pos = new Vector2(112f, 195f);
@@ -243,6 +245,65 @@ public sealed class KeyBindingAndInputTests
         Assert.Equal(195f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.PositionY)));
         Assert.Equal(-5f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.DeltaY)));
         Assert.Equal(0f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.WheelX)));
+    }
+
+    [Fact]
+    public void SilkInputService_mouse_button_pulses_drive_action_and_mouse_edges()
+    {
+        Action<IMouse, MouseButton>? onMouseDown = null;
+        Action<IMouse, MouseButton>? onMouseUp = null;
+
+        var keyboard = new Mock<IKeyboard>(MockBehavior.Loose);
+        keyboard.Setup(x => x.IsKeyPressed(It.IsAny<Key>())).Returns(false);
+
+        var mouse = new Mock<IMouse>(MockBehavior.Strict);
+        mouse.Setup(x => x.IsButtonPressed(It.IsAny<MouseButton>())).Returns(false);
+        mouse.SetupGet(x => x.Position).Returns(Vector2.Zero);
+        mouse.SetupGet(x => x.ScrollWheels).Returns(Array.Empty<ScrollWheel>());
+        mouse.SetupAdd(x => x.MouseDown += It.IsAny<Action<IMouse, MouseButton>>())
+            .Callback((Action<IMouse, MouseButton> h) => onMouseDown = h);
+        mouse.SetupRemove(x => x.MouseDown -= It.IsAny<Action<IMouse, MouseButton>>());
+        mouse.SetupAdd(x => x.MouseUp += It.IsAny<Action<IMouse, MouseButton>>())
+            .Callback((Action<IMouse, MouseButton> h) => onMouseUp = h);
+        mouse.SetupRemove(x => x.MouseUp -= It.IsAny<Action<IMouse, MouseButton>>());
+
+        var input = new Mock<IInputContext>(MockBehavior.Strict);
+        input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });
+        input.SetupGet(x => x.Mice).Returns(new[] { mouse.Object });
+        input.Setup(x => x.Dispose());
+
+        var service = new SilkInputService(input.Object);
+        service.Bindings.SetBindings("fire", new[] { new InputBinding(InputControl.MouseButtonControl(MouseButton.Left)) });
+        service.Bindings.SetBindings(
+            "alt_fire",
+            new[]
+            {
+                new InputBinding(InputControl.Keyboard(Key.Space)),
+                new InputBinding(InputControl.MouseButtonControl(MouseButton.Left))
+            });
+
+        Assert.NotNull(onMouseDown);
+        onMouseDown!(mouse.Object, MouseButton.Left);
+        service.BeginFrame();
+
+        Assert.True(service.WasPressed("fire"));
+        Assert.True(service.WasPressed("alt_fire"));
+        Assert.True(service.MouseButton(MouseButton.Left));
+        Assert.True(service.MouseButtonDown(MouseButton.Left));
+        Assert.False(service.MouseButtonUp(MouseButton.Left));
+        Assert.True(service.ConsumePressed("fire"));
+        Assert.True(service.ConsumeMouseButtonPressed(MouseButton.Left));
+
+        Assert.NotNull(onMouseUp);
+        onMouseUp!(mouse.Object, MouseButton.Left);
+        service.BeginFrame();
+
+        Assert.True(service.WasReleased("fire"));
+        Assert.True(service.MouseButtonUp(MouseButton.Left));
+        Assert.True(service.ConsumeReleased("fire"));
+        Assert.True(service.ConsumeMouseButtonReleased(MouseButton.Left));
+
+        service.Dispose();
     }
 
     [Fact]
@@ -555,6 +616,10 @@ public sealed class KeyBindingAndInputTests
         mouse.Setup(x => x.IsButtonPressed(It.IsAny<MouseButton>())).Returns<MouseButton>(button => pressedButtons.Contains(button));
         mouse.SetupGet(x => x.Position).Returns(() => mousePosition());
         mouse.SetupGet(x => x.ScrollWheels).Returns(() => mouseWheels?.Invoke() ?? Array.Empty<ScrollWheel>());
+        mouse.SetupAdd(x => x.MouseDown += It.IsAny<Action<IMouse, MouseButton>>());
+        mouse.SetupRemove(x => x.MouseDown -= It.IsAny<Action<IMouse, MouseButton>>());
+        mouse.SetupAdd(x => x.MouseUp += It.IsAny<Action<IMouse, MouseButton>>());
+        mouse.SetupRemove(x => x.MouseUp -= It.IsAny<Action<IMouse, MouseButton>>());
 
         var input = new Mock<IInputContext>(MockBehavior.Strict);
         input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });

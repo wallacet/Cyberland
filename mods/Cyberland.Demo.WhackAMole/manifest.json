@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.whackamole",
+  "name": "Cyberland Whack-a-Mole (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.WhackAMole.dll",
+  "contentRoot": "Content",
+  "loadOrder": 20,
+  "disabled": true
+}

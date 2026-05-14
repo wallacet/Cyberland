@@ -3,6 +3,7 @@ using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
+using Silk.NET.Input;
 
 namespace Cyberland.Engine.Tests;
 
@@ -313,6 +314,8 @@ public sealed class SchedulerAndHostTests
     {
         public InputBindings Bindings { get; } = new();
         public System.Numerics.Vector2 MousePosition => default;
+        public System.Numerics.Vector2 MousePositionScreen => default;
+        public System.Numerics.Vector2 MousePositionWorld => default;
         public System.Numerics.Vector2 MouseDelta => default;
         public System.Numerics.Vector2 GetMousePosition(Scene.CoordinateSpace space = Scene.CoordinateSpace.ViewportSpace) => default;
         public System.Numerics.Vector2 GetMouseDelta(Scene.CoordinateSpace space = Scene.CoordinateSpace.ViewportSpace) => default;
@@ -322,6 +325,11 @@ public sealed class SchedulerAndHostTests
         public bool IsDown(string actionId) => false;
         public bool WasPressed(string actionId) => false;
         public bool WasReleased(string actionId) => false;
+        public bool MouseButton(MouseButton button) => false;
+        public bool MouseButtonDown(MouseButton button) => false;
+        public bool MouseButtonUp(MouseButton button) => false;
+        public bool ConsumeMouseButtonPressed(MouseButton button) => false;
+        public bool ConsumeMouseButtonReleased(MouseButton button) => false;
         public float ReadAxis(string axisId) => 0f;
         public bool ConsumePressed(string actionId) => false;
         public bool ConsumeReleased(string actionId) => false;

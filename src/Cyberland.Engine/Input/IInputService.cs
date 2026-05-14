@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using Cyberland.Engine.Scene;
+using Silk.NET.Input;
 
 namespace Cyberland.Engine.Input;
 
@@ -19,7 +20,13 @@ namespace Cyberland.Engine.Input;
 /// <item><description><b>Event/delta reads</b> (<see cref="ConsumePressed"/>, <see cref="ConsumeReleased"/>, <see cref="ConsumeAxisDelta"/>) buffer counts/deltas across frames until consumed — useful when fixed update may not run on the same render tick as the edge.</description></item>
 /// </list>
 /// The stock <see cref="SilkInputService"/> merges keyboard <c>KeyDown</c> pulses into the sampled state so brief taps are not
-/// lost when ECS runs at present rate.
+/// lost when ECS runs at present rate. Mouse button pulses are merged with poll state similarly so actions bound to
+/// <c>mouse:*</c> controls stay reliable even for very short clicks.
+/// <para>
+/// Action ids are string keys intended for JSON-backed rebinding (see <see cref="InputBindings"/> and
+/// <see cref="InputControl.TryParse(string, out InputControl)"/>). Mods should query gameplay intent through those ids
+/// and keep physical controls as defaults.
+/// </para>
 /// </remarks>
 public interface IInputService
 {
@@ -28,6 +35,12 @@ public interface IInputService
 
     /// <summary>Current mouse position in swapchain/window pixel coordinates.</summary>
     Vector2 MousePosition { get; }
+
+    /// <summary>Current mouse position in swapchain/window pixel coordinates (+Y down).</summary>
+    Vector2 MousePositionScreen { get; }
+
+    /// <summary>Current mouse position in world coordinates (+Y up).</summary>
+    Vector2 MousePositionWorld { get; }
 
     /// <summary>Mouse position delta since the previous <see cref="BeginFrame"/>.</summary>
     Vector2 MouseDelta { get; }
@@ -44,6 +57,42 @@ public interface IInputService
 
     /// <summary>Aggregated wheel delta since the previous <see cref="BeginFrame"/>.</summary>
     Vector2 MouseWheelDelta { get; }
+
+    /// <summary>
+    /// True when <paramref name="button"/> is considered held during this frame snapshot.
+    /// </summary>
+    /// <remarks>
+    /// This includes sampled poll state and same-frame pulse latches captured before <see cref="BeginFrame"/>.
+    /// </remarks>
+    bool MouseButton(MouseButton button);
+
+    /// <summary>
+    /// True when <paramref name="button"/> has a press edge this frame.
+    /// </summary>
+    /// <remarks>
+    /// Non-consuming frame-edge helper. For fixed-step intent handling across zero-substep render ticks, prefer
+    /// <see cref="ConsumeMouseButtonPressed"/>.
+    /// </remarks>
+    bool MouseButtonDown(MouseButton button);
+
+    /// <summary>
+    /// True when <paramref name="button"/> has a release edge this frame.
+    /// </summary>
+    /// <remarks>
+    /// Non-consuming frame-edge helper. For fixed-step intent handling across zero-substep render ticks, prefer
+    /// <see cref="ConsumeMouseButtonReleased"/>.
+    /// </remarks>
+    bool MouseButtonUp(MouseButton button);
+
+    /// <summary>
+    /// Consumes one buffered mouse press edge for <paramref name="button"/>.
+    /// </summary>
+    bool ConsumeMouseButtonPressed(MouseButton button);
+
+    /// <summary>
+    /// Consumes one buffered mouse release edge for <paramref name="button"/>.
+    /// </summary>
+    bool ConsumeMouseButtonReleased(MouseButton button);
 
     /// <summary>Samples physical devices and recomputes per-frame action/axis state.</summary>
     void BeginFrame();

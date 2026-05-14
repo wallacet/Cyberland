@@ -728,6 +728,34 @@
       }
     },
     {
+      "label": "Cyberland: Test demo (Whack-a-Mole)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "whackamole"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo.WhackAMole, clears artifacts/, runs the host until you exit, then disables the mod again.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
       "label": "Cyberland: Profile demo 30s (HDR / Vulkan intro)",
       "type": "shell",
       "command": "powershell.exe",
@@ -926,6 +954,39 @@
       }
     },
     {
+      "label": "Cyberland: Profile demo 30s (Whack-a-Mole)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "whackamole",
+        "-RunMode",
+        "Debug-Instrumented",
+        "-EnableProfiler",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs Whack-a-Mole demo for 30 seconds with frame profiler enabled, then exits and prints profiler report path.",
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
       "label": "Cyberland: Optimize Idle Gold (up to 30 cycles)",
       "type": "shell",
       "command": "powershell.exe",
@@ -1013,6 +1074,67 @@
         "panel": "shared"
       },
       "detail": "Temporarily enables IdleGold, publishes Release + artifacts/dist zip, then restores manifest disabled:true.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release with demo (Whack-a-Mole)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-CyberlandDemo.ps1",
+        "-Demo",
+        "whackamole",
+        "-Configuration",
+        "Release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Temporarily enables Whack-a-Mole, publishes Host (Release portable), then restores manifest disabled:true so shipped zips stay unchanged.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + zip with demo (Whack-a-Mole)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-CyberlandDemo.ps1",
+        "-Demo",
+        "whackamole",
+        "-Configuration",
+        "Release",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Temporarily enables Whack-a-Mole, publishes Release + artifacts/dist zip, then restores manifest disabled:true.",
       "icon": {
         "id": "archive",
         "color": "terminal.ansiYellow"

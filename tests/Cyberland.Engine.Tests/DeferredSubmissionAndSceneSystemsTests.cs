@@ -307,6 +307,403 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
+    public void PointLightSystem_viewport_sprite_root_maps_position_through_camera_projection()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        h.CameraRuntimeState = new CameraRuntimeState(
+            new Vector2D<int>(1280, 720),
+            new Vector2D<float>(640f, 360f),
+            0f,
+            default,
+            0,
+            Valid: true);
+
+        var root = w.CreateEntity();
+        w.GetOrAdd<Transform>(root) = Transform.Identity;
+        ref var tfRoot = ref w.Get<Transform>(root);
+        tfRoot.LocalPosition = new Vector2D<float>(200f, 100f);
+        ref var spr = ref w.GetOrAdd<Sprite>(root);
+        spr = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(8f, 8f));
+        spr.Space = CoordinateSpace.ViewportSpace;
+
+        var plEnt = w.CreateEntity();
+        var fillTf = Transform.Identity;
+        fillTf.Parent = root;
+        w.GetOrAdd<Transform>(plEnt) = fillTf;
+        w.GetOrAdd<PointLightSource>(plEnt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 50f,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 1f,
+            FalloffExponent = 2f
+        };
+
+        var hierarchy = new TransformHierarchySystem();
+        hierarchy.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Transform>()));
+        hierarchy.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var pointS = new PointLightSystem(h);
+        pointS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
+        pointS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()), 0f, ParOpts());
+
+        Assert.Single(r.PointLights);
+        var expected = CameraProjection.ViewportPixelToWorld(
+            new Vector2D<float>(200f, 100f),
+            h.CameraRuntimeState.PositionWorld,
+            h.CameraRuntimeState.RotationRadians,
+            new Vector2D<float>(1280f, 720f));
+        Assert.Equal(expected.X, r.PointLights[0].PositionWorld.X, 4);
+        Assert.Equal(expected.Y, r.PointLights[0].PositionWorld.Y, 4);
+    }
+
+    [Fact]
+    public void PointLightSystem_viewport_root_skips_projection_when_camera_runtime_invalid()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        h.CameraRuntimeState = new CameraRuntimeState(
+            new Vector2D<int>(1280, 720),
+            new Vector2D<float>(640f, 360f),
+            0f,
+            default,
+            0,
+            Valid: false);
+
+        var root = w.CreateEntity();
+        w.GetOrAdd<Transform>(root) = Transform.Identity;
+        ref var tfRoot = ref w.Get<Transform>(root);
+        tfRoot.LocalPosition = new Vector2D<float>(200f, 100f);
+        ref var spr = ref w.GetOrAdd<Sprite>(root);
+        spr = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(8f, 8f));
+        spr.Space = CoordinateSpace.ViewportSpace;
+
+        var plEnt = w.CreateEntity();
+        var fillTf = Transform.Identity;
+        fillTf.Parent = root;
+        w.GetOrAdd<Transform>(plEnt) = fillTf;
+        w.GetOrAdd<PointLightSource>(plEnt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 50f,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 1f,
+            FalloffExponent = 2f
+        };
+
+        var hierarchy = new TransformHierarchySystem();
+        hierarchy.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Transform>()));
+        hierarchy.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var pointS = new PointLightSystem(h);
+        pointS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
+        pointS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()), 0f, ParOpts());
+
+        Assert.Single(r.PointLights);
+        Assert.Equal(200f, r.PointLights[0].PositionWorld.X);
+        Assert.Equal(100f, r.PointLights[0].PositionWorld.Y);
+    }
+
+    [Fact]
+    public void SpotLightSystem_viewport_sprite_root_maps_position_through_camera_projection()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        h.CameraRuntimeState = new CameraRuntimeState(
+            new Vector2D<int>(1280, 720),
+            new Vector2D<float>(640f, 360f),
+            0f,
+            default,
+            0,
+            Valid: true);
+
+        var root = w.CreateEntity();
+        w.GetOrAdd<Transform>(root) = Transform.Identity;
+        ref var tfRoot = ref w.Get<Transform>(root);
+        tfRoot.LocalPosition = new Vector2D<float>(200f, 100f);
+        ref var spr = ref w.GetOrAdd<Sprite>(root);
+        spr = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(8f, 8f));
+        spr.Space = CoordinateSpace.ViewportSpace;
+
+        var spotEnt = w.CreateEntity();
+        var spotTf = Transform.Identity;
+        spotTf.Parent = root;
+        w.GetOrAdd<Transform>(spotEnt) = spotTf;
+        w.GetOrAdd<SpotLightSource>(spotEnt) = new SpotLightSource
+        {
+            Active = true,
+            Radius = 50f,
+            InnerConeRadians = 0.4f,
+            OuterConeRadians = 0.9f,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 1f
+        };
+
+        var hierarchy = new TransformHierarchySystem();
+        hierarchy.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Transform>()));
+        hierarchy.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var spotS = new SpotLightSystem(h);
+        spotS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+        spotS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()), 0f, ParOpts());
+
+        Assert.Single(r.SpotLights);
+        var expected = CameraProjection.ViewportPixelToWorld(
+            new Vector2D<float>(200f, 100f),
+            h.CameraRuntimeState.PositionWorld,
+            h.CameraRuntimeState.RotationRadians,
+            new Vector2D<float>(1280f, 720f));
+        Assert.Equal(expected.X, r.SpotLights[0].PositionWorld.X, 4);
+        Assert.Equal(expected.Y, r.SpotLights[0].PositionWorld.Y, 4);
+        Assert.Equal(1f, r.SpotLights[0].DirectionWorld.X, 4);
+        Assert.Equal(0f, r.SpotLights[0].DirectionWorld.Y, 4);
+    }
+
+    [Fact]
+    public void SpotLightSystem_viewport_root_skips_projection_when_camera_runtime_invalid()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        h.CameraRuntimeState = new CameraRuntimeState(
+            new Vector2D<int>(1280, 720),
+            new Vector2D<float>(640f, 360f),
+            0f,
+            default,
+            0,
+            Valid: false);
+
+        var root = w.CreateEntity();
+        w.GetOrAdd<Transform>(root) = Transform.Identity;
+        ref var tfRoot = ref w.Get<Transform>(root);
+        tfRoot.LocalPosition = new Vector2D<float>(200f, 100f);
+        ref var spr = ref w.GetOrAdd<Sprite>(root);
+        spr = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(8f, 8f));
+        spr.Space = CoordinateSpace.ViewportSpace;
+
+        var spotEnt = w.CreateEntity();
+        var spotTf = Transform.Identity;
+        spotTf.Parent = root;
+        w.GetOrAdd<Transform>(spotEnt) = spotTf;
+        w.GetOrAdd<SpotLightSource>(spotEnt) = new SpotLightSource
+        {
+            Active = true,
+            Radius = 50f,
+            InnerConeRadians = 0.4f,
+            OuterConeRadians = 0.9f,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 1f
+        };
+
+        var hierarchy = new TransformHierarchySystem();
+        hierarchy.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Transform>()));
+        hierarchy.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var spotS = new SpotLightSystem(h);
+        spotS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+        spotS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()), 0f, ParOpts());
+
+        Assert.Single(r.SpotLights);
+        Assert.Equal(200f, r.SpotLights[0].PositionWorld.X);
+        Assert.Equal(100f, r.SpotLights[0].PositionWorld.Y);
+    }
+
+    [Fact]
+    public void SpotLightSystem_world_sprite_root_leaves_position_unconverted()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        h.CameraRuntimeState = new CameraRuntimeState(
+            new Vector2D<int>(1280, 720),
+            new Vector2D<float>(640f, 360f),
+            0f,
+            default,
+            0,
+            Valid: true);
+
+        var root = w.CreateEntity();
+        w.GetOrAdd<Transform>(root) = Transform.Identity;
+        ref var tfRoot = ref w.Get<Transform>(root);
+        tfRoot.LocalPosition = new Vector2D<float>(200f, 100f);
+        ref var spr = ref w.GetOrAdd<Sprite>(root);
+        spr = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(8f, 8f));
+        spr.Space = CoordinateSpace.WorldSpace;
+
+        var spotEnt = w.CreateEntity();
+        var spotTf = Transform.Identity;
+        spotTf.Parent = root;
+        w.GetOrAdd<Transform>(spotEnt) = spotTf;
+        w.GetOrAdd<SpotLightSource>(spotEnt) = new SpotLightSource
+        {
+            Active = true,
+            Radius = 50f,
+            InnerConeRadians = 0.4f,
+            OuterConeRadians = 0.9f,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 1f
+        };
+
+        var hierarchy = new TransformHierarchySystem();
+        hierarchy.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Transform>()));
+        hierarchy.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var spotS = new SpotLightSystem(h);
+        spotS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+        spotS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()), 0f, ParOpts());
+
+        Assert.Single(r.SpotLights);
+        Assert.Equal(200f, r.SpotLights[0].PositionWorld.X);
+        Assert.Equal(100f, r.SpotLights[0].PositionWorld.Y);
+    }
+
+    [Fact]
+    public void DirectionalLightSystem_maps_local_rotation_to_direction_under_viewport_sprite_root()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        h.CameraRuntimeState = new CameraRuntimeState(
+            new Vector2D<int>(1280, 720),
+            new Vector2D<float>(640f, 360f),
+            0f,
+            default,
+            0,
+            Valid: true);
+
+        var root = w.CreateEntity();
+        w.GetOrAdd<Transform>(root) = Transform.Identity;
+        ref var tfRoot = ref w.Get<Transform>(root);
+        tfRoot.LocalPosition = new Vector2D<float>(200f, 100f);
+        ref var spr = ref w.GetOrAdd<Sprite>(root);
+        spr = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(8f, 8f));
+        spr.Space = CoordinateSpace.ViewportSpace;
+
+        var dirEnt = w.CreateEntity();
+        var dirTf = Transform.Identity;
+        dirTf.Parent = root;
+        dirTf.LocalRotationRadians = MathF.PI * 0.5f;
+        w.GetOrAdd<Transform>(dirEnt) = dirTf;
+        w.GetOrAdd<DirectionalLightSource>(dirEnt) = new DirectionalLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0.5f, 0.5f, 0.5f),
+            Intensity = 1f
+        };
+
+        var hierarchy = new TransformHierarchySystem();
+        hierarchy.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Transform>()));
+        hierarchy.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var dirS = new DirectionalLightSystem(h);
+        dirS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
+        dirS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()), 0f, ParOpts());
+
+        Assert.Single(r.DirectionalLights);
+        Assert.Equal(0f, r.DirectionalLights[0].DirectionWorld.X, 4);
+        Assert.Equal(1f, r.DirectionalLights[0].DirectionWorld.Y, 4);
+    }
+
+    [Fact]
+    public void DirectionalLightSystem_maps_local_rotation_to_direction_under_world_sprite_root()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        h.CameraRuntimeState = new CameraRuntimeState(
+            new Vector2D<int>(1280, 720),
+            new Vector2D<float>(640f, 360f),
+            0f,
+            default,
+            0,
+            Valid: true);
+
+        var root = w.CreateEntity();
+        w.GetOrAdd<Transform>(root) = Transform.Identity;
+        ref var tfRoot = ref w.Get<Transform>(root);
+        tfRoot.LocalPosition = new Vector2D<float>(10f, 20f);
+        ref var spr = ref w.GetOrAdd<Sprite>(root);
+        spr = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(8f, 8f));
+        spr.Space = CoordinateSpace.WorldSpace;
+
+        var dirEnt = w.CreateEntity();
+        var dirTf = Transform.Identity;
+        dirTf.Parent = root;
+        dirTf.LocalRotationRadians = -MathF.PI * 0.5f;
+        w.GetOrAdd<Transform>(dirEnt) = dirTf;
+        w.GetOrAdd<DirectionalLightSource>(dirEnt) = new DirectionalLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 1f
+        };
+
+        var hierarchy = new TransformHierarchySystem();
+        hierarchy.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Transform>()));
+        hierarchy.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var dirS = new DirectionalLightSystem(h);
+        dirS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
+        dirS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()), 0f, ParOpts());
+
+        Assert.Single(r.DirectionalLights);
+        Assert.Equal(0f, r.DirectionalLights[0].DirectionWorld.X, 4);
+        Assert.Equal(-1f, r.DirectionalLights[0].DirectionWorld.Y, 4);
+    }
+
+    [Fact]
+    public void PointLightSystem_world_sprite_root_leaves_position_unconverted()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        h.CameraRuntimeState = new CameraRuntimeState(
+            new Vector2D<int>(1280, 720),
+            new Vector2D<float>(640f, 360f),
+            0f,
+            default,
+            0,
+            Valid: true);
+
+        var root = w.CreateEntity();
+        w.GetOrAdd<Transform>(root) = Transform.Identity;
+        ref var tfRoot = ref w.Get<Transform>(root);
+        tfRoot.LocalPosition = new Vector2D<float>(200f, 100f);
+        ref var spr = ref w.GetOrAdd<Sprite>(root);
+        spr = Sprite.DefaultWhiteUnlit(1, 1, new Vector2D<float>(8f, 8f));
+        spr.Space = CoordinateSpace.WorldSpace;
+
+        var plEnt = w.CreateEntity();
+        var fillTf = Transform.Identity;
+        fillTf.Parent = root;
+        w.GetOrAdd<Transform>(plEnt) = fillTf;
+        w.GetOrAdd<PointLightSource>(plEnt) = new PointLightSource
+        {
+            Active = true,
+            Radius = 50f,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 1f,
+            FalloffExponent = 2f
+        };
+
+        var hierarchy = new TransformHierarchySystem();
+        hierarchy.OnStart(w, w.QueryChunks(SystemQuerySpec.All<Transform>()));
+        hierarchy.OnParallelEarlyUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        var pointS = new PointLightSystem(h);
+        pointS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
+        pointS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()), 0f, ParOpts());
+
+        Assert.Single(r.PointLights);
+        Assert.Equal(200f, r.PointLights[0].PositionWorld.X);
+        Assert.Equal(100f, r.PointLights[0].PositionWorld.Y);
+    }
+
+    [Fact]
     public void PointLightSystem_skips_when_renderer_null_on_update()
     {
         var h = Host(new RecordingRenderer());

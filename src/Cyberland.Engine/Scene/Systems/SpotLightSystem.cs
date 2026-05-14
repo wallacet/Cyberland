@@ -13,6 +13,7 @@ namespace Cyberland.Engine.Scene.Systems;
 public sealed class SpotLightSystem : IParallelSystem, IParallelLateUpdate
 {
     private readonly GameHostServices _host;
+    private World _world = null!;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<SpotLightSource, Transform>();
@@ -23,7 +24,7 @@ public sealed class SpotLightSystem : IParallelSystem, IParallelLateUpdate
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll query)
     {
-        _ = world;
+        _world = world;
         _ = query;
     }
 
@@ -32,6 +33,8 @@ public sealed class SpotLightSystem : IParallelSystem, IParallelLateUpdate
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
+        var world = _world;
+        var cam = _host.CameraRuntimeState;
         foreach (var chunk in query)
         {
             Parallel.For(0, chunk.Count, parallelOptions, j =>
@@ -43,9 +46,11 @@ public sealed class SpotLightSystem : IParallelSystem, IParallelLateUpdate
                 TransformMath.DecomposeToPRS(t.WorldMatrix, out var worldPos, out var worldRad, out var worldScale);
                 var dir = LightSceneMath.DirectionFromWorldRotation(worldRad);
                 var radiusScale = LightSceneMath.MaxAbsScale(worldScale);
+                var positionWorld = LightSceneMath.ResolveLightPositionWorldForSubmit(
+                    world, chunk.Entities[j], worldPos, in cam);
                 var payload = new SpotLight
                 {
-                    PositionWorld = worldPos,
+                    PositionWorld = positionWorld,
                     DirectionWorld = dir,
                     Radius = s.Radius * radiusScale,
                     InnerConeRadians = s.InnerConeRadians,

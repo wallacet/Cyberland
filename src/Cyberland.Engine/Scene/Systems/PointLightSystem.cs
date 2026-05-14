@@ -13,6 +13,7 @@ namespace Cyberland.Engine.Scene.Systems;
 public sealed class PointLightSystem : IParallelSystem, IParallelLateUpdate
 {
     private readonly GameHostServices _host;
+    private World _world = null!;
 
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<PointLightSource, Transform>();
@@ -23,7 +24,7 @@ public sealed class PointLightSystem : IParallelSystem, IParallelLateUpdate
     /// <inheritdoc />
     public void OnStart(World world, ChunkQueryAll query)
     {
-        _ = world;
+        _world = world;
         _ = query;
     }
 
@@ -32,6 +33,8 @@ public sealed class PointLightSystem : IParallelSystem, IParallelLateUpdate
     {
         _ = deltaSeconds;
         var r = _host.Renderer;
+        var world = _world;
+        var cam = _host.CameraRuntimeState;
         foreach (var chunk in query)
         {
             Parallel.For(0, chunk.Count, parallelOptions, j =>
@@ -42,9 +45,11 @@ public sealed class PointLightSystem : IParallelSystem, IParallelLateUpdate
                 ref readonly var t = ref chunk.Column<Transform>()[j];
                 TransformMath.DecomposeToPRS(t.WorldMatrix, out var worldPos, out _, out var worldScale);
                 var radiusScale = LightSceneMath.MaxAbsScale(worldScale);
+                var positionWorld = LightSceneMath.ResolveLightPositionWorldForSubmit(
+                    world, chunk.Entities[j], worldPos, in cam);
                 var payload = new PointLight
                 {
-                    PositionWorld = worldPos,
+                    PositionWorld = positionWorld,
                     Radius = s.Radius * radiusScale,
                     Color = s.Color,
                     Intensity = s.Intensity,

@@ -810,6 +810,8 @@ public sealed class UiDocumentFrameSystemTests
 
         public InputBindings Bindings { get; } = new();
         public System.Numerics.Vector2 MousePosition => Viewport;
+        public System.Numerics.Vector2 MousePositionScreen => Viewport;
+        public System.Numerics.Vector2 MousePositionWorld => Viewport;
         public System.Numerics.Vector2 MouseDelta => System.Numerics.Vector2.Zero;
         public System.Numerics.Vector2 Viewport { get; set; }
         public System.Numerics.Vector2 Wheel { get; set; }
@@ -831,6 +833,11 @@ public sealed class UiDocumentFrameSystemTests
         public bool IsDown(string actionId) => false;
         public bool WasPressed(string actionId) => false;
         public bool WasReleased(string actionId) => false;
+        public bool MouseButton(MouseButton button) => button == Silk.NET.Input.MouseButton.Left && IsControlDown(InputControl.MouseButtonControl(Silk.NET.Input.MouseButton.Left));
+        public bool MouseButtonDown(MouseButton button) => false;
+        public bool MouseButtonUp(MouseButton button) => false;
+        public bool ConsumeMouseButtonPressed(MouseButton button) => false;
+        public bool ConsumeMouseButtonReleased(MouseButton button) => false;
         public float ReadAxis(string axisId) => 0f;
         public bool ConsumePressed(string actionId) => false;
         public bool ConsumeReleased(string actionId) => false;
@@ -838,7 +845,7 @@ public sealed class UiDocumentFrameSystemTests
 
         public bool IsControlDown(InputControl control)
         {
-            if (control.Kind != InputControlKind.MouseButton || control.MouseButton != MouseButton.Left)
+            if (control.Kind != InputControlKind.MouseButton || control.MouseButton != Silk.NET.Input.MouseButton.Left)
                 return false;
 
             if (_leftIdx >= LeftSequence.Length)

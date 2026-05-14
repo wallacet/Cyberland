@@ -6,6 +6,7 @@ using Cyberland.Engine.Scene.Systems;
 using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
 using Cyberland.Engine.UI.Ecs;
+using Silk.NET.Input;
 using Silk.NET.Maths;
 using System.Collections.Generic;
 
@@ -160,6 +161,8 @@ public sealed class UiScrollViewRoutingTests
     {
         public InputBindings Bindings { get; } = new();
         public System.Numerics.Vector2 MousePosition => Viewport;
+        public System.Numerics.Vector2 MousePositionScreen => Viewport;
+        public System.Numerics.Vector2 MousePositionWorld => Viewport;
         public System.Numerics.Vector2 MouseDelta => System.Numerics.Vector2.Zero;
         public System.Numerics.Vector2 Viewport { get; set; }
         public System.Numerics.Vector2 Wheel { get; set; }
@@ -180,6 +183,11 @@ public sealed class UiScrollViewRoutingTests
         public bool IsDown(string actionId) => false;
         public bool WasPressed(string actionId) => false;
         public bool WasReleased(string actionId) => false;
+        public bool MouseButton(MouseButton button) => false;
+        public bool MouseButtonDown(MouseButton button) => false;
+        public bool MouseButtonUp(MouseButton button) => false;
+        public bool ConsumeMouseButtonPressed(MouseButton button) => false;
+        public bool ConsumeMouseButtonReleased(MouseButton button) => false;
         public float ReadAxis(string axisId) => 0f;
         public bool ConsumePressed(string actionId) => false;
         public bool ConsumeReleased(string actionId) => false;

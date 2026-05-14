@@ -25,6 +25,7 @@ namespace Cyberland.Engine.Input;
 /// </remarks>
 public sealed class SilkInputService : IInputService, IDisposable
 {
+    private static readonly MouseButton[] TrackedMouseButtons = Enum.GetValues<MouseButton>();
     private readonly IInputContext _input;
     private readonly IRenderer? _renderer;
     private readonly GameHostServices? _host;
@@ -33,10 +34,20 @@ public sealed class SilkInputService : IInputService, IDisposable
     private readonly Dictionary<string, float> _axisValues = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _pendingPressCounts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _pendingReleaseCounts = new(StringComparer.Ordinal);
+    private readonly Dictionary<MouseButton, bool> _mouseButtonDown = new();
+    private readonly Dictionary<MouseButton, bool> _prevMouseButtonDown = new();
+    private readonly Dictionary<MouseButton, bool> _mouseButtonPressedThisFrame = new();
+    private readonly Dictionary<MouseButton, bool> _mouseButtonReleasedThisFrame = new();
+    private readonly Dictionary<MouseButton, int> _pendingMousePressCounts = new();
+    private readonly Dictionary<MouseButton, int> _pendingMouseReleaseCounts = new();
     private readonly Dictionary<string, float> _pendingAxisDelta = new(StringComparer.Ordinal);
     private readonly object _keyboardPulseLock = new();
     private readonly HashSet<Key> _keyboardPulseDown = new();
     private readonly List<(IKeyboard Keyboard, Action<IKeyboard, Key, int> Handler)> _keyboardSubscriptions = new();
+    private readonly object _mousePulseLock = new();
+    private readonly HashSet<MouseButton> _mousePulseDown = new();
+    private readonly HashSet<MouseButton> _mousePulseUp = new();
+    private readonly List<(IMouse Mouse, Action<IMouse, MouseButton> Down, Action<IMouse, MouseButton> Up)> _mouseSubscriptions = new();
     private Vector2 _mousePosition;
     private Vector2 _mouseDelta;
     private Vector2 _mouseWheelDelta;
@@ -58,6 +69,7 @@ public sealed class SilkInputService : IInputService, IDisposable
         _host = host;
         Bindings = new InputBindings();
         SubscribeExistingKeyboards();
+        SubscribeExistingMice();
     }
 
     /// <inheritdoc />
@@ -68,6 +80,12 @@ public sealed class SilkInputService : IInputService, IDisposable
 
     /// <inheritdoc />
     public Vector2 MousePosition => _mousePosition;
+
+    /// <inheritdoc />
+    public Vector2 MousePositionScreen => _mousePosition;
+
+    /// <inheritdoc />
+    public Vector2 MousePositionWorld => GetMousePosition(CoordinateSpace.WorldSpace);
 
     /// <inheritdoc />
     public Vector2 MouseDelta => _mouseDelta;
@@ -84,17 +102,40 @@ public sealed class SilkInputService : IInputService, IDisposable
     public Vector2 MouseWheelDelta => _mouseWheelDelta;
 
     /// <inheritdoc />
+    public bool MouseButton(MouseButton button) => _mouseButtonDown.TryGetValue(button, out var down) && down;
+
+    /// <inheritdoc />
+    public bool MouseButtonDown(MouseButton button)
+        => _mouseButtonPressedThisFrame.TryGetValue(button, out var pressed) && pressed;
+
+    /// <inheritdoc />
+    public bool MouseButtonUp(MouseButton button)
+        => _mouseButtonReleasedThisFrame.TryGetValue(button, out var released) && released;
+
+    /// <inheritdoc />
+    public bool ConsumeMouseButtonPressed(MouseButton button) => ConsumeCounter(_pendingMousePressCounts, button);
+
+    /// <inheritdoc />
+    public bool ConsumeMouseButtonReleased(MouseButton button) => ConsumeCounter(_pendingMouseReleaseCounts, button);
+
+    /// <inheritdoc />
     public void BeginFrame()
     {
         _prevActionDown.Clear();
         foreach (var (id, isDown) in _actionDown)
             _prevActionDown[id] = isDown;
+        _prevMouseButtonDown.Clear();
+        foreach (var (button, isDown) in _mouseButtonDown)
+            _prevMouseButtonDown[button] = isDown;
 
         _frameGameplayCommands.Clear();
+        _mouseButtonPressedThisFrame.Clear();
+        _mouseButtonReleasedThisFrame.Clear();
 
         _actionDown.Clear();
         _axisValues.Clear();
         UpdateMouseSnapshot();
+        SampleMouseButtons();
 
         foreach (var actionId in Bindings.ActionIds)
         {
@@ -135,6 +176,11 @@ public sealed class SilkInputService : IInputService, IDisposable
 
         lock (_keyboardPulseLock)
             _keyboardPulseDown.Clear();
+        lock (_mousePulseLock)
+        {
+            _mousePulseDown.Clear();
+            _mousePulseUp.Clear();
+        }
     }
 
     /// <inheritdoc />
@@ -183,7 +229,7 @@ public sealed class SilkInputService : IInputService, IDisposable
         return control.Kind switch
         {
             InputControlKind.KeyboardKey => IsAnyKeyboardPressed(control.Key) ? 1f : 0f,
-            InputControlKind.MouseButton => IsAnyMouseButtonPressed(control.MouseButton) ? 1f : 0f,
+            InputControlKind.MouseButton => MouseButton(control.MouseButton) ? 1f : 0f,
             InputControlKind.MouseAxis => ReadMouseAxis(control.MouseAxis),
             _ => 0f
         };
@@ -199,6 +245,14 @@ public sealed class SilkInputService : IInputService, IDisposable
         }
 
         _keyboardSubscriptions.Clear();
+        for (var i = 0; i < _mouseSubscriptions.Count; i++)
+        {
+            var (mouse, onDown, onUp) = _mouseSubscriptions[i];
+            mouse.MouseDown -= onDown;
+            mouse.MouseUp -= onUp;
+        }
+
+        _mouseSubscriptions.Clear();
         _input.Dispose();
     }
 
@@ -213,12 +267,39 @@ public sealed class SilkInputService : IInputService, IDisposable
         }
     }
 
+    private void SubscribeExistingMice()
+    {
+        for (var i = 0; i < _input.Mice.Count; i++)
+        {
+            var mouse = _input.Mice[i];
+            Action<IMouse, MouseButton> onDown = OnMouseButtonDown;
+            Action<IMouse, MouseButton> onUp = OnMouseButtonUp;
+            mouse.MouseDown += onDown;
+            mouse.MouseUp += onUp;
+            _mouseSubscriptions.Add((mouse, onDown, onUp));
+        }
+    }
+
     private void OnKeyboardKeyDown(IKeyboard keyboard, Key key, int scancode)
     {
         _ = keyboard;
         _ = scancode;
         lock (_keyboardPulseLock)
             _keyboardPulseDown.Add(key);
+    }
+
+    private void OnMouseButtonDown(IMouse mouse, MouseButton button)
+    {
+        _ = mouse;
+        lock (_mousePulseLock)
+            _mousePulseDown.Add(button);
+    }
+
+    private void OnMouseButtonUp(IMouse mouse, MouseButton button)
+    {
+        _ = mouse;
+        lock (_mousePulseLock)
+            _mousePulseUp.Add(button);
     }
 
     private bool IsAnyKeyboardPressed(Key key)
@@ -247,6 +328,40 @@ public sealed class SilkInputService : IInputService, IDisposable
         }
 
         return false;
+    }
+
+    private void SampleMouseButtons()
+    {
+        for (var i = 0; i < TrackedMouseButtons.Length; i++)
+        {
+            var button = TrackedMouseButtons[i];
+            var pulseDown = WasMouseButtonPulsedDown(button);
+            var pulseUp = WasMouseButtonPulsedUp(button);
+            var down = IsAnyMouseButtonPressed(button) || pulseDown;
+            _mouseButtonDown[button] = down;
+
+            var before = _prevMouseButtonDown.TryGetValue(button, out var prevDown) && prevDown;
+            var pressed = down && !before;
+            var released = (!down && before) || (pulseUp && (before || pulseDown));
+            _mouseButtonPressedThisFrame[button] = pressed;
+            _mouseButtonReleasedThisFrame[button] = released;
+            if (pressed)
+                IncrementCounter(_pendingMousePressCounts, button);
+            if (released)
+                IncrementCounter(_pendingMouseReleaseCounts, button);
+        }
+    }
+
+    private bool WasMouseButtonPulsedDown(MouseButton button)
+    {
+        lock (_mousePulseLock)
+            return _mousePulseDown.Contains(button);
+    }
+
+    private bool WasMouseButtonPulsedUp(MouseButton button)
+    {
+        lock (_mousePulseLock)
+            return _mousePulseUp.Contains(button);
     }
 
     private float ReadMouseAxis(MouseAxis axis)
@@ -305,13 +420,15 @@ public sealed class SilkInputService : IInputService, IDisposable
     private static bool IsDeltaMouseAxis(MouseAxis axis) =>
         axis is MouseAxis.DeltaX or MouseAxis.DeltaY or MouseAxis.WheelX or MouseAxis.WheelY;
 
-    private static void IncrementCounter(Dictionary<string, int> table, string key)
+    private static void IncrementCounter<TKey>(Dictionary<TKey, int> table, TKey key)
+        where TKey : notnull
     {
         table.TryGetValue(key, out var count);
         table[key] = count + 1;
     }
 
-    private static bool ConsumeCounter(Dictionary<string, int> table, string key)
+    private static bool ConsumeCounter<TKey>(Dictionary<TKey, int> table, TKey key)
+        where TKey : notnull
     {
         if (!table.TryGetValue(key, out var count) || count <= 0)
             return false;

@@ -194,6 +194,10 @@ public sealed class InputPhaseBehaviorTests
         mouse.Setup(x => x.IsButtonPressed(It.IsAny<MouseButton>())).Returns(false);
         mouse.SetupGet(x => x.Position).Returns(() => mousePosition());
         mouse.SetupGet(x => x.ScrollWheels).Returns(() => mouseWheels());
+        mouse.SetupAdd(x => x.MouseDown += It.IsAny<Action<IMouse, MouseButton>>());
+        mouse.SetupRemove(x => x.MouseDown -= It.IsAny<Action<IMouse, MouseButton>>());
+        mouse.SetupAdd(x => x.MouseUp += It.IsAny<Action<IMouse, MouseButton>>());
+        mouse.SetupRemove(x => x.MouseUp -= It.IsAny<Action<IMouse, MouseButton>>());
 
         var input = new Mock<IInputContext>(MockBehavior.Strict);
         input.SetupGet(x => x.Keyboards).Returns(new[] { keyboard.Object });

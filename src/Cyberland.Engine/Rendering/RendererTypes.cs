@@ -161,7 +161,10 @@ public struct CameraViewRequest
 /// <summary>Radial point light evaluated in the deferred lighting pass (world pixels, +Y up).</summary>
 public struct PointLight
 {
-    /// <summary>Light center in world space.</summary>
+    /// <summary>
+    /// Light center in world space (+Y up). Stock submitters convert transforms under a viewport-space sprite root using
+    /// <see cref="Hosting.CameraRuntimeState"/> and <see cref="CameraProjection.ViewportPixelToWorld"/>.
+    /// </summary>
     public Vector2D<float> PositionWorld;
     /// <summary>World-space radius where influence falls off (see <see cref="FalloffExponent"/>).</summary>
     public float Radius;
