@@ -167,6 +167,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     private FramePacing _framePacing = FramePacing.VSync;
     private readonly Stopwatch _limitedFrameTimer = new();
+    private bool _minimalInitializationCompleted;
+    private bool _fullInitializationCompleted;
+    private bool _bootstrapPresentedAtLeastOnce;
 
     /// <inheritdoc />
     public FramePacing FramePacing
@@ -482,10 +485,15 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     }
 
     /// <summary>
-    /// Creates instance, device, swapchain, render passes, pipelines, and default textures. Throws <see cref="GraphicsInitializationException"/> if the surface is unavailable.
+    /// Creates the minimal Vulkan objects needed to acquire/present swapchain images.
+    /// Use <see cref="CompleteDeferredInitialization"/> later to build full deferred pipelines/resources.
+    /// Throws <see cref="GraphicsInitializationException"/> if the surface is unavailable.
     /// </summary>
-    public void Initialize()
+    public void InitializeMinimal()
     {
+        if (_minimalInitializationCompleted)
+            return;
+
         RunInitializationStage("window.initialize", () =>
         {
             if (!_window.IsInitialized)
@@ -504,18 +512,44 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             PickPhysicalDevice();
             CreateLogicalDevice();
             CreateSwapchain();
-            CreateImageViews();
-            CreateSpriteQuadMesh();
             CreateCommandPool();
             CreateCommandBuffers();
             CreateSyncObjects();
         });
 
-        RunInitializationStage("vk.graphics_pipeline_and_surfaces", CreateGraphicsPipelineAndSurfaces);
-        RunInitializationStage("vk.default_textures", CreateDefaultTextures);
-
         _window.FramebufferResize += OnFramebufferResize;
         LogInitializationStage("window.framebuffer_resize_hook", 0d);
+        _minimalInitializationCompleted = true;
+    }
+
+    /// <summary>
+    /// Completes full renderer setup (deferred render graph resources, pipelines, and default textures).
+    /// Safe to call once after <see cref="InitializeMinimal"/>.
+    /// </summary>
+    public void CompleteDeferredInitialization()
+    {
+        if (_fullInitializationCompleted)
+            return;
+        if (!_minimalInitializationCompleted)
+            throw new InvalidOperationException("InitializeMinimal must run before CompleteDeferredInitialization.");
+
+        RunInitializationStage("vk.graphics_pipeline_and_surfaces", () =>
+        {
+            CreateSpriteQuadMesh();
+            CreateImageViews();
+            CreateGraphicsPipelineAndSurfaces();
+        });
+        RunInitializationStage("vk.default_textures", CreateDefaultTextures);
+        _fullInitializationCompleted = true;
+    }
+
+    /// <summary>
+    /// Backward-compatible one-shot initialization: minimal bootstrap followed by full deferred setup.
+    /// </summary>
+    public void Initialize()
+    {
+        InitializeMinimal();
+        CompleteDeferredInitialization();
     }
 
     private static bool ReadInitializationStageLoggingEnabled() =>
@@ -597,6 +631,11 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     {
         if (_vk is null)
             return;
+        if (!_fullInitializationCompleted)
+        {
+            DrawBootstrapFrame();
+            return;
+        }
 
         if (_resizePending)
         {
@@ -739,6 +778,175 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             DiscardAllPendingSubmissions();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Presents a minimal clear-only frame while deferred pipelines are still initializing.
+    /// </summary>
+    public void DrawBootstrapFrame()
+    {
+        if (_vk is null || !_minimalInitializationCompleted)
+            return;
+
+        if (_resizePending)
+        {
+            _resizePending = false;
+            RecreateSwapchain();
+        }
+
+        if (_framePacing.Mode == FramePacingMode.Limited)
+            _limitedFrameTimer.Restart();
+
+        _vk.WaitForFences(_device, 1, in _inFlightFences![_currentFrame], true, ulong.MaxValue);
+
+        uint imageIndex = 0;
+        var acquire = _khrSwapchain!.AcquireNextImage(
+            _device,
+            _swapchain,
+            ulong.MaxValue,
+            _imageAvailableSemaphores![_currentFrame],
+            default,
+            ref imageIndex);
+
+        if (acquire == Result.ErrorOutOfDateKhr)
+        {
+            RecreateSwapchain();
+            return;
+        }
+
+        if (acquire != Result.Success && acquire != Result.SuboptimalKhr)
+            throw new InvalidOperationException($"AcquireNextImage failed: {acquire}");
+
+        if (_imagesInFlight![imageIndex].Handle != default)
+            _vk.WaitForFences(_device, 1, in _imagesInFlight[imageIndex], true, ulong.MaxValue);
+        _imagesInFlight[imageIndex] = _inFlightFences[_currentFrame];
+
+        var commandBuffer = _commandBuffers![_currentFrame];
+        RecordBootstrapClearCommandBuffer(commandBuffer, _swapchainImages![imageIndex]);
+
+        var waitSemaphores = stackalloc[] { _imageAvailableSemaphores[_currentFrame] };
+        var waitStages = stackalloc[] { PipelineStageFlags.TransferBit };
+        var signalSemaphores = stackalloc[] { _renderFinishedSemaphores![_currentFrame] };
+        SubmitInfo submitInfo = new()
+        {
+            SType = StructureType.SubmitInfo,
+            WaitSemaphoreCount = 1,
+            PWaitSemaphores = waitSemaphores,
+            PWaitDstStageMask = waitStages,
+            CommandBufferCount = 1,
+            PCommandBuffers = &commandBuffer,
+            SignalSemaphoreCount = 1,
+            PSignalSemaphores = signalSemaphores
+        };
+
+        _vk.ResetFences(_device, 1, in _inFlightFences[_currentFrame]);
+        if (_vk.QueueSubmit(_graphicsQueue, 1, in submitInfo, _inFlightFences[_currentFrame]) != Result.Success)
+            throw new InvalidOperationException("QueueSubmit failed for bootstrap frame.");
+
+        var swapChains = stackalloc[] { _swapchain };
+        PresentInfoKHR presentInfo = new()
+        {
+            SType = StructureType.PresentInfoKhr,
+            WaitSemaphoreCount = 1,
+            PWaitSemaphores = signalSemaphores,
+            SwapchainCount = 1,
+            PSwapchains = swapChains,
+            PImageIndices = &imageIndex
+        };
+
+        var present = _khrSwapchain.QueuePresent(_presentQueue, &presentInfo);
+        if (present == Result.ErrorOutOfDateKhr || present == Result.SuboptimalKhr)
+            _resizePending = true;
+        else if (present != Result.Success)
+            throw new InvalidOperationException($"QueuePresent failed: {present}");
+
+        ApplyLimitedCpuPacingIfNeeded();
+        _currentFrame = (_currentFrame + 1) % MaxFramesInFlight;
+        _bootstrapPresentedAtLeastOnce = true;
+    }
+
+    private void RecordBootstrapClearCommandBuffer(CommandBuffer commandBuffer, Image swapchainImage)
+    {
+        _vk!.ResetCommandBuffer(commandBuffer, 0);
+        CommandBufferBeginInfo beginInfo = new()
+        {
+            SType = StructureType.CommandBufferBeginInfo
+        };
+        _vk.BeginCommandBuffer(commandBuffer, in beginInfo);
+
+        var oldLayout = _bootstrapPresentedAtLeastOnce ? ImageLayout.PresentSrcKhr : ImageLayout.Undefined;
+        ImageMemoryBarrier toTransfer = new()
+        {
+            SType = StructureType.ImageMemoryBarrier,
+            OldLayout = oldLayout,
+            NewLayout = ImageLayout.TransferDstOptimal,
+            SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            Image = swapchainImage,
+            SrcAccessMask = 0,
+            DstAccessMask = AccessFlags.TransferWriteBit,
+            SubresourceRange = new ImageSubresourceRange
+            {
+                AspectMask = ImageAspectFlags.ColorBit,
+                BaseMipLevel = 0,
+                LevelCount = 1,
+                BaseArrayLayer = 0,
+                LayerCount = 1
+            }
+        };
+        _vk.CmdPipelineBarrier(
+            commandBuffer,
+            PipelineStageFlags.TopOfPipeBit,
+            PipelineStageFlags.TransferBit,
+            0,
+            0,
+            null,
+            0,
+            null,
+            1,
+            in toTransfer);
+
+        // Bootstrap clear is true black so pre-game startup never flashes tinted colors.
+        ClearColorValue clearColor = new();
+        clearColor.Float32_0 = 0f;
+        clearColor.Float32_1 = 0f;
+        clearColor.Float32_2 = 0f;
+        clearColor.Float32_3 = 1f;
+        ImageSubresourceRange range = new()
+        {
+            AspectMask = ImageAspectFlags.ColorBit,
+            BaseMipLevel = 0,
+            LevelCount = 1,
+            BaseArrayLayer = 0,
+            LayerCount = 1
+        };
+        _vk.CmdClearColorImage(commandBuffer, swapchainImage, ImageLayout.TransferDstOptimal, in clearColor, 1, in range);
+
+        ImageMemoryBarrier toPresent = new()
+        {
+            SType = StructureType.ImageMemoryBarrier,
+            OldLayout = ImageLayout.TransferDstOptimal,
+            NewLayout = ImageLayout.PresentSrcKhr,
+            SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            Image = swapchainImage,
+            SrcAccessMask = AccessFlags.TransferWriteBit,
+            DstAccessMask = 0,
+            SubresourceRange = range
+        };
+        _vk.CmdPipelineBarrier(
+            commandBuffer,
+            PipelineStageFlags.TransferBit,
+            PipelineStageFlags.BottomOfPipeBit,
+            0,
+            0,
+            null,
+            0,
+            null,
+            1,
+            in toPresent);
+
+        _vk.EndCommandBuffer(commandBuffer);
     }
 
     private void ApplyLimitedCpuPacingIfNeeded()
@@ -1448,11 +1656,15 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         CleanupSwapchain();
 
         CreateSwapchain();
-        CreateImageViews();
-        RecreateSwapchainDependent();
+        if (_fullInitializationCompleted)
+        {
+            CreateImageViews();
+            RecreateSwapchainDependent();
+        }
         CreateCommandBuffers();
 
         _imagesInFlight = new Fence[_swapchainImages!.Length];
+        _bootstrapPresentedAtLeastOnce = false;
     }
 
     private void CleanupSwapchain()

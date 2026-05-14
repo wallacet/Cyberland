@@ -14,7 +14,7 @@ namespace Cyberland.Engine.Rendering;
 /// <list type="number">
 /// <item><description><see cref="Cyberland.Engine.GameApplication"/> <c>OnRender</c>:
 /// <see cref="ResetPendingSubmissionsForNewTick"/> (drops prior tick’s queues if <see cref="VulkanRenderer.DrawFrame"/> never drained),
-/// ECS <c>RunFrame</c> (systems call <see cref="SubmitSprite"/> / <see cref="SubmitSprites"/> / lights / camera),
+/// optional ECS <c>RunFrame</c> once gameplay boot reaches full phase (systems call <see cref="SubmitSprite"/> / <see cref="SubmitSprites"/> / lights / camera),
 /// then <see cref="VulkanRenderer.DrawFrame"/>.</description></item>
 /// <item><description><c>VulkanRenderer.FrameExecution.cs</c> builds a frame plan snapshot once per <see cref="VulkanRenderer.DrawFrame"/>:
 /// drains concurrent queues, picks camera, merges post volumes, sorts draws (<c>FramePlanBuilder.Build</c>).</description></item>

@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Audio;
 using Cyberland.Engine.Diagnostics;
@@ -23,13 +25,15 @@ using Silk.NET.Windowing;
 namespace Cyberland.Engine;
 
 /// <summary>
-/// Boots the game: creates the window, initializes Vulkan, audio, the ECS <see cref="Core.Ecs.World"/>,
-/// loads mods, and runs the per-frame <see cref="Core.Tasks.SystemScheduler"/>. Shipped gameplay lives in mod assemblies, not here.
+/// Boots the game: creates the window, initializes graphics/input, presents an initial frame,
+/// then completes deferred host IO + mod load before running the per-frame <see cref="Core.Tasks.SystemScheduler"/>.
+/// Shipped gameplay lives in mod assemblies, not here.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Typical flow: construct <c>new GameApplication(args)</c>, call <see cref="Run"/> (blocking until the window closes), then <see cref="Dispose"/>.
-/// The host wires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Input"/> after graphics init so mods receive a working <see cref="Modding.ModLoadContext"/>.
+/// The host wires <see cref="Hosting.GameHostServices.Renderer"/> and <see cref="Hosting.GameHostServices.Input"/> during early bootstrap.
+/// Mods are loaded later, after first present, so <see cref="Modding.ModLoadContext"/> still sees fully initialized host services while cold-start first paint stays responsive.
 /// </para>
 /// <para>
 /// Scheduler registration order is defined by mod load order. Shipped engine mods call
@@ -37,7 +41,7 @@ namespace Cyberland.Engine;
 /// <see cref="EngineDefaultSchedulerSystems.RegisterAfterGameplayMods"/> around gameplay mods.
 /// </para>
 /// <para>
-/// <see cref="Core.Tasks.SystemScheduler.RunFrame(Cyberland.Engine.Core.Ecs.World, float)"/> runs once per window <strong>Render</strong> tick (not per <strong>Update</strong>), with <c>deltaSeconds</c> equal to Silk’s <c>Render</c> callback argument (the render stopwatch interval from <c>DoRender</c>). Avoid a <c>minimum</c> frame duration clamp: at high refresh + mailbox, real intervals can fall below 2 ms; a floor would add fake time every tick and make fixed-step sim run faster than wall clock. Only cap large hitches (max) to keep the accumulator bounded. Silk may call <strong>Update</strong> more often than <strong>Render</strong>; running the full ECS from <strong>Update</strong> advanced gameplay multiple times per presented frame and made HUD frame timing misleading.
+/// <see cref="Core.Tasks.SystemScheduler.RunFrame(Cyberland.Engine.Core.Ecs.World, float)"/> runs once per window <strong>Render</strong> tick (not per <strong>Update</strong>) after boot reaches <c>FullGame</c>, with <c>deltaSeconds</c> equal to Silk’s <c>Render</c> callback argument (the render stopwatch interval from <c>DoRender</c>). Avoid a <c>minimum</c> frame duration clamp: at high refresh + mailbox, real intervals can fall below 2 ms; a floor would add fake time every tick and make fixed-step sim run faster than wall clock. Only cap large hitches (max) to keep the accumulator bounded. Silk may call <strong>Update</strong> more often than <strong>Render</strong>; running the full ECS from <strong>Update</strong> advanced gameplay multiple times per presented frame and made HUD frame timing misleading.
 /// </para>
 /// </remarks>
 /// <example>
@@ -49,6 +53,17 @@ namespace Cyberland.Engine;
 [ExcludeFromCodeCoverage(Justification = "Requires a real window, input, and mod staging; covered by manual / integration runs.")]
 public sealed class GameApplication : IDisposable
 {
+    private enum GameBootPhase
+    {
+        ColdStart,
+        MinimalPresenting,
+        BuildingFullVk,
+        DeferHostIo,
+        LoadingMods,
+        FullGame,
+        Failed
+    }
+
     private readonly ParallelismSettings _parallelism = new();
     private readonly VirtualFileSystem _vfs = new();
     private readonly World _world = new();
@@ -75,11 +90,23 @@ public sealed class GameApplication : IDisposable
     private Stopwatch? _startupWall;
     private bool _firstPresentLogged;
     private bool _audioInitAttempted;
+    private bool _audioInitLogged;
+    private Task<OpenALAudioDevice?>? _pendingAudioInitTask;
+    private CancellationTokenSource? _audioInitCts;
     private double _startupLoadCallbackMs;
     private double _startupFirstPresentMs;
     private int _bakedGlyphImports;
     private readonly int _bakedAtlasPageBudget;
     private TextGlyphCache.GlyphCacheTelemetry _lastGlyphTelemetry;
+    private GameBootPhase _bootPhase = GameBootPhase.ColdStart;
+    private Stopwatch? _startupStageSw;
+    private IReadOnlySet<string>? _excludedModIds;
+    private bool _startupLoadMilestoneLogged;
+    private Task? _pendingBindingsLoadTask;
+    private Task? _pendingBindingsSaveTask;
+    private bool _bindingsStageLogged;
+    private bool _deferredLocalizationReady;
+    private Stopwatch? _bindingsLoadSw;
 #if DEBUG
     private bool _profileHudInTitle;
     private int _profileTitleThrottle;
@@ -138,8 +165,19 @@ public sealed class GameApplication : IDisposable
         if (_window is null)
             return;
         _startupWall = Stopwatch.StartNew();
+        _startupStageSw = Stopwatch.StartNew();
         _firstPresentLogged = false;
-        var startupStageSw = Stopwatch.StartNew();
+        _startupLoadMilestoneLogged = false;
+        _bootPhase = GameBootPhase.ColdStart;
+        _pendingBindingsLoadTask = null;
+        _pendingBindingsSaveTask = null;
+        _bindingsStageLogged = false;
+        _deferredLocalizationReady = false;
+        _bindingsLoadSw = null;
+        _audioInitLogged = false;
+        _pendingAudioInitTask = null;
+        _audioInitCts?.Dispose();
+        _audioInitCts = null;
 
 #if DEBUG
         Console.WriteLine(
@@ -149,41 +187,39 @@ public sealed class GameApplication : IDisposable
             $"Cyberland startup | Configuration=Release | UiIncremental={UiLayoutGating.UseIncrementalDocumentFrames} | BakedAtlasPageBudget={_bakedAtlasPageBudget}");
 #endif
 
-        // Bootstrap order: Vulkan + input → assign Host.Renderer/Input → baseline HDR once (EngineDefaultGlobalPostProcess)
-        // → sync input bindings (window thread; GetAwaiter().GetResult avoids re-entrancy on the same thread)
-        // → ModLoader.LoadAll (mods register systems, including shipped engine early/late registration mods)
-        // → locale bootstrap. First RunFrame runs after this returns.
-        // Audio is intentionally deferred until after first present so startup never blocks on OpenAL init.
-        _audioInitAttempted = false;
-        _renderer = new VulkanRenderer(_window);
+        // Bootstrap target: first present should happen before disk-heavy host IO and before mod load.
+        // OnLoad does minimal setup, then OnRender advances remaining stages in order.
         try
         {
-            _renderer.Initialize();
-            LogStartupStage("renderer.initialize", startupStageSw);
+            InitializeMinimalPresentBootstrap();
+            _excludedModIds = ParseExcludedModIds(_commandLineArgs);
+            _bootPhase = GameBootPhase.MinimalPresenting;
         }
         catch (GraphicsInitializationException ex)
         {
-            UserMessageDialog.ShowError("Cyberland — Graphics unavailable", ex.UserMessage);
-            _renderer.Dispose();
-            _renderer = null;
-            _window.Close();
-            return;
+            HandleGraphicsInitializationFailure(ex);
         }
+        catch (Exception ex)
+        {
+            HandleStartupFailure(ex);
+        }
+    }
+
+    private void InitializeMinimalPresentBootstrap()
+    {
+        if (_window is null)
+            return;
+
+        _audioInitAttempted = false;
+        StartAudioInitializationInBackground();
+        _renderer = new VulkanRenderer(_window);
+        _renderer.InitializeMinimal();
+        LogStartupStage("renderer.initialize.minimal");
 
         EngineDiagnostics.UseNativeUserNotifications();
-        LogStartupStage("audio.initialize.deferred", startupStageSw);
+        LogStartupStage("audio.initialize.parallel.start");
 
-        _input = new SilkInputService(_window.CreateInput(), _renderer, _host);
-        _host.Renderer = _renderer;
-        _host.Input = _input;
-        _host.Tilemaps ??= new TilemapDataStore();
-        _host.CameraRuntimeState = Hosting.CameraRuntimeState.CreateDefault(_renderer.SwapchainPixelSize);
-        _host.TextGlyphCache.UseAsyncRasterization = true;
-        _host.EnsureCoreServicesReady();
-        _renderer.RequestClose = () => _window?.Close();
-        LogStartupStage("host.services", startupStageSw);
-
-        if (_profileWallSeconds is not null)
+        if (_profileWallSeconds is not null && _renderer is not null)
         {
             _renderer.FramePacing = new FramePacing(FramePacingMode.Unlimited);
 #if DEBUG
@@ -193,72 +229,151 @@ public sealed class GameApplication : IDisposable
             _profileWall = new Stopwatch();
             _profileWallStarted = false;
         }
+    }
+
+    private void AdvanceBootstrapAfterFirstPresent()
+    {
+        switch (_bootPhase)
+        {
+            case GameBootPhase.MinimalPresenting:
+                _bootPhase = GameBootPhase.BuildingFullVk;
+                break;
+            case GameBootPhase.BuildingFullVk:
+                CompleteDeferredRendererAndHostInitialization();
+                _bootPhase = GameBootPhase.DeferHostIo;
+                break;
+            case GameBootPhase.DeferHostIo:
+                if (TryRunDeferredHostIo())
+                    _bootPhase = GameBootPhase.LoadingMods;
+                break;
+            case GameBootPhase.LoadingMods:
+                RunDeferredModLoadAndFinalize();
+                _bootPhase = GameBootPhase.FullGame;
+                break;
+            case GameBootPhase.FullGame:
+            case GameBootPhase.Failed:
+            case GameBootPhase.ColdStart:
+            default:
+                break;
+        }
+    }
+
+    private void CompleteDeferredRendererAndHostInitialization()
+    {
+        if (_window is null || _renderer is null)
+            throw new InvalidOperationException("Renderer/window must exist before deferred renderer completion.");
+
+        _renderer.CompleteDeferredInitialization();
+        LogStartupStage("renderer.initialize.deferred_full");
+
+        _input = new SilkInputService(_window.CreateInput(), _renderer, _host);
+        _host.Renderer = _renderer;
+        _host.Input = _input;
+        _host.Tilemaps ??= new TilemapDataStore();
+        _host.CameraRuntimeState = Hosting.CameraRuntimeState.CreateDefault(_renderer.SwapchainPixelSize);
+        _host.TextGlyphCache.UseAsyncRasterization = true;
+        _host.EnsureCoreServicesReady();
+        _renderer.RequestClose = () => _window?.Close();
+        LogStartupStage("host.services");
 
         EngineDefaultGlobalPostProcess.Apply(_renderer);
-        LogStartupStage("renderer.postprocess-defaults", startupStageSw);
+        LogStartupStage("renderer.postprocess-defaults");
+    }
 
-        var bindingsFile = Path.Combine(AppContext.BaseDirectory, "input-bindings.json");
-        _input.Bindings.LoadOrCreateUserFileAsync(bindingsFile).GetAwaiter().GetResult();
-        LogStartupStage("input.bindings.load", startupStageSw);
+    private bool TryRunDeferredHostIo()
+    {
+        if (_input is null)
+            throw new InvalidOperationException("Input service must be initialized before deferred host IO.");
 
-        var languageFile = Path.Combine(AppContext.BaseDirectory, "language.json");
-        var primaryCulture = LanguagePreference.Resolve(_commandLineArgs, languageFile);
-        _localizedContent = new LocalizedContent(_localization, _vfs, primaryCulture);
-        _host.LocalizedContent = _localizedContent;
-        LogStartupStage("localization.bootstrap", startupStageSw);
+        if (!_deferredLocalizationReady)
+        {
+            var languageFile = Path.Combine(AppContext.BaseDirectory, "language.json");
+            var primaryCulture = LanguagePreference.Resolve(_commandLineArgs, languageFile);
+            _localizedContent = new LocalizedContent(_localization, _vfs, primaryCulture);
+            _host.LocalizedContent = _localizedContent;
+            _deferredLocalizationReady = true;
+            LogStartupStage("localization.bootstrap");
+        }
 
+        if (_pendingBindingsLoadTask is null)
+        {
+            var bindingsFile = Path.Combine(AppContext.BaseDirectory, "input-bindings.json");
+            if (!File.Exists(bindingsFile))
+            {
+                // Cold-start fast path: avoid blocking first gameplay frames on writing a brand-new defaults file.
+                // Mods still append defaults later during LoadAll through ModLoadContext.
+                _input.Bindings.LoadDefaults();
+                _pendingBindingsSaveTask = _input.Bindings.SaveAsync(bindingsFile);
+                _bindingsStageLogged = true;
+                LogStartupStage("input.bindings.load");
+            }
+            else
+            {
+                _bindingsLoadSw = Stopwatch.StartNew();
+                _pendingBindingsLoadTask = _input.Bindings.LoadOrCreateUserFileAsync(bindingsFile);
+                return false;
+            }
+        }
+
+        if (_pendingBindingsLoadTask is not null)
+        {
+            if (!_pendingBindingsLoadTask.IsCompleted)
+                return false;
+
+            _pendingBindingsLoadTask.GetAwaiter().GetResult();
+            _pendingBindingsLoadTask = null;
+            _bindingsLoadSw?.Stop();
+            if (!_bindingsStageLogged)
+            {
+                _bindingsStageLogged = true;
+                LogStartupStage("input.bindings.load");
+            }
+        }
+
+        return true;
+    }
+
+    private void RunDeferredModLoadAndFinalize()
+    {
+        if (_localizedContent is null)
+            throw new InvalidOperationException("Localized content must be initialized before deferred mod load.");
+        if (_renderer is null)
+            throw new InvalidOperationException("Renderer must be initialized before deferred mod load.");
+
+        _scheduler.BeginDeferExecutionOrderRebuilds();
         try
         {
-            _scheduler.BeginDeferExecutionOrderRebuilds();
-            try
-            {
-                var excluded = ExcludeModsParser.TryParse(_commandLineArgs);
-                IReadOnlySet<string>? excludedSet = null;
-                if (excluded is not null)
-                    excludedSet = new HashSet<string>(excluded, StringComparer.OrdinalIgnoreCase);
+            _mods.LoadAll(
+                Path.Combine(AppContext.BaseDirectory, "Mods"),
+                _vfs,
+                _localizedContent,
+                _world,
+                _scheduler,
+                _host,
+                _excludedModIds);
+            LogStartupStage("mods.load_all");
+            LogModLoadTiming(_mods.LastLoadTiming);
+            PreloadAllBuiltinAtlasesIfRequested(_renderer);
+            LogStartupStage("fonts.preload-builtins");
+            LogStartupStage("scheduler.register-systems");
+        }
+        finally
+        {
+            _scheduler.EndDeferExecutionOrderRebuilds();
+        }
 
-                _mods.LoadAll(
-                    Path.Combine(AppContext.BaseDirectory, "Mods"),
-                    _vfs,
-                    _localizedContent,
-                    _world,
-                    _scheduler,
-                    _host,
-                    excludedSet);
-                LogStartupStage("mods.load_all", startupStageSw);
-                LogModLoadTiming(_mods.LastLoadTiming);
-                PreloadAllBuiltinAtlasesIfRequested(_renderer);
-                LogStartupStage("fonts.preload-builtins", startupStageSw);
-                LogStartupStage("scheduler.register-systems", startupStageSw);
-            }
-            finally
-            {
-                _scheduler.EndDeferExecutionOrderRebuilds();
-            }
-            LogStartupStage("scheduler.rebuild-order", startupStageSw);
+        LogStartupStage("scheduler.rebuild-order");
 
-            _localizedContent.MergeStringTable("strings.json");
+        _localizedContent.MergeStringTable("strings.json");
+        LogStartupStage("localization.merge-strings");
+        if (_startupWall is not null)
             _startupLoadCallbackMs = _startupWall.Elapsed.TotalMilliseconds;
-            LogStartupStage("localization.merge-strings", startupStageSw);
+        if (!_startupLoadMilestoneLogged)
+        {
+            _startupLoadMilestoneLogged = true;
+            _startupWall?.Stop();
             Console.WriteLine(
                 $"Startup milestone | load_callback_total_ms={_startupLoadCallbackMs.ToString("0.###", CultureInfo.InvariantCulture)}");
-        }
-        catch (Exception ex)
-        {
-            // Startup failed after renderer/input were initialized. Keep failure handling deterministic:
-            // unload any partially loaded mods, tear down renderer, and close the window.
-            try
-            {
-                _mods.UnloadAll();
-            }
-            catch
-            {
-            }
-
-            UserMessageDialog.ShowError("Cyberland — Startup failed", ex.Message);
-            _renderer?.Dispose();
-            _renderer = null;
-            _window.Close();
         }
     }
 
@@ -323,7 +438,8 @@ public sealed class GameApplication : IDisposable
             using var __ = FrameProfilerScope.Enter("Scheduler.RunFrame");
 #endif
             // Publish fixed-step remainder before ILateUpdate so visual extrapolation (e.g. pos + vel * acc) uses this frame's alpha.
-            _scheduler.RunFrame(_world, dt, acc => _host.FixedAccumulatorSeconds = acc);
+            if (_bootPhase == GameBootPhase.FullGame)
+                _scheduler.RunFrame(_world, dt, acc => _host.FixedAccumulatorSeconds = acc);
         }
 
         _host.FixedDeltaSeconds = _scheduler.FixedDeltaSeconds;
@@ -332,19 +448,39 @@ public sealed class GameApplication : IDisposable
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Vulkan.DrawFrame");
 #endif
-            _renderer?.DrawFrame();
+            if (_bootPhase == GameBootPhase.FullGame)
+                _renderer?.DrawFrame();
+            else
+                _renderer?.DrawBootstrapFrame();
         }
 
         _host.LastPresentDeltaSeconds = dt;
         if (!_firstPresentLogged && _startupWall is not null)
         {
             _firstPresentLogged = true;
-            _startupWall.Stop();
             _startupFirstPresentMs = _startupWall.Elapsed.TotalMilliseconds;
             Console.WriteLine(
                 $"Startup milestone | first_present_ms={_startupFirstPresentMs.ToString("0.###", CultureInfo.InvariantCulture)}");
             TryInitializeAudioAfterFirstPresent();
         }
+
+        if (_firstPresentLogged &&
+            _bootPhase != GameBootPhase.FullGame &&
+            _bootPhase != GameBootPhase.Failed)
+        {
+            try
+            {
+                AdvanceBootstrapAfterFirstPresent();
+            }
+            catch (Exception ex)
+            {
+                HandleStartupFailure(ex);
+                return;
+            }
+        }
+
+        TryFinalizeBackgroundAudioInitialization();
+
         if (_profileWallSeconds is not null && _profileWall is not null)
         {
             if (!_profileWallStarted)
@@ -406,6 +542,42 @@ public sealed class GameApplication : IDisposable
         _mods.UnloadAll();
     }
 
+    private static IReadOnlySet<string>? ParseExcludedModIds(string[] commandLineArgs)
+    {
+        var excluded = ExcludeModsParser.TryParse(commandLineArgs);
+        if (excluded is null)
+            return null;
+
+        return new HashSet<string>(excluded, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void HandleGraphicsInitializationFailure(GraphicsInitializationException ex)
+    {
+        UserMessageDialog.ShowError("Cyberland — Graphics unavailable", ex.UserMessage);
+        _renderer?.Dispose();
+        _renderer = null;
+        _bootPhase = GameBootPhase.Failed;
+        _window?.Close();
+    }
+
+    private void HandleStartupFailure(Exception ex)
+    {
+        Console.Error.WriteLine($"Cyberland startup failure: {ex}");
+        try
+        {
+            _mods.UnloadAll();
+        }
+        catch
+        {
+        }
+
+        UserMessageDialog.ShowError("Cyberland — Startup failed", ex.Message);
+        _renderer?.Dispose();
+        _renderer = null;
+        _bootPhase = GameBootPhase.Failed;
+        _window?.Close();
+    }
+
     private static void WritePerfDump(
         string path,
         int frames,
@@ -432,8 +604,12 @@ public sealed class GameApplication : IDisposable
         File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
     }
 
-    private static void LogStartupStage(string stageName, Stopwatch startupStageSw)
+    private void LogStartupStage(string stageName)
     {
+        if (_startupStageSw is null)
+            return;
+
+        var startupStageSw = _startupStageSw;
         startupStageSw.Stop();
         Console.WriteLine(
             $"Startup stage | {stageName}={startupStageSw.Elapsed.TotalMilliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms");
@@ -445,27 +621,56 @@ public sealed class GameApplication : IDisposable
         if (_audioInitAttempted)
             return;
         _audioInitAttempted = true;
+        // Audio boot already starts in parallel with renderer bootstrap. Keep this method as the lifecycle gate
+        // that ensures completion logging starts no earlier than first present.
+        TryFinalizeBackgroundAudioInitialization();
+    }
+
+    private void StartAudioInitializationInBackground()
+    {
+        if (_pendingAudioInitTask is not null)
+            return;
+
+        _audioInitCts = new CancellationTokenSource();
+        var token = _audioInitCts.Token;
+        _pendingAudioInitTask = Task.Run(() =>
+        {
+            if (token.IsCancellationRequested)
+                return null;
+            try
+            {
+                return new OpenALAudioDevice();
+            }
+            catch (Exception ex)
+            {
+#if DEBUG
+                Console.Error.WriteLine($"Cyberland: audio initialization failed ({ex.GetType().Name}): {ex.Message}");
+#else
+                _ = ex;
+#endif
+                return null;
+            }
+        }, token);
+    }
+
+    private void TryFinalizeBackgroundAudioInitialization()
+    {
+        if (_audioInitLogged || !_audioInitAttempted)
+            return;
+        if (_pendingAudioInitTask is null || !_pendingAudioInitTask.IsCompleted)
+            return;
 
         var sw = Stopwatch.StartNew();
         try
         {
-            _audio = new OpenALAudioDevice();
-        }
-        catch (Exception ex)
-        {
-            // OpenAL Soft may be missing on some machines; game continues silent until configured.
-#if DEBUG
-            Console.Error.WriteLine($"Cyberland: audio initialization failed ({ex.GetType().Name}): {ex.Message}");
-#else
-            _ = ex;
-#endif
-            _audio = null;
+            _audio = _pendingAudioInitTask.GetAwaiter().GetResult();
         }
         finally
         {
             sw.Stop();
+            _audioInitLogged = true;
             Console.WriteLine(
-                $"Startup stage | audio.initialize.post_first_present={sw.Elapsed.TotalMilliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms");
+                $"Startup stage | audio.initialize.parallel.complete={sw.Elapsed.TotalMilliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms");
         }
     }
 
@@ -548,6 +753,11 @@ public sealed class GameApplication : IDisposable
     /// </summary>
     public void Dispose()
     {
+        _audioInitCts?.Cancel();
+        _audioInitCts?.Dispose();
+        _audioInitCts = null;
+        if (_audio is null && _pendingAudioInitTask is not null && _pendingAudioInitTask.IsCompletedSuccessfully)
+            _audio = _pendingAudioInitTask.Result;
         _input?.Dispose();
         _host.TextGlyphCache.Shutdown();
         _renderer?.Dispose();

@@ -114,8 +114,8 @@ public sealed class ModLoadContext
     public bool TryRemoveLocalizationKey(string key) => Localization.TryRemoveKey(key);
 
     /// <summary>
-    /// Adds a default mapping for a gameplay <paramref name="actionId"/> before the first frame. The host loads
-    /// <c>input-bindings.json</c> before <see cref="IMod.OnLoadAsync"/>, so user files replace the seed first; this call then
+    /// Adds a default mapping for a gameplay <paramref name="actionId"/> before gameplay scheduler updates start. The host loads
+    /// <c>input-bindings.json</c> before it invokes <see cref="IMod.OnLoadAsync"/>, so user files replace the seed first; this call then
     /// adds (or appends) bindings the mod requires.
     /// </summary>
     /// <param name="actionId">Action id for <c>IInputService</c> (e.g. <c>HasActionPressedThisFrame</c>, <c>ReadAxis</c>).</param>
@@ -142,10 +142,10 @@ public sealed class ModLoadContext
     /// <para>
     /// This is the <strong>synchronous</strong> path: decode + GPU upload run on the <strong>calling thread</strong> via
     /// <see cref="Cyberland.Engine.Rendering.Text.BakedMsdfAtlasLoader.LoadFromPath"/>. During normal host startup, <see cref="IMod.OnLoadAsync"/> runs after the Vulkan
-    /// renderer exists, so calling this from <c>OnLoadAsync</c> is usually valid when you need the atlas before the first frame.
+    /// renderer exists, so calling this from <c>OnLoadAsync</c> is usually valid when you need the atlas before gameplay starts.
     /// </para>
     /// <para>
-    /// Use this when you must block in <c>OnLoadAsync</c> until the atlas is usable (glyph cache seeded before first frame).
+    /// Use this when you must block in <c>OnLoadAsync</c> until the atlas is usable (glyph cache seeded before gameplay starts).
     /// To overlap CPU decode with other startup work instead, call <see cref="LoadBakedMsdfAtlasAsync"/> <strong>without</strong> awaiting
     /// (see that method’s remarks — awaiting it from <c>OnLoadAsync</c> deadlocks).
     /// </para>
@@ -172,7 +172,7 @@ public sealed class ModLoadContext
     /// <para>
     /// <strong>Mod <see cref="IMod.OnLoadAsync"/> / startup safety:</strong> the returned <see cref="Task{TResult}"/> completes only after
     /// <see cref="Cyberland.Engine.Rendering.Text.BakedMsdfAtlasLoader.DrainPendingUploads"/> runs on the render thread (see <see cref="Cyberland.Engine.GameApplication"/> draw path).
-    /// <see cref="ModLoader.LoadAll"/> invokes <c>OnLoadAsync(...).GetAwaiter().GetResult()</c> <strong>before</strong> the first frame is presented, so
+    /// <see cref="ModLoader.LoadAll"/> invokes <c>OnLoadAsync(...).GetAwaiter().GetResult()</c> synchronously while startup is inside mod load, so
     /// <strong>awaiting</strong> this method from <c>OnLoadAsync</c> deadlocks: the load thread waits for GPU drain, but drain never runs until load returns.
     /// </para>
     /// <para>
