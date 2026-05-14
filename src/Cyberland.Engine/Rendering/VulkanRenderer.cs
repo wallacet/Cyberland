@@ -74,6 +74,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     private readonly IWindow _window;
     private bool _resizePending;
+    private readonly bool _logInitializationStages = ReadInitializationStageLoggingEnabled();
+    private readonly bool _forceEngineGlslFallback = IsTruthy(Environment.GetEnvironmentVariable("CYBERLAND_FORCE_GLSL_SHADER_FALLBACK"));
 
     private Vk? _vk;
     private Instance _instance;
@@ -146,6 +148,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private readonly GpuTexture?[] _textureSlotsSnapshot = new GpuTexture?[MaxRegisteredTextures];
     private int _textureSlotsSnapshotCount;
     private readonly object _uploadCommandLock = new();
+    private readonly object _customShaderModulesLock = new();
+    private readonly List<ShaderModule> _customShaderModules = new();
+    private readonly HashSet<string> _shaderFallbackWarnings = new(StringComparer.Ordinal);
     private readonly float _bloomResolutionScale = ReadBloomResolutionScale();
     private int _deferredSpriteOverflowWarningIssued;
     private int _overlaySpriteOverflowWarningIssued;
@@ -299,6 +304,32 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     TextureId IRenderer.DefaultNormalTextureId => _defaultNormalTextureId;
 
     TextureId IRenderer.WhiteTextureId => _whiteTextureId;
+
+    IShaderModuleHandle IRenderer.CreateShaderModuleFromSpirv(ReadOnlySpan<byte> spirvBytes, string? debugName)
+    {
+        if (!SpirvBinary.TryDecodeWords(spirvBytes, out var words, out var failureReason))
+            throw new InvalidOperationException($"SPIR-V decode failed: {failureReason}");
+
+        var module = CreateShaderModule(words, debugName);
+        RegisterCustomShaderModule(module);
+        return new VulkanShaderModuleHandle(this, module);
+    }
+
+    IShaderModuleHandle IRenderer.CreateShaderModuleFromGlsl(
+        string glsl,
+        ShaderModuleStage stage,
+        string? debugName,
+        string? sourceDescription)
+    {
+        var shaderId = string.IsNullOrWhiteSpace(sourceDescription)
+            ? (debugName ?? $"mod.shader.{stage}")
+            : sourceDescription!;
+        WarnShaderFallbackOnce(shaderId, "runtime GLSL compile requested for mod shader module");
+        var spirv = GlslSpirvCompiler.CompileGlslToSpirv(glsl, MapShaderStage(stage));
+        var module = CreateShaderModule(spirv, debugName);
+        RegisterCustomShaderModule(module);
+        return new VulkanShaderModuleHandle(this, module);
+    }
 
     void IRenderer.SubmitSprite(in SpriteDrawRequest draw)
     {
@@ -455,30 +486,109 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     /// </summary>
     public void Initialize()
     {
-        if (!_window.IsInitialized)
-            _window.Initialize();
+        RunInitializationStage("window.initialize", () =>
+        {
+            if (!_window.IsInitialized)
+                _window.Initialize();
+        });
 
         if (((IVkSurfaceSource)_window).VkSurface is null)
             throw new GraphicsInitializationException(
                 "The window does not expose a Vulkan surface (wrong window backend or initialization order).");
 
-        _vk = Vk.GetApi();
-        CreateInstance();
-        CreateSurface();
-        PickPhysicalDevice();
-        CreateLogicalDevice();
-        CreateSwapchain();
-        CreateImageViews();
-        CreateSpriteQuadMesh();
-        CreateCommandPool();
-        CreateCommandBuffers();
-        CreateSyncObjects();
+        RunInitializationStage("vk.instance_to_sync_objects", () =>
+        {
+            _vk = Vk.GetApi();
+            CreateInstance();
+            CreateSurface();
+            PickPhysicalDevice();
+            CreateLogicalDevice();
+            CreateSwapchain();
+            CreateImageViews();
+            CreateSpriteQuadMesh();
+            CreateCommandPool();
+            CreateCommandBuffers();
+            CreateSyncObjects();
+        });
 
-        CreateGraphicsPipelineAndSurfaces();
-        CreateDefaultTextures();
+        RunInitializationStage("vk.graphics_pipeline_and_surfaces", CreateGraphicsPipelineAndSurfaces);
+        RunInitializationStage("vk.default_textures", CreateDefaultTextures);
 
         _window.FramebufferResize += OnFramebufferResize;
+        LogInitializationStage("window.framebuffer_resize_hook", 0d);
     }
+
+    private static bool ReadInitializationStageLoggingEnabled() =>
+        IsTruthy(Environment.GetEnvironmentVariable("CYBERLAND_LOG_VULKAN_INIT_STAGES"));
+
+    private static bool IsTruthy(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        (value.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+         value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+         value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+         value.Equals("on", StringComparison.OrdinalIgnoreCase));
+
+    private void RunInitializationStage(string stageName, Action action)
+    {
+        if (!_logInitializationStages)
+        {
+            action();
+            return;
+        }
+
+        var sw = Stopwatch.StartNew();
+        action();
+        sw.Stop();
+        LogInitializationStage(stageName, sw.Elapsed.TotalMilliseconds);
+    }
+
+    private static void LogInitializationStage(string stageName, double milliseconds) =>
+        Console.WriteLine(
+            $"Vulkan init stage | {stageName}={milliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms");
+
+    private ShaderModule CreateEngineShaderModule(string sourceFileName, ShaderStage stage, string debugName)
+    {
+        var precompiledFailureReason = string.Empty;
+        if (!_forceEngineGlslFallback &&
+            EngineShaderSources.TryLoadPrecompiledSpirv(sourceFileName, out var spirvBytes, out precompiledFailureReason))
+        {
+            if (SpirvBinary.TryDecodeWords(spirvBytes, out var words, out var decodeFailure))
+                return CreateShaderModule(words, debugName);
+
+            WarnShaderFallbackOnce(debugName, $"precompiled SPIR-V decode failed for '{sourceFileName}': {decodeFailure}");
+        }
+        else
+        {
+            var reason = _forceEngineGlslFallback
+                ? "forced by CYBERLAND_FORCE_GLSL_SHADER_FALLBACK"
+                : precompiledFailureReason;
+            WarnShaderFallbackOnce(debugName, $"precompiled SPIR-V unavailable for '{sourceFileName}': {reason}");
+        }
+
+        var glsl = EngineShaderSources.Load(sourceFileName);
+        return CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(glsl, stage), debugName);
+    }
+
+    private void WarnShaderFallbackOnce(string shaderId, string reason)
+    {
+        lock (_shaderFallbackWarnings)
+        {
+            if (!_shaderFallbackWarnings.Add(shaderId))
+                return;
+        }
+
+        Console.Error.WriteLine(
+            $"Cyberland WARNING: shader fallback compile | shader={shaderId} reason={reason}");
+    }
+
+    private static ShaderStage MapShaderStage(ShaderModuleStage stage) =>
+        stage switch
+        {
+            ShaderModuleStage.Vertex => ShaderStage.Vertex,
+            ShaderModuleStage.Fragment => ShaderStage.Fragment,
+            ShaderModuleStage.Compute => ShaderStage.Compute,
+            _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "Unsupported shader module stage.")
+        };
 
     private void OnFramebufferResize(Vector2D<int> _) => _resizePending = true;
 
@@ -663,6 +773,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         if (_device.Handle != default)
             _vk.DeviceWaitIdle(_device);
+        DestroyAllCustomShaderModules();
         _textureUpload?.Dispose();
         _textureUpload = null;
 
@@ -700,6 +811,72 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         _vk.Dispose();
         _vk = null;
+    }
+
+    private void RegisterCustomShaderModule(ShaderModule module)
+    {
+        lock (_customShaderModulesLock)
+            _customShaderModules.Add(module);
+    }
+
+    private void DestroyAllCustomShaderModules()
+    {
+        lock (_customShaderModulesLock)
+        {
+            if (_vk is not null && _device.Handle != default)
+            {
+                foreach (var module in _customShaderModules)
+                {
+                    if (module.Handle != default)
+                        _vk.DestroyShaderModule(_device, module, null);
+                }
+            }
+
+            _customShaderModules.Clear();
+        }
+    }
+
+    private void DestroyCustomShaderModule(ref ShaderModule module)
+    {
+        if (module.Handle == default)
+            return;
+
+        lock (_customShaderModulesLock)
+        {
+            for (var i = 0; i < _customShaderModules.Count; i++)
+            {
+                if (_customShaderModules[i].Handle != module.Handle)
+                    continue;
+                _customShaderModules.RemoveAt(i);
+                break;
+            }
+
+            if (_vk is not null && _device.Handle != default)
+                _vk.DestroyShaderModule(_device, module, null);
+            module = default;
+        }
+    }
+
+    private sealed class VulkanShaderModuleHandle : IShaderModuleHandle
+    {
+        private VulkanRenderer? _owner;
+        private ShaderModule _module;
+
+        public VulkanShaderModuleHandle(VulkanRenderer owner, ShaderModule module)
+        {
+            _owner = owner;
+            _module = module;
+        }
+
+        public void Dispose()
+        {
+            var owner = _owner;
+            if (owner is null)
+                return;
+
+            owner.DestroyCustomShaderModule(ref _module);
+            _owner = null;
+        }
     }
 
     private void CreateInstance()

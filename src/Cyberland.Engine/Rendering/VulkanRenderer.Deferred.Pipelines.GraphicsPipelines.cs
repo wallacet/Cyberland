@@ -12,29 +12,17 @@ public sealed unsafe partial class VulkanRenderer
 {
     private void CompileSpriteAndCompositeShaders()
     {
-        var vertSprite = EngineShaderSources.Load(EngineShaderSources.SpriteVert);
-        var fragEm = EngineShaderSources.Load(EngineShaderSources.SpriteEmissiveFrag);
-        var vertComp = EngineShaderSources.Load(EngineShaderSources.CompositeVert);
-        var fragComp = EngineShaderSources.Load(EngineShaderSources.CompositeFrag);
-        var fragBloomEx = EngineShaderSources.Load(EngineShaderSources.BloomExtractFrag);
-        var fragBloomDn = EngineShaderSources.Load(EngineShaderSources.BloomDownsampleFrag);
-        var fragBloomG = EngineShaderSources.Load(EngineShaderSources.BloomGaussianFrag);
-        var fragBloomUp = EngineShaderSources.Load(EngineShaderSources.BloomUpsampleFrag);
-        var fragBloomCopy = EngineShaderSources.Load(EngineShaderSources.BloomCopyFrag);
-        var vertTextMsdf = EngineShaderSources.Load(EngineShaderSources.TextMsdfVert);
-        var fragTextMsdf = EngineShaderSources.Load(EngineShaderSources.TextMsdfFrag);
-
-        _modVertSprite = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(vertSprite, ShaderStage.Vertex), "shader.Sprite.Vert");
-        _modFragEmissive = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragEm, ShaderStage.Fragment), "shader.Sprite.Emissive.Frag");
-        _modVertComposite = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(vertComp, ShaderStage.Vertex), "shader.Composite.Vert");
-        _modFragComposite = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragComp, ShaderStage.Fragment), "shader.Composite.Frag");
-        _modFragBloomExtract = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBloomEx, ShaderStage.Fragment), "shader.Bloom.Extract.Frag");
-        _modFragBloomDownsample = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBloomDn, ShaderStage.Fragment), "shader.Bloom.Downsample.Frag");
-        _modFragBloomGaussian = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBloomG, ShaderStage.Fragment), "shader.Bloom.Gaussian.Frag");
-        _modFragBloomUpsample = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBloomUp, ShaderStage.Fragment), "shader.Bloom.Upsample.Frag");
-        _modFragBloomCopy = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBloomCopy, ShaderStage.Fragment), "shader.Bloom.Copy.Frag");
-        _modVertTextMsdf = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(vertTextMsdf, ShaderStage.Vertex), "shader.TextMsdf.Vert");
-        _modFragTextMsdf = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragTextMsdf, ShaderStage.Fragment), "shader.TextMsdf.Frag");
+        _modVertSprite = CreateEngineShaderModule(EngineShaderSources.SpriteVert, ShaderStage.Vertex, "shader.Sprite.Vert");
+        _modFragEmissive = CreateEngineShaderModule(EngineShaderSources.SpriteEmissiveFrag, ShaderStage.Fragment, "shader.Sprite.Emissive.Frag");
+        _modVertComposite = CreateEngineShaderModule(EngineShaderSources.CompositeVert, ShaderStage.Vertex, "shader.Composite.Vert");
+        _modFragComposite = CreateEngineShaderModule(EngineShaderSources.CompositeFrag, ShaderStage.Fragment, "shader.Composite.Frag");
+        _modFragBloomExtract = CreateEngineShaderModule(EngineShaderSources.BloomExtractFrag, ShaderStage.Fragment, "shader.Bloom.Extract.Frag");
+        _modFragBloomDownsample = CreateEngineShaderModule(EngineShaderSources.BloomDownsampleFrag, ShaderStage.Fragment, "shader.Bloom.Downsample.Frag");
+        _modFragBloomGaussian = CreateEngineShaderModule(EngineShaderSources.BloomGaussianFrag, ShaderStage.Fragment, "shader.Bloom.Gaussian.Frag");
+        _modFragBloomUpsample = CreateEngineShaderModule(EngineShaderSources.BloomUpsampleFrag, ShaderStage.Fragment, "shader.Bloom.Upsample.Frag");
+        _modFragBloomCopy = CreateEngineShaderModule(EngineShaderSources.BloomCopyFrag, ShaderStage.Fragment, "shader.Bloom.Copy.Frag");
+        _modVertTextMsdf = CreateEngineShaderModule(EngineShaderSources.TextMsdfVert, ShaderStage.Vertex, "shader.TextMsdf.Vert");
+        _modFragTextMsdf = CreateEngineShaderModule(EngineShaderSources.TextMsdfFrag, ShaderStage.Fragment, "shader.TextMsdf.Frag");
         CompileDeferredShaderModules();
     }
 
@@ -453,23 +441,14 @@ public sealed unsafe partial class VulkanRenderer
 
     private void CompileDeferredShaderModules()
     {
-        var fragGb = EngineShaderSources.Load(EngineShaderSources.SpriteGbufferFrag);
-        var fragSwapUi = EngineShaderSources.Load(EngineShaderSources.SpriteSwapchainUiFrag);
-        var fragDb = EngineShaderSources.Load(EngineShaderSources.DeferredBaseFrag);
-        var vertDp = EngineShaderSources.Load(EngineShaderSources.DeferredPointVert);
-        var fragDp = EngineShaderSources.Load(EngineShaderSources.DeferredPointFrag);
-        var fragBleed = EngineShaderSources.Load(EngineShaderSources.DeferredEmissiveBleedFrag);
-        var fragTw = EngineShaderSources.Load(EngineShaderSources.SpriteTransparentWboitFrag);
-        var fragTr = EngineShaderSources.Load(EngineShaderSources.TransparentResolveFrag);
-
-        _modFragGbuffer = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragGb, ShaderStage.Fragment), "shader.Gbuffer.Frag");
-        _modFragSwapchainUi = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragSwapUi, ShaderStage.Fragment), "shader.SwapchainUi.Frag");
-        _modFragDeferredBase = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragDb, ShaderStage.Fragment), "shader.Deferred.Base.Frag");
-        _modVertDeferredPoint = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(vertDp, ShaderStage.Vertex), "shader.Deferred.Point.Vert");
-        _modFragDeferredPoint = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragDp, ShaderStage.Fragment), "shader.Deferred.Point.Frag");
-        _modFragDeferredBleed = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragBleed, ShaderStage.Fragment), "shader.Deferred.Bleed.Frag");
-        _modFragTransparentWboit = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragTw, ShaderStage.Fragment), "shader.Transparent.Wboit.Frag");
-        _modFragTransparentResolve = CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(fragTr, ShaderStage.Fragment), "shader.Transparent.Resolve.Frag");
+        _modFragGbuffer = CreateEngineShaderModule(EngineShaderSources.SpriteGbufferFrag, ShaderStage.Fragment, "shader.Gbuffer.Frag");
+        _modFragSwapchainUi = CreateEngineShaderModule(EngineShaderSources.SpriteSwapchainUiFrag, ShaderStage.Fragment, "shader.SwapchainUi.Frag");
+        _modFragDeferredBase = CreateEngineShaderModule(EngineShaderSources.DeferredBaseFrag, ShaderStage.Fragment, "shader.Deferred.Base.Frag");
+        _modVertDeferredPoint = CreateEngineShaderModule(EngineShaderSources.DeferredPointVert, ShaderStage.Vertex, "shader.Deferred.Point.Vert");
+        _modFragDeferredPoint = CreateEngineShaderModule(EngineShaderSources.DeferredPointFrag, ShaderStage.Fragment, "shader.Deferred.Point.Frag");
+        _modFragDeferredBleed = CreateEngineShaderModule(EngineShaderSources.DeferredEmissiveBleedFrag, ShaderStage.Fragment, "shader.Deferred.Bleed.Frag");
+        _modFragTransparentWboit = CreateEngineShaderModule(EngineShaderSources.SpriteTransparentWboitFrag, ShaderStage.Fragment, "shader.Transparent.Wboit.Frag");
+        _modFragTransparentResolve = CreateEngineShaderModule(EngineShaderSources.TransparentResolveFrag, ShaderStage.Fragment, "shader.Transparent.Resolve.Frag");
     }
 
     private void CreateDeferredAndTransparencyPipelines()

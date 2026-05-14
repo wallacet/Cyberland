@@ -1,5 +1,6 @@
 using Cyberland.Engine.Rendering;
 using Glslang.NET;
+using System.Buffers.Binary;
 using System.Reflection;
 
 namespace Cyberland.Engine.Tests;
@@ -86,5 +87,55 @@ public sealed class EngineShaderSourcesTests
         var src = EngineShaderSources.Load(EngineShaderSources.BloomExtractFrag);
         Assert.Contains("pc.bloomSourceGain", src, StringComparison.Ordinal);
         Assert.Contains("prefilteredColor(scene, pc.threshold, pc.knee) * pc.bloomSourceGain", src, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllBuiltInShaders))]
+    public void TryLoadPrecompiledSpirv_returns_valid_spirv_for_builtins(string fileName, ShaderStage _)
+    {
+        var loaded = EngineShaderSources.TryLoadPrecompiledSpirv(fileName, out var spirvBytes, out var failureReason);
+        Assert.True(loaded, failureReason);
+        Assert.True(spirvBytes.Length > 0);
+        Assert.True(SpirvBinary.TryDecodeWords(spirvBytes, out var words, out var decodeReason), decodeReason);
+        Assert.True(words.Length > 4);
+    }
+
+    [Fact]
+    public void TryLoadPrecompiledSpirv_returns_false_when_missing()
+    {
+        var loaded = EngineShaderSources.TryLoadPrecompiledSpirv("missing_shader.glsl", out var spirvBytes, out var failureReason);
+        Assert.False(loaded);
+        Assert.Empty(spirvBytes);
+        Assert.Contains("missing embedded resource", failureReason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SpirvBinary_rejects_non_dword_length()
+    {
+        var ok = SpirvBinary.TryDecodeWords([0x03, 0x02, 0x23], out var words, out var reason);
+        Assert.False(ok);
+        Assert.Empty(words);
+        Assert.Contains("divisible by 4", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SpirvBinary_rejects_empty_payload()
+    {
+        var ok = SpirvBinary.TryDecodeWords(ReadOnlySpan<byte>.Empty, out var words, out var reason);
+        Assert.False(ok);
+        Assert.Empty(words);
+        Assert.Contains("empty", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SpirvBinary_rejects_wrong_magic()
+    {
+        Span<byte> bytes = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x01020304u);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes[4..], 0u);
+        var ok = SpirvBinary.TryDecodeWords(bytes, out var words, out var reason);
+        Assert.False(ok);
+        Assert.Empty(words);
+        Assert.Contains("magic mismatch", reason, StringComparison.OrdinalIgnoreCase);
     }
 }

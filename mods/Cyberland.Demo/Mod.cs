@@ -1,7 +1,9 @@
 using Cyberland.Engine;
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
+using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 
 namespace Cyberland.Demo;
@@ -34,6 +36,7 @@ public sealed class Mod : IMod
         DemoInputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("demo_hdr.json");
         KickoffBuiltinAtlasLoads(context);
+        ValidateShaderModuleLoadPaths(context);
 
         var host = context.Host;
 
@@ -64,5 +67,26 @@ public sealed class Mod : IMod
         _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular22);
         _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansBold23);
         _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular14);
+    }
+
+    private static void ValidateShaderModuleLoadPaths(ModLoadContext context)
+    {
+        // Smoke-test both custom shader pathways during bootstrap:
+        // 1) precompiled SPIR-V bytes from mod Content/;
+        // 2) GLSL runtime compile fallback when no .spv is supplied.
+        var assets = new AssetManager(context.VirtualFileSystem);
+        var renderer = context.Host.Renderer;
+
+        var precompiledSpirv = assets.LoadBytes("Shaders/demo_precompiled.vert.glsl.spv");
+        using var precompiled = renderer.CreateShaderModuleFromSpirv(
+            precompiledSpirv,
+            "shader.Demo.Precompiled.Vert");
+
+        var fallbackGlsl = assets.LoadTextAsync("Shaders/demo_fallback.frag.glsl").GetAwaiter().GetResult();
+        using var fallback = renderer.CreateShaderModuleFromGlsl(
+            fallbackGlsl,
+            ShaderModuleStage.Fragment,
+            "shader.Demo.Fallback.Frag",
+            "mods/Cyberland.Demo/Content/Shaders/demo_fallback.frag.glsl");
     }
 }

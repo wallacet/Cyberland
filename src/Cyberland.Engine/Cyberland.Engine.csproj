@@ -15,11 +15,21 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Rendering\Shaders\*.glsl" />
+    <EmbeddedResource Include="Rendering\Shaders\Spirv\*.spv" />
     <EmbeddedResource Include="Rendering\Text\Builtin\*.ttf" />
     <EmbeddedResource Include="Rendering\Text\Builtin\coverage-null-literal.json" />
     <EmbeddedResource Include="Rendering\Text\Baked\*.json" />
     <EmbeddedResource Include="Rendering\Text\Baked\*.png" />
   </ItemGroup>
+
+  <Target Name="BakeEngineSpirvShaders" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_EngineShaderSourceDir>$(MSBuildThisFileDirectory)Rendering\Shaders</_EngineShaderSourceDir>
+      <_EngineSpirvOutputDir>$(MSBuildThisFileDirectory)Rendering\Shaders\Spirv</_EngineSpirvOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_EngineSpirvOutputDir)" />
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\..\tools\Cyberland.ShaderBaker\Cyberland.ShaderBaker.csproj&quot; -- --input-dir &quot;$(_EngineShaderSourceDir)&quot; --output-dir &quot;$(_EngineSpirvOutputDir)&quot;" />
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Glslang.NET" Version="1.2.0" />

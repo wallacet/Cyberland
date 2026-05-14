@@ -13,4 +13,8 @@
     <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
   </ItemGroup>
 
+  <Target Name="BakeDemoPrecompiledShaders" BeforeTargets="Build">
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\..\tools\Cyberland.ShaderBaker\Cyberland.ShaderBaker.csproj&quot; -- --input &quot;$(MSBuildThisFileDirectory)Content\Shaders\demo_precompiled.vert.glsl&quot; --stage Vertex --output &quot;$(MSBuildThisFileDirectory)Content\Shaders\demo_precompiled.vert.glsl.spv&quot;" />
+  </Target>
+
 </Project>

@@ -42,4 +42,32 @@ internal static class EngineShaderSources
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }
+
+    /// <summary>
+    /// Tries to read a precompiled SPIR-V blob for a built-in shader.
+    /// </summary>
+    /// <param name="fileName">The GLSL source filename (for example <c>sprite_vert.glsl</c>).</param>
+    /// <param name="spirvBytes">Raw SPIR-V bytes on success.</param>
+    /// <param name="failureReason">Human-readable reason when not available.</param>
+    /// <returns><c>true</c> when the embedded SPIR-V payload exists and is readable.</returns>
+    public static bool TryLoadPrecompiledSpirv(string fileName, out byte[] spirvBytes, out string failureReason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+
+        var asm = typeof(EngineShaderSources).Assembly;
+        var resourceName = $"{asm.GetName().Name}.Rendering.Shaders.Spirv.{fileName}.spv";
+        using var stream = asm.GetManifestResourceStream(resourceName);
+        if (stream is null)
+        {
+            spirvBytes = Array.Empty<byte>();
+            failureReason = $"missing embedded resource '{resourceName}'";
+            return false;
+        }
+
+        using var ms = new MemoryStream((int)Math.Min(stream.Length, int.MaxValue));
+        stream.CopyTo(ms);
+        spirvBytes = ms.ToArray();
+        failureReason = string.Empty;
+        return true;
+    }
 }

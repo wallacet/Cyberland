@@ -15,10 +15,10 @@ public sealed unsafe partial class VulkanRenderer
 
         public void CreateAllPipelines()
         {
-            _r.CompileSpriteAndCompositeShaders();
-            _r.CreateSpritePipelineLayoutsAndPipelines();
-            _r.CreateBloomPipelineLayoutsAndPipelines();
-            _r.CreateCompositePipeline();
+            _r.RunInitializationStage("vk.shaders.compile_sprite_composite_and_deferred", _r.CompileSpriteAndCompositeShaders);
+            _r.RunInitializationStage("vk.pipelines.sprite_and_deferred", _r.CreateSpritePipelineLayoutsAndPipelines);
+            _r.RunInitializationStage("vk.pipelines.bloom", _r.CreateBloomPipelineLayoutsAndPipelines);
+            _r.RunInitializationStage("vk.pipelines.composite", _r.CreateCompositePipeline);
         }
 
         public void DestroyPipelineAndShaderObjects()

@@ -10,23 +10,23 @@ public sealed unsafe partial class VulkanRenderer
 {
     private void CreateGraphicsPipelineAndSurfaces()
     {
-        CreateLinearSampler();
-        CreateOffscreenRenderPasses();
-        CreateGbufferAndWboitRenderPasses();
-        CreateCompositeRenderPass();
-        CreateSwapchainUiOverlayRenderPass();
-        CreateOffscreenImagesAndFramebuffers();
-        CreateSwapchainFramebuffers();
-        CreateDescriptorLayoutsAndPool();
+        RunInitializationStage("vk.linear_sampler", CreateLinearSampler);
+        RunInitializationStage("vk.render_passes.offscreen", CreateOffscreenRenderPasses);
+        RunInitializationStage("vk.render_passes.gbuffer_wboit", CreateGbufferAndWboitRenderPasses);
+        RunInitializationStage("vk.render_passes.composite", CreateCompositeRenderPass);
+        RunInitializationStage("vk.render_passes.swapchain_ui_overlay", CreateSwapchainUiOverlayRenderPass);
+        RunInitializationStage("vk.framebuffers.offscreen", CreateOffscreenImagesAndFramebuffers);
+        RunInitializationStage("vk.framebuffers.swapchain", CreateSwapchainFramebuffers);
+        RunInitializationStage("vk.descriptor_layouts_and_pool", CreateDescriptorLayoutsAndPool);
         _pipelineFactory ??= new PipelineFactory(this);
-        _pipelineFactory.CreateAllPipelines();
-        AllocateCompositeDescriptorSet();
-        AllocateBloomDescriptorSets();
-        AllocateEmissiveSceneDescriptorSet();
-        AllocateLightingDescriptorSet();
-        EnsurePointLightSsbo();
-        AllocateDeferredDescriptorSets();
-        ApplyDeferredGpuDebugNamesAfterBootstrap();
+        RunInitializationStage("vk.pipelines.create_all", _pipelineFactory.CreateAllPipelines);
+        RunInitializationStage("vk.descriptor_sets.composite", AllocateCompositeDescriptorSet);
+        RunInitializationStage("vk.descriptor_sets.bloom", AllocateBloomDescriptorSets);
+        RunInitializationStage("vk.descriptor_sets.emissive_scene", AllocateEmissiveSceneDescriptorSet);
+        RunInitializationStage("vk.descriptor_sets.lighting", AllocateLightingDescriptorSet);
+        RunInitializationStage("vk.point_light_ssbo.ensure", EnsurePointLightSsbo);
+        RunInitializationStage("vk.descriptor_sets.deferred", AllocateDeferredDescriptorSets);
+        RunInitializationStage("vk.debug_names.after_bootstrap", ApplyDeferredGpuDebugNamesAfterBootstrap);
     }
 
     private void RecreateSwapchainDependent()

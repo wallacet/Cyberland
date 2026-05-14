@@ -95,6 +95,26 @@ internal sealed class RecordingRenderer : IRenderer
         return true;
     }
 
+    public IShaderModuleHandle CreateShaderModuleFromSpirv(ReadOnlySpan<byte> spirvBytes, string? debugName = null)
+    {
+        _ = spirvBytes;
+        _ = debugName;
+        return new NoopShaderModuleHandle();
+    }
+
+    public IShaderModuleHandle CreateShaderModuleFromGlsl(
+        string glsl,
+        ShaderModuleStage stage,
+        string? debugName = null,
+        string? sourceDescription = null)
+    {
+        _ = glsl;
+        _ = stage;
+        _ = debugName;
+        _ = sourceDescription;
+        return new NoopShaderModuleHandle();
+    }
+
     public void SubmitSprite(in SpriteDrawRequest draw)
     {
         lock (_lock)
@@ -231,5 +251,12 @@ internal sealed class RecordingRenderer : IRenderer
     {
         lock (_lock)
             Cameras.Add(camera);
+    }
+
+    private sealed class NoopShaderModuleHandle : IShaderModuleHandle
+    {
+        public void Dispose()
+        {
+        }
     }
 }

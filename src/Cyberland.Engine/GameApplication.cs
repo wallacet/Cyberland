@@ -74,6 +74,7 @@ public sealed class GameApplication : IDisposable
     private int _profilePresentedFrames;
     private Stopwatch? _startupWall;
     private bool _firstPresentLogged;
+    private bool _audioInitAttempted;
     private double _startupLoadCallbackMs;
     private double _startupFirstPresentMs;
     private int _bakedGlyphImports;
@@ -148,10 +149,12 @@ public sealed class GameApplication : IDisposable
             $"Cyberland startup | Configuration=Release | UiIncremental={UiLayoutGating.UseIncrementalDocumentFrames} | BakedAtlasPageBudget={_bakedAtlasPageBudget}");
 #endif
 
-        // Bootstrap order: Vulkan + audio + input → assign Host.Renderer/Input → baseline HDR once (EngineDefaultGlobalPostProcess)
+        // Bootstrap order: Vulkan + input → assign Host.Renderer/Input → baseline HDR once (EngineDefaultGlobalPostProcess)
         // → sync input bindings (window thread; GetAwaiter().GetResult avoids re-entrancy on the same thread)
         // → ModLoader.LoadAll (mods register systems, including shipped engine early/late registration mods)
         // → locale bootstrap. First RunFrame runs after this returns.
+        // Audio is intentionally deferred until after first present so startup never blocks on OpenAL init.
+        _audioInitAttempted = false;
         _renderer = new VulkanRenderer(_window);
         try
         {
@@ -168,22 +171,7 @@ public sealed class GameApplication : IDisposable
         }
 
         EngineDiagnostics.UseNativeUserNotifications();
-
-        try
-        {
-            _audio = new OpenALAudioDevice();
-        }
-        catch (Exception ex)
-        {
-            // OpenAL Soft may be missing on some machines; game continues silent until configured.
-#if DEBUG
-            Console.Error.WriteLine($"Cyberland: audio initialization failed ({ex.GetType().Name}): {ex.Message}");
-#else
-            _ = ex;
-#endif
-            _audio = null;
-        }
-        LogStartupStage("audio.initialize", startupStageSw);
+        LogStartupStage("audio.initialize.deferred", startupStageSw);
 
         _input = new SilkInputService(_window.CreateInput(), _renderer, _host);
         _host.Renderer = _renderer;
@@ -355,6 +343,7 @@ public sealed class GameApplication : IDisposable
             _startupFirstPresentMs = _startupWall.Elapsed.TotalMilliseconds;
             Console.WriteLine(
                 $"Startup milestone | first_present_ms={_startupFirstPresentMs.ToString("0.###", CultureInfo.InvariantCulture)}");
+            TryInitializeAudioAfterFirstPresent();
         }
         if (_profileWallSeconds is not null && _profileWall is not null)
         {
@@ -449,6 +438,35 @@ public sealed class GameApplication : IDisposable
         Console.WriteLine(
             $"Startup stage | {stageName}={startupStageSw.Elapsed.TotalMilliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms");
         startupStageSw.Restart();
+    }
+
+    private void TryInitializeAudioAfterFirstPresent()
+    {
+        if (_audioInitAttempted)
+            return;
+        _audioInitAttempted = true;
+
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            _audio = new OpenALAudioDevice();
+        }
+        catch (Exception ex)
+        {
+            // OpenAL Soft may be missing on some machines; game continues silent until configured.
+#if DEBUG
+            Console.Error.WriteLine($"Cyberland: audio initialization failed ({ex.GetType().Name}): {ex.Message}");
+#else
+            _ = ex;
+#endif
+            _audio = null;
+        }
+        finally
+        {
+            sw.Stop();
+            Console.WriteLine(
+                $"Startup stage | audio.initialize.post_first_present={sw.Elapsed.TotalMilliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms");
+        }
     }
 
     private static void LogModLoadTiming(ModLoader.ModLoadTiming? timing)

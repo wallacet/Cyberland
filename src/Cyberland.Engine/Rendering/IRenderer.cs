@@ -79,6 +79,34 @@ public interface IRenderer
     /// <summary>Host assigns; mods call to exit cleanly (window close).</summary>
     Action? RequestClose { get; set; }
 
+    /// <summary>
+    /// Creates a shader module from precompiled SPIR-V bytes for custom mod pipelines.
+    /// </summary>
+    /// <param name="spirvBytes">Raw little-endian SPIR-V payload.</param>
+    /// <param name="debugName">Optional debug marker used by GPU tooling.</param>
+    /// <returns>An opaque handle that must be disposed by the caller.</returns>
+    /// <remarks>
+    /// Call on the window/render thread. The returned handle owns native Vulkan shader module memory until disposed.
+    /// </remarks>
+    IShaderModuleHandle CreateShaderModuleFromSpirv(ReadOnlySpan<byte> spirvBytes, string? debugName = null);
+
+    /// <summary>
+    /// Compiles GLSL at runtime and creates a shader module. This path exists as a fallback and should not be used for shipped content.
+    /// </summary>
+    /// <param name="glsl">Full shader source text.</param>
+    /// <param name="stage">Target shader stage.</param>
+    /// <param name="debugName">Optional debug marker used by GPU tooling.</param>
+    /// <param name="sourceDescription">Optional source label used in warning logs.</param>
+    /// <returns>An opaque handle that must be disposed by the caller.</returns>
+    /// <remarks>
+    /// Call on the window/render thread. Runtime GLSL compilation is intentionally logged so missing precompiled SPIR-V can be diagnosed.
+    /// </remarks>
+    IShaderModuleHandle CreateShaderModuleFromGlsl(
+        string glsl,
+        ShaderModuleStage stage,
+        string? debugName = null,
+        string? sourceDescription = null);
+
     /// <summary>Uploads an RGBA8 image; returns a stable id for <see cref="SpriteDrawRequest"/> and sprite components.</summary>
     /// <param name="rgba">Packed RGBA8 pixels, length <c>width * height * 4</c>.</param>
     /// <param name="width">Texture width in pixels.</param>
