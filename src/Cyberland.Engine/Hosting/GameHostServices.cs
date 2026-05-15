@@ -33,6 +33,7 @@ public sealed class GameHostServices
         BakedMsdfAtlasLoader = new BakedMsdfAtlasLoader();
         UiDocuments = new UiDocumentRegistry();
         UiCommands = uiCommands ?? new UiCommandQueue();
+        StartupProgress = new StartupProgressTracker();
     }
 
     /// <summary>Localized strings + media resolution; set by the host before <see cref="Modding.ModLoader.LoadAll"/>.</summary>
@@ -52,6 +53,11 @@ public sealed class GameHostServices
 
     /// <summary>Queued gameplay intents produced during UI dispatch; drained by <see cref="Scene.Systems.UiCommandDrainSystem"/>.</summary>
     public IUiCommandQueue UiCommands { get; }
+
+    /// <summary>
+    /// Shared weighted startup progress tracker used by host bootstrap and mod load phases.
+    /// </summary>
+    public StartupProgressTracker StartupProgress { get; }
 
     /// <summary>Optional hook invoked once per dequeued command after UI input runs on the render tick.</summary>
     public Action<IUiCommand>? UiCommandDispatcher { get; set; }

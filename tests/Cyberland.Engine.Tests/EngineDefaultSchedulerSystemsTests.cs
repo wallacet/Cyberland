@@ -43,6 +43,28 @@ public sealed class EngineDefaultSchedulerSystemsTests
     public void RegisterAfterGameplayMods_throws_when_context_null() =>
         Assert.Throws<ArgumentNullException>(() => EngineDefaultSchedulerSystems.RegisterAfterGameplayMods(null!));
 
+    [Fact]
+    public void RegisterBeforeGameplayMods_with_progress_phase_reports_monotonic_load_progress()
+    {
+        var (_, scheduler) = CreateContext();
+        var ctx = CreateContext(scheduler);
+        EngineDefaultSchedulerSystems.RegisterBeforeGameplayMods(ctx, "engine-early-register");
+        var snap = ctx.Host.StartupProgress.Snapshot();
+        Assert.Equal("test.mod", snap.ActiveOwner);
+        Assert.Equal(1f, snap.ReportedProgress01, 5);
+    }
+
+    [Fact]
+    public void RegisterAfterGameplayMods_with_progress_phase_reports_monotonic_load_progress()
+    {
+        var (_, scheduler) = CreateContext();
+        var ctx = CreateContext(scheduler);
+        EngineDefaultSchedulerSystems.RegisterAfterGameplayMods(ctx, "engine-late-register");
+        var snap = ctx.Host.StartupProgress.Snapshot();
+        Assert.Equal("test.mod", snap.ActiveOwner);
+        Assert.Equal(1f, snap.ReportedProgress01, 5);
+    }
+
     private static (ModLoadContext Context, SystemScheduler Scheduler) CreateContext()
     {
         var scheduler = new SystemScheduler(new ParallelismSettings());

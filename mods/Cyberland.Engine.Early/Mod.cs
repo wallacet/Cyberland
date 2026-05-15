@@ -10,7 +10,8 @@ public sealed class Mod : IMod
     /// <inheritdoc />
     public ValueTask OnLoadAsync(ModLoadContext context)
     {
-        EngineDefaultSchedulerSystems.RegisterBeforeGameplayMods(context);
+        using var phase = context.BeginLoadPhase("engine-early-register", 1f, "Registering engine early systems");
+        EngineDefaultSchedulerSystems.RegisterBeforeGameplayMods(context, "engine-early-register");
         return ValueTask.CompletedTask;
     }
 

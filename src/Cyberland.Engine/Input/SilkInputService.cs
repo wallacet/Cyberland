@@ -53,6 +53,7 @@ public sealed class SilkInputService : IInputService, IDisposable
     private Vector2 _mouseWheelDelta;
     private bool _hasMousePosition;
     private readonly List<InputGameplayCommand> _frameGameplayCommands = new();
+    private bool _anyInputPressedThisFrame;
 
     /// <summary>Create a service backed by the provided Silk input context.</summary>
     /// <param name="input">Silk input context (keyboard/mouse).</param>
@@ -77,6 +78,12 @@ public sealed class SilkInputService : IInputService, IDisposable
 
     /// <inheritdoc />
     public IReadOnlyList<InputGameplayCommand> FrameGameplayCommands => _frameGameplayCommands;
+
+    /// <summary>
+    /// True when any keyboard key, mouse button, or bound action edge was pressed this frame.
+    /// Useful for startup "press anything" prompts.
+    /// </summary>
+    public bool AnyInputPressedThisFrame => _anyInputPressedThisFrame;
 
     /// <inheritdoc />
     public Vector2 MousePosition => _mousePosition;
@@ -121,6 +128,14 @@ public sealed class SilkInputService : IInputService, IDisposable
     /// <inheritdoc />
     public void BeginFrame()
     {
+        var keyboardPulseCount = 0;
+        var mousePulseCount = 0;
+        lock (_keyboardPulseLock)
+            keyboardPulseCount = _keyboardPulseDown.Count;
+        lock (_mousePulseLock)
+            mousePulseCount = _mousePulseDown.Count;
+        _anyInputPressedThisFrame = keyboardPulseCount > 0 || mousePulseCount > 0;
+
         _prevActionDown.Clear();
         foreach (var (id, isDown) in _actionDown)
             _prevActionDown[id] = isDown;
@@ -159,6 +174,7 @@ public sealed class SilkInputService : IInputService, IDisposable
             {
                 IncrementCounter(_pendingPressCounts, actionId);
                 _frameGameplayCommands.Add(new InputGameplayCommand(InputGameplayCommandKind.ActionPressed, actionId));
+                _anyInputPressedThisFrame = true;
             }
             else if (!down && before)
             {

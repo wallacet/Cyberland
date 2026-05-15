@@ -113,6 +113,35 @@ public sealed class ModLoadContext
     /// <summary>Removes a localization key merged from an earlier mod (see <see cref="LocalizationManager.TryRemoveKey"/>).</summary>
     public bool TryRemoveLocalizationKey(string key) => Localization.TryRemoveKey(key);
 
+    private string ComposeProgressKey(string phaseKey) =>
+        $"mod:{Manifest.Id}:{phaseKey}";
+
+    /// <summary>
+    /// Starts a weighted load phase scoped to this mod for host loading UI aggregation.
+    /// </summary>
+    public IDisposable BeginLoadPhase(string phaseKey, float weight = 1f, string? label = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(phaseKey);
+        return Host.StartupProgress.BeginPhase(
+            ComposeProgressKey(phaseKey),
+            weight,
+            label ?? phaseKey,
+            Manifest.Id);
+    }
+
+    /// <summary>
+    /// Reports monotonic progress in <c>[0,1]</c> for a phase started by <see cref="BeginLoadPhase"/>.
+    /// </summary>
+    public void ReportLoadProgress(string phaseKey, float value01, string? label = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(phaseKey);
+        Host.StartupProgress.ReportPhaseProgress(
+            ComposeProgressKey(phaseKey),
+            value01,
+            label ?? phaseKey,
+            Manifest.Id);
+    }
+
     /// <summary>
     /// Adds a default mapping for a gameplay <paramref name="actionId"/> before gameplay scheduler updates start. The host loads
     /// <c>input-bindings.json</c> before it invokes <see cref="IMod.OnLoadAsync"/>, so user files replace the seed first; this call then
@@ -153,7 +182,13 @@ public sealed class ModLoadContext
     public bool LoadBakedMsdfAtlas(string manifestPath)
     {
         var assets = new AssetManager(VirtualFileSystem);
-        var result = Host.BakedMsdfAtlasLoader.LoadFromPath(assets, Host.Renderer, Host.TextGlyphCache, manifestPath);
+        using var phase = BeginLoadPhase($"msdf:{manifestPath}", 0.05f, $"Loading atlas {manifestPath}");
+        var result = Host.BakedMsdfAtlasLoader.LoadFromPath(
+            assets,
+            Host.Renderer,
+            Host.TextGlyphCache,
+            manifestPath,
+            onProgress: p => ReportLoadProgress($"msdf:{manifestPath}", p));
         if (!result.Loaded)
         {
             Console.WriteLine($"Mod baked atlas load failed | manifest={manifestPath} reason={result.Message}");

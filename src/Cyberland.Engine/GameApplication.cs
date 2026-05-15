@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,8 +26,8 @@ using Silk.NET.Windowing;
 namespace Cyberland.Engine;
 
 /// <summary>
-/// Boots the game: creates the window, initializes graphics/input, presents an initial frame,
-/// then completes deferred host IO + mod load before running the per-frame <see cref="Core.Tasks.SystemScheduler"/>.
+/// Boots the game: creates the window, enters startup presentation stages (pre-Vulkan splash, Vulkan bootstrap splash,
+/// loading progress), then completes deferred host IO + mod load before running the per-frame <see cref="Core.Tasks.SystemScheduler"/>.
 /// Shipped gameplay lives in mod assemblies, not here.
 /// </summary>
 /// <remarks>
@@ -60,6 +61,15 @@ public sealed class GameApplication : IDisposable
         BuildingFullVk,
         DeferHostIo,
         LoadingMods,
+        FullGame,
+        Failed
+    }
+
+    private enum StartupPresentationState
+    {
+        PreVulkanSplash,
+        VulkanBootstrapSplash,
+        LoadingWithProgress,
         FullGame,
         Failed
     }
@@ -107,6 +117,11 @@ public sealed class GameApplication : IDisposable
     private bool _bindingsStageLogged;
     private bool _deferredLocalizationReady;
     private Stopwatch? _bindingsLoadSw;
+    private StartupPresentationState _presentationState = StartupPresentationState.PreVulkanSplash;
+    private StartupSplashPresenter? _splashPresenter;
+    private bool _fullVulkanInitializationCompleted;
+    private readonly float _startupProgressMaxCatchupPerSecond = 0.85f;
+    private int _startupTitleUpdateThrottle;
 #if DEBUG
     private bool _profileHudInTitle;
     private int _profileTitleThrottle;
@@ -178,6 +193,11 @@ public sealed class GameApplication : IDisposable
         _pendingAudioInitTask = null;
         _audioInitCts?.Dispose();
         _audioInitCts = null;
+        _presentationState = StartupPresentationState.PreVulkanSplash;
+        _splashPresenter = StartupSplashPresenter.CreateDefault();
+        _fullVulkanInitializationCompleted = false;
+        _startupTitleUpdateThrottle = 0;
+        _host.StartupProgress.Reset();
 
 #if DEBUG
         Console.WriteLine(
@@ -210,10 +230,12 @@ public sealed class GameApplication : IDisposable
         if (_window is null)
             return;
 
+        using var __phase = _host.StartupProgress.BeginPhase("host:startup:minimal-renderer", 0.20f, "Initializing renderer");
         _audioInitAttempted = false;
         StartAudioInitializationInBackground();
         _renderer = new VulkanRenderer(_window);
         _renderer.InitializeMinimal();
+        _host.StartupProgress.ReportPhaseProgress("host:startup:minimal-renderer", 1f, "Renderer ready");
         LogStartupStage("renderer.initialize.minimal");
 
         EngineDiagnostics.UseNativeUserNotifications();
@@ -263,9 +285,14 @@ public sealed class GameApplication : IDisposable
         if (_window is null || _renderer is null)
             throw new InvalidOperationException("Renderer/window must exist before deferred renderer completion.");
 
+        using var __rendererPhase = _host.StartupProgress.BeginPhase("host:startup:deferred-renderer", 0.20f, "Building renderer");
         _renderer.CompleteDeferredInitialization();
+        _host.StartupProgress.ReportPhaseProgress("host:startup:deferred-renderer", 1f, "Renderer built");
+        _fullVulkanInitializationCompleted = true;
+        _presentationState = StartupPresentationState.VulkanBootstrapSplash;
         LogStartupStage("renderer.initialize.deferred_full");
 
+        using var __hostPhase = _host.StartupProgress.BeginPhase("host:startup:host-services", 0.08f, "Wiring host services");
         _input = new SilkInputService(_window.CreateInput(), _renderer, _host);
         _host.Renderer = _renderer;
         _host.Input = _input;
@@ -274,6 +301,7 @@ public sealed class GameApplication : IDisposable
         _host.TextGlyphCache.UseAsyncRasterization = true;
         _host.EnsureCoreServicesReady();
         _renderer.RequestClose = () => _window?.Close();
+        _host.StartupProgress.ReportPhaseProgress("host:startup:host-services", 1f, "Host services ready");
         LogStartupStage("host.services");
 
         EngineDefaultGlobalPostProcess.Apply(_renderer);
@@ -285,6 +313,7 @@ public sealed class GameApplication : IDisposable
         if (_input is null)
             throw new InvalidOperationException("Input service must be initialized before deferred host IO.");
 
+        using var __ioPhase = _host.StartupProgress.BeginPhase("host:startup:host-io", 0.12f, "Loading settings");
         if (!_deferredLocalizationReady)
         {
             var languageFile = Path.Combine(AppContext.BaseDirectory, "language.json");
@@ -292,6 +321,7 @@ public sealed class GameApplication : IDisposable
             _localizedContent = new LocalizedContent(_localization, _vfs, primaryCulture);
             _host.LocalizedContent = _localizedContent;
             _deferredLocalizationReady = true;
+            _host.StartupProgress.ReportPhaseProgress("host:startup:host-io", 0.20f, "Localization ready");
             LogStartupStage("localization.bootstrap");
         }
 
@@ -305,6 +335,7 @@ public sealed class GameApplication : IDisposable
                 _input.Bindings.LoadDefaults();
                 _pendingBindingsSaveTask = _input.Bindings.SaveAsync(bindingsFile);
                 _bindingsStageLogged = true;
+                _host.StartupProgress.ReportPhaseProgress("host:startup:host-io", 1f, "Bindings ready");
                 LogStartupStage("input.bindings.load");
             }
             else
@@ -318,7 +349,15 @@ public sealed class GameApplication : IDisposable
         if (_pendingBindingsLoadTask is not null)
         {
             if (!_pendingBindingsLoadTask.IsCompleted)
+            {
+                if (_bindingsLoadSw is not null)
+                {
+                    // Smooth visual movement while filesystem read is in flight.
+                    var warmupProgress = 0.20f + MathF.Min(0.70f, (float)(_bindingsLoadSw.Elapsed.TotalSeconds * 0.35f));
+                    _host.StartupProgress.ReportPhaseProgress("host:startup:host-io", warmupProgress, "Loading input bindings");
+                }
                 return false;
+            }
 
             _pendingBindingsLoadTask.GetAwaiter().GetResult();
             _pendingBindingsLoadTask = null;
@@ -326,6 +365,7 @@ public sealed class GameApplication : IDisposable
             if (!_bindingsStageLogged)
             {
                 _bindingsStageLogged = true;
+                _host.StartupProgress.ReportPhaseProgress("host:startup:host-io", 1f, "Bindings ready");
                 LogStartupStage("input.bindings.load");
             }
         }
@@ -340,6 +380,8 @@ public sealed class GameApplication : IDisposable
         if (_renderer is null)
             throw new InvalidOperationException("Renderer must be initialized before deferred mod load.");
 
+        _presentationState = StartupPresentationState.LoadingWithProgress;
+        using var __postModPhase = _host.StartupProgress.BeginPhase("host:startup:post-mod", 0.10f, "Finalizing startup");
         _scheduler.BeginDeferExecutionOrderRebuilds();
         try
         {
@@ -353,6 +395,7 @@ public sealed class GameApplication : IDisposable
                 _excludedModIds);
             LogStartupStage("mods.load_all");
             LogModLoadTiming(_mods.LastLoadTiming);
+            _host.StartupProgress.ReportPhaseProgress("host:startup:post-mod", 0.25f, "Preloading fonts");
             PreloadAllBuiltinAtlasesIfRequested(_renderer);
             LogStartupStage("fonts.preload-builtins");
             LogStartupStage("scheduler.register-systems");
@@ -363,8 +406,10 @@ public sealed class GameApplication : IDisposable
         }
 
         LogStartupStage("scheduler.rebuild-order");
+        _host.StartupProgress.ReportPhaseProgress("host:startup:post-mod", 0.60f, "Rebuilding scheduler");
 
         _localizedContent.MergeStringTable("strings.json");
+        _host.StartupProgress.ReportPhaseProgress("host:startup:post-mod", 1f, "Finalizing localization");
         LogStartupStage("localization.merge-strings");
         if (_startupWall is not null)
             _startupLoadCallbackMs = _startupWall.Elapsed.TotalMilliseconds;
@@ -375,6 +420,7 @@ public sealed class GameApplication : IDisposable
             Console.WriteLine(
                 $"Startup milestone | load_callback_total_ms={_startupLoadCallbackMs.ToString("0.###", CultureInfo.InvariantCulture)}");
         }
+        _host.StartupProgress.MarkComplete();
     }
 
     private void OnUpdate(double delta)
@@ -388,7 +434,9 @@ public sealed class GameApplication : IDisposable
     {
         if (_window is null)
             return;
-        if (_renderer is null)
+        // Local copy: instance fields are not flow-analyzed as stable across reads (nullable CS8604 on drain APIs).
+        var renderer = _renderer;
+        if (renderer is null)
             return;
 
 #if DEBUG
@@ -405,10 +453,18 @@ public sealed class GameApplication : IDisposable
         if (dt > 0f)
             dt = Math.Min(dt, 0.25f);
 
+        var skipRequested = IsStartupSkipRequested();
+        if (_bootPhase != GameBootPhase.FullGame && _splashPresenter is not null)
+        {
+            _splashPresenter.Advance(dt, _fullVulkanInitializationCompleted, skipRequested);
+            var splash = _splashPresenter.Current;
+            renderer.BootstrapClearColor = new Vector4D<float>(splash.R, splash.G, splash.B, 1f);
+        }
+
         // Render tick order (see IRenderer remarks): discard stale CPU submits first so a missed DrawFrame cannot merge
         // with this tick's Submit*, then simulate + submit sprites/lights/camera, then encode/present.
         {
-            _bakedGlyphImports += _host.BakedMsdfAtlasLoader.DrainPendingUploads(_renderer, result =>
+            _bakedGlyphImports += _host.BakedMsdfAtlasLoader.DrainPendingUploads(renderer, result =>
             {
                 if (!result.Loaded)
                 {
@@ -416,14 +472,14 @@ public sealed class GameApplication : IDisposable
                         $"Baked atlas load | source={result.ManifestPath} skipped={result.Message}");
                 }
             });
-            _host.TextGlyphCache.DrainPendingGlyphUploads(_renderer);
+            _host.TextGlyphCache.DrainPendingGlyphUploads(renderer);
         }
 
         {
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Game.ResetPendingSubmissions");
 #endif
-            _renderer?.ResetPendingSubmissionsForNewTick();
+            renderer.ResetPendingSubmissionsForNewTick();
         }
 
         {
@@ -449,9 +505,9 @@ public sealed class GameApplication : IDisposable
             using var __ = FrameProfilerScope.Enter("Vulkan.DrawFrame");
 #endif
             if (_bootPhase == GameBootPhase.FullGame)
-                _renderer?.DrawFrame();
+                renderer.DrawFrame();
             else
-                _renderer?.DrawBootstrapFrame();
+                renderer.DrawBootstrapFrame();
         }
 
         _host.LastPresentDeltaSeconds = dt;
@@ -462,6 +518,8 @@ public sealed class GameApplication : IDisposable
             Console.WriteLine(
                 $"Startup milestone | first_present_ms={_startupFirstPresentMs.ToString("0.###", CultureInfo.InvariantCulture)}");
             TryInitializeAudioAfterFirstPresent();
+            if (_presentationState == StartupPresentationState.PreVulkanSplash)
+                _presentationState = StartupPresentationState.VulkanBootstrapSplash;
         }
 
         if (_firstPresentLogged &&
@@ -480,6 +538,8 @@ public sealed class GameApplication : IDisposable
         }
 
         TryFinalizeBackgroundAudioInitialization();
+        _host.StartupProgress.AdvanceDisplay(dt, _startupProgressMaxCatchupPerSecond);
+        UpdateStartupPresentationStateAndTitle();
 
         if (_profileWallSeconds is not null && _profileWall is not null)
         {
@@ -498,7 +558,7 @@ public sealed class GameApplication : IDisposable
             _profileWall.Elapsed.TotalSeconds >= _profileWallSeconds.Value)
         {
             _profileCloseRequested = true;
-            _renderer?.RequestClose?.Invoke();
+            renderer.RequestClose?.Invoke();
         }
 
 #if DEBUG
@@ -515,6 +575,73 @@ public sealed class GameApplication : IDisposable
             }
         }
 #endif
+    }
+
+    private bool IsStartupSkipRequested()
+    {
+        if (!_fullVulkanInitializationCompleted)
+            return false;
+        if (_input is null)
+            return false;
+
+        if (_input.AnyInputPressedThisFrame)
+            return true;
+
+        // Fallback for startup configs that only bind a minimal set of actions.
+        return _input.HasActionPressedThisFrame("ui/confirm")
+            || _input.HasActionPressedThisFrame("ui/click")
+            || _input.HasActionPressedThisFrame("cyberland.engine/profile-hud");
+    }
+
+    private void UpdateStartupPresentationStateAndTitle()
+    {
+        if (_window is null)
+            return;
+
+        if (_bootPhase == GameBootPhase.Failed)
+        {
+            _presentationState = StartupPresentationState.Failed;
+            _window.Title = "Cyberland | Startup failed";
+            return;
+        }
+
+        if (_bootPhase == GameBootPhase.FullGame)
+        {
+            _presentationState = StartupPresentationState.FullGame;
+            return;
+        }
+
+        if (_splashPresenter is not null && _splashPresenter.IsCompleted && _fullVulkanInitializationCompleted)
+            _presentationState = StartupPresentationState.LoadingWithProgress;
+        else if (_fullVulkanInitializationCompleted)
+            _presentationState = StartupPresentationState.VulkanBootstrapSplash;
+        else
+            _presentationState = StartupPresentationState.PreVulkanSplash;
+
+        if (++_startupTitleUpdateThrottle < 2)
+            return;
+        _startupTitleUpdateThrottle = 0;
+
+        if (_presentationState is StartupPresentationState.PreVulkanSplash or StartupPresentationState.VulkanBootstrapSplash)
+        {
+            var label = _splashPresenter?.Current.Label ?? "Starting";
+            var canSkipText = _fullVulkanInitializationCompleted ? "Press any key/button to skip" : "Preparing renderer";
+            _window.Title = $"Cyberland | {label} | {canSkipText}";
+            return;
+        }
+
+        var snapshot = _host.StartupProgress.Snapshot();
+        var progress = Math.Clamp(snapshot.DisplayProgress01, 0f, 1f);
+        var barLen = 20;
+        var filled = (int)MathF.Round(progress * barLen);
+        filled = Math.Clamp(filled, 0, barLen);
+        var bar = new string('#', filled) + new string('-', barLen - filled);
+        var pct = (progress * 100f).ToString("0", CultureInfo.InvariantCulture);
+        var labelText = string.IsNullOrWhiteSpace(snapshot.ActiveLabel) ? "Loading" : snapshot.ActiveLabel;
+        if (!string.IsNullOrWhiteSpace(snapshot.ActiveOwner))
+            _window.Title = $"Cyberland | [{bar}] {pct}% | {snapshot.ActiveOwner} | {labelText}";
+        else
+            _window.Title = $"Cyberland | [{bar}] {pct}% | {labelText}";
     }
 
     private void OnClosing()
@@ -557,6 +684,7 @@ public sealed class GameApplication : IDisposable
         _renderer?.Dispose();
         _renderer = null;
         _bootPhase = GameBootPhase.Failed;
+        _presentationState = StartupPresentationState.Failed;
         _window?.Close();
     }
 
@@ -575,6 +703,7 @@ public sealed class GameApplication : IDisposable
         _renderer?.Dispose();
         _renderer = null;
         _bootPhase = GameBootPhase.Failed;
+        _presentationState = StartupPresentationState.Failed;
         _window?.Close();
     }
 
@@ -702,14 +831,27 @@ public sealed class GameApplication : IDisposable
         try
         {
             var assets = new AssetManager(_vfs);
-            foreach (var manifestPath in BuiltinFonts.EnumerateBakedAtlasManifestPaths())
+            var manifests = BuiltinFonts.EnumerateBakedAtlasManifestPaths().ToArray();
+            using var phase = _host.StartupProgress.BeginPhase("host:startup:font-atlas-preload", 0.08f, "Preloading font atlases");
+            var total = Math.Max(manifests.Length, 1);
+            for (var i = 0; i < manifests.Length; i++)
             {
+                var manifestPath = manifests[i];
                 var result = _host.BakedMsdfAtlasLoader.LoadFromPath(
                     assets,
                     renderer,
                     _host.TextGlyphCache,
                     manifestPath,
-                    _bakedAtlasPageBudget);
+                    _bakedAtlasPageBudget,
+                    onProgress: p =>
+                    {
+                        var baseProgress = i / (float)total;
+                        var itemSpan = 1f / total;
+                        _host.StartupProgress.ReportPhaseProgress(
+                            "host:startup:font-atlas-preload",
+                            baseProgress + (itemSpan * p),
+                            "Preloading font atlases");
+                    });
                 if (result.Loaded)
                 {
                     _bakedGlyphImports += result.GlyphCount;
@@ -722,6 +864,7 @@ public sealed class GameApplication : IDisposable
                         $"Baked atlas load | source={result.ManifestPath} skipped={result.Message}");
                 }
             }
+            _host.StartupProgress.ReportPhaseProgress("host:startup:font-atlas-preload", 1f, "Font atlases ready");
         }
         catch (Exception ex)
         {

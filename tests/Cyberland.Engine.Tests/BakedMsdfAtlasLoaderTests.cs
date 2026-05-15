@@ -350,6 +350,27 @@ public sealed class BakedMsdfAtlasLoaderTests
     }
 
     [Fact]
+    public void BakedMsdfAtlasLoader_LoadFromPath_invokes_onProgress_for_builtin_manifest()
+    {
+        var vfs = new VirtualFileSystem();
+        var assets = new AssetManager(vfs);
+        var loader = new BakedMsdfAtlasLoader();
+        var renderer = new RecordingRenderer();
+        var cache = new TextGlyphCache();
+        var progress = new List<float>();
+        var result = loader.LoadFromPath(
+            assets,
+            renderer,
+            cache,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14,
+            pageBudget: 1,
+            onProgress: progress.Add);
+        Assert.True(result.Loaded);
+        Assert.NotEmpty(progress);
+        Assert.Contains(1f, progress);
+    }
+
+    [Fact]
     public void BakedMsdfAtlasLoader_LoadFromPath_missing_manifest_returns_failure()
     {
         var vfs = new VirtualFileSystem();

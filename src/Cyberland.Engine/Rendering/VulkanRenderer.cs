@@ -170,6 +170,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private bool _minimalInitializationCompleted;
     private bool _fullInitializationCompleted;
     private bool _bootstrapPresentedAtLeastOnce;
+    private Vector4D<float> _bootstrapClearColor = new(0f, 0f, 0f, 1f);
 
     /// <inheritdoc />
     public FramePacing FramePacing
@@ -192,6 +193,17 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             if (previousPresent != nextPresent)
                 RecreateSwapchain();
         }
+    }
+
+    /// <summary>Solid clear color used while presenting bootstrap splash frames.</summary>
+    public Vector4D<float> BootstrapClearColor
+    {
+        get => _bootstrapClearColor;
+        set => _bootstrapClearColor = new Vector4D<float>(
+            Math.Clamp(value.X, 0f, 1f),
+            Math.Clamp(value.Y, 0f, 1f),
+            Math.Clamp(value.Z, 0f, 1f),
+            Math.Clamp(value.W, 0f, 1f));
     }
 
     private Semaphore[]? _imageAvailableSemaphores;
@@ -906,12 +918,12 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             1,
             in toTransfer);
 
-        // Bootstrap clear is true black so pre-game startup never flashes tinted colors.
+        var bootstrapClear = _bootstrapClearColor;
         ClearColorValue clearColor = new();
-        clearColor.Float32_0 = 0f;
-        clearColor.Float32_1 = 0f;
-        clearColor.Float32_2 = 0f;
-        clearColor.Float32_3 = 1f;
+        clearColor.Float32_0 = bootstrapClear.X;
+        clearColor.Float32_1 = bootstrapClear.Y;
+        clearColor.Float32_2 = bootstrapClear.Z;
+        clearColor.Float32_3 = bootstrapClear.W;
         ImageSubresourceRange range = new()
         {
             AspectMask = ImageAspectFlags.ColorBit,

@@ -38,6 +38,8 @@ public interface IMod
     /// Called once after content mounts and host services (<see cref="Hosting.GameHostServices"/>) are ready.
     /// The host may choose to present one or more bootstrap frames before invoking mod load; rely on this callback
     /// (not first-present timing) as the start of gameplay/system registration.
+    /// During long loads, report weighted startup progress via <see cref="ModLoadContext.BeginLoadPhase"/> and
+    /// <see cref="ModLoadContext.ReportLoadProgress"/> so the host loading overlay can advance smoothly.
     /// Register <see cref="Core.Tasks.SystemScheduler"/> entries: <see cref="Core.Ecs.ISystem"/> / <see cref="Core.Ecs.IParallelSystem"/> (declare chunk needs via <see cref="Core.Ecs.IEcsQuerySource.QuerySpec"/>)
     /// plus optional <see cref="Core.Ecs.IEarlyUpdate"/>, <see cref="Core.Ecs.IFixedUpdate"/>, <see cref="Core.Ecs.ILateUpdate"/> (or parallel equivalents).
     /// </summary>

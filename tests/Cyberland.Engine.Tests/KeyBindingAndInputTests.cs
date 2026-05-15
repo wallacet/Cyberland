@@ -543,10 +543,12 @@ public sealed class KeyBindingAndInputTests
         onKeyDown!(keyboard.Object, Key.Space, 0);
 
         service.BeginFrame();
+        Assert.True(service.AnyInputPressedThisFrame);
         Assert.True(service.WasPressed("fire"));
         Assert.True(service.IsDown("fire"));
 
         service.BeginFrame();
+        Assert.False(service.AnyInputPressedThisFrame);
         Assert.False(service.WasPressed("fire"));
         Assert.False(service.IsDown("fire"));
 
@@ -576,6 +578,7 @@ public sealed class KeyBindingAndInputTests
         onKeyDown!(keyboard.Object, Key.Space, 0);
         service.BeginFrame();
 
+        Assert.True(service.AnyInputPressedThisFrame);
         Assert.True(service.HasActionPressedThisFrame("fire"));
         Assert.False(service.HasActionReleasedThisFrame("fire"));
         Assert.Contains(service.FrameGameplayCommands, c => c is { Kind: InputGameplayCommandKind.ActionPressed, Id: "fire" });

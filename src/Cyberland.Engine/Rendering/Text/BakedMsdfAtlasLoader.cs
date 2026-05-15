@@ -58,16 +58,22 @@ internal sealed class BakedMsdfAtlasLoader
         IRenderer renderer,
         TextGlyphCache cache,
         string manifestPath,
-        int pageBudget = int.MaxValue)
+        int pageBudget = int.MaxValue,
+        Action<float>? onProgress = null)
     {
+        onProgress?.Invoke(0.05f);
         if (!TryResolveManifest(assets, manifestPath, out var manifest, out var readPageBytes, out var sourceLabel, out var reason))
             return new LoadResult(manifestPath, false, reason, 0, 0);
+        onProgress?.Invoke(0.15f);
 
         var limited = LimitManifestPages(manifest, pageBudget);
-        if (!TryDecodePages(sourceLabel, limited, readPageBytes, out var decodedPages, out reason))
+        if (!TryDecodePages(sourceLabel, limited, readPageBytes, out var decodedPages, out reason, onProgress))
             return new LoadResult(sourceLabel, false, reason, 0, 0);
+        onProgress?.Invoke(0.85f);
 
-        return UploadDecoded(sourceLabel, limited, decodedPages, renderer, cache);
+        var result = UploadDecoded(sourceLabel, limited, decodedPages, renderer, cache);
+        onProgress?.Invoke(1f);
+        return result;
     }
 
     // Backward-compatible alias while call sites migrate to the unified name.
@@ -232,11 +238,13 @@ internal sealed class BakedMsdfAtlasLoader
         BakedMsdfAtlasManifest manifest,
         Func<string, byte[]> readPageBytes,
         out DecodedPage[] pages,
-        out string reason)
+        out string reason,
+        Action<float>? onProgress = null)
     {
         pages = Array.Empty<DecodedPage>();
         reason = "ok";
         var decoded = new DecodedPage[manifest.Pages.Length];
+        var total = Math.Max(manifest.Pages.Length, 1);
         for (var i = 0; i < manifest.Pages.Length; i++)
         {
             try
@@ -252,6 +260,8 @@ internal sealed class BakedMsdfAtlasLoader
                 reason = $"failed to decode page '{manifest.Pages[i].Path}' for '{sourceLabel}': {ex.Message}";
                 return false;
             }
+
+            onProgress?.Invoke(0.15f + (0.70f * ((i + 1f) / total)));
         }
 
         pages = decoded;

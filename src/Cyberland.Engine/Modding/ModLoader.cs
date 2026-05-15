@@ -29,6 +29,7 @@ namespace Cyberland.Engine.Modding;
 /// </para>
 /// Mod loading is expected on the main thread during startup; <see cref="SatelliteResolutionModDirectory"/> is thread-static so nested loads do not cross mod directories.
 /// Mods execute with host trust; third-party mods imply arbitrary native code (document for contributors, not end users).
+/// Host startup progress is emitted through <see cref="GameHostServices.StartupProgress"/> for discover/parse/sort/mount/load phases.
 /// </remarks>
 public sealed class ModLoader
 {
@@ -132,25 +133,36 @@ public sealed class ModLoader
         GameHostServices host,
         IReadOnlySet<string>? excludedModIds = null)
     {
+        ArgumentNullException.ThrowIfNull(host);
+        var progress = host.StartupProgress;
         var totalSw = Stopwatch.StartNew();
         LastLoadTiming = null;
+        using var __loaderTotal = progress.BeginPhase("host:mods:total", 1f, "Loading mods");
         if (!Directory.Exists(modsRootDirectory))
         {
+            progress.ReportPhaseProgress("host:mods:total", 1f, "Mods ready");
             LastLoadTiming = new ModLoadTiming(0d, 0d, 0d, 0d, 0d, totalSw.Elapsed.TotalMilliseconds, 0, 0, Array.Empty<ModLoadEntryTiming>());
             return;
         }
 
         UnloadAll();
 
+        using var __enumerate = progress.BeginPhase("host:mods:discover", 0.08f, "Discovering mods");
         var enumSw = Stopwatch.StartNew();
         var dirs = Directory.GetDirectories(modsRootDirectory);
         enumSw.Stop();
+        progress.ReportPhaseProgress("host:mods:discover", 1f);
         var manifests = new List<(string Dir, ModManifest M)>();
+        using var __parse = progress.BeginPhase("host:mods:parse", 0.14f, "Parsing manifests");
         var parseManifestSw = Stopwatch.StartNew();
+        var dirsTotal = Math.Max(dirs.Length, 1);
+        var parsedDirs = 0;
 
         foreach (var dir in dirs)
         {
             var manifestPath = Path.Combine(dir, "manifest.json");
+            parsedDirs++;
+            progress.ReportPhaseProgress("host:mods:parse", parsedDirs / (float)dirsTotal);
             if (!File.Exists(manifestPath))
                 continue;
 
@@ -165,7 +177,9 @@ public sealed class ModLoader
             manifests.Add((dir, m));
         }
         parseManifestSw.Stop();
+        progress.ReportPhaseProgress("host:mods:parse", 1f);
 
+        using var __sort = progress.BeginPhase("host:mods:sort", 0.03f, "Sorting mods");
         var sortSw = Stopwatch.StartNew();
         manifests.Sort(static (a, b) =>
         {
@@ -175,8 +189,12 @@ public sealed class ModLoader
             return string.CompareOrdinal(a.M.Id, b.M.Id);
         });
         sortSw.Stop();
+        progress.ReportPhaseProgress("host:mods:sort", 1f);
 
+        using var __mount = progress.BeginPhase("host:mods:mount", 0.10f, "Mounting mod content");
         var mountSw = Stopwatch.StartNew();
+        var mountTotal = Math.Max(manifests.Count, 1);
+        var mounted = 0;
         foreach (var entry in manifests)
         {
             _manifests.Add(entry.M);
@@ -187,19 +205,37 @@ public sealed class ModLoader
                 foreach (var rel in entry.M.ContentBlocklist)
                     vfs.BlockPath(rel);
             }
+
+            mounted++;
+            progress.ReportPhaseProgress("host:mods:mount", mounted / (float)mountTotal);
         }
         mountSw.Stop();
+        progress.ReportPhaseProgress("host:mods:mount", 1f);
 
+        using var __load = progress.BeginPhase("host:mods:load", 0.65f, "Initializing mods");
         var loadSw = Stopwatch.StartNew();
         var entryTimings = new List<ModLoadEntryTiming>(manifests.Count);
+        var runtimeMods = manifests.Count(static x => !string.IsNullOrWhiteSpace(x.M.EntryAssembly));
+        var runtimeTotal = Math.Max(runtimeMods, 1);
+        var runtimeDone = 0;
         foreach (var entry in manifests)
         {
             if (string.IsNullOrWhiteSpace(entry.M.EntryAssembly))
                 continue;
 
             var dll = Path.Combine(entry.Dir, entry.M.EntryAssembly);
+            var phaseKey = $"host:mods:entry:{entry.M.Id}";
+            using var __entry = progress.BeginPhase(
+                phaseKey,
+                1f / runtimeTotal,
+                $"Loading {entry.M.Id}",
+                entry.M.Id);
             if (!File.Exists(dll))
+            {
+                runtimeDone++;
+                progress.ReportPhaseProgress("host:mods:load", runtimeDone / (float)runtimeTotal);
                 continue;
+            }
 
             var modDir = entry.Dir;
             SatelliteResolutionModDirectory = modDir;
@@ -214,9 +250,12 @@ public sealed class ModLoader
                 catch (BadImageFormatException)
                 {
                     assemblySw.Stop();
+                    runtimeDone++;
+                    progress.ReportPhaseProgress("host:mods:load", runtimeDone / (float)runtimeTotal);
                     continue;
                 }
                 assemblySw.Stop();
+                progress.ReportPhaseProgress(phaseKey, 0.25f, "Assembly loaded");
 
                 Type? modType = null;
                 var resolveTypeSw = Stopwatch.StartNew();
@@ -239,15 +278,21 @@ public sealed class ModLoader
                     }
                 }
                 resolveTypeSw.Stop();
+                progress.ReportPhaseProgress(phaseKey, 0.5f, "Mod type resolved");
 
                 if (modType is null)
+                {
+                    runtimeDone++;
+                    progress.ReportPhaseProgress("host:mods:load", runtimeDone / (float)runtimeTotal);
                     continue;
+                }
 
                 var mod = (IMod)Activator.CreateInstance(modType)!;
                 var ctx = new ModLoadContext(entry.M, entry.Dir, vfs, localizedContent, world, scheduler, host);
                 var onLoadSw = Stopwatch.StartNew();
                 mod.OnLoadAsync(ctx).GetAwaiter().GetResult();
                 onLoadSw.Stop();
+                progress.ReportPhaseProgress(phaseKey, 1f, "Mod initialized");
                 _instances.Add(mod);
                 entryTimings.Add(
                     new ModLoadEntryTiming(
@@ -255,6 +300,8 @@ public sealed class ModLoader
                         assemblySw.Elapsed.TotalMilliseconds,
                         resolveTypeSw.Elapsed.TotalMilliseconds,
                         onLoadSw.Elapsed.TotalMilliseconds));
+                runtimeDone++;
+                progress.ReportPhaseProgress("host:mods:load", runtimeDone / (float)runtimeTotal);
             }
             finally
             {
@@ -262,7 +309,9 @@ public sealed class ModLoader
             }
         }
         loadSw.Stop();
+        progress.ReportPhaseProgress("host:mods:load", 1f);
         totalSw.Stop();
+        progress.ReportPhaseProgress("host:mods:total", 1f, "Mods ready");
         LastLoadTiming = new ModLoadTiming(
             enumSw.Elapsed.TotalMilliseconds,
             parseManifestSw.Elapsed.TotalMilliseconds,
