@@ -122,16 +122,16 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
         // Only update the visible tab panel each frame; hidden tabs keep their last text and avoid dirtying layout.
         switch (_refs.CurrentTabId)
         {
-            case SceneSetup.NavGather:
+            case Mod.NavGather:
                 BindSources(ref wallet, ref sources, ref stats, ref eq);
                 break;
-            case SceneSetup.NavCharacter:
+            case Mod.NavCharacter:
                 BindStats(ref wallet, ref stats, ref sources, ref eq, globalRate);
                 break;
-            case SceneSetup.NavBlacksmith:
+            case Mod.NavBlacksmith:
                 BindEquipment(ref wallet, ref eq);
                 break;
-            case SceneSetup.NavLog:
+            case Mod.NavLog:
                 BindLog(row.World, row.Entity);
                 break;
             default:

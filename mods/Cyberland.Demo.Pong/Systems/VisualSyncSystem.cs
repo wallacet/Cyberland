@@ -8,7 +8,7 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.Pong;
 
 /// <summary>
-/// Keeps sprites and HUD text aligned with <see cref="State"/> each frame. Uses the singleton session row plus explicit sprite/HUD ids from <see cref="SceneSetup"/>.
+/// Keeps sprites and HUD text aligned with <see cref="State"/> each frame. Uses the singleton session row plus explicit sprite/HUD ids from scene JSON.
 /// </summary>
 /// <remarks>Static sprite/text setup lives in the <c>VisualSyncSystem.Bootstrap.cs</c> partial.</remarks>
 public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
@@ -25,8 +25,8 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
     private static readonly TextStyle FpsStyle = new(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
 
     private readonly GameHostServices _host;
-    private readonly VisualIds _v;
-    private readonly HudTextIds _t;
+    private VisualIds _v;
+    private HudTextIds _t;
     private int _cachedPlayerPoints = int.MinValue;
     private int _cachedCpuPoints = int.MinValue;
     private string _cachedPlayerPointsText = "0";
@@ -34,18 +34,14 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
     private readonly FpsMovingAverage _fpsAverage = new(FpsMovingAverage.DefaultWindowSeconds);
     private World _world = null!;
 
-    /// <summary>Sprite/HUD ids are authored in <see cref="SceneSetup"/>; session row is the singleton query.</summary>
-    public VisualSyncSystem(GameHostServices host, VisualIds visuals, HudTextIds texts)
-    {
-        _host = host;
-        _v = visuals;
-        _t = texts;
-    }
+    public VisualSyncSystem(GameHostServices host) => _host = host;
 
     /// <inheritdoc />
     public void OnSingletonStart(in SingletonEntity sessionRow)
     {
         _world = sessionRow.World;
+        _v = PongSceneWire.ResolveVisuals(_world);
+        _t = PongSceneWire.ResolveHudTexts(_world);
         var renderer = _host.Renderer;
         ConfigureSpritesOnStart(renderer.WhiteTextureId, renderer.DefaultNormalTextureId);
         ConfigureTextRowsOnStart();

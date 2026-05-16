@@ -41,7 +41,7 @@ public struct PaddlePointLightTag : IComponent;
 
 public struct BallPointLightTag : IComponent;
 
-/// <summary>Resolves the session entity created by <see cref="SceneSetup"/>.</summary>
+/// <summary>Resolves the session entity after scene JSON spawn.</summary>
 internal static class Session
 {
     public static EntityId RequireStateEntity(World world) =>

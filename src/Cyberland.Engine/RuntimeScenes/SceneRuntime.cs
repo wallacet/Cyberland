@@ -6,6 +6,7 @@ using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.RuntimeScenes.Serialization;
@@ -30,6 +31,7 @@ public sealed class SceneRuntime : ISceneRuntime
     private SystemScheduler? _rootScheduler;
     private ulong _nextSceneId = 1;
     private readonly List<AdditiveSceneEntry> _additive = new();
+    private bool _engineDeserializersRegistered;
 
     /// <summary>Constructs runtime bound to host services and VFS.</summary>
     public SceneRuntime(
@@ -121,6 +123,7 @@ public sealed class SceneRuntime : ISceneRuntime
     public async ValueTask<SceneLoadResult> PumpAsync(SceneInstanceId id, SceneLoadPumpOptions? options = null, CancellationToken cancellationToken = default)
     {
         options ??= new SceneLoadPumpOptions();
+        EnsureEngineComponentDeserializers();
         if (id == SceneInstanceId.Root)
             return new SceneLoadResult { Failed = true, ErrorMessage = "Cannot pump root scene." };
 
@@ -257,6 +260,7 @@ public sealed class SceneRuntime : ISceneRuntime
         ArgumentNullException.ThrowIfNull(world);
         ArgumentException.ThrowIfNullOrWhiteSpace(scenePath);
         options ??= new SceneSpawnOptions();
+        EnsureEngineComponentDeserializers();
 
         try
         {
@@ -279,6 +283,7 @@ public sealed class SceneRuntime : ISceneRuntime
             {
                 var count = SpawnEntities(world, parsed, options.AllowUnknownComponentTypes, strings, session, spawned);
                 ResolvePendingParentLinks(world, session);
+                ResolvePendingCameraFollowTargets(world, session);
                 return new SceneSpawnResult { Succeeded = true, EntitiesSpawned = count };
             }
             catch (Exception ex)
@@ -671,6 +676,17 @@ public sealed class SceneRuntime : ISceneRuntime
         }
     }
 
+    private static void ResolvePendingCameraFollowTargets(World world, SceneSpawnSession session)
+    {
+        foreach (var (camera, targetLogicalId) in session.PendingCameraFollowTargets)
+        {
+            if (!session.LogicalIdToEntity.TryGetValue(targetLogicalId, out var target))
+                throw new InvalidOperationException($"Unknown targetLogicalId '{targetLogicalId}'.");
+            ref var follow = ref world.Get<CameraFollow2D>(camera);
+            follow.Target = target;
+        }
+    }
+
     private bool TryApplyComponent(
         World world,
         EntityId eid,
@@ -714,6 +730,20 @@ public sealed class SceneRuntime : ISceneRuntime
         var doc = JsonSerializer.Deserialize<SceneDocument>(root.GetRawText(), jsonOpts) ?? new SceneDocument();
         doc.SchemaVersion = toVersion;
         return JsonSerializer.SerializeToElement(doc, jsonOpts);
+    }
+
+    private void EnsureEngineComponentDeserializers()
+    {
+        lock (_gate)
+        {
+            if (_engineDeserializersRegistered)
+                return;
+            var renderer = _host.Renderer;
+            if (renderer is null)
+                return;
+            EngineSceneComponentDeserializers.Register(this, renderer);
+            _engineDeserializersRegistered = true;
+        }
     }
 
     private void RegisterBuiltinDeserializers()

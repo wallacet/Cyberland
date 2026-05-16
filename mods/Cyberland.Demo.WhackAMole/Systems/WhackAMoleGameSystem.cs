@@ -19,19 +19,28 @@ public sealed class WhackAMoleGameSystem : ISingletonSystem, ISingletonEarlyUpda
     public string SingletonLabel => "whack-a-mole state";
 
     private readonly GameHostServices _host;
-    private readonly SceneSetup.SceneRefs _scene;
     private readonly Random _rng = new(1729);
+    private EntityId _background;
+    private EntityId _target;
+    private EntityId _targetFillLight;
+    private EntityId _scoreText;
+    private EntityId _timerText;
+    private EntityId _overlayText;
 
-    public WhackAMoleGameSystem(GameHostServices host, SceneSetup.SceneRefs scene)
-    {
-        _host = host;
-        _scene = scene;
-    }
+    public WhackAMoleGameSystem(GameHostServices host) => _host = host;
 
     public void OnSingletonStart(in SingletonEntity stateRow)
     {
+        var world = stateRow.World;
+        _background = world.RequireSingleEntityWith<BackgroundTag>("Whack-a-Mole background");
+        _target = world.RequireSingleEntityWith<WhackAMoleTargetTag>("Whack-a-Mole target");
+        _targetFillLight = world.RequireSingleEntityWith<TargetFillLightTag>("Whack-a-Mole target fill light");
+        _scoreText = world.RequireSingleEntityWith<WhackAMoleScoreTextTag>("Whack-a-Mole score text");
+        _timerText = world.RequireSingleEntityWith<WhackAMoleTimerTextTag>("Whack-a-Mole timer text");
+        _overlayText = world.RequireSingleEntityWith<WhackAMoleOverlayTextTag>("Whack-a-Mole overlay text");
+
         ref var state = ref stateRow.Get<WhackAMoleState>();
-        ResetRound(stateRow.World, ref state);
+        ResetRound(world, ref state);
     }
 
     public void OnSingletonEarlyUpdate(in SingletonEntity stateRow, float deltaSeconds)
@@ -92,8 +101,8 @@ public sealed class WhackAMoleGameSystem : ISingletonSystem, ISingletonEarlyUpda
 
     private bool IsPointInsideTarget(World world, Vector2 mouseViewport)
     {
-        ref var targetTransform = ref world.Get<Transform>(_scene.Target);
-        ref var targetSprite = ref world.Get<Sprite>(_scene.Target);
+        ref var targetTransform = ref world.Get<Transform>(_target);
+        ref var targetSprite = ref world.Get<Sprite>(_target);
         if (!targetSprite.Visible)
             return false;
 
@@ -115,8 +124,8 @@ public sealed class WhackAMoleGameSystem : ISingletonSystem, ISingletonEarlyUpda
 
     private void RespawnTarget(World world)
     {
-        ref var targetTransform = ref world.Get<Transform>(_scene.Target);
-        ref var targetSprite = ref world.Get<Sprite>(_scene.Target);
+        ref var targetTransform = ref world.Get<Transform>(_target);
+        ref var targetSprite = ref world.Get<Sprite>(_target);
         var viewport = ResolveViewportSize();
         var half = targetSprite.HalfExtents;
 
@@ -138,24 +147,24 @@ public sealed class WhackAMoleGameSystem : ISingletonSystem, ISingletonEarlyUpda
 
     private void HideTarget(World world)
     {
-        ref var targetSprite = ref world.Get<Sprite>(_scene.Target);
+        ref var targetSprite = ref world.Get<Sprite>(_target);
         targetSprite.Visible = false;
-        ref var fill = ref world.Get<PointLightSource>(_scene.TargetFillLight);
+        ref var fill = ref world.Get<PointLightSource>(_targetFillLight);
         fill.Active = false;
     }
 
     private void SyncTargetFillLight(World world, in Sprite targetSprite, bool active)
     {
-        ref var fill = ref world.Get<PointLightSource>(_scene.TargetFillLight);
+        ref var fill = ref world.Get<PointLightSource>(_targetFillLight);
         fill.Active = active;
         fill.Color = new Vector3D<float>(targetSprite.ColorMultiply.X, targetSprite.ColorMultiply.Y, targetSprite.ColorMultiply.Z);
     }
 
     private void SyncBackgroundToViewport(World world, in Vector2D<float> viewport)
     {
-        ref var t = ref world.Get<Transform>(_scene.Background);
+        ref var t = ref world.Get<Transform>(_background);
         t.LocalPosition = new Vector2D<float>(viewport.X * 0.5f, viewport.Y * 0.5f);
-        ref var s = ref world.Get<Sprite>(_scene.Background);
+        ref var s = ref world.Get<Sprite>(_background);
         s.HalfExtents = new Vector2D<float>(viewport.X * 0.5f, viewport.Y * 0.5f);
     }
 
@@ -186,23 +195,23 @@ public sealed class WhackAMoleGameSystem : ISingletonSystem, ISingletonEarlyUpda
         SyncBackgroundToViewport(world, in viewport);
         var margin = 24f;
 
-        ref var scoreTransform = ref world.Get<Transform>(_scene.ScoreText);
+        ref var scoreTransform = ref world.Get<Transform>(_scoreText);
         scoreTransform.LocalPosition = new Vector2D<float>(margin, viewport.Y - margin);
-        ref var scoreText = ref world.Get<BitmapText>(_scene.ScoreText);
+        ref var scoreText = ref world.Get<BitmapText>(_scoreText);
         scoreText.Visible = true;
         scoreText.Content = $"Score: {state.Score}";
 
-        ref var timerTransform = ref world.Get<Transform>(_scene.TimerText);
+        ref var timerTransform = ref world.Get<Transform>(_timerText);
         timerTransform.LocalPosition = new Vector2D<float>(margin, viewport.Y - (margin + 28f));
-        ref var timerText = ref world.Get<BitmapText>(_scene.TimerText);
+        ref var timerText = ref world.Get<BitmapText>(_timerText);
         timerText.Visible = true;
         timerText.Content = state.TimerStarted
             ? $"Time: {FormatTime(state.TimeRemainingSeconds)}"
             : "Time: 01:00 (click a square to start)";
 
-        ref var overlayTransform = ref world.Get<Transform>(_scene.OverlayText);
+        ref var overlayTransform = ref world.Get<Transform>(_overlayText);
         overlayTransform.LocalPosition = new Vector2D<float>(viewport.X * 0.5f - 260f, viewport.Y * 0.5f);
-        ref var overlayText = ref world.Get<BitmapText>(_scene.OverlayText);
+        ref var overlayText = ref world.Get<BitmapText>(_overlayText);
         if (state.Phase == WhackAMolePhase.GameOver)
         {
             overlayText.Visible = true;

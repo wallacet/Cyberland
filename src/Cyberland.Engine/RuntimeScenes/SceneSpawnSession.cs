@@ -9,5 +9,7 @@ internal sealed class SceneSpawnSession
 {
     public List<(EntityId Child, string ParentLogicalId)> PendingParentLinks { get; } = new();
 
+    public List<(EntityId Camera, string TargetLogicalId)> PendingCameraFollowTargets { get; } = new();
+
     public Dictionary<string, EntityId> LogicalIdToEntity { get; } = new(StringComparer.Ordinal);
 }

@@ -1,8 +1,7 @@
+using Cyberland.Demo.FontTest.Components;
 using Cyberland.Engine.Core.Ecs;
-using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering.Text;
-using Cyberland.Engine.Scene;
 using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
 using Cyberland.Engine.UI.Ecs;
@@ -12,41 +11,19 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.FontTest;
 
-/// <summary>
-/// Full-viewport retained UI: scrollable columns of rows — built-in matrix plus a custom-registered family (Jost) with mod-baked MSDF.
-/// </summary>
-/// <remarks>
-/// <para><b>Prerequisite:</b> <see cref="Mod.OnLoadAsync"/> registers the Jost family and kicks atlas loads before this runs so <see cref="BitmapText.Style"/> can reference both builtin and custom faces.</para>
-/// <para><b>Layout:</b> <see cref="CanvasWidth"/>×<see cref="CanvasHeight"/> presentation viewport; document uses <see cref="UiDocumentRootPreset.FullViewport"/>.</para>
-/// <para>No gameplay systems register in this demo — the scene exists to visualize font rasterization quality across sizes and scripts (<see cref="Sample"/>).</para>
-/// </remarks>
-public static class SceneSetup
+/// <summary>Retained UI matrix for FontTest; camera and root entity come from <c>Scenes/demo_fonttest.json</c>.</summary>
+public sealed partial class Mod
 {
-    private const int CanvasWidth = 1280;
-    private const int CanvasHeight = 720;
-
     private static readonly Vector4D<float> JostSampleColor = new(0.98f, 0.82f, 0.52f, 1f);
 
     // Uppercase/lowercase, digits, punctuation, and whitespace samples.
     private const string Sample =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 !?.,:;+-=*/()[]{}<> \"'`~ @#$%^&|  \t  ";
 
-    public static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
+    internal static void BuildFontTestUiDocument(ModLoadContext context)
     {
-        _ = cancellationToken;
-        var world = context.World;
         var host = context.Host;
-
-        SpawnCamera(world);
-
-        var rootEntity = world.CreateEntity();
-        world.GetOrAdd<UiDocumentRoot>(rootEntity) = new UiDocumentRoot
-        {
-            Visible = true,
-            CoordinateSpace = CoordinateSpace.PresentationViewportSpace,
-            RootPreset = UiDocumentRootPreset.FullViewport,
-            SortKeyBase = 860f
-        };
+        var rootEntity = context.World.RequireSingleEntityWith<FontTestUiRootTag>("FontTest UI root");
 
         var doc = new UiDocument();
         doc.Root.BackgroundColor = new Vector4D<float>(0.04f, 0.06f, 0.12f, 1f);
@@ -74,8 +51,6 @@ public static class SceneSetup
         doc.Root.AddChild(scroll);
 
         host.UiDocuments.Register(rootEntity, doc);
-
-        await Task.CompletedTask.ConfigureAwait(false);
     }
 
     private static void AddTitle(UiVerticalStack col, string text)
@@ -104,15 +79,6 @@ public static class SceneSetup
         UiLayoutPresets.TopStretch(line, RowSlotHeight(style));
         line.VerticalAlignment = UiTextVerticalAlignment.Start;
         col.AddChild(line);
-    }
-
-    private static void SpawnCamera(World world)
-    {
-        var camera = world.CreateEntity();
-        var camTransform = Transform.Identity;
-        camTransform.WorldPosition = new Vector2D<float>(CanvasWidth * 0.5f, CanvasHeight * 0.5f);
-        world.GetOrAdd<Transform>(camera) = camTransform;
-        world.GetOrAdd<Camera2D>(camera) = Camera2D.Create(new Vector2D<int>(CanvasWidth, CanvasHeight));
     }
 
     private static float RowSlotHeight(in TextStyle style)

@@ -15,19 +15,19 @@ public sealed class SimulationSystem : ISingletonSystem, ISingletonFixedUpdate
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<State, Control>();
 
     private readonly GameHostServices _host;
-    private readonly VisualIds _visuals;
+    private EntityId _leftPad;
+    private EntityId _rightPad;
+    private EntityId _ball;
 
-    /// <summary>Sprite entity ids come from <see cref="SceneSetup"/>; state/control are the singleton row.</summary>
-    public SimulationSystem(GameHostServices host, VisualIds visuals)
-    {
-        _host = host;
-        _visuals = visuals;
-    }
+    public SimulationSystem(GameHostServices host) => _host = host;
 
     /// <inheritdoc />
     public void OnSingletonStart(in SingletonEntity sessionRow)
     {
-        _ = sessionRow;
+        var world = sessionRow.World;
+        _leftPad = world.RequireSingleEntityWith<LeftPaddleSpriteTag>("Pong left paddle sprite");
+        _rightPad = world.RequireSingleEntityWith<RightPaddleSpriteTag>("Pong right paddle sprite");
+        _ball = world.RequireSingleEntityWith<BallSpriteTag>("Pong ball sprite");
     }
 
     /// <inheritdoc />
@@ -50,13 +50,13 @@ public sealed class SimulationSystem : ISingletonSystem, ISingletonFixedUpdate
 
     private void SyncPaddleAndBallTransforms(World w, in State st)
     {
-        ref var leftTransform = ref w.Get<Transform>(_visuals.LeftPad);
+        ref var leftTransform = ref w.Get<Transform>(_leftPad);
         leftTransform.LocalPosition = new Vector2D<float>(st.ArenaMinX, st.LeftPaddleY);
 
-        ref var rightTransform = ref w.Get<Transform>(_visuals.RightPad);
+        ref var rightTransform = ref w.Get<Transform>(_rightPad);
         rightTransform.LocalPosition = new Vector2D<float>(st.ArenaMaxX, st.RightPaddleY);
 
-        ref var ballTransform = ref w.Get<Transform>(_visuals.Ball);
+        ref var ballTransform = ref w.Get<Transform>(_ball);
         ballTransform.LocalPosition = st.BallPos;
     }
 

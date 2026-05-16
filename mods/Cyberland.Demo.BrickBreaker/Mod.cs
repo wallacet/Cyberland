@@ -1,7 +1,9 @@
 using Cyberland.Engine;
+using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.BrickBreaker;
 
@@ -10,21 +12,13 @@ namespace Cyberland.Demo.BrickBreaker;
 /// <see cref="GameState.ActiveBricks"/>.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> registration order mirrors the HDR demo—see <see cref="SceneSetup"/> for the static scene recipe,
-/// then follow phase responsibilities below.</para>
-/// <para><b>Frame flow (simplified):</b>
-/// <see cref="Systems.InputSystem"/> (early movement + frame gameplay commands → <see cref="Control"/>) →
-/// <see cref="Systems.ArenaLayoutSystem"/> (early, parallel) →
-/// <see cref="Systems.RoundStartSystem"/> → <see cref="Systems.ReactivateSystem"/> →
-/// <see cref="Systems.PaddleMoveSystem"/> / <see cref="Systems.BallLaunchSystem"/> / <see cref="Systems.BallIntegrateSystem"/> / <see cref="Systems.TriggerResolveSystem"/> →
-/// <see cref="Systems.WinLoseSystem"/> (fixed singleton) →
-/// <see cref="Systems.LightsFillSystem"/> (late) →
-/// multiple query-driven <c>brick/*</c> late sprite and HUD systems (see individual types).</para>
-/// <para><b>Registration order matters</b> for <see cref="GameState.PendingReactivation"/> and win detection: round start and
-/// block reactivation run before <see cref="Systems.WinLoseSystem"/> in the same fixed pass so a new round is not misread as a clear board.</para>
+/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; then follow phase responsibilities in system registrations below.</para>
 /// </remarks>
-public sealed class Mod : IMod
+public sealed partial class Mod : IMod
 {
+    /// <summary>VFS path to the root-world scene document.</summary>
+    public const string ScenePath = "Scenes/demo_brickbreaker.json";
+
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
     {
@@ -36,7 +30,7 @@ public sealed class Mod : IMod
 
         var host = context.Host;
 
-        await SceneSetup.SetupSceneAsync(context);
+        await SetupSceneAsync(context);
 
         context.RegisterSingleton("cyberland.demo.brick/input", new InputSystem(host));
         context.RegisterParallel("cyberland.demo.brick/layout", new ArenaLayoutSystem());
@@ -70,6 +64,25 @@ public sealed class Mod : IMod
     /// <inheritdoc />
     public void OnUnload()
     {
+    }
+
+    private static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (context.Scenes is null)
+            throw new InvalidOperationException("Runtime scenes are required to bootstrap BrickBreaker from JSON.");
+
+        SceneComponentDeserializers.Register(context.Scenes);
+
+        var result = await context.Scenes.SpawnIntoWorldAsync(
+            context.World,
+            ScenePath,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (!result.Succeeded)
+            throw new InvalidOperationException(result.ErrorMessage ?? "BrickBreaker scene spawn failed.");
+
+        BrickBreakerSceneWire.Apply(context.World);
     }
 
     private static void KickoffBuiltinAtlasLoads(ModLoadContext context)

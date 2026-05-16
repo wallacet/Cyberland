@@ -174,6 +174,31 @@ public sealed class VirtualFileSystemAndAssetTests
         }
     }
 
+    [Fact]
+    public async Task AssetManager_LoadText_strips_utf8_bom()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb asset bom " + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+        try
+        {
+            var payload = """{"X":7}"""u8.ToArray();
+            var bom = new byte[] { 0xEF, 0xBB, 0xBF };
+            var fileBytes = new byte[bom.Length + payload.Length];
+            bom.CopyTo(fileBytes, 0);
+            payload.CopyTo(fileBytes, bom.Length);
+            await File.WriteAllBytesAsync(Path.Combine(root, "t.json"), fileBytes);
+
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var assets = new AssetManager(vfs);
+            Assert.Equal("{\"X\":7}", await assets.LoadTextAsync("t.json"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private sealed class Payload
     {
         public int X { get; set; }

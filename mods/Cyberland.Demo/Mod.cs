@@ -114,7 +114,7 @@ public sealed class Mod : IMod
         if (context.Scenes is null)
             throw new InvalidOperationException("Runtime scenes are required to bootstrap the HDR demo from JSON.");
 
-        SceneComponentDeserializers.Register(context.Scenes, context.Host);
+        SceneComponentDeserializers.Register(context.Scenes);
 
         var result = await context.Scenes.SpawnIntoWorldAsync(
             context.World,

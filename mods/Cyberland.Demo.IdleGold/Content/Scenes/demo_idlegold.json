@@ -1,0 +1,64 @@
+{
+    "schemaVersion":  1,
+    "entities":  [
+                     {
+                         "logicalId":  "f6666666-6666-6666-6666-000000000101",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  640,
+                                                             "localY":  360
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/camera2d",
+                                                "data":  {
+                                                             "viewportWidth":  1280,
+                                                             "viewportHeight":  720
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f6666666-6666-6666-6666-000000000102",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.idlegold/session-tag",
+                                                "data":  {
+
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f6666666-6666-6666-6666-000000000103",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.idlegold/hud-root-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/ui-document-root",
+                                                "data":  {
+                                                             "sortKeyBase":  900
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f6666666-6666-6666-6666-000000000104",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.engine/global-post-process",
+                                                "data":  {
+                                                             "bloomEnabled":  false,
+                                                             "priority":  100
+                                                         }
+                                            }
+                                        ]
+                     }
+                 ]
+}

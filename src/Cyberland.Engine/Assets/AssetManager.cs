@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -59,12 +60,15 @@ public sealed class AssetManager
         return renderer.RegisterTextureRgba(rgba, image.Width, image.Height);
     }
 
-    /// <summary>Loads UTF-8 text (JSON, shaders, locale files).</summary>
+    /// <summary>Loads UTF-8 text (JSON, shaders, locale files). Strips a leading UTF-8 BOM when present.</summary>
     public async Task<string> LoadTextAsync(string path, CancellationToken cancellationToken = default)
     {
         var bytes = await LoadBytesAsync(path, cancellationToken).ConfigureAwait(false);
-        return System.Text.Encoding.UTF8.GetString(bytes);
+        return Encoding.UTF8.GetString(StripUtf8Bom(bytes));
     }
+
+    private static ReadOnlySpan<byte> StripUtf8Bom(ReadOnlySpan<byte> bytes) =>
+        bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? bytes[3..] : bytes;
 
     /// <summary>Deserializes JSON from the VFS into <typeparamref name="T"/>.</summary>
     public async Task<T> LoadJsonAsync<T>(string path, JsonSerializerOptions? options = null, CancellationToken cancellationToken = default)

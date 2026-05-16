@@ -2,6 +2,7 @@ using Cyberland.Demo.MouseChase.Systems;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.MouseChase;
 
@@ -9,11 +10,14 @@ namespace Cyberland.Demo.MouseChase;
 /// Tutorial game: input → fixed simulation (movement, camera zoom, triggers, round state, restart) → retained HUD document updates.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> <see cref="SceneSetup.SetupSceneAsync"/> for entities and HUD tags; this file lists scheduler registration only.</para>
+/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.UiDocument"/> builds the HUD; systems under <c>Systems/</c>.</para>
 /// <para>Single-row drivers use <see cref="ISingletonSystem"/>; <see cref="TriggerResolveSystem"/> stays serial over trigger chunks.</para>
 /// </remarks>
-public sealed class Mod : IMod
+public sealed partial class Mod : IMod
 {
+    /// <summary>VFS path to the root-world scene document.</summary>
+    public const string ScenePath = "Scenes/demo_mousechase.json";
+
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
     {
@@ -22,7 +26,7 @@ public sealed class Mod : IMod
         context.LocalizedContent.MergeStringTable("mouse_chase.json");
         KickoffBuiltinAtlasLoads(context);
 
-        var hud = await SceneSetup.SetupSceneAsync(context);
+        var hud = await SetupSceneAsync(context);
 
         var host = context.Host;
         context.RegisterSingleton("cyberland.demo.mousechase/input", new InputSystem(host));
@@ -38,6 +42,25 @@ public sealed class Mod : IMod
     /// <inheritdoc />
     public void OnUnload()
     {
+    }
+
+    private static async ValueTask<HudDocumentRefs> SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (context.Scenes is null)
+            throw new InvalidOperationException("Runtime scenes are required to bootstrap Mouse Chase from JSON.");
+
+        SceneComponentDeserializers.Register(context.Scenes);
+
+        var result = await context.Scenes.SpawnIntoWorldAsync(
+            context.World,
+            ScenePath,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (!result.Succeeded)
+            throw new InvalidOperationException(result.ErrorMessage ?? "Mouse Chase scene spawn failed.");
+
+        return BuildHudDocument(context);
     }
 
     private static void KickoffBuiltinAtlasLoads(ModLoadContext context)

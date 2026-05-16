@@ -1,6 +1,10 @@
+using Cyberland.Demo.IdleGold.Components;
 using Cyberland.Demo.IdleGold.Systems;
+using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.IdleGold;
 
@@ -8,22 +12,23 @@ namespace Cyberland.Demo.IdleGold;
 /// Idle gold UI showcase: passive income, purchases through retained UI, ECS singleton session row.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> <see cref="SceneSetup.SetupSceneAsync"/> for the HUD document and session spawn, then <see cref="UiCommandHandler"/> and <see cref="UiGameCommand"/> records for the command vocabulary.</para>
-/// <para><b>Frame flow:</b> UI buttons enqueue into <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommands"/>; the host drains them into the dispatcher callback assigned here to <see cref="UiCommandHandler.Dispatch"/>; <see cref="SimulationSystem"/> advances economy on the session singleton in **late** update (variable <c>deltaSeconds</c>); <see cref="HudBindSystem"/> mirrors state into labels.</para>
-/// <para><b>MSDF bootstrap:</b> synchronous <see cref="LoadBuiltinUiAtlasesForIdleGold"/> uses <see cref="ModLoadContext.LoadBakedMsdfAtlas"/> so first UI frames do not pay runtime MSDF fallback — see **cyberland-demo-mod-authoring**.</para>
+/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.UiDocument"/> builds the HUD; <see cref="UiCommandHandler"/> for commands.</para>
+/// <para><b>Frame flow:</b> UI buttons enqueue into <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommands"/>; <see cref="SimulationSystem"/> advances economy in late update; <see cref="HudBindSystem"/> mirrors state into labels.</para>
+/// <para><b>MSDF bootstrap:</b> synchronous <see cref="LoadBuiltinUiAtlasesForIdleGold"/> so first UI frames use baked glyphs — see **cyberland-demo-mod-authoring**.</para>
 /// </remarks>
-public sealed class Mod : IMod
+public sealed partial class Mod : IMod
 {
+    /// <summary>VFS path to the root-world scene document.</summary>
+    public const string ScenePath = "Scenes/demo_idlegold.json";
+
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
         context.LocalizedContent.MergeStringTable("idlegold.json");
-        // Synchronous loads: async atlases complete only after render-thread drain, so first UI frames would miss baked
-        // glyphs and fall back to expensive runtime MSDF rasterization (see ModLoadContext.LoadBakedMsdfAtlas remarks).
         LoadBuiltinUiAtlasesForIdleGold(context);
 
-        var boot = await SceneSetup.SetupSceneAsync(context);
+        var boot = await SetupSceneAsync(context);
 
         var host = context.Host;
         host.UiCommandDispatcher = cmd =>
@@ -38,6 +43,46 @@ public sealed class Mod : IMod
     /// <inheritdoc />
     public void OnUnload()
     {
+    }
+
+    private static async ValueTask<SceneBootstrap> SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (context.Scenes is null)
+            throw new InvalidOperationException("Runtime scenes are required to bootstrap IdleGold from JSON.");
+
+        SceneComponentDeserializers.Register(context.Scenes);
+
+        var result = await context.Scenes.SpawnIntoWorldAsync(
+            context.World,
+            ScenePath,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (!result.Succeeded)
+            throw new InvalidOperationException(result.ErrorMessage ?? "IdleGold scene spawn failed.");
+
+        var world = context.World;
+        var session = world.RequireSingleEntityWith<SessionTag>("IdleGold session");
+        WireSession(world, session, context.LocalizedContent.Strings);
+        return BuildRetainedUi(context, session);
+    }
+
+    private static void WireSession(Cyberland.Engine.Core.Ecs.World world, Cyberland.Engine.Core.Ecs.EntityId session, LocalizationManager loc)
+    {
+        world.GetOrAdd<Wallet>(session) = new Wallet();
+        world.GetOrAdd<Sources>(session) = new Sources
+        {
+            VillageBeg = new SourceRow { Unlocked = true, Level = 1 },
+            ForestForage = default,
+            CaveExplore = default,
+            RoadToll = default
+        };
+        world.GetOrAdd<Stats>(session) = new Stats();
+        world.GetOrAdd<Equipment>(session) = new Equipment();
+        world.GetOrAdd<RngState>(session) = new RngState { State = 0xC0FFEE_DEAD_BEEFL };
+        world.GetOrAdd<EventLog>(session) = new EventLog { Lines = new List<string>() };
+
+        LogBook.Append(world, session, loc.Get("idlegold.log.welcome"));
     }
 
     /// <summary>

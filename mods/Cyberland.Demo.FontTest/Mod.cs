@@ -1,6 +1,7 @@
 using Cyberland.Engine.Assets;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.FontTest;
 
@@ -8,26 +9,46 @@ namespace Cyberland.Demo.FontTest;
 /// Font validation demo: built-in atlases plus a custom registered family (Jost) with mod-shipped MSDF bakes.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> <see cref="FontTestFonts"/> for VFS paths, then <see cref="SceneSetup.SetupSceneAsync"/> for the on-screen matrix.</para>
-/// <para><b>Load order inside <see cref="OnLoadAsync"/>:</b> register the custom family first (async I/O to VFS TTFs), then fire-and-forget baked page loads, then build the UI scene so styles can reference both builtin and Jost faces.</para>
-/// <para><b>Do not await <see cref="ModLoadContext.LoadBakedMsdfAtlasAsync"/> here</b> — completion requires the render loop to drain uploads while <see cref="ModLoader"/> still blocks on this method; see inline comment in <see cref="OnLoadAsync"/>.</para>
+/// <para><b>Where to read next:</b> <see cref="FontTestFonts"/> for VFS paths, then private <see cref="SetupSceneAsync"/> and <see cref="Mod.UiDocument"/> for the on-screen matrix.</para>
+/// <para><b>Load order inside <see cref="OnLoadAsync"/>:</b> register the custom family first (async I/O to VFS TTFs), then fire-and-forget baked page loads, then spawn scene JSON and build the UI document.</para>
+/// <para><b>Do not await <see cref="ModLoadContext.LoadBakedMsdfAtlasAsync"/> here</b> — completion requires the render loop to drain uploads while <see cref="ModLoader"/> still blocks on this method.</para>
 /// </remarks>
-public sealed class Mod : IMod
+public sealed partial class Mod : IMod
 {
+    /// <summary>VFS path to the root-world scene document.</summary>
+    public const string ScenePath = "Scenes/demo_fonttest.json";
+
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
         await RegisterJostFamilyAsync(context).ConfigureAwait(false);
-        // Do not await LoadBakedMsdfAtlasAsync: completion is tied to render-thread DrainPendingUploads, while
-        // ModLoader.LoadAll blocks on OnLoadAsync until the first frame — awaiting would deadlock startup.
         KickoffAtlasLoadsFireAndForget(context);
-        await SceneSetup.SetupSceneAsync(context).ConfigureAwait(false);
+        await SetupSceneAsync(context).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public void OnUnload()
     {
+    }
+
+    private static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (context.Scenes is null)
+            throw new InvalidOperationException("Runtime scenes are required to bootstrap FontTest from JSON.");
+
+        SceneComponentDeserializers.Register(context.Scenes);
+
+        var result = await context.Scenes.SpawnIntoWorldAsync(
+            context.World,
+            ScenePath,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        if (!result.Succeeded)
+            throw new InvalidOperationException(result.ErrorMessage ?? "FontTest scene spawn failed.");
+
+        BuildFontTestUiDocument(context);
     }
 
     private static async Task RegisterJostFamilyAsync(ModLoadContext context)

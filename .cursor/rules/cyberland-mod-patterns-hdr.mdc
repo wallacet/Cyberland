@@ -19,6 +19,7 @@ Ship mods so they read like the repo’s best samples: **cold start** via a **pr
 - Inside the helper: register deserializers, then **`await context.Scenes.SpawnIntoWorldAsync(context.World, "Content/Scenes/….json", cancellationToken: cancellationToken)`** into the **root** world. **`throw`** on failure; require **`context.Scenes`** and any host services the deserializers need (e.g. **`Renderer`** for texture ids).
 - Use **`logicalId`** + **`parentLogicalId`** on transforms when hierarchies must be wired at spawn time.
 - Keep **`async`** / **`cancellationToken`** even when the body is mostly registration + one spawn call—additive **`BeginLoad`** + **`PumpAsync`** paths may grow later.
+- After spawn, **do not** wire entities with **`LogicalActorLookup.Resolve`** and hardcoded GUID strings in mod code — use **scene tags** + **`RequireSingleEntityWith<T>`** (see **cyberland-demo-mod-authoring** § *Wiring spawned entities*).
 
 **Additive worlds (optional):**
 

@@ -70,6 +70,22 @@ Keep **`OnLoadAsync`** body comments for **registration order** where dependenci
 - Document in **`Mod` remarks**: which JSON file is the root world, which tags **`QuerySpec`** / singleton systems use, and what still runs in code (e.g. player spawn position, dynamic HUD text).
 - **Do not** add a separate public static **`SceneSetup`** type for new demos—cold start belongs on **`Mod`** plus JSON/deserializers.
 
+## Wiring spawned entities (tags, not GUID glue)
+
+**Do not** mirror scene **`logicalId`** strings in mod C# (no `LogicalActorLookup.Resolve(world, "aaaaaaaa-…")` lists, no `SceneRefs` built from hardcoded GUIDs, no `ResolveVisuals` tables keyed by hex ids).
+
+**Do** link gameplay to scene rows like **HDR** and **Snake**:
+
+1. **Tag (or role) components** in JSON — e.g. `cyberland.demo.<slug>/ball-sprite-tag`, `session-tag`, `hud-fps-tag`. Register them in **`*SceneComponentDeserializers.cs`** (empty marker or small data such as grid **`x`/`y`** or **`index`**).
+2. **Resolve once** after spawn with **`world.RequireSingleEntityWith<TTag>("human label")`** (or a **single** indexed query when many rows share a type — e.g. build **`ArenaBrickGrid`** by scanning **`Cell`** components, not 50 GUIDs).
+3. Prefer resolving in **`OnSingletonStart`** on the system that owns the row, or in a tiny **`Wire*`** helper that only uses **`RequireSingleEntityWith`** / **`QueryChunks`** — not in **`Mod`** constructor arguments passed into every system.
+
+**`logicalId` in JSON** is still allowed for **scene-internal** references (`parentLogicalId`, `targetLogicalId` on camera-follow, tooling, additive reload). Mod code must not duplicate those strings.
+
+**Retained UI** (`UiDocuments.Register`): resolve the **`ui-document-root`** entity via **`RequireSingleEntityWith<HudRootTag>`**, then build the document in **`Mod.UiDocument.cs`** (or equivalent partial).
+
+**Procedural post-spawn** (RTS checkerboard texture, sprite **`ref`** writes) stays in a **`Wire*`** / **`Mod.*.cs`** partial that uses **tags only** for entity lookup.
+
 ## MSDF / font bootstrap (deadlock hazard)
 
 - **`ModLoader`** blocks until **`IMod.OnLoadAsync`** completes; **`LoadBakedMsdfAtlasAsync`** completion is tied to the render loop draining uploads. **Awaiting** that task from **`OnLoadAsync`** can **deadlock** startup (no frame → no drain → no completion). **FontTest** documents fire-and-forget async; **WhackAMole** / **IdleGold** use **synchronous** **`LoadBakedMsdfAtlas`** (or sync loop) when first-frame glyphs must exist.

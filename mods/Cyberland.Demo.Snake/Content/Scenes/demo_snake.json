@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "entities": [
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111101",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 640, "localY": 360 } },
+        { "type": "cyberland.engine/camera2d", "data": { "viewportWidth": 1280, "viewportHeight": 720 } }
+      ]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111102",
+      "components": [{ "type": "cyberland.demo.snake/control", "data": {} }]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111103",
+      "components": [{ "type": "cyberland.demo.snake/session", "data": {} }]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111104",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": {} },
+        { "type": "cyberland.demo.snake/tilemap", "data": {} }
+      ]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111105",
+      "components": [{ "type": "cyberland.demo.snake/visual-bundle", "data": {} }]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111120",
+      "components": [
+        { "type": "cyberland.engine/ambient-light", "data": { "color": { "x": 0.22, "y": 0.26, "z": 0.32 }, "intensity": 0.13 } }
+      ]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111121",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": {} },
+        { "type": "cyberland.engine/directional-light", "data": { "color": { "x": 0.52, "y": 0.5, "z": 0.46 }, "intensity": 0.2 } }
+      ]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111122",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": {} },
+        { "type": "cyberland.engine/spot-light", "data": { "radius": 500, "innerConeRadians": 0.785398163, "outerConeRadians": 1.46109786, "color": { "x": 0.35, "y": 0.72, "z": 1 }, "intensity": 0.36 } }
+      ]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111123",
+      "components": [
+        { "type": "cyberland.demo.snake/head-follow-point-tag", "data": {} },
+        { "type": "cyberland.engine/transform", "data": {} },
+        { "type": "cyberland.engine/point-light", "data": { "radius": 260, "color": { "x": 0.35, "y": 1, "z": 0.55 }, "intensity": 0.52 } }
+      ]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111124",
+      "components": [
+        { "type": "cyberland.demo.snake/food-follow-point-tag", "data": {} },
+        { "type": "cyberland.engine/transform", "data": {} },
+        { "type": "cyberland.engine/point-light", "data": { "radius": 220, "color": { "x": 1, "y": 0.45, "z": 0.28 }, "intensity": 0.44, "falloffExponent": 2.2 } }
+      ]
+    },
+    {
+      "logicalId": "b1111111-1111-1111-1111-111111111125",
+      "components": [
+        {
+          "type": "cyberland.engine/global-post-process",
+          "data": {
+            "priority": 100,
+            "bloomRadius": 1.1,
+            "bloomGain": 0.26,
+            "bloomExtractThreshold": 0.32,
+            "emissiveToHdrGain": 0.48,
+            "emissiveToBloomGain": 0.45,
+            "saturation": 1.08
+          }
+        }
+      ]
+    }
+  ]
+}

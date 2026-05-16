@@ -1,10 +1,10 @@
 using Cyberland.Demo.IdleGold.Components;
-using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
@@ -16,96 +16,48 @@ using System.Diagnostics;
 
 namespace Cyberland.Demo.IdleGold;
 
-/// <summary>Cold-start camera, session economy row, retained HUD shell (tabs, lists, log), optional FPS row, and global post tuning.</summary>
+/// <summary>Retained HUD shell for Idle Gold; camera, session tag, and post live in <c>Scenes/demo_idlegold.json</c>.</summary>
 /// <remarks>
-/// <para><b>Virtual canvas:</b> 1280×720 <see cref="Camera2D"/> for consistent layout math.</para>
-/// <para><b>Session row:</b> <see cref="SessionTag"/> + wallet/sources/stats/equipment components mutated by <see cref="Systems.SimulationSystem"/> and UI commands.</para>
-/// <para><b>Retained UI:</b> builds panels and wires <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommands"/> enqueue from buttons in <see cref="WirePurchases"/>; <see cref="Mod.OnLoadAsync"/> assigns <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommandDispatcher"/> to <see cref="UiCommandHandler.Dispatch"/>.</para>
-/// <para>Returns <see cref="SceneBootstrap"/> so <see cref="Mod"/> can pass <see cref="EntityId"/> and <see cref="DocumentRefs"/> into systems without ad-hoc world scans.</para>
+/// <para><b>Session row:</b> economy components are wired in <see cref="Mod"/> after JSON spawn; <see cref="Systems.SimulationSystem"/> mutates them each frame.</para>
+/// <para><b>Retained UI:</b> builds panels and wires <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommands"/> from <see cref="WirePurchases"/>.</para>
 /// </remarks>
-public static class SceneSetup
+public sealed partial class Mod
 {
     public const string NavGather = "gather";
     public const string NavCharacter = "character";
     public const string NavBlacksmith = "blacksmith";
     public const string NavLog = "log";
 
-    /// <summary>Builds scene entities and UI; registers the document on <see cref="Hosting.GameHostServices.UiDocuments"/>.</summary>
-    public static async ValueTask<SceneBootstrap> SetupSceneAsync(ModLoadContext context,
-        CancellationToken cancellationToken = default)
+    /// <summary>Builds retained UI and registers it on the JSON-spawned hud root entity.</summary>
+    internal static SceneBootstrap BuildRetainedUi(ModLoadContext context, EntityId sessionEntity)
     {
-        _ = cancellationToken;
         var renderer = context.Host.Renderer;
         var world = context.World;
         var host = context.Host;
         var loc = context.LocalizedContent.Strings;
-
-        SpawnCamera(world);
-
-        var session = SpawnSession(world, loc);
+        var hudRoot = world.RequireSingleEntityWith<IdleGoldHudRootTag>("IdleGold HUD root");
 
         var (gatherPanel, sourceCards) = BuildGatherTab(renderer, loc);
         var (characterPanel, statRows) = BuildCharacterTab(loc);
         var (blacksmithPanel, equipCells) = BuildBlacksmithTab(renderer, loc);
         var (logPanel, logScroll, logBody) = BuildLogTab();
 
-        var refs = BuildChromeAndShell(world, host, loc, gatherPanel, characterPanel, blacksmithPanel, logPanel,
+        var refs = BuildChromeAndShell(world, host, loc, hudRoot, gatherPanel, characterPanel, blacksmithPanel, logPanel,
             sourceCards, statRows, equipCells, logScroll, logBody);
 
         WireTabs(refs);
         WirePurchases(host, refs);
-
-        ApplyGlobalPost(world);
         SpawnFpsHud(world, refs);
 
-        await Task.CompletedTask.ConfigureAwait(false);
-        return new SceneBootstrap(refs, session);
-    }
-
-    private static void SpawnCamera(World world)
-    {
-        var cameraEntity = world.CreateEntity();
-        var xf = Transform.Identity;
-        xf.WorldPosition = new Vector2D<float>(640f, 360f);
-        world.GetOrAdd<Transform>(cameraEntity) = xf;
-        world.GetOrAdd<Camera2D>(cameraEntity) = Camera2D.Create(new Vector2D<int>(1280, 720));
-    }
-
-    private static EntityId SpawnSession(World world, LocalizationManager loc)
-    {
-        var e = world.CreateEntity();
-        world.GetOrAdd<SessionTag>(e);
-        world.GetOrAdd<Wallet>(e) = new Wallet();
-        world.GetOrAdd<Sources>(e) = new Sources
-        {
-            VillageBeg = new SourceRow { Unlocked = true, Level = 1 },
-            ForestForage = default,
-            CaveExplore = default,
-            RoadToll = default
-        };
-        world.GetOrAdd<Stats>(e) = new Stats();
-        world.GetOrAdd<Equipment>(e) = new Equipment();
-        world.GetOrAdd<RngState>(e) = new RngState { State = 0xC0FFEE_DEAD_BEEFL };
-        world.GetOrAdd<EventLog>(e) = new EventLog { Lines = new List<string>() };
-
-        LogBook.Append(world, e, loc.Get("idlegold.log.welcome"));
-        return e;
+        return new SceneBootstrap(refs, sessionEntity);
     }
 
     private static DocumentRefs BuildChromeAndShell(World world, GameHostServices host, LocalizationManager loc,
+        EntityId rootEntity,
         UiPanel gatherPanel, UiPanel characterPanel, UiPanel blacksmithPanel, UiPanel logPanel,
         SourceCardRefs[] sourceCards, StatRowRefs[] statRows, EquipCellRefs[] equipCells,
         UiScrollView logScroll, UiTextBlock logBody)
     {
-        var rootEntity = world.CreateEntity();
-        world.GetOrAdd<UiDocumentRoot>(rootEntity) = new UiDocumentRoot
-        {
-            Visible = true,
-            CoordinateSpace = CoordinateSpace.PresentationViewportSpace,
-            RootPreset = UiDocumentRootPreset.FullViewport,
-            SortKeyBase = 860f
-        };
-
         var doc = new UiDocument();
         var rootStack = new UiVerticalStack { Spacing = 4f, Margin = new UiThickness(14f, 14f, 14f, 14f) };
         UiLayoutPresets.StretchAll(rootStack);
@@ -567,22 +519,4 @@ public static class SceneSetup
         return new TextButtonPair(btn, lab);
     }
 
-    private static void ApplyGlobalPost(World world)
-    {
-        var e = world.CreateEntity();
-        world.GetOrAdd<GlobalPostProcessSource>(e) = new GlobalPostProcessSource
-        {
-            Active = true,
-            Priority = 100,
-            Settings = new GlobalPostProcessSettings
-            {
-                BloomEnabled = false,
-                Exposure = 1f,
-                Saturation = 1f,
-                TonemapEnabled = false,
-                EmissiveToHdrGain = 0.42f,
-                EmissiveToBloomGain = 0.38f
-            }
-        };
-    }
 }

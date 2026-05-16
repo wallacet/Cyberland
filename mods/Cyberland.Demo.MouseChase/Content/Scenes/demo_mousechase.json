@@ -1,0 +1,387 @@
+{
+    "schemaVersion":  1,
+    "entities":  [
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000101",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  640,
+                                                             "localY":  360
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/camera2d",
+                                                "data":  {
+                                                             "matchPresentationViewport":  true,
+                                                             "viewportWidth":  1280,
+                                                             "viewportHeight":  720
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/camera-follow-2d",
+                                                "data":  {
+                                                             "offsetWorld":  {
+                                                                                 "y":  0,
+                                                                                 "x":  120
+                                                                             },
+                                                             "targetLogicalId":  "f3333333-3333-3333-3333-000000000104",
+                                                             "boundsMaxWorld":  {
+                                                                                    "y":  590,
+                                                                                    "x":  1150
+                                                                                },
+                                                             "clampToBounds":  true,
+                                                             "boundsMinWorld":  {
+                                                                                    "y":  130,
+                                                                                    "x":  130
+                                                                                },
+                                                             "followLerp":  0.2
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000102",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/game-state",
+                                                "data":  {
+
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000103",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/control-state",
+                                                "data":  {
+
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000104",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/player-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  260,
+                                                             "localY":  360
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "colorMultiply":  {
+                                                                                   "y":  0.95,
+                                                                                   "w":  1,
+                                                                                   "z":  1,
+                                                                                   "x":  0.2
+                                                                               },
+                                                             "halfExtents":  {
+                                                                                 "y":  22,
+                                                                                 "x":  22
+                                                                             }
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/trigger",
+                                                "data":  {
+                                                             "shape":  "Circle",
+                                                             "radius":  24
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000105",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/collectible-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  920,
+                                                             "localY":  300
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "colorMultiply":  {
+                                                                                   "y":  0.7,
+                                                                                   "w":  1,
+                                                                                   "z":  0.2,
+                                                                                   "x":  1
+                                                                               },
+                                                             "halfExtents":  {
+                                                                                 "y":  16,
+                                                                                 "x":  16
+                                                                             }
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite-localized-asset",
+                                                "data":  {
+                                                             "canonicalAlbedoPath":  "Textures/Pickups/shard.png"
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/trigger",
+                                                "data":  {
+                                                             "shape":  "Circle",
+                                                             "radius":  20
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000106",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/enter-zone-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  450,
+                                                             "localY":  480
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "colorMultiply":  {
+                                                                                   "y":  0.8,
+                                                                                   "w":  0.4,
+                                                                                   "z":  0.25,
+                                                                                   "x":  0.2
+                                                                               },
+                                                             "transparent":  true,
+                                                             "halfExtents":  {
+                                                                                 "y":  42,
+                                                                                 "x":  120
+                                                                             }
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/trigger",
+                                                "data":  {
+                                                             "shape":  "Rectangle",
+                                                             "halfExtents":  {
+                                                                                 "y":  42,
+                                                                                 "x":  120
+                                                                             }
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000107",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/stay-zone-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  760,
+                                                             "localY":  430
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "colorMultiply":  {
+                                                                                   "y":  0.45,
+                                                                                   "w":  0.4,
+                                                                                   "z":  1,
+                                                                                   "x":  0.15
+                                                                               },
+                                                             "transparent":  true,
+                                                             "halfExtents":  {
+                                                                                 "y":  55,
+                                                                                 "x":  100
+                                                                             }
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/trigger",
+                                                "data":  {
+                                                             "shape":  "Rectangle",
+                                                             "halfExtents":  {
+                                                                                 "y":  55,
+                                                                                 "x":  100
+                                                                             }
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000108",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/exit-zone-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  900,
+                                                             "localY":  190
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "colorMultiply":  {
+                                                                                   "y":  0.28,
+                                                                                   "w":  0.4,
+                                                                                   "z":  0.3,
+                                                                                   "x":  1
+                                                                               },
+                                                             "transparent":  true,
+                                                             "halfExtents":  {
+                                                                                 "y":  55,
+                                                                                 "x":  100
+                                                                             }
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/trigger",
+                                                "data":  {
+                                                             "shape":  "Rectangle",
+                                                             "halfExtents":  {
+                                                                                 "y":  55,
+                                                                                 "x":  100
+                                                                             }
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000109",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/gate-zone-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  1120,
+                                                             "localY":  520
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "colorMultiply":  {
+                                                                                   "y":  0.98,
+                                                                                   "w":  0.4,
+                                                                                   "z":  0.15,
+                                                                                   "x":  1
+                                                                               },
+                                                             "transparent":  true,
+                                                             "halfExtents":  {
+                                                                                 "y":  85,
+                                                                                 "x":  75
+                                                                             }
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/trigger",
+                                                "data":  {
+                                                             "shape":  "Rectangle",
+                                                             "halfExtents":  {
+                                                                                 "y":  85,
+                                                                                 "x":  75
+                                                                             }
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000110",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.engine/ambient-light",
+                                                "data":  {
+                                                             "intensity":  0.75,
+                                                             "color":  {
+                                                                           "y":  0.55,
+                                                                           "z":  0.65,
+                                                                           "x":  0.5
+                                                                       }
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000111",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  480,
+                                                             "localY":  500
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/point-light",
+                                                "data":  {
+                                                             "radius":  1100,
+                                                             "color":  {
+                                                                           "y":  0.93,
+                                                                           "z":  0.78,
+                                                                           "x":  1
+                                                                       },
+                                                             "intensity":  0.55,
+                                                             "falloffExponent":  2.2
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f3333333-3333-3333-3333-000000000120",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.mousechase/hud-root-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/ui-document-root",
+                                                "data":  {
+                                                             "sortKeyBase":  800
+                                                         }
+                                            }
+                                        ]
+                     }
+                 ]
+}

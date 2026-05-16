@@ -1,0 +1,42 @@
+{
+    "schemaVersion":  1,
+    "entities":  [
+                     {
+                         "logicalId":  "f5555555-5555-5555-5555-000000000101",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  640,
+                                                             "localY":  360
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/camera2d",
+                                                "data":  {
+                                                             "matchPresentationViewport":  true,
+                                                             "viewportWidth":  1280,
+                                                             "viewportHeight":  720
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f5555555-5555-5555-5555-000000000102",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.fonttest/ui-root-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/ui-document-root",
+                                                "data":  {
+                                                             "sortKeyBase":  860
+                                                         }
+                                            }
+                                        ]
+                     }
+                 ]
+}
