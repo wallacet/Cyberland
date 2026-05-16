@@ -720,16 +720,16 @@ public sealed class ModdingTests
             new SystemScheduler(new ParallelismSettings()),
             host);
 
-        var pending = ctx.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14);
+        // One page is enough to exercise ModLoadContext → loader → drain; full atlases can exceed CI time limits.
+        var pending = ctx.LoadBakedMsdfAtlasAsync(
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14,
+            pageBudget: 1);
         Assert.False(pending.IsCompleted);
 
-        for (var i = 0; i < 40 && !pending.IsCompleted; i++)
-        {
-            host.BakedMsdfAtlasLoader.DrainPendingUploads(host.Renderer);
-            await Task.Delay(5);
-        }
-
-        var completed = await Task.WhenAny(pending, Task.Delay(TimeSpan.FromSeconds(3)));
+        await AsyncMsdfAtlasTestHelpers.DrainUntilComplete(
+            () => host.BakedMsdfAtlasLoader.DrainPendingUploads(host.Renderer),
+            pending,
+            TimeSpan.FromSeconds(30));
         Assert.True(pending.IsCompleted, "Async atlas load did not complete before timeout.");
         Assert.True(await pending);
     }

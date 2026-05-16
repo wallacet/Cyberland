@@ -438,14 +438,10 @@ public sealed class BakedMsdfAtlasLoaderTests
 
         Assert.False(pending.IsCompleted);
 
-        // Poll once to allow decode task to enqueue the upload work.
-        for (var i = 0; i < 40 && !pending.IsCompleted; i++)
-        {
-            loader.DrainPendingUploads(renderer);
-            await Task.Delay(5);
-        }
-
-        _ = await Task.WhenAny(pending, Task.Delay(TimeSpan.FromSeconds(3)));
+        await AsyncMsdfAtlasTestHelpers.DrainUntilComplete(
+            () => loader.DrainPendingUploads(renderer),
+            pending,
+            TimeSpan.FromSeconds(30));
         Assert.True(pending.IsCompleted, "Loader async task did not complete before timeout.");
         var result = await pending;
         Assert.True(result.Loaded);

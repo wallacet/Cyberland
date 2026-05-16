@@ -223,11 +223,12 @@ public sealed class ModLoadContext
     /// </remarks>
     public async Task<bool> LoadBakedMsdfAtlasAsync(
         string manifestPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int pageBudget = int.MaxValue)
     {
         var assets = new AssetManager(VirtualFileSystem);
         var result = await Host.BakedMsdfAtlasLoader
-            .LoadFromPathAsync(assets, Host.TextGlyphCache, manifestPath, cancellationToken)
+            .LoadFromPathAsync(assets, Host.TextGlyphCache, manifestPath, cancellationToken, pageBudget)
             .ConfigureAwait(false);
         if (!result.Loaded)
         {
