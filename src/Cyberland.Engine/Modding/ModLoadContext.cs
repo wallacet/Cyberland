@@ -5,6 +5,7 @@ using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.RuntimeScenes;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -67,6 +68,11 @@ public sealed class ModLoadContext
 
     /// <summary>Renderer, input, optional tilemap/particle stores — assigned by the host before <see cref="IMod.OnLoadAsync"/>.</summary>
     public GameHostServices Host { get; }
+
+    /// <summary>
+    /// Optional runtime scene stack (additive worlds). Null until the host calls <see cref="GameHostServices.InitializeRuntimeScenes"/>.
+    /// </summary>
+    public ISceneRuntime? Scenes => Host.Scenes;
 
     /// <summary>Mounts <see cref="ModManifest.ContentRoot"/> under this mod's folder.</summary>
     /// <remarks>

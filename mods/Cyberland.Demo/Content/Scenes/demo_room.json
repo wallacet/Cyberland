@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "entities": [
+    {
+      "logicalId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "components": [
+        {
+          "type": "cyberland.engine/transform",
+          "data": { "localX": 100, "localY": 200 }
+        }
+      ]
+    }
+  ]
+}

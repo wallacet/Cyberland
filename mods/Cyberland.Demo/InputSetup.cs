@@ -8,7 +8,7 @@ namespace Cyberland.Demo;
 /// Central place for default keyboard actions used by <see cref="InputSystem"/>. Keeping bindings here (instead of scattering
 /// magic strings) matches how larger mods isolate control schemes before layering rebinding UI.
 /// </summary>
-public static class DemoInputSetup
+public static class InputSetup
 {
     /// <summary>
     /// Seeds <c>cyberland.demo/*</c> actions next to the host’s baseline table. User overrides in <c>input-bindings.json</c> replace

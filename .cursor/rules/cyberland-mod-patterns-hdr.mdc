@@ -6,20 +6,29 @@ alwaysApply: false
 
 # Cyberland — Mod patterns (HDR demo baseline)
 
-Ship mods so they read like the repo’s best samples: **cold start** in **`SceneSetup.SetupSceneAsync`**, then query-driven updates, real parallelism only, and clear folder boundaries.
+Ship mods so they read like the repo’s best samples: **cold start** via a **private `SetupSceneAsync` on `Mod`** + **scene JSON**, then query-driven updates, real parallelism only, and clear folder boundaries.
 
 ## Scene setup (cold start)
 
 **Standard (preferred for new and migrated mods):**
 
-- Add a **static** helper beside **`Mod.cs`** (same pattern as **`InputSetup`**) — commonly named **`SceneSetup`** — with **`public static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)`**.
-- **Await it from `OnLoadAsync`** *before* **`context.RegisterSerial` / `RegisterParallel` / `RegisterSingleton`**, so entities exist before any **`OnStart`** runs.
-- Put **all** one-off authoring here: camera, session/control markers, playfield, HUD rows, lights, **`GlobalPostProcessSource`**, tagged singleton rows runtime systems will resolve via **`QuerySpec`**. Use **`context.World`** and **`context.Host`**; **`throw`** if **`Renderer`** (or another required host service) is missing.
-- Keep the method **`async`** even when today’s body is mostly synchronous: reserve **`await`** for loading scene definitions from disk (**`VirtualFileSystem`** / **`File.ReadAllTextAsync`**, etc.), **`MergeStringTableAsync`**, or other I/O you add later. Respect **`cancellationToken`** at boundaries.
+- Author entities in **`Content/Scenes/<name>.json`** (see **`RuntimeScenes/Serialization/SceneDocument`** and engine builtins such as **`cyberland.engine/transform`**).
+- Register mod-specific component types from **`OnLoadAsync`** (or from the private setup helper) via **`context.Scenes.RegisterComponentDeserializer`** — see **`mods/Cyberland.Demo/DemoSceneComponentDeserializers.cs`**.
+- Add a **private** **`async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)`** on **`Mod`** (same placement as other bootstrap helpers, not a separate public **`SceneSetup`** type).
+- **Await it from `OnLoadAsync`** *before* **`context.RegisterSerial` / `RegisterParallel` / `RegisterSingleton`**, so entities exist before any **`OnStart`** / **`OnSingletonStart`** runs.
+- Inside the helper: register deserializers, then **`await context.Scenes.SpawnIntoWorldAsync(context.World, "Content/Scenes/….json", cancellationToken: cancellationToken)`** into the **root** world. **`throw`** on failure; require **`context.Scenes`** and any host services the deserializers need (e.g. **`Renderer`** for texture ids).
+- Use **`logicalId`** + **`parentLogicalId`** on transforms when hierarchies must be wired at spawn time.
+- Keep **`async`** / **`cancellationToken`** even when the body is mostly registration + one spawn call—additive **`BeginLoad`** + **`PumpAsync`** paths may grow later.
+
+**Additive worlds (optional):**
+
+- **`ISceneRuntime.BeginLoad`** allocates extra **`World` + `SystemScheduler`** pairs; the **host** pumps **`PumpAsync`** on the render tick. Kick off loads from **`OnLoadAsync`** without awaiting long GPU work (same deadlock rules as MSDF async load).
 
 **Legacy (avoid for new work):**
 
-- A spawn-only **`ISystem`** with **`OnStart`** and no phase hooks—migrate to **`SceneSetup.SetupSceneAsync`** so the scheduler lists **runtime** systems only.
+- A separate **static `SceneSetup`** class beside **`Mod.cs`** — fold cold start into **`Mod`** + JSON instead.
+- A spawn-only **`ISystem`** with **`OnStart`** and no phase hooks—migrate so the scheduler lists **runtime** systems only.
+- Large C# spawn tables when the same data can live in scene JSON + deserializers.
 
 **Always:**
 
@@ -57,7 +66,8 @@ Use **`context.RegisterSingleton`** with **`ISingletonSystem`** when **exactly o
 
 - **`Components/`** — `struct` **`IComponent`** types, tag markers, mod-local tuning/constants structs.
 - **`Systems/`** — **`ISystem`**, **`IParallelSystem`**, and **`ISingletonSystem`** implementations only (plus nested private helpers if kept tiny).
-- **`Mod.cs`** at mod root; optional **`InputSetup`** / **`SceneSetup`**-style helpers beside **`IMod`** when bindings and cold-start authoring stay centralized.
+- **`Content/Scenes/`** — versioned scene JSON for root spawn and/or additive loads.
+- **`Mod.cs`** at mod root with **private** cold-start helper + **`OnLoadAsync`**; optional **`*InputSetup.cs`** / **`*SceneComponentDeserializers.cs`** beside **`IMod`** when bindings or JSON types stay centralized.
 
 ## Comments and formatting
 
@@ -67,7 +77,7 @@ Use **`context.RegisterSingleton`** with **`ISingletonSystem`** when **exactly o
 
 ## Related rules
 
-- **`cyberland-demo-mod-authoring`** — tutorial README + **`Mod`** / **`SceneSetup`** contract for shipped **`mods/Cyberland.Demo*`** samples.
+- **`cyberland-demo-mod-authoring`** — tutorial README + **`Mod`** / scene JSON contract for shipped **`mods/Cyberland.Demo*`** samples.
 - **`cyberland-mod-system-lifecycle`** — phase boundaries, ownership (cold start vs per-frame).
 - **`cyberland-ecs-world-access`** — `World` vs chunk queries vs **`SingletonEntity`**.
 - **`cyberland-design-goals`** — parallelism and thread-safety expectations.

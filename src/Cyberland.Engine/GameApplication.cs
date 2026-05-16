@@ -17,6 +17,7 @@ using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.RuntimeScenes;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.UI.Core;
 using Silk.NET.Input;
@@ -155,6 +156,7 @@ public sealed class GameApplication : IDisposable
         UiLayoutGating.ApplyEnvironmentDefaults();
         _scheduler = new SystemScheduler(_parallelism);
         _host = new GameHostServices();
+        _host.InitializeRuntimeScenes(_vfs, _parallelism, () => _localizedContent, _world, _scheduler);
     }
 
     /// <summary>
@@ -495,7 +497,21 @@ public sealed class GameApplication : IDisposable
 #endif
             // Publish fixed-step remainder before ILateUpdate so visual extrapolation (e.g. pos + vel * acc) uses this frame's alpha.
             if (_bootPhase == GameBootPhase.FullGame)
+            {
+                _host.SessionClock.Advance(dt);
+                _host.RuntimeScenes?.PumpAllAdditiveScenes(new SceneLoadPumpOptions { MaxElapsed = TimeSpan.FromMilliseconds(4) });
+                if (_host.RuntimeScenes is not null)
+                {
+                    foreach (var scene in _host.RuntimeScenes.GetAdditiveScenesForTick())
+                    {
+                        if (scene.State != SceneRuntimeState.Ready && scene.State != SceneRuntimeState.Loading)
+                            continue;
+                        scene.Scheduler.RunFrame(scene.World, dt, _ => { });
+                    }
+                }
+
                 _scheduler.RunFrame(_world, dt, acc => _host.FixedAccumulatorSeconds = acc);
+            }
         }
 
         _host.FixedDeltaSeconds = _scheduler.FixedDeltaSeconds;

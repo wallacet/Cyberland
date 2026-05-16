@@ -13,10 +13,10 @@ namespace Cyberland.Engine.Modding;
 /// <see cref="ModLoader.LoadAll"/> (see that method’s remarks). Use fire-and-forget, the synchronous <see cref="ModLoadContext.LoadBakedMsdfAtlas"/>, or defer to post-startup code.
 /// </para>
 /// <para>
-/// <strong>Cold-start scene convention:</strong> put one-off entity authoring (camera, playfield, HUD, lights, global post) in a static helper
-/// (e.g. <c>SceneSetup.SetupSceneAsync</c>) and await it from <see cref="OnLoadAsync"/> before
-/// <see cref="ModLoadContext.RegisterSerial"/> / <see cref="ModLoadContext.RegisterParallel"/> / <see cref="ModLoadContext.RegisterSingleton"/>.
-/// Project docs describe this pattern under mod authoring rules.
+/// <strong>Cold-start scene convention:</strong> author layout in <c>Content/Scenes/*.json</c>, register component deserializers, and await a private
+/// setup helper on <see cref="IMod"/> (e.g. <c>SetupSceneAsync</c>) that calls <see cref="RuntimeScenes.ISceneRuntime.SpawnIntoWorldAsync"/>
+/// on <see cref="ModLoadContext.World"/> before <see cref="ModLoadContext.RegisterSerial"/> / <see cref="ModLoadContext.RegisterParallel"/> /
+/// <see cref="ModLoadContext.RegisterSingleton"/>. See mod authoring rules and <c>mods/Cyberland.Demo</c>.
 /// </para>
 /// </remarks>
 /// <example>

@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "entities": [
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111101",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 640, "localY": 360 } },
+        { "type": "cyberland.engine/camera2d", "data": { "viewportWidth": 1280, "viewportHeight": 720 } }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111102",
+      "components": [
+        { "type": "cyberland.demo/player-tag", "data": {} },
+        { "type": "cyberland.engine/transform", "data": {} },
+        { "type": "cyberland.demo/velocity", "data": {} },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtent": 48,
+            "layer": 100,
+            "sortKey": 2,
+            "colorMultiply": { "x": 0, "y": 0.9, "z": 0, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111103",
+      "components": [
+        { "type": "cyberland.demo/background-tag", "data": {} },
+        { "type": "cyberland.engine/transform", "data": {} },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "layer": 0,
+            "sortKey": 0,
+            "colorMultiply": { "x": 0.07, "y": 0.06, "z": 0.12, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/viewport-anchor-2d",
+          "data": {
+            "contentSpace": "WorldSpace",
+            "anchor": "Center",
+            "syncSpriteHalfExtentsToViewport": true
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111104",
+      "components": [
+        { "type": "cyberland.demo/neon-strip-tag", "data": {} },
+        { "type": "cyberland.engine/transform", "data": {} },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 36, "y": 140 },
+            "layer": 100,
+            "sortKey": 1,
+            "colorMultiply": { "x": 0.15, "y": 0.95, "z": 0.85, "w": 1 },
+            "emissiveTint": { "x": 0.35, "y": 1, "z": 0.9 },
+            "emissiveIntensity": 2.4
+          }
+        },
+        {
+          "type": "cyberland.engine/viewport-anchor-2d",
+          "data": {
+            "contentSpace": "WorldSpace",
+            "anchor": "LeftCenter",
+            "offsetX": 110
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111105",
+      "components": [
+        { "type": "cyberland.demo/hud-title-tag", "data": {} },
+        { "type": "cyberland.engine/transform", "data": {} },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "isLocalizationKey": true,
+            "content": "demo.hdr.title",
+            "fontFamily": "cyberland.engine/ui",
+            "sizePixels": 22,
+            "color": { "x": 0.85, "y": 0.95, "z": 1, "w": 1 },
+            "bold": true,
+            "sortKey": 450,
+            "coordinateSpace": "PresentationViewportSpace"
+          }
+        },
+        {
+          "type": "cyberland.engine/viewport-anchor-2d",
+          "data": {
+            "contentSpace": "ViewportSpace",
+            "anchor": "BottomLeft",
+            "offsetX": 24,
+            "offsetY": 36
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111106",
+      "components": [
+        { "type": "cyberland.demo/hud-hint-tag", "data": {} },
+        { "type": "cyberland.engine/transform", "data": {} },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "isLocalizationKey": true,
+            "content": "demo.hdr.hint",
+            "fontFamily": "cyberland.engine/ui",
+            "sizePixels": 15,
+            "color": { "x": 0.55, "y": 0.65, "z": 0.75, "w": 0.9 },
+            "italic": true,
+            "sortKey": 451,
+            "coordinateSpace": "PresentationViewportSpace"
+          }
+        },
+        {
+          "type": "cyberland.engine/viewport-anchor-2d",
+          "data": {
+            "contentSpace": "ViewportSpace",
+            "anchor": "TopLeft",
+            "offsetX": 24,
+            "offsetY": 48
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111107",
+      "components": [
+        { "type": "cyberland.demo/hud-fps-tag", "data": {} },
+        { "type": "cyberland.engine/transform", "data": {} },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "FPS —",
+            "fontFamily": "cyberland.engine/mono",
+            "sizePixels": 14,
+            "color": { "x": 0.4, "y": 0.88, "z": 0.52, "w": 0.9 },
+            "sortKey": 452,
+            "coordinateSpace": "PresentationViewportSpace"
+          }
+        }
+      ]
+    },
+    {
+      "components": [
+        {
+          "type": "cyberland.engine/ambient-light",
+          "data": {
+            "color": { "x": 0.38, "y": 0.4, "z": 0.48 },
+            "intensity": 0.11
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111108",
+      "components": [
+        {
+          "type": "cyberland.engine/transform",
+          "data": { "localRotationRadians": -0.947 }
+        },
+        {
+          "type": "cyberland.engine/directional-light",
+          "data": {
+            "color": { "x": 0.5, "y": 0.48, "z": 0.44 },
+            "intensity": 0.14
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111109",
+      "components": [
+        {
+          "type": "cyberland.engine/transform",
+          "data": { "localX": 256, "localY": 417.6, "localRotationRadians": -0.14928 }
+        },
+        {
+          "type": "cyberland.engine/spot-light",
+          "data": {
+            "radius": 588.8,
+            "innerConeRadians": 0.8976,
+            "outerConeRadians": 1.463,
+            "color": { "x": 0.42, "y": 0.62, "z": 1 },
+            "intensity": 0.42
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111110",
+      "components": [
+        { "type": "cyberland.demo/hdr-warm-point-tag", "data": {} },
+        {
+          "type": "cyberland.engine/transform",
+          "data": { "localX": 972.8, "localY": 216 }
+        },
+        {
+          "type": "cyberland.engine/point-light",
+          "data": {
+            "radius": 512,
+            "color": { "x": 1, "y": 0.65, "z": 0.38 },
+            "intensity": 0.48,
+            "falloffExponent": 2.1
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111111",
+      "components": [
+        { "type": "cyberland.demo/hdr-player-point-tag", "data": {} },
+        {
+          "type": "cyberland.engine/transform",
+          "data": { "parentLogicalId": "11111111-1111-1111-1111-111111111102" }
+        },
+        {
+          "type": "cyberland.engine/point-light",
+          "data": {
+            "radius": 180,
+            "color": { "x": 0.35, "y": 0.95, "z": 0.55 },
+            "intensity": 1.2,
+            "falloffExponent": 2.25
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "11111111-1111-1111-1111-111111111112",
+      "components": [
+        { "type": "cyberland.demo/hdr-bloom-volume-tag", "data": {} },
+        {
+          "type": "cyberland.engine/transform",
+          "data": { "localX": 640, "localY": 360 }
+        },
+        {
+          "type": "cyberland.engine/post-process-volume",
+          "data": {
+            "halfExtentsX": 640,
+            "halfExtentsY": 360,
+            "priority": 1,
+            "hasBloomGain": true,
+            "bloomGain": 2.35
+          }
+        }
+      ]
+    },
+    {
+      "components": [
+        {
+          "type": "cyberland.engine/global-post-process",
+          "data": {
+            "priority": 100,
+            "bloomRadius": 1.5,
+            "bloomGain": 1.1,
+            "bloomExtractThreshold": 0.32,
+            "bloomExtractKnee": 0.5,
+            "emissiveToHdrGain": 0.45,
+            "emissiveToBloomGain": 0.6,
+            "exposure": 1,
+            "saturation": 1.05
+          }
+        }
+      ]
+    }
+  ]
+}

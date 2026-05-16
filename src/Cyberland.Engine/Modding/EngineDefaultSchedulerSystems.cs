@@ -1,3 +1,5 @@
+using Cyberland.Engine.Core.Tasks;
+using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Scene.Systems;
 
 namespace Cyberland.Engine.Modding;
@@ -22,6 +24,65 @@ namespace Cyberland.Engine.Modding;
 public static class EngineDefaultSchedulerSystems
 {
     /// <summary>
+    /// Registers stock early engine systems onto an arbitrary <see cref="SystemScheduler"/> (used for additive runtime scenes).
+    /// </summary>
+    public static void RegisterStockEarlySystems(SystemScheduler scheduler)
+    {
+        ArgumentNullException.ThrowIfNull(scheduler);
+        scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
+        scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
+        scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
+    }
+
+    /// <summary>
+    /// Registers stock late engine systems onto an arbitrary <see cref="SystemScheduler"/> (used for additive runtime scenes).
+    /// </summary>
+    public static void RegisterStockLateSystems(SystemScheduler scheduler, GameHostServices host, Action? afterEachStep = null)
+    {
+        ArgumentNullException.ThrowIfNull(scheduler);
+        ArgumentNullException.ThrowIfNull(host);
+
+        scheduler.RegisterParallel("cyberland.engine/camera-follow", new CameraFollowSystem());
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/camera-submit", new CameraSubmitSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/camera-runtime-state", new CameraRuntimeStateSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/viewport-layout", new ViewportAnchorSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/lighting-directional", new DirectionalLightSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/lighting-spot", new SpotLightSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/lighting-point", new PointLightSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/global-post-process", new GlobalPostProcessSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/post-process-volumes", new PostProcessVolumeSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/sprite-localized-assets", new SpriteLocalizedAssetSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem());
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/text-render", new TextRenderSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/ui-command-drain", new UiCommandDrainSystem(host));
+        afterEachStep?.Invoke();
+    }
+
+    /// <summary>
     /// Registers stock early engine systems that should run before gameplay mods append their own systems.
     /// </summary>
     /// <param name="context">Mod load context used to register scheduler entries.</param>
@@ -33,6 +94,7 @@ public static class EngineDefaultSchedulerSystems
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        var scheduler = context.Scheduler;
         var completed = 0;
         void ReportStep()
         {
@@ -42,11 +104,11 @@ public static class EngineDefaultSchedulerSystems
             context.ReportLoadProgress(progressPhaseKey!, completed / 3f);
         }
 
-        context.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
+        scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
         ReportStep();
-        context.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
+        scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
         ReportStep();
-        context.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
+        scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
         ReportStep();
     }
 
@@ -73,46 +135,6 @@ public static class EngineDefaultSchedulerSystems
             context.ReportLoadProgress(progressPhaseKey!, completed / total);
         }
 
-        context.RegisterParallel("cyberland.engine/camera-follow", new CameraFollowSystem());
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/trigger", new TriggerSystem());
-        ReportStep();
-        // Publish camera runtime state before viewport anchors so gameplay/layout reads deterministic ECS-owned
-        // camera data instead of renderer queue snapshots.
-        context.RegisterSerial("cyberland.engine/camera-submit", new CameraSubmitSystem(host));
-        ReportStep();
-        context.RegisterSerial("cyberland.engine/camera-runtime-state", new CameraRuntimeStateSystem(host));
-        ReportStep();
-        context.RegisterSerial("cyberland.engine/viewport-layout", new ViewportAnchorSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/lighting-directional", new DirectionalLightSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/lighting-spot", new SpotLightSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/lighting-point", new PointLightSystem(host));
-        ReportStep();
-        context.RegisterSerial("cyberland.engine/global-post-process", new GlobalPostProcessSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/post-process-volumes", new PostProcessVolumeSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/tilemap-render", new TilemapRenderSystem(host));
-        ReportStep();
-        context.RegisterSerial("cyberland.engine/sprite-localized-assets", new SpriteLocalizedAssetSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(host));
-        ReportStep();
-        context.RegisterParallel("cyberland.engine/text-staging", new TextStagingSystem());
-        ReportStep();
-        // Bitmap text build is folded into TextRenderSystem; it parallelizes per chunk/range and submits thread-safe requests.
-        context.RegisterParallel("cyberland.engine/text-render", new TextRenderSystem(host));
-        ReportStep();
-        context.RegisterSerial("cyberland.engine/ui-document-frame", new UiDocumentFrameSystem(host));
-        ReportStep();
-        context.RegisterSerial("cyberland.engine/ui-command-drain", new UiCommandDrainSystem(host));
-        ReportStep();
+        RegisterStockLateSystems(context.Scheduler, host, ReportStep);
     }
 }

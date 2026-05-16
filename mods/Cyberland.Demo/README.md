@@ -16,8 +16,8 @@ Manifests stay **`"disabled": true`** in git (pre-commit). To toggle by hand, ed
 
 ## Learning path
 
-1. **`Mod.cs`** — registration order, shader smoke-test, baked atlas kickoff.
-2. **`SceneSetup.cs`** — cold-start entities (camera, player, HUD, lights, bloom volume, global post).
+1. **`Mod.cs`** — private **`SetupSceneAsync`**, registration order, shader smoke-test, baked atlas kickoff.
+2. **`Content/Scenes/demo_hdr.json`** + **`DemoSceneComponentDeserializers.cs`** — root-world layout (camera, player, HUD, lights, bloom, global post).
 3. **`Systems/InputSystem.cs`** — parallel velocity SoA + scheduler-thread axis read between barriers.
 4. **`Systems/IntegrateSystem.cs`** — **`ISingletonSystem`** + fixed-step motion.
 5. **`Systems/VelocityDampSystem.cs`** — honest **`IParallelSystem`** over **`QueryChunks<Velocity>`**.
@@ -32,11 +32,13 @@ Manifests stay **`"disabled": true`** in git (pre-commit). To toggle by hand, ed
 
 ## Content
 
+- **`Content/Scenes/demo_hdr.json`** — root-world entity layout (schema version 1).
+- **`Content/Scenes/demo_overlay.json`**, **`demo_room.json`** — small additive-world samples (`BeginLoad` in **`Mod.cs`**).
 - **`Content/Locale/en/demo_hdr.json`** — HUD strings.
 - **`content.release.manifest.json`** — no required binary bundle for local dev beyond engine defaults.
 
 ## Further reading
 
 - **`.cursor/rules/cyberland-demo-mod-authoring.mdc`** — tutorial mod contract.
-- **`.cursor/rules/cyberland-mod-patterns-hdr.mdc`** — **`SceneSetup`** + query-first patterns.
+- **`.cursor/rules/cyberland-mod-patterns-hdr.mdc`** — scene JSON + private setup helper + query-first patterns.
 - Root **`README.md`** — host pipeline, staging, **`Run-CyberlandDemo-Test.ps1`**.

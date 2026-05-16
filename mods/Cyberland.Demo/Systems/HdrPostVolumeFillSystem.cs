@@ -12,7 +12,7 @@ namespace Cyberland.Demo;
 /// gain from how far right the player has moved—cheap HDR “feel” without scripting materials per sprite.
 /// </summary>
 /// <remarks>
-/// Volume authoring is created in <see cref="SceneSetup"/>; this system only mutates what must track resize + gameplay.
+/// Volume authoring is spawned from <c>Content/Scenes/demo_hdr.json</c>; this system only mutates what must track resize + gameplay.
 /// Registered as <see cref="ISingletonSystem"/> for the bloom volume row; the player entity is resolved once in
 /// <see cref="OnSingletonStart"/> for cross-entity reads (see **cyberland-mod-patterns-hdr**).
 /// Bloom coefficients live on <see cref="HdrDemoBloom"/> next to other HDR tuning constants.

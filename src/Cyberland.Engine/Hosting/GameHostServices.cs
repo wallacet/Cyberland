@@ -1,8 +1,12 @@
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.RuntimeScenes;
 using Cyberland.Engine.Scene;
+using Cyberland.Engine.Core.Tasks;
+using Cyberland.Engine.Core.Ecs;
 using System.Diagnostics.CodeAnalysis;
 namespace Cyberland.Engine.Hosting;
 
@@ -58,6 +62,41 @@ public sealed class GameHostServices
     /// Shared weighted startup progress tracker used by host bootstrap and mod load phases.
     /// </summary>
     public StartupProgressTracker StartupProgress { get; }
+
+    /// <summary>
+    /// Root session clock (time scale, pause). Additive scene worlds must not advance this; read <see cref="GlobalSessionClock.SessionSeconds"/>.
+    /// </summary>
+    public GlobalSessionClock SessionClock { get; } = new();
+
+    /// <summary>In-game scene load progress keyed independently from <see cref="StartupProgress"/>.</summary>
+    public InGameLoadProgressTracker InGameLoadProgress { get; } = new();
+
+    private SceneRuntime? _runtimeScenes;
+
+    /// <summary>Runtime scene stack; null until <see cref="InitializeRuntimeScenes"/> runs.</summary>
+    public SceneRuntime? RuntimeScenes => _runtimeScenes;
+
+    /// <summary>Same as <see cref="RuntimeScenes"/> as interface reference.</summary>
+    public ISceneRuntime? Scenes => _runtimeScenes;
+
+    /// <summary>
+    /// Wires the root ECS world pair and constructs additive scene services (call once during host bootstrap).
+    /// </summary>
+    public void InitializeRuntimeScenes(
+        VirtualFileSystem vfs,
+        ParallelismSettings parallelism,
+        Func<ILocalizedContent?> getLocalized,
+        World rootWorld,
+        SystemScheduler rootScheduler)
+    {
+        ArgumentNullException.ThrowIfNull(vfs);
+        ArgumentNullException.ThrowIfNull(parallelism);
+        ArgumentNullException.ThrowIfNull(getLocalized);
+        ArgumentNullException.ThrowIfNull(rootWorld);
+        ArgumentNullException.ThrowIfNull(rootScheduler);
+        _runtimeScenes = new SceneRuntime(this, vfs, parallelism, getLocalized);
+        _runtimeScenes.InitializeRoot(rootWorld, rootScheduler);
+    }
 
     /// <summary>Optional hook invoked once per dequeued command after UI input runs on the render tick.</summary>
     public Action<IUiCommand>? UiCommandDispatcher { get; set; }
