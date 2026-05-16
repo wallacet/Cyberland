@@ -1,0 +1,90 @@
+---
+description: Tutorial contract for shipped demo mods (README, Mod.cs, SceneSetup, run scripts) and checklist for new demos
+globs: "mods/Cyberland.Demo*/**/*"
+alwaysApply: false
+---
+
+# Cyberland — Demo mod authoring (tutorial samples)
+
+Shipped demos under **`mods/Cyberland.Demo*`** are **teaching mods**: they should read end-to-end like a lesson for newcomers, not only “working game code.” Engine mechanics (ECS phases, queries, host services) are documented in **cyberland-mod-host-architecture**, **cyberland-mod-patterns-hdr**, **cyberland-mod-system-lifecycle**, and **cyberland-ecs-world-access** — demos **apply** those rules; this file defines **what to ship in-repo** so agents and humans can clone one demo and learn without spelunking.
+
+## Index and run path
+
+- **Human index:** **`mods/README.md`** lists base + demo mods and links per-mod READMEs.
+- **Local run (recommended):** from repo root, `.\scripts\Run-CyberlandDemo-Test.ps1 -Demo <name>` toggles **`manifest.json`** **`disabled`**, runs **Cyberland.Host**, then restores **`disabled: true`**. Names: **`hdr`**, **`pong`**, **`snake`**, **`brick`**, **`mousechase`**, **`rts`**, **`idlegold`**, **`fonttest`**, **`whackamole`**.
+- **Git:** keep **`"disabled": true`** on shipped demo manifests in commits (pre-commit enforces this).
+
+## Suggested reading order (newcomers)
+
+1. **`mods/Cyberland.Demo`** — HDR baseline: parallel vs singleton registration, lights, post, `SceneSetup` cold start.
+2. Branch by topic:
+   - **Arcade / session row:** Pong, Snake, BrickBreaker.
+   - **Retained UI + locale:** MouseChase, WhackAMole.
+   - **Idle + UI commands + MSDF sync load:** IdleGold.
+   - **Custom fonts + atlas matrix + async pitfall:** FontTest.
+   - **RTS-style camera, selection, deferred lights:** Rts.
+
+## Checklist: new demo mod assembly
+
+1. **`mods/<Cyberland.Demo.YourName>/`** with **`.csproj`** referencing **`Cyberland.Engine`** only (no host reference).
+2. **`manifest.json`:** stable **`id`** (e.g. **`cyberland.demo.yourslug`**), **`entryAssembly`**, **`contentRoot`**, **`loadOrder`** consistent with other demos (see existing manifests), **`"disabled": true`** in git.
+3. Add the project to **`Cyberland.sln`** (same change as adding the folder).
+4. **`Mod.cs`:** `IMod` implementation at assembly root; follow **Mod.cs XML template** below.
+5. **`SceneSetup.cs`** (or equivalent name) with **`SetupSceneAsync(ModLoadContext, CancellationToken)`** — **await from `OnLoadAsync` before any `Register*`**; follow **SceneSetup file header** below.
+6. **`Components/`** and **`Systems/`** folders for ECS types; avoid one-shot-only systems (see **cyberland-ecs-one-shot**).
+7. **`*InputSetup`:** static helper beside **`Mod`** for **`AddDefaultInputBinding`** when the demo needs keys/gamepad.
+8. **System ids:** stable strings under **`cyberland.demo.<slug>/…`** (match manifest id slug).
+9. **`scripts/Run-CyberlandDemo-Test.ps1`:** add **`ValidateSet`** entry + **`switch`** path if the demo should be runnable via the standard script.
+10. **`README.md`** in the mod folder using the template below.
+
+## Per-mod `README.md` template
+
+Use these headings (order fixed) so every demo skims the same way:
+
+1. **`# Cyberland.Demo.…`** — title matches folder / project.
+2. **`## Purpose`** — one short paragraph: what the player sees and what engine idea is primary.
+3. **`## Run`** — `Run-CyberlandDemo-Test.ps1 -Demo …` and note that manifests are disabled in git; optional manual **`manifest.json`** toggle.
+4. **`## Learning path`** — ordered bullets: **`Mod.cs`** → **`SceneSetup.cs`** → 2–5 key **`Systems/…`** (and **`Components/…`** if the data model is the lesson).
+5. **`## Features taught`** — bullets mapping to APIs (`IRenderer`, `BitmapText`, `ISingletonSystem`, `IParallelSystem`, `ILocalizedContent`, `UiCommandDispatcher`, tilemap, etc.).
+6. **`## Content`** — locale JSON paths, **`Content/`** assets, optional **`content.release.manifest.json`**.
+7. **`## Further reading`** — links to **`.cursor/rules/`** (this file, **cyberland-mod-patterns-hdr**, **cyberland-mod-host-architecture**) and root **`README.md`** sections as needed.
+
+## `Mod.cs` XML template
+
+Every demo **`Mod`** type should have:
+
+- **`<summary>`** — one or two sentences: gameplay + primary engine lesson.
+- **`<remarks>`** with:
+  - **Where to read next** — point to **`SceneSetup.SetupSceneAsync`** first, then notable systems.
+  - **Frame flow (simplified)** — early → fixed → late, and which registrations matter for ordering.
+  - **Bootstrap hazards** — if any: MSDF load sync vs async (see **MSDF / font bootstrap** below), shader validation, etc.
+
+Keep **`OnLoadAsync`** body comments for **registration order** where dependencies exist between systems.
+
+## `SceneSetup` file header
+
+At the top of **`SceneSetup`** (class-level **`///`**):
+
+- **Virtual canvas** — e.g. 1280×720 and how it ties to **`Camera2D`** / **`ModLayoutViewport`**.
+- **Entities created** — grouped (camera, session, HUD, lights, playfield).
+- **Tags / singleton rows** — which systems **`QuerySpec`** against which markers.
+- Reserve **`async`** / **`cancellationToken`** for future disk I/O even if today’s body is mostly synchronous.
+
+## MSDF / font bootstrap (deadlock hazard)
+
+- **`ModLoader`** blocks until **`IMod.OnLoadAsync`** completes; **`LoadBakedMsdfAtlasAsync`** completion is tied to the render loop draining uploads. **Awaiting** that task from **`OnLoadAsync`** can **deadlock** startup (no frame → no drain → no completion). **FontTest** documents fire-and-forget async; **WhackAMole** / **IdleGold** use **synchronous** **`LoadBakedMsdfAtlas`** (or sync loop) when first-frame glyphs must exist.
+- **Pong**-style: kick off **`LoadBakedMsdfAtlasAsync`** without awaiting when first-frame fallback is acceptable per demo goals.
+
+Prefer one short **`///`** block in **`Mod.cs`** pointing here rather than duplicating long explanations in every mod.
+
+## Parallelism honesty
+
+Do **not** register **`IParallelSystem`** unless work is intentionally partitioned (e.g. **`Parallel.ForEach`** over chunks). Use **`ISystem`** + **`RegisterSerial`** or **`ISingletonSystem`** otherwise (**cyberland-mod-patterns-hdr**).
+
+## Related rules
+
+- **cyberland-mod-host-architecture** — staging, **`ModLoadContext`**, registration APIs, localization.
+- **cyberland-mod-patterns-hdr** — **`SceneSetup`**, folders, queries vs stores.
+- **cyberland-mod-system-lifecycle** — **`OnStart`** vs phase updates, no lazy init in updates.
+- **cyberland-ecs-world-access** — caching **`World`**, **`SingletonEntity`** usage.
+- **cyberland-readme-sync** — when you change demo set or architecture docs, update root **`README.md`** in the same change set.

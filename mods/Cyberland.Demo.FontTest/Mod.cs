@@ -7,6 +7,11 @@ namespace Cyberland.Demo.FontTest;
 /// <summary>
 /// Font validation demo: built-in atlases plus a custom registered family (Jost) with mod-shipped MSDF bakes.
 /// </summary>
+/// <remarks>
+/// <para><b>Where to read next:</b> <see cref="FontTestFonts"/> for VFS paths, then <see cref="SceneSetup.SetupSceneAsync"/> for the on-screen matrix.</para>
+/// <para><b>Load order inside <see cref="OnLoadAsync"/>:</b> register the custom family first (async I/O to VFS TTFs), then fire-and-forget baked page loads, then build the UI scene so styles can reference both builtin and Jost faces.</para>
+/// <para><b>Do not await <see cref="ModLoadContext.LoadBakedMsdfAtlasAsync"/> here</b> — completion requires the render loop to drain uploads while <see cref="ModLoader"/> still blocks on this method; see inline comment in <see cref="OnLoadAsync"/>.</para>
+/// </remarks>
 public sealed class Mod : IMod
 {
     /// <inheritdoc />

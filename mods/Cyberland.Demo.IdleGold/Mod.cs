@@ -7,6 +7,11 @@ namespace Cyberland.Demo.IdleGold;
 /// <summary>
 /// Idle gold UI showcase: passive income, purchases through retained UI, ECS singleton session row.
 /// </summary>
+/// <remarks>
+/// <para><b>Where to read next:</b> <see cref="SceneSetup.SetupSceneAsync"/> for the HUD document and session spawn, then <see cref="UiCommandHandler"/> and <see cref="UiGameCommand"/> records for the command vocabulary.</para>
+/// <para><b>Frame flow:</b> UI buttons enqueue into <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommands"/>; the host drains them into the dispatcher callback assigned here to <see cref="UiCommandHandler.Dispatch"/>; <see cref="SimulationSystem"/> advances economy on the session singleton in **late** update (variable <c>deltaSeconds</c>); <see cref="HudBindSystem"/> mirrors state into labels.</para>
+/// <para><b>MSDF bootstrap:</b> synchronous <see cref="LoadBuiltinUiAtlasesForIdleGold"/> uses <see cref="ModLoadContext.LoadBakedMsdfAtlas"/> so first UI frames do not pay runtime MSDF fallback — see **cyberland-demo-mod-authoring**.</para>
+/// </remarks>
 public sealed class Mod : IMod
 {
     /// <inheritdoc />

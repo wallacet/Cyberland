@@ -13,8 +13,9 @@ namespace Cyberland.Demo.BrickBreaker;
 /// Cold-start authoring for the breakout sample: camera, session/control entities, playfield, HUD, lights, and global post stack entry.
 /// </summary>
 /// <remarks>
-/// Marker tags (see <see cref="SessionTag"/>, <see cref="BallTag"/>, etc.) let runtime systems resolve singletons without embedding
-/// <see cref="EntityId"/> values in <see cref="Mod.OnLoadAsync"/> where possible.
+/// <para><b>Virtual canvas:</b> matches <see cref="Constants"/> width/height; HUD and arena sizing read <see cref="Cyberland.Engine.Hosting.ModLayoutViewport"/> in systems for presentation vs simulation splits.</para>
+/// <para><b>Marker tags</b> (<see cref="SessionTag"/>, <see cref="BallTag"/>, brick/cell tags in <see cref="Components.Tags"/>) let systems query archetypes without embedding <see cref="EntityId"/> literals in <see cref="Mod.OnLoadAsync"/>.</para>
+/// <para><b>Systems:</b> parallel layout/reactivation; singleton paddle/ball/trigger/win; parallel late sprite sync for bricks and HUD rows — see <see cref="Mod"/> registration table in the mod README.</para>
 /// </remarks>
 public static class SceneSetup
 {

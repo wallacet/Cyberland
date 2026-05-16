@@ -10,8 +10,8 @@ namespace Cyberland.Demo.WhackAMole.Systems;
 
 /// <summary>Handles click hit-testing, timed round flow, random target respawn, and HUD updates.</summary>
 /// <remarks>
-/// The fill <see cref="PointLightSource"/> is parented to the target at local origin so it follows the target via
-/// <see cref="Scene.Systems.TransformHierarchySystem"/>; the engine maps viewport-rooted lights to world space for deferred lighting.
+/// <para><b>Phases:</b> early for pointer hit tests against the moving target sprite; late for HUD string writes after sim state changes.</para>
+/// <para>The fill <see cref="PointLightSource"/> is parented to the target at local origin so it follows the target via the engine transform hierarchy; viewport-rooted lights are mapped to world space for deferred lighting.</para>
 /// </remarks>
 public sealed class WhackAMoleGameSystem : ISingletonSystem, ISingletonEarlyUpdate, ISingletonLateUpdate
 {

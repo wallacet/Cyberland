@@ -106,8 +106,8 @@ After **Cyberland.Host** builds, mods are **staged** next to the host executable
 | **`Mods/Cyberland.Engine.Early/`** | Engine bootstrap mod: registers stock pre-gameplay systems (`cyberland.engine/transform2d`, `.../sprite-animation`, `.../particle-sim`). **Enabled** by default. |
 | **`Mods/Cyberland.Engine.Late/`** | Engine bootstrap mod: registers stock post-gameplay camera/layout/render/UI systems (`cyberland.engine/camera-follow` through `.../ui-command-drain`). **Enabled** by default. |
 | **`Mods/Cyberland.Game/`** | Base campaign mod: `Cyberland.Game.dll`, `manifest.json`, `Content/` (synced from release bundles). **Enabled** by default (`manifest.json` has no **`disabled`** flag). |
-| **`Mods/Cyberland.Demo/`** | 2D HDR deferred sprite + ECS sample. **`disabled`: `true`** in `manifest.json` by default — see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). |
-| **`Mods/Cyberland.Demo.Pong/`**, **`...Snake/`**, **`...BrickBreaker/`** | Arcade samples; **`disabled`: `true`** by default. |
+| **`Mods/Cyberland.Demo/`** | HDR deferred sprite + ECS + lights/post (**`hdr`** in **`Run-CyberlandDemo-Test.ps1`**). **`disabled`: `true`** in git — see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). |
+| **`Mods/Cyberland.Demo.Pong/`** … **`Cyberland.Demo.Rts/`** | Other tutorial demos (arcade, UI, idle, fonts, RTS). Same **`disabled`** default. Full index: **`mods/README.md`**. |
 
 **`scripts/StageModsForHost.ps1`** runs after **build** and after **publish**: it **removes the host’s existing `Mods/` folder**, then for each enabled mod under **`mods/`** copies **`manifest.json`** and **`Content/`** (when present). Mods with an **`entryAssembly`** in **`manifest.json`** also run **`dotnet build`** on that mod’s **`.csproj`** and copy built **`.dll`** files (except **`Cyberland.Engine.dll`**). Mods that **omit** **`entryAssembly`** are **content-only** (e.g. locale or asset packs): no project build, no DLL—same behavior as **`ModLoader`** at runtime. Skips manifests with **`"disabled": true`**. That wipe prevents a mod you disabled in source from leaving an old copy next to the exe (which would still load).
 
@@ -180,9 +180,10 @@ src/
   Cyberland.Host/              # Executable: references Engine only; mods staged by scripts/StageModsForHost.ps1
   Cyberland.Engine/            # Engine library (ECS, Vulkan, input, mods, assets, …)
 mods/
+  README.md                    # Index of base + tutorial demo mods (Cyberland.Demo*)
   Cyberland.Game/              # Base campaign mod (IMod, locale Content/)
-  Cyberland.Demo/              # Sample mod (manifest disabled by default; see README)
-  Cyberland.Demo.Pong/ …       # Arcade demos (same)
+  Cyberland.Demo/              # HDR tutorial (manifest disabled in git; see mods/README.md)
+  Cyberland.Demo.Pong/ …       # Other tutorial mods (same)
 scripts/
   Run-Cyberland.ps1
   Publish-Cyberland.ps1
@@ -199,7 +200,7 @@ scripts/
 | **Cyberland.Host** | Entry point (`Program.cs` → `GameApplication`). References **`Cyberland.Engine`** only at compile time. **`scripts/StageModsForHost.ps1`** (MSBuild after **Build** / **Publish**) builds each **`mods/*/`** project and stages enabled mods into **`Mods/`** next to the host output. |
 | **Cyberland.Engine** | All shared runtime: windowing, Vulkan renderer, ECS, task scheduler, virtual FS, assets, localization, OpenAL, mod loader, `GameHostServices`. |
 | **Cyberland.Game** | Base campaign mod → `Cyberland.Game.dll` (locale and future core data). Loaded by default. |
-| **Cyberland.Demo** (and **Pong** / **Snake** / **BrickBreaker**) | Sample mods → respective DLLs. **`disabled`: `true`** in each **`manifest.json`** by default so normal runs load only the base game. |
+| **Cyberland.Demo** and **`Cyberland.Demo.*`** | Tutorial mods → respective DLLs. **`disabled`: `true`** in each **`manifest.json`** in git so normal runs load only the base game. See **`mods/README.md`**. |
 
 ---
 
@@ -214,7 +215,7 @@ flowchart TB
   ECS["World ECS"]
   VFS["VirtualFileSystem"]
   ML["ModLoader"]
-  MODS["IMod DLLs: Game and Demo"]
+  MODS["IMod DLLs: Game and tutorial demos"]
   SYS["ISystem, IParallelSystem, ISingletonSystem"]
   SVC["GameHostServices"]
   INP["IInputService"]
@@ -336,10 +337,15 @@ Mods typically attach **`Sprite`** + **`Transform`** and let **`SpriteRenderSyst
 ```
 Mods/
   Cyberland.Game/         # loadOrder 0 — locale, future core assets
-  Cyberland.Demo/         # loadOrder 10 — 2D sample (disabled by default in manifest)
-  Cyberland.Demo.Pong/    # arcade demos (disabled by default)
+  Cyberland.Demo/         # loadOrder 10 — HDR tutorial (disabled in git by default)
+  Cyberland.Demo.Pong/    # other Cyberland.Demo.* tutorials (same)
   Cyberland.Demo.Snake/
   Cyberland.Demo.BrickBreaker/
+  Cyberland.Demo.MouseChase/
+  Cyberland.Demo.IdleGold/
+  Cyberland.Demo.FontTest/
+  Cyberland.Demo.WhackAMole/
+  Cyberland.Demo.Rts/
     manifest.json
     *.dll
     Content/                # mounted to VFS (last mod wins for same path)
@@ -347,9 +353,11 @@ Mods/
 
 ### Enabling a demo mod for testing
 
-Shipped **demo** mods (**`Cyberland.Demo`**, **Pong**, **Snake**, **BrickBreaker**) have **`"disabled": true`** in their **`mods/<...>/manifest.json`** so a normal **`dotnet run`** loads only **`cyberland.base`**.
+Shipped **tutorial** mods under **`mods/Cyberland.Demo*`** (**HDR**, **Pong**, **Snake**, **BrickBreaker**, **MouseChase**, **IdleGold**, **FontTest**, **WhackAMole**, **Rts**) have **`"disabled": true`** in **`mods/<...>/manifest.json`** in git so a normal **`dotnet run`** loads only **`cyberland.base`**.
 
-1. **Turn on one demo** — In the repo, open that mod’s **`manifest.json`** and set **`"disabled": false`** (or remove the **`disabled`** property). Rebuild so staging refreshes **`artifacts/.../Mods/`** from source (each build **replaces** that folder, so disabling a demo you had enabled removes it from the output). Alternatively, edit **`manifest.json`** next to the host exe under **`Mods/<ModName>/`** if you are iterating **without** rebuilding (the next build overwrites from **`mods/`** in the repo).
+1. **Turn on one demo (recommended)** — From repo root, run **`.\scripts\Run-CyberlandDemo-Test.ps1 -Demo <name>`** (`hdr`, `pong`, `snake`, `brick`, `mousechase`, `idlegold`, `fonttest`, `whackamole`, `rts`). The script toggles **`disabled`**, runs the host, then restores **`disabled: true`**.
+
+   **Manual toggle** — Open that mod’s **`manifest.json`** and set **`"disabled": false`** (or remove **`disabled`**). Rebuild so staging refreshes **`artifacts/.../Mods/`** from source (each build **replaces** that folder). Alternatively, edit **`manifest.json`** next to the host exe under **`Mods/<ModName>/`** if you are iterating **without** rebuilding (the next build overwrites from **`mods/`** in the repo).
 2. **Skip the base game** — The base mod’s id is **`cyberland.base`**. Pass **`--exclude-mods`** so only your demo runs:
 
    ```powershell
@@ -432,7 +440,7 @@ Put **one-off** ECS spawn (camera, session/control tags, playfield, HUD **`Bitma
 
 The method stays **`async`** so you can later **`await`** scene JSON, **`ILocalizedContent.MergeStringTableAsync`**, or other I/O without restructuring **`OnLoadAsync`**. Respect **`cancellationToken`** when you add long-running loads.
 
-**Reference:** **`mods/Cyberland.Demo/SceneSetup.cs`**, **`mods/Cyberland.Demo.BrickBreaker/SceneSetup.cs`**, **`mods/Cyberland.Demo.Pong/SceneSetup.cs`**, **`mods/Cyberland.Demo.Snake/SceneSetup.cs`**, **`mods/Cyberland.Demo.MouseChase/SceneSetup.cs`**, and matching **`Mod.cs`** files—same **`SetupSceneAsync`** + **`OnLoadAsync`** pattern.
+**Reference:** each tutorial mod’s **`SceneSetup.cs`** + **`Mod.cs`** (same **`SetupSceneAsync`** awaited from **`OnLoadAsync`** before **`Register*`**). Starting points: **`mods/Cyberland.Demo/SceneSetup.cs`**, **`mods/Cyberland.Demo.BrickBreaker/SceneSetup.cs`**, **`mods/Cyberland.Demo.Pong/SceneSetup.cs`**, **`mods/Cyberland.Demo.Snake/SceneSetup.cs`**, **`mods/Cyberland.Demo.MouseChase/SceneSetup.cs`**, **`mods/Cyberland.Demo.IdleGold/SceneSetup.cs`**, **`mods/Cyberland.Demo.FontTest/SceneSetup.cs`**, **`mods/Cyberland.Demo.WhackAMole/SceneSetup.cs`**, **`mods/Cyberland.Demo.Rts/SceneSetup.cs`**. Index: **`mods/README.md`**.
 
 ### 3. Implement `ISystem`, `IParallelSystem`, and/or `ISingletonSystem`
 
@@ -483,17 +491,23 @@ c = new MyComponent { Value = 1f };
 | Example | Location | Shows |
 |---------|----------|--------|
 | Base mod entry | `mods/Cyberland.Game/BaseGameMod.cs` | Minimal **`IMod`**, locale **`Content/`** |
-| Demo mod entry | `mods/Cyberland.Demo/Mod.cs` | **`IMod.OnLoadAsync`**, locale **`MergeStringTable`**, **`ModLoadContext.AddDefaultInputBinding`**, **`RegisterSerial` / `RegisterParallel` / `RegisterSingleton`** (e.g. **`cyberland.demo/integrate`**, **`cyberland.demo/velocity-damp`**) |
+| Tutorial index | `mods/README.md` | All **`Cyberland.Demo*`** folders, **`Run-CyberlandDemo-Test.ps1`** names, links to per-mod READMEs |
+| Demo mod entry | `mods/Cyberland.Demo/Mod.cs` | **`IMod.OnLoadAsync`**, locale **`MergeStringTable`**, **`RegisterSerial` / `RegisterParallel` / `RegisterSingleton`** (e.g. **`cyberland.demo/integrate`**, **`cyberland.demo/velocity-damp`**) |
 | BrickBreaker scene | `mods/Cyberland.Demo.BrickBreaker/SceneSetup.cs` | **`SetupSceneAsync`** — cold-start convention (**await** before **`Register*`**); see **`Mod.cs`** |
 | Input + sim | `mods/Cyberland.Demo/Systems/InputSystem.cs`, **`IntegrateSystem`**, **`SceneSetup`** | **`IParallelSystem`** (**`InputSystem`**), **`ISingletonSystem`** (**`IntegrateSystem`**), scene tags; HDR cold start in **`SceneSetup`** and **`GameApplication`** baseline |
 | Parallel ECS | `mods/Cyberland.Demo/Systems/VelocityDampSystem.cs` | **`IParallelSystem`**, **`QueryChunks<Velocity>`**, **`SimdFloat`** on packed floats |
+| IdleGold | `mods/Cyberland.Demo.IdleGold/Mod.cs`, **`SceneSetup.cs`** | **`GameHostServices.UiCommandDispatcher`**, simulation + HUD singletons, synchronous **`LoadBakedMsdfAtlas`** for first-frame glyphs |
+| FontTest | `mods/Cyberland.Demo.FontTest/Mod.cs`, **`SceneSetup.cs`** | **`IFontLibrary.RegisterFamilyFromVirtualPathsAsync`**, many baked atlas sizes, **do not await** **`LoadBakedMsdfAtlasAsync`** from **`OnLoadAsync`** |
+| RTS | `mods/Cyberland.Demo.Rts/Mod.cs`, **`SceneSetup.cs`** | **`Camera2D`** pan/zoom, unit move orders, selection sprites, ambient + point lights |
+| WhackAMole | `mods/Cyberland.Demo.WhackAMole/Mod.cs` | Single **`ISingletonSystem`** driver, click scoring, sync MSDF seed |
+| MouseChase | `mods/Cyberland.Demo.MouseChase/Mod.cs` | Retained HUD document, **`RegisterSerial`** trigger resolve, round restart |
 | Host bootstrap | `src/Cyberland.Engine/GameApplication.cs` | Lifecycle, **`LoadAll`**, optional **`--exclude-mods`** |
 
 Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mod for testing](#enabling-a-demo-mod-for-testing). To run **only** the base game with no samples, you do not need **`--exclude-mods`** (demos are already disabled). To load several mods and drop specific ones, use e.g. `--exclude-mods cyberland.demo,cyberland.demo.pong`.
 
 ### How shipped samples use the engine
 
-**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). **Cyberland.Demo**, **Pong**, **Snake**, **BrickBreaker**, and **MouseChase** drive **`Transform`** / **`Sprite`** from simulation or layout systems and each create a **`Camera2D`** entity during cold start (typically **`SceneSetup.SetupSceneAsync`**, awaited from **`IMod.OnLoadAsync`**) using a fixed 1280×720 virtual canvas so gameplay stays the same size regardless of window resolution. All shipped demo mods follow **`SetupSceneAsync`** before **`Register*`**. The host applies a baseline once via **`EngineDefaultGlobalPostProcess`**, and demo **`SceneSetup`** helpers add a **`GlobalPostProcessSource`** entity where samples tune emissive and bloom. **Cyberland.Demo** updates a fullscreen **`PostProcessVolumeSource`** each late tick (**`cyberland.demo/hdr-post-volume`**) so bloom can track the player. Each demo mod registers its default key bindings in **`OnLoadAsync`** via **`ModLoadContext.AddDefaultInputBinding`**. Use **`ModLayoutViewport.VirtualSizeForSimulation`** / **`VirtualSizeForPresentation`** when you need a consistent virtual canvas read across phases; see in-mod READMEs under **`mods/Cyberland.Demo*`**.
+**Game rules and session state** live in mod code (e.g. paddle/ball logic, brick grid, snake movement). The shipped **`Cyberland.Demo*`** tutorials (**HDR**, **Pong**, **Snake**, **BrickBreaker**, **MouseChase**, **IdleGold**, **FontTest**, **WhackAMole**, **Rts**) drive **`Transform`** / **`Sprite`** (and related scene components) from simulation or layout systems where applicable; most create a **`Camera2D`** entity during cold start (**`SceneSetup.SetupSceneAsync`**, awaited from **`IMod.OnLoadAsync`**) using a fixed 1280×720-style virtual canvas so gameplay stays the same size regardless of window resolution. All shipped tutorial mods follow **`SetupSceneAsync`** before **`Register*`**. The host applies a baseline once via **`EngineDefaultGlobalPostProcess`**, and demo **`SceneSetup`** helpers add a **`GlobalPostProcessSource`** entity where samples tune emissive and bloom. **Cyberland.Demo** updates a fullscreen **`PostProcessVolumeSource`** each late tick (**`cyberland.demo/hdr-post-volume`**) so bloom can track the player. Each demo mod registers its default key bindings in **`OnLoadAsync`** via **`ModLoadContext.AddDefaultInputBinding`**. Use **`ModLayoutViewport.VirtualSizeForSimulation`** / **`VirtualSizeForPresentation`** when you need a consistent virtual canvas read across phases; see **`mods/README.md`** and per-mod READMEs.
 
 **Cyberland.Demo.Snake** drives **`Sprite`** and **`BitmapText`** entities from a visual sync system (grid-aligned quads); the playfield background uses the engine tilemap path via **`host.Tilemaps`**. Samples use **`GameHostServices.Fonts`** / **`TextGlyphCache`** only when calling **`TextRenderer`** directly for special cases.
 
@@ -519,6 +533,7 @@ Demo mods are **off** in **`manifest.json`** by default; see [Enabling a demo mo
 ## Further reading (in-repo)
 
 - **`src/Cyberland.Engine/Rendering/`** (embedded **`Rendering/Shaders/*.glsl`** + precompiled **`Rendering/Shaders/Spirv/*.spv`**) — Vulkan 2D pipeline implementation and shaders; build-time baking runs through **`tools/Cyberland.ShaderBaker`**. Runtime prefers embedded SPIR-V and falls back to GLSL compilation with warnings when precompiled blobs are unavailable/invalid. See **`VulkanRenderer.cs`** (swapchain/present), **`VulkanRenderer.Deferred.Recording.cs`** (per-frame pass order), and **`DeferredRenderingConstants.cs`** for HDR/bloom topology.
+- **`.cursor/rules/cyberland-demo-mod-authoring.mdc`** — tutorial contract for **`mods/Cyberland.Demo*`** (README spine, **`Mod.cs`** / **`SceneSetup`** expectations, MSDF bootstrap hazards).
 - **`.cursor/rules/cyberland-mod-host-architecture.mdc`** — host vs mod boundaries and checklists.
 - **`.cursor/rules/cyberland-mod-patterns-hdr.mdc`** — mod folder layout, scene-setup system, query vs store usage, parallel registration (see **`mods/Cyberland.Demo`**).
 - **`.cursor/rules/cyberland-world-screen-space.mdc`** — world vs screen Y conventions.

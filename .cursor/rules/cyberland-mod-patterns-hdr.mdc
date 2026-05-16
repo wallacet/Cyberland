@@ -67,6 +67,7 @@ Use **`context.RegisterSingleton`** with **`ISingletonSystem`** when **exactly o
 
 ## Related rules
 
+- **`cyberland-demo-mod-authoring`** — tutorial README + **`Mod`** / **`SceneSetup`** contract for shipped **`mods/Cyberland.Demo*`** samples.
 - **`cyberland-mod-system-lifecycle`** — phase boundaries, ownership (cold start vs per-frame).
 - **`cyberland-ecs-world-access`** — `World` vs chunk queries vs **`SingletonEntity`**.
 - **`cyberland-design-goals`** — parallelism and thread-safety expectations.

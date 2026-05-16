@@ -16,7 +16,13 @@ using System.Diagnostics;
 
 namespace Cyberland.Demo.IdleGold;
 
-/// <summary>Cold-start camera, session row, retained HUD, optional bitmap HUD, and global post tuning.</summary>
+/// <summary>Cold-start camera, session economy row, retained HUD shell (tabs, lists, log), optional FPS row, and global post tuning.</summary>
+/// <remarks>
+/// <para><b>Virtual canvas:</b> 1280×720 <see cref="Camera2D"/> for consistent layout math.</para>
+/// <para><b>Session row:</b> <see cref="SessionTag"/> + wallet/sources/stats/equipment components mutated by <see cref="Systems.SimulationSystem"/> and UI commands.</para>
+/// <para><b>Retained UI:</b> builds panels and wires <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommands"/> enqueue from buttons in <see cref="WirePurchases"/>; <see cref="Mod.OnLoadAsync"/> assigns <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommandDispatcher"/> to <see cref="UiCommandHandler.Dispatch"/>.</para>
+/// <para>Returns <see cref="SceneBootstrap"/> so <see cref="Mod"/> can pass <see cref="EntityId"/> and <see cref="DocumentRefs"/> into systems without ad-hoc world scans.</para>
+/// </remarks>
 public static class SceneSetup
 {
     public const string NavGather = "gather";

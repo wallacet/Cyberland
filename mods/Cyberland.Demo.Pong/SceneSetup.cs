@@ -11,7 +11,9 @@ namespace Cyberland.Demo.Pong;
 /// Cold-start authoring for Pong: camera, session row (<see cref="State"/> + <see cref="Control"/>), sprites, HUD, lights, global post.
 /// </summary>
 /// <remarks>
-/// Runtime systems resolve the session singleton via <see cref="SystemQuerySpec.All{State, Control}"/>; this helper only returns explicit sprite/HUD handles not stored as ECS rows elsewhere.
+/// <para><b>Virtual canvas:</b> 1280×720 camera centered on the arena so paddle/ball math stays in world units aligned with that rectangle.</para>
+/// <para><b>Session row:</b> one entity carries <see cref="State"/> + <see cref="Control"/>; <see cref="SimulationSystem"/>, <see cref="InputSystem"/>, <see cref="PongLightsFillSystem"/> use <see cref="ISingletonSystem"/> queries against that archetype.</para>
+/// <para><b>Visual bundle:</b> <see cref="ColdStart"/> returns explicit <see cref="VisualIds"/> / <see cref="HudTextIds"/> for sprites and HUD <see cref="BitmapText"/> rows that <see cref="VisualSyncSystem"/> mutates each frame (handles not stored on the session row).</para>
 /// </remarks>
 public static class SceneSetup
 {

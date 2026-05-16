@@ -8,6 +8,10 @@ using Silk.NET.Maths;
 namespace Cyberland.Demo.Rts.Systems;
 
 /// <summary>Late: smooth mouse-wheel zoom (clamped), WASD + edge scroll pan, clamp center to the playfield.</summary>
+/// <remarks>
+/// Operates on the singleton camera row (<see cref="RtsCameraTag"/>). Panning adjusts <see cref="Transform.WorldPosition"/> in **world** space (+Y up);
+/// zoom mutates <see cref="Camera2D.ViewportSizeWorld"/> via <see cref="RtsCameraZoomState"/> targets so the virtual canvas grows/shrinks while staying clamped to authored playfield bounds.
+/// </remarks>
 public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>

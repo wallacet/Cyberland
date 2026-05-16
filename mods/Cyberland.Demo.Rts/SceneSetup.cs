@@ -9,7 +9,13 @@ using TextureId = System.UInt32;
 
 namespace Cyberland.Demo.Rts;
 
-/// <summary>Cold start: playfield, camera, lights, unit + child point light, selection frame sprites, session row, FPS HUD.</summary>
+/// <summary>Cold start for the RTS tutorial: procedural ground texture, panning camera, unit, lights, selection bars, session state, FPS HUD.</summary>
+/// <remarks>
+/// <para><b>Virtual canvas:</b> <see cref="ViewportWidth"/>×<see cref="ViewportHeight"/> on the camera entity; gameplay uses a larger <see cref="RtsConstants.PlaySize"/> world so the camera can pan.</para>
+/// <para><b>Entities:</b> <see cref="RtsCameraTag"/> + <see cref="Camera2D"/> + <see cref="RtsCameraZoomState"/>; fullscreen background <see cref="Sprite"/>; <see cref="AmbientLightSource"/>; <see cref="RtsUnitTag"/> unit sprite; child <see cref="Transform"/> + <see cref="PointLightSource"/> parented to the unit; four thin selection <see cref="Sprite"/> “bars”; <see cref="RtsSessionState"/> session row holding <see cref="EntityId"/> handles; <see cref="RtsHudFpsTag"/> HUD row.</para>
+/// <para><b>Systems:</b> <see cref="Systems.RtsInputSystem"/> (orders + pan/zoom), <see cref="Systems.RtsUnitMoveSystem"/>, <see cref="Systems.RtsCameraSystem"/>, <see cref="Systems.RtsSelectionFrameSystem"/>, <see cref="Systems.RtsFpsHudSystem"/> — see <see cref="Mod"/> for registration ids.</para>
+/// <para>Heavy sprite writes stay in <see cref="ConfigurePlayfieldSprites"/> because <c>ref</c> into ECS stores is illegal inside <c>async</c> methods.</para>
+/// </remarks>
 public static class SceneSetup
 {
     public const int ViewportWidth = 1280;

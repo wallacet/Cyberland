@@ -15,6 +15,11 @@ namespace Cyberland.Demo.FontTest;
 /// <summary>
 /// Full-viewport retained UI: scrollable columns of rows — built-in matrix plus a custom-registered family (Jost) with mod-baked MSDF.
 /// </summary>
+/// <remarks>
+/// <para><b>Prerequisite:</b> <see cref="Mod.OnLoadAsync"/> registers the Jost family and kicks atlas loads before this runs so <see cref="BitmapText.Style"/> can reference both builtin and custom faces.</para>
+/// <para><b>Layout:</b> <see cref="CanvasWidth"/>×<see cref="CanvasHeight"/> presentation viewport; document uses <see cref="UiDocumentRootPreset.FullViewport"/>.</para>
+/// <para>No gameplay systems register in this demo — the scene exists to visualize font rasterization quality across sizes and scripts (<see cref="Sample"/>).</para>
+/// </remarks>
 public static class SceneSetup
 {
     private const int CanvasWidth = 1280;

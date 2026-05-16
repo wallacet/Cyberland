@@ -10,7 +10,10 @@ namespace Cyberland.Demo.Snake;
 /// One-off scene authoring for Snake: camera, session/control markers, tilemap + visuals rows, lights, and global post.
 /// </summary>
 /// <remarks>
-/// Await from <see cref="Mod.OnLoadAsync"/> before any <c>Register*</c> so singleton/runtime systems resolve entities via <see cref="SystemQuerySpec"/>.
+/// <para><b>Virtual canvas:</b> 1280×720 <see cref="Camera2D"/> centered on the playfield; window resize letterboxes instead of revealing more grid.</para>
+/// <para><b>Key entities:</b> separate <see cref="Control"/> and <see cref="Session"/> marker rows; <see cref="Tilemap"/> background entity; pooled segment/food <see cref="Sprite"/> rows tagged for <see cref="VisualSyncSystem"/>; ambient + directional lights; global post entity.</para>
+/// <para><b>Systems:</b> <see cref="BootstrapSystem"/> seeds runtime; <see cref="InputSystem"/> reads axes; <see cref="TickSystem"/> advances <see cref="Session"/>; <see cref="TilemapLayoutSystem"/> paints static tiles; <see cref="SnakeLightsFillSystem"/> submits lights; <see cref="VisualSyncSystem"/> aligns sprites to grid state.</para>
+/// <para>Await from <see cref="Mod.OnLoadAsync"/> before any <c>Register*</c> so singleton queries resolve.</para>
 /// </remarks>
 public static class SceneSetup
 {

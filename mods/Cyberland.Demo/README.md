@@ -1,11 +1,42 @@
 # Cyberland.Demo (HDR tutorial)
 
-**Purpose:** smallest engine-faithful sample: `Camera2D`, `Sprite` + `BitmapText`, lights, `PostProcessVolumeSource`, `GlobalPostProcessSource`, and mixed sequential + parallel systems.
+## Purpose
 
-**Run:** set `"disabled": false` in `manifest.json` (or stage manually), build **Cyberland.Host**, run the executable. Default key bindings are registered in `Mod.OnLoadAsync` via `DemoInputSetup` and `ModLoadContext.AddDefaultInputBinding`. Cold-start entities are authored in **`SceneSetup.SetupSceneAsync`** (awaited before systems register).
+Smallest engine-faithful sample: **`Camera2D`**, **`Sprite`** + **`BitmapText`**, deferred lights, **`PostProcessVolumeSource`**, **`GlobalPostProcessSource`**, and mixed **`RegisterSingleton`** / **`RegisterParallel`** scheduling. Use this mod first when learning the repo.
 
-**Teaches:** `ModLayoutViewport` for virtual canvas size, F9 toggles `cyberland.demo/velocity-damp`, integrate-then-damp order in `Mod.cs` header, `ISingletonSystem` for single-row work (`IntegrateSystem`, `FpsDisplaySystem`, `HdrPostVolumeFillSystem`), `VelocityDampSystem` for a parallel `IParallelSystem` + `QueryChunks<Velocity>` example.
+## Run
 
-**Content:** `Content/Locale/en/demo_hdr.json` only; `content.release.manifest.json` has no required binary bundle for local dev.
+From repo root (restores **`disabled: true`** after exit):
 
-See root `README.md` → *Reference examples* for file paths.
+```powershell
+.\scripts\Run-CyberlandDemo-Test.ps1 -Demo hdr
+```
+
+Manifests stay **`"disabled": true`** in git (pre-commit). To toggle by hand, edit **`mods/Cyberland.Demo/manifest.json`**, rebuild **Cyberland.Host**, and run the executable.
+
+## Learning path
+
+1. **`Mod.cs`** — registration order, shader smoke-test, baked atlas kickoff.
+2. **`SceneSetup.cs`** — cold-start entities (camera, player, HUD, lights, bloom volume, global post).
+3. **`Systems/InputSystem.cs`** — parallel velocity SoA + scheduler-thread axis read between barriers.
+4. **`Systems/IntegrateSystem.cs`** — **`ISingletonSystem`** + fixed-step motion.
+5. **`Systems/VelocityDampSystem.cs`** — honest **`IParallelSystem`** over **`QueryChunks<Velocity>`**.
+6. **`Systems/HdrPostVolumeFillSystem.cs`**, **`FpsDisplaySystem.cs`** — late singleton presentation.
+
+## Features taught
+
+- **`ModLayoutViewport`** for virtual canvas size; **F9** toggles **`cyberland.demo/velocity-damp`** (see **`Mod.cs`** comments).
+- Integrate-then-damp ordering in the **fixed** phase.
+- **`ISingletonSystem`** for single-row work (**`IntegrateSystem`**, **`FpsDisplaySystem`**, **`HdrPostVolumeFillSystem`**).
+- **`IParallelSystem`** + **`QueryChunks`** for packed component columns.
+
+## Content
+
+- **`Content/Locale/en/demo_hdr.json`** — HUD strings.
+- **`content.release.manifest.json`** — no required binary bundle for local dev beyond engine defaults.
+
+## Further reading
+
+- **`.cursor/rules/cyberland-demo-mod-authoring.mdc`** — tutorial mod contract.
+- **`.cursor/rules/cyberland-mod-patterns-hdr.mdc`** — **`SceneSetup`** + query-first patterns.
+- Root **`README.md`** — host pipeline, staging, **`Run-CyberlandDemo-Test.ps1`**.

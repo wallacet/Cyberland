@@ -15,6 +15,11 @@ namespace Cyberland.Demo.MouseChase;
 /// <summary>
 /// Spawns the tutorial playfield, camera follow, zones, lights, HUD text rows (with resolver tags), and global post.
 /// </summary>
+/// <remarks>
+/// <para><b>Virtual canvas:</b> 1280×720 <see cref="Camera2D"/>; gameplay sprites and triggers live in world space while HUD uses <see cref="BitmapText"/> in the default HUD coordinate space.</para>
+/// <para><b>Retained UI:</b> builds a <see cref="HudDocumentRefs"/> graph registered on <see cref="Cyberland.Engine.Hosting.GameHostServices.UiDocuments"/>; <see cref="HudUiSystem"/> updates objectives and chrome from sim state.</para>
+/// <para><b>Zones:</b> trigger volumes for tutorial gates and pickups — consumed by <see cref="TriggerResolveSystem"/> (serial) then <see cref="RoundStateSystem"/>.</para>
+/// </remarks>
 public static class SceneSetup
 {
     public const float TutorialTitleHudSize = 24f;

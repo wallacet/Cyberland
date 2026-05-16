@@ -7,6 +7,11 @@ namespace Cyberland.Demo.WhackAMole;
 /// <summary>
 /// Whack-a-Mole sample: one target square at a time, score-on-click, one-minute countdown after first hit.
 /// </summary>
+/// <remarks>
+/// <para><b>Where to read next:</b> <see cref="SceneSetup.SetupSceneAsync"/> for entities, then <see cref="Systems.WhackAMoleGameSystem"/> for the full game loop on a singleton row.</para>
+/// <para><b>Architecture:</b> intentionally minimal — one <see cref="Cyberland.Engine.Core.Ecs.ISingletonSystem"/> implementation drives input, spawning, timer, and HUD string updates so newcomers see ECS scheduling without a long registration list.</para>
+/// <para><b>MSDF:</b> synchronous <see cref="SeedHudMsdfAtlases"/> matches the IdleGold pattern (guaranteed glyphs before first frame).</para>
+/// </remarks>
 public sealed class Mod : IMod
 {
     /// <inheritdoc />

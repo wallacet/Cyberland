@@ -8,7 +8,12 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.WhackAMole;
 
-/// <summary>Cold-start entities for the Whack-a-Mole sample scene.</summary>
+/// <summary>Cold-start entities for the Whack-a-Mole sample: session state, camera, dark plate, target sprite + fill light, HUD text rows.</summary>
+/// <remarks>
+/// <para><b>Virtual canvas:</b> 1280×720; camera centered so gameplay math stays in a fixed rectangle.</para>
+/// <para><b>Session:</b> one <see cref="WhackAMoleState"/> row consumed by <see cref="Systems.WhackAMoleGameSystem"/> (singleton).</para>
+/// <para><b>Lighting:</b> dark fullscreen <see cref="Sprite"/> behind the mole so the target’s <see cref="PointLightSource"/> reads as visible falloff on albedo.</para>
+/// </remarks>
 public static class SceneSetup
 {
     public readonly record struct SceneRefs(

@@ -1,26 +1,40 @@
 # Cyberland.Demo.BrickBreaker
 
-**Purpose:** many entities, chunk-parallel `ArenaLayoutSystem` / `WinLoseSystem` / `ReactivateSystem`, and `TriggerResolveSystem` reading `TriggerEvents` after paddle/ball integration in the mod’s fixed chain. `Phase.Won` clears the board. `InputSetup` registers default actions.
+## Purpose
 
-**Run:** enable in `manifest.json`, run **Cyberland.Host**.
+**Breakout**-style sample: many entities, chunk-parallel **`ArenaLayoutSystem`** / **`ReactivateSystem`**, **`WinLoseSystem`**, and **`TriggerResolveSystem`** consuming **`TriggerEvents`** after paddle/ball integration in the mod’s **fixed** chain. **`InputSetup`** registers default actions.
 
-**Viewport:** Simulation and camera layout use the fixed design canvas `Constants.CanvasWidth` / `CanvasHeight` (see `Constants.cs`). Viewport-space HUD and the FPS row use `ModLayoutViewport.VirtualSizeForPresentation` (same world-vs-presentation split as the HDR demo). Do not trust raw swapchain or renderer viewport sizes from parallel early systems before camera submission.
+## Run
 
-**Teaches:** query-driven late systems (sprite and `BitmapText` rows with honest `QuerySpec`s), parallel `IParallelEarlyUpdate` / `IParallelFixedUpdate` / `IParallelLateUpdate` where justified, AABB side heuristic for block bounces, separate win vs lose UI strings in `Content/Locale/en/brick.json`.
+```powershell
+.\scripts\Run-CyberlandDemo-Test.ps1 -Demo brick
+```
 
-**Controls:** A/D or arrows, Space / LMB to launch, Enter / R to start rounds, Q to quit (common action).
+## Learning path
 
-See root `README.md` for staging and `input-bindings.json` behavior.
+1. **`Mod.cs`** — full registration table (order matters for round state and win detection).
+2. **`SceneSetup.cs`** — arena grid, session row, lights, HUD entities.
+3. **`Systems/ArenaLayoutSystem.cs`**, **`ReactivateSystem.cs`** — parallel early/fixed layout work.
+4. **`Systems/WinLoseSystem.cs`** — singleton win/lose detection after reactivation.
+5. **`Systems/CellSpriteSyncSystem.cs`** (and related `brick/*` late systems) — query-driven sprite sync.
+
+## Features taught
+
+- **`Constants.CanvasWidth`** / **`CanvasHeight`** as the design canvas; **`ModLayoutViewport.VirtualSizeForPresentation`** for HUD.
+- Honest **`IParallelSystem`** where chunks partition work; serial **`TriggerResolveSystem`** when reading trigger chunks.
+- AABB side heuristic for brick bounces; separate win vs lose strings in locale JSON.
+
+## Content
+
+- **`Content/Locale/en/brick.json`**.
 
 ## Tags and components (high level)
 
-Marker tags and session discovery live in `Components/Tags.cs`. Session singleton: `SessionTag` + `GameState` + `ArenaLightRuntime` (light target ids from cold start); input latch: `ControlTag` + `Control`. Life pips use `LifePipSlot` (index 0..2) with `Transform` + `Sprite`. Arena grid cells use `ArenaCellState` + `Cell` + `Sprite`. See `Tags.cs` for HUD and overlay tags.
+Marker tags and session discovery live in **`Components/Tags.cs`**. Session singleton: **`SessionTag`** + **`GameState`** + **`ArenaLightRuntime`**; input: **`ControlTag`** + **`Control`**. Life pips use **`LifePipSlot`** with **`Transform`** + **`Sprite`**. Arena cells use **`ArenaCellState`** + **`Cell`** + **`Sprite`**.
 
-## System registration order (`Mod.cs`)
+## System registration order
 
-Order matters for round state and win detection (round start and reactivation complete before `WinLoseSystem` in the same fixed pass).
-
-Cold-start entities and lights are authored in **`SceneSetup.SetupSceneAsync`** (awaited from **`Mod.OnLoadAsync`** before any systems register).
+Cold start lives in **`SceneSetup.SetupSceneAsync`** (awaited before **`Register*`**).
 
 | Phase | Id | System |
 |------|-----|--------|
@@ -32,8 +46,8 @@ Cold-start entities and lights are authored in **`SceneSetup.SetupSceneAsync`** 
 | Fixed (singleton) | `cyberland.demo.brick/ball-launch` | `BallLaunchSystem` |
 | Fixed (singleton) | `cyberland.demo.brick/ball-integrate` | `BallIntegrateSystem` |
 | Fixed (singleton) | `cyberland.demo.brick/trigger-resolve` | `TriggerResolveSystem` |
-| Fixed (parallel) | `cyberland.demo.brick/winlose` | `WinLoseSystem` |
-| Late (singleton) | `cyberland.demo.brick/lights` | `LightsFillSystem` (session row: `SessionTag` + `GameState` + `ArenaLightRuntime`) |
+| Fixed (singleton) | `cyberland.demo.brick/winlose` | `WinLoseSystem` |
+| Late (singleton) | `cyberland.demo.brick/lights` | `LightsFillSystem` |
 | Late (parallel) | `cyberland.demo.brick/cell-sprites` | `CellSpriteSyncSystem` |
 | Late (parallel) | `cyberland.demo.brick/background-sprite` | `BackgroundSpriteSyncSystem` |
 | Late (singleton) | `cyberland.demo.brick/paddle-sprite` | `PaddleSpriteSyncSystem` |
@@ -42,5 +56,14 @@ Cold-start entities and lights are authored in **`SceneSetup.SetupSceneAsync`** 
 | Late (singleton) | `cyberland.demo.brick/game-over-panel-sprite` | `GameOverPanelSpriteSyncSystem` |
 | Late (singleton) | `cyberland.demo.brick/game-over-bar-sprite` | `GameOverBarSpriteSyncSystem` |
 | Late (serial) | `cyberland.demo.brick/life-sprites` | `LifeSpriteSyncSystem` |
-| Late (singleton) | `cyberland.demo.brick/hud-*` | BitmapText HUD systems (`HudTitleTextSystem`, …) |
+| Late (singleton) | `cyberland.demo.brick/hud-*` | BitmapText HUD systems |
 | Late (singleton) | `cyberland.demo.brick/fps-hud` | `FpsHudSystem` |
+
+## Controls
+
+**A/D** or arrows; **Space** / **LMB** launch; **Enter** / **R** start rounds; **Q** quit.
+
+## Further reading
+
+- Root **`README.md`** — staging and **`input-bindings.json`**.
+- **`.cursor/rules/cyberland-demo-mod-authoring.mdc`**.

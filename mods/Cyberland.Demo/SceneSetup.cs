@@ -13,7 +13,10 @@ namespace Cyberland.Demo;
 /// Cold-start authoring for the HDR tutorial: camera, gameplay sprites, HUD, stationary lights, follow lights, bloom volume, and global post.
 /// </summary>
 /// <remarks>
-/// Called from <see cref="Mod.OnLoadAsync"/> before ECS systems register. <see cref="DesignCanvas"/> keeps radii/positions consistent with the virtual 1280×720 simulation space used elsewhere.
+/// <para><b>Virtual canvas:</b> <see cref="DesignCanvas.Demo1280x720"/> keeps spawn radii and positions in a fixed 1280×720 simulation space so window resize only letterboxes.</para>
+/// <para><b>Entities spawned here:</b> active <see cref="Camera2D"/>; player with <see cref="Velocity"/>; decorative background + neon strip sprites; three <see cref="BitmapText"/> HUD rows; stationary HDR light rig; child point light parented to the player; fullscreen <see cref="PostProcessVolumeSource"/> for bloom; <see cref="GlobalPostProcessSource"/> for emissive/gain tuning.</para>
+/// <para><b>Runtime systems that drive this scene</b> (see <see cref="Mod"/> registration): <see cref="InputSystem"/> clears/writes <see cref="Velocity"/>; <see cref="IntegrateSystem"/> advances <see cref="Transform"/>; <see cref="VelocityDampSystem"/> scales velocity in fixed; <see cref="HdrPostVolumeFillSystem"/> recenters the bloom volume on the player; <see cref="FpsDisplaySystem"/> updates the FPS row.</para>
+/// <para>Called from <see cref="Mod.OnLoadAsync"/> before ECS systems register so every <see cref="OnStart"/> sees a complete world.</para>
 /// </remarks>
 public static class SceneSetup
 {
