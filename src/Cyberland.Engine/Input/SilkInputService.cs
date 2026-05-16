@@ -461,6 +461,7 @@ public sealed class SilkInputService : IInputService, IDisposable
         {
             CoordinateSpace.SwapchainSpace => swapchainPosition,
             CoordinateSpace.ViewportSpace => ConvertSwapchainToViewport(swapchainPosition),
+            CoordinateSpace.PresentationViewportSpace => ConvertSwapchainToPresentationViewport(swapchainPosition),
             CoordinateSpace.WorldSpace => ConvertSwapchainToWorld(swapchainPosition),
             CoordinateSpace.LocalSpace => throw new NotSupportedException("Mouse coordinates are not defined in LocalSpace without an entity transform."),
             _ => throw new ArgumentOutOfRangeException(nameof(space), space, "Unsupported coordinate space.")
@@ -473,6 +474,7 @@ public sealed class SilkInputService : IInputService, IDisposable
         {
             CoordinateSpace.SwapchainSpace => swapchainDelta,
             CoordinateSpace.ViewportSpace => ConvertSwapchainDeltaToViewportDelta(swapchainDelta),
+            CoordinateSpace.PresentationViewportSpace => ConvertSwapchainDeltaToPresentationViewportDelta(swapchainDelta),
             CoordinateSpace.WorldSpace => ConvertViewportDeltaToWorldDelta(ConvertSwapchainDeltaToViewportDelta(swapchainDelta)),
             CoordinateSpace.LocalSpace => throw new NotSupportedException("Mouse delta is not defined in LocalSpace without an entity transform."),
             _ => throw new ArgumentOutOfRangeException(nameof(space), space, "Unsupported coordinate space.")
@@ -485,6 +487,15 @@ public sealed class SilkInputService : IInputService, IDisposable
         var viewport = CameraProjection.SwapchainPixelToViewportPixel(
             new Vector2D<float>(swapchainPosition.X, swapchainPosition.Y),
             in mapping.Physical);
+        return new Vector2(viewport.X, viewport.Y);
+    }
+
+    private Vector2 ConvertSwapchainToPresentationViewport(Vector2 swapchainPosition)
+    {
+        var physical = ResolvePresentationPhysical();
+        var viewport = CameraProjection.SwapchainPixelToViewportPixel(
+            new Vector2D<float>(swapchainPosition.X, swapchainPosition.Y),
+            in physical);
         return new Vector2(viewport.X, viewport.Y);
     }
 
@@ -506,6 +517,13 @@ public sealed class SilkInputService : IInputService, IDisposable
     {
         var mapping = ResolveCameraMapping();
         var invScale = 1f / mapping.Physical.Scale;
+        return swapchainDelta * invScale;
+    }
+
+    private Vector2 ConvertSwapchainDeltaToPresentationViewportDelta(Vector2 swapchainDelta)
+    {
+        var physical = ResolvePresentationPhysical();
+        var invScale = 1f / physical.Scale;
         return swapchainDelta * invScale;
     }
 
@@ -543,6 +561,7 @@ public sealed class SilkInputService : IInputService, IDisposable
                     PositionWorld = crs.PositionWorld,
                     RotationRadians = crs.RotationRadians,
                     ViewportSizeWorld = crs.ViewportSizeWorld,
+                    PresentationViewportSizeWorld = crs.PresentationViewportSizeWorld,
                     Priority = crs.Priority,
                     Enabled = true,
                     BackgroundColor = crs.BackgroundColor
@@ -555,5 +574,31 @@ public sealed class SilkInputService : IInputService, IDisposable
         var cameraFromRenderer = _renderer.ActiveCameraView;
         var physicalFromRenderer = CameraProjection.ComputePhysicalViewport(cameraFromRenderer.ViewportSizeWorld, swapchain);
         return (cameraFromRenderer, physicalFromRenderer);
+    }
+
+    private PhysicalViewport ResolvePresentationPhysical()
+    {
+        if (_renderer is null)
+        {
+            var fallbackSwap = new Vector2D<int>(1, 1);
+            var fallbackCamera = CameraSelection.Default(fallbackSwap);
+            var pres = CameraPresentationLayout.ResolvePresentationViewportSize(fallbackCamera);
+            return CameraProjection.ComputePhysicalViewport(pres, fallbackSwap);
+        }
+
+        var swapchain = _renderer.SwapchainPixelSize;
+        if (_host is not null)
+        {
+            var crs = _host.CameraRuntimeState;
+            if (crs.Valid && crs.ViewportSizeWorld.X > 0 && crs.ViewportSizeWorld.Y > 0)
+            {
+                var pres = CameraPresentationLayout.ResolvePresentationViewportSize(crs);
+                return CameraProjection.ComputePhysicalViewport(pres, swapchain);
+            }
+        }
+
+        var cam = _renderer.ActiveCameraView;
+        var presSize = CameraPresentationLayout.ResolvePresentationViewportSize(cam);
+        return CameraProjection.ComputePhysicalViewport(presSize, swapchain);
     }
 }

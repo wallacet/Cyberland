@@ -1,0 +1,118 @@
+using Cyberland.Demo.Rts.Components;
+using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Input;
+using Cyberland.Engine.Scene;
+using Silk.NET.Maths;
+
+namespace Cyberland.Demo.Rts.Systems;
+
+/// <summary>Late: smooth mouse-wheel zoom (clamped), WASD + edge scroll pan, clamp center to the playfield.</summary>
+public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
+{
+    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<RtsCameraTag, Transform, Camera2D, RtsCameraZoomState>();
+
+    private readonly GameHostServices _host;
+
+    public RtsCameraSystem(GameHostServices host) => _host = host;
+
+    /// <inheritdoc />
+    public void OnSingletonStart(in SingletonEntity cameraRow)
+    {
+        _ = cameraRow;
+    }
+
+    /// <inheritdoc />
+    public void OnSingletonLateUpdate(in SingletonEntity cameraRow, float deltaSeconds)
+    {
+        var input = _host.Input;
+        var renderer = _host.Renderer;
+        ref var cam2 = ref cameraRow.Get<Camera2D>();
+        ref var tf = ref cameraRow.Get<Transform>();
+        ref var zoom = ref cameraRow.Get<RtsCameraZoomState>();
+
+        ApplyWheelToZoomTargets(ref zoom, input);
+
+        var k = 1f - MathF.Exp(-RtsConstants.ZoomSmoothingPerSecond * deltaSeconds);
+        var cw = cam2.ViewportSizeWorld.X;
+        var ch = cam2.ViewportSizeWorld.Y;
+        var nw = cw + (zoom.TargetViewportWidth - cw) * k;
+        var nh = ch + (zoom.TargetViewportHeight - ch) * k;
+        cam2.ViewportSizeWorld = new Vector2D<int>((int)MathF.Round(nw), (int)MathF.Round(nh));
+
+        var ax = input.ReadAxis("cyberland.demo.rts/pan_x");
+        var ay = input.ReadAxis("cyberland.demo.rts/pan_y");
+        var pan = new Vector2D<float>(ax * RtsConstants.PanSpeedKeyboard, ay * RtsConstants.PanSpeedKeyboard);
+
+        var mx = input.MousePositionScreen.X;
+        var my = input.MousePositionScreen.Y;
+        var sw = renderer.SwapchainPixelSize.X;
+        var sh = renderer.SwapchainPixelSize.Y;
+        var margin = RtsConstants.EdgeScrollMarginPx;
+        float evx = 0f, evy = 0f;
+        if (mx >= 0f && my >= 0f && sw > 0 && sh > 0)
+        {
+            if (mx < margin)
+                evx = -1f;
+            else if (mx > sw - margin)
+                evx = 1f;
+            if (my < margin)
+                evy = 1f;
+            else if (my > sh - margin)
+                evy = -1f;
+        }
+
+        pan.X += evx * RtsConstants.PanSpeedEdge;
+        pan.Y += evy * RtsConstants.PanSpeedEdge;
+
+        var p = tf.WorldPosition;
+        tf.WorldPosition = new Vector2D<float>(p.X + pan.X * deltaSeconds, p.Y + pan.Y * deltaSeconds);
+
+        ClampCameraCenter(ref tf, cam2.ViewportSizeWorld.X, cam2.ViewportSizeWorld.Y);
+    }
+
+    /// <summary>Wheel deltas are often ±120 per notch; scale targets exponentially and clamp width, then lock 16:9 height.</summary>
+    private static void ApplyWheelToZoomTargets(ref RtsCameraZoomState zoom, IInputService input)
+    {
+        var zd = input.ConsumeAxisDelta("cyberland.demo.rts/zoom");
+        if (MathF.Abs(zd) <= 0.001f)
+            return;
+
+        // Positive wheel (typical scroll-up) → zoom in → smaller viewport (same sign convention as MouseChase).
+        var notches = Math.Clamp(MathF.Abs(zd) / 120f, 0.25f, 8f);
+        var per = zd > 0f ? MathF.Pow(0.94f, notches) : MathF.Pow(1.06f, notches);
+        zoom.TargetViewportWidth *= per;
+        zoom.TargetViewportWidth = Math.Clamp(
+            zoom.TargetViewportWidth,
+            RtsConstants.ZoomViewportMinWidth,
+            RtsConstants.ZoomViewportMaxWidth);
+        zoom.TargetViewportHeight = zoom.TargetViewportWidth * (9f / 16f);
+    }
+
+    private static void ClampCameraCenter(ref Transform tf, int viewportW, int viewportH)
+    {
+        var play = RtsConstants.PlaySize;
+        var halfW = viewportW * 0.5f;
+        var halfH = viewportH * 0.5f;
+        var p = tf.WorldPosition;
+        float cx = p.X;
+        float cy = p.Y;
+
+        var minCx = halfW;
+        var maxCx = play - halfW;
+        if (minCx > maxCx)
+            cx = play * 0.5f;
+        else
+            cx = Math.Clamp(cx, minCx, maxCx);
+
+        var minCy = halfH;
+        var maxCy = play - halfH;
+        if (minCy > maxCy)
+            cy = play * 0.5f;
+        else
+            cy = Math.Clamp(cy, minCy, maxCy);
+
+        tf.WorldPosition = new Vector2D<float>(cx, cy);
+    }
+}

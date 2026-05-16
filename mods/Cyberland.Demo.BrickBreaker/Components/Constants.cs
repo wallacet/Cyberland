@@ -18,7 +18,7 @@ public static class Constants
     /// <para>Simulation phases should treat this as the playfield extent once the active camera is configured—typically aligned with
     /// <see cref="Cyberland.Engine.Hosting.ModLayoutViewport.VirtualSizeForSimulation"/> after startup.</para>
     /// <para>Viewport-space HUD (<see cref="Cyberland.Engine.Rendering.Text.BitmapText"/> in <c>ViewportSpace</c>) belongs in
-    /// <strong>late</strong> update and should use <see cref="Cyberland.Engine.Hosting.ModLayoutViewport.VirtualSizeForPresentation"/>
+    /// <strong>late</strong> update and should use <see cref="Cyberland.Engine.Hosting.ModLayoutViewport.VirtualSizeForHudLayout"/>
     /// so letterboxing and DPI match the HDR demo.</para>
     /// <para>Do not use <see cref="Cyberland.Engine.Rendering.IRenderer.ActiveCameraViewportSize"/> from parallel <strong>early</strong>
     /// systems: the renderer may not have applied camera submissions yet.</para>

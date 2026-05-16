@@ -1,5 +1,6 @@
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Rendering;
 using Silk.NET.Maths;
 
 namespace Cyberland.Engine.Scene.Systems;
@@ -31,10 +32,11 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
     public void OnLateUpdate(ChunkQueryAll archetype, float deltaSeconds)
     {
         _ = deltaSeconds;
-        var viewport = _host.CameraRuntimeState.ViewportSizeWorld;
-        if (viewport.X <= 0 || viewport.Y <= 0)
-            viewport = _host.Renderer.ActiveCameraViewportSize;
-        if (viewport.X <= 0 || viewport.Y <= 0)
+        var crs = _host.CameraRuntimeState;
+        var runtimeVp = crs.Valid && crs.ViewportSizeWorld.X > 0 && crs.ViewportSizeWorld.Y > 0
+            ? crs.ViewportSizeWorld
+            : _host.Renderer.ActiveCameraViewportSize;
+        if (runtimeVp.X <= 0 || runtimeVp.Y <= 0)
             return;
 
         var w = _world;
@@ -50,16 +52,22 @@ public sealed class ViewportAnchorSystem : ISystem, ILateUpdate
                     continue;
 
                 var e = ents[i];
-                var p = a.ContentSpace == CoordinateSpace.ViewportSpace
-                    ? ComputeScreen(viewport, a)
-                    : ComputeWorld(viewport, a);
+                var extent = a.ContentSpace == CoordinateSpace.PresentationViewportSpace && crs.Valid
+                    ? CameraPresentationLayout.ResolvePresentationViewportSize(runtimeVp, crs.PresentationViewportSizeWorld)
+                    : runtimeVp;
+                var p = a.ContentSpace is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace
+                    ? ComputeScreen(extent, a)
+                    : ComputeWorld(runtimeVp, a);
                 ref var transform = ref transforms[i];
                 transform.LocalPosition = p;
 
                 if (a.SyncSpriteHalfExtentsToViewport && w.Has<Sprite>(e))
                 {
                     ref var s = ref w.Get<Sprite>(e);
-                    s.HalfExtents = new Vector2D<float>(viewport.X * 0.5f, viewport.Y * 0.5f);
+                    var syncExtent = a.ContentSpace == CoordinateSpace.PresentationViewportSpace && crs.Valid
+                        ? CameraPresentationLayout.ResolvePresentationViewportSize(runtimeVp, crs.PresentationViewportSizeWorld)
+                        : runtimeVp;
+                    s.HalfExtents = new Vector2D<float>(syncExtent.X * 0.5f, syncExtent.Y * 0.5f);
                 }
             }
         }

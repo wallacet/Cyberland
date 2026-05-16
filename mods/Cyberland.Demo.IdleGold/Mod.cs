@@ -14,7 +14,9 @@ public sealed class Mod : IMod
     {
         context.MountDefaultContent();
         context.LocalizedContent.MergeStringTable("idlegold.json");
-        KickoffBuiltinAtlasLoads(context);
+        // Synchronous loads: async atlases complete only after render-thread drain, so first UI frames would miss baked
+        // glyphs and fall back to expensive runtime MSDF rasterization (see ModLoadContext.LoadBakedMsdfAtlas remarks).
+        LoadBuiltinUiAtlasesForIdleGold(context);
 
         var boot = await SceneSetup.SetupSceneAsync(context);
 
@@ -33,14 +35,25 @@ public sealed class Mod : IMod
     {
     }
 
-    private static void KickoffBuiltinAtlasLoads(ModLoadContext context)
+    /// <summary>
+    /// Seeds the host text glyph cache from engine virtual paths (VFS miss → embedded builtin manifests).
+    /// IdleGold does not ship duplicate PNGs under <c>Content/</c>; optional mod overrides can replace these paths.
+    /// </summary>
+    private static void LoadBuiltinUiAtlasesForIdleGold(ModLoadContext context)
     {
-        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular13);
-        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14);
-        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular15);
-        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansBold14);
-        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansBold18);
-        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.UiSansRegular22);
-        _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular14);
+        ReadOnlySpan<string> manifests =
+        [
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular13,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular14,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular15,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansBold14,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansBold18,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansBold23,
+            BuiltinFonts.BakedAtlasManifestPath.UiSansRegular22,
+            BuiltinFonts.BakedAtlasManifestPath.MonoRegular14
+        ];
+
+        foreach (var path in manifests)
+            context.LoadBakedMsdfAtlas(path);
     }
 }

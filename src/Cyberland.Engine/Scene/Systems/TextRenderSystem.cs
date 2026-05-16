@@ -135,16 +135,16 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate, IParallelSystem, IP
 
         var baselineAuthored = cache.BaselineAuthored;
         var space = cache.Space;
-        var applyViewportClip = TryGetDecorationClipRect(space, renderer, out var viewportClip);
+        var applyViewportClip = TryGetDecorationClipRect(space, renderer, _host, out var viewportClip);
 
-        // Viewport/swapchain: same baseline-left as FillGlyphRunGlyphs / SubmitGlyphRunWithDecorations — AddDecorations snaps.
+        // Viewport/swapchain/presentation: same baseline-left as FillGlyphRunGlyphs / SubmitGlyphRunWithDecorations — AddDecorations snaps.
         // World space: recover Y from an emitted quad when camera-space baseline and quad centers can diverge.
         var decorBaseline = baselineAuthored;
         ReadOnlySpan<TextGlyphDrawRequest> ink = default;
         if (glyphSubmitCount > 0 && cache.CachedGlyphs is not null)
         {
             ink = cache.CachedGlyphs.AsSpan(0, glyphSubmitCount);
-            if (space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace)
+            if (space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.PresentationViewportSpace and not CoordinateSpace.SwapchainSpace)
             {
                 var y = TextRenderer.RecoverBaselineYFromGlyph(in ink[0]);
                 decorBaseline = new Vector2D<float>(baselineAuthored.X, y);
@@ -167,7 +167,7 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate, IParallelSystem, IP
             ink);
     }
 
-    private static bool TryGetDecorationClipRect(CoordinateSpace space, IRenderer renderer, out UiRect viewportClip)
+    private static bool TryGetDecorationClipRect(CoordinateSpace space, IRenderer renderer, GameHostServices host, out UiRect viewportClip)
     {
         switch (space)
         {
@@ -176,6 +176,19 @@ public sealed class TextRenderSystem : ISystem, ILateUpdate, IParallelSystem, IP
                 var viewport = renderer.ActiveCameraViewportSize;
                 viewportClip = new UiRect(0f, 0f, viewport.X, viewport.Y);
                 return viewport.X > 0 && viewport.Y > 0;
+            }
+            case CoordinateSpace.PresentationViewportSpace:
+            {
+                if (!host.CameraRuntimeState.Valid)
+                {
+                    viewportClip = default;
+                    return false;
+                }
+
+                var crs = host.CameraRuntimeState;
+                var ext = CameraPresentationLayout.ResolvePresentationViewportSize(crs);
+                viewportClip = new UiRect(0f, 0f, ext.X, ext.Y);
+                return ext.X > 0 && ext.Y > 0;
             }
             case CoordinateSpace.SwapchainSpace:
             {

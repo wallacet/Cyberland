@@ -61,13 +61,14 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
         ref readonly var st = ref sessionRow.Get<State>();
         // Layout on the same virtual rect as the active camera.
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
+        var hudFb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         SetBg(fb);
         SetTitle(fb, st);
         SetHint(fb, st);
         SetScores(fb, st);
         SetPlaying(st);
-        SyncHudText(fb, in st);
-        UpdateFpsHud(fb);
+        SyncHudText(hudFb, in st);
+        UpdateFpsHud(hudFb);
     }
 
     private void SyncHudText(Vector2D<int> fb, in State st)

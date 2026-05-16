@@ -11,7 +11,10 @@ namespace Cyberland.Engine.Scene;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Use <see cref="CoordinateSpace.WorldSpace"/> for diegetic labels in the playfield; use <see cref="CoordinateSpace.ViewportSpace"/> for HUD chrome.
+/// Use <see cref="CoordinateSpace.WorldSpace"/> for diegetic labels in the playfield;
+/// use <see cref="CoordinateSpace.PresentationViewportSpace"/> for screen-locked HUD (stable size when the camera zoom
+/// changes <see cref="Camera2D.ViewportSizeWorld"/>; set <see cref="Camera2D.PresentationViewportSizeWorld"/> to your design canvas).
+/// <see cref="CoordinateSpace.ViewportSpace"/> keeps text tied to the zoomed virtual viewport.
 /// Screen-space rows often pair with <see cref="ViewportAnchor2D"/> so <see cref="Transform.WorldPosition"/> tracks resize.
 /// </para>
 /// <para>
@@ -47,6 +50,11 @@ public struct BitmapText : IComponent
     /// <summary>Tie-break for draw order among UI text (passed to <see cref="TextRenderer"/>).</summary>
     public float SortKey;
 
-    /// <summary>Whether <see cref="Transform.WorldPosition"/> is world (+Y up) or viewport pixels (+Y down).</summary>
+    /// <summary>Whether <see cref="Transform.WorldPosition"/> is world (+Y up) or virtual canvas pixels (+Y down).</summary>
     public CoordinateSpace CoordinateSpace;
+
+    /// <summary>
+    /// Default for new HUD rows: <see cref="CoordinateSpace.PresentationViewportSpace"/> (stable on-screen size across camera zoom).
+    /// </summary>
+    public static CoordinateSpace HudDefaultCoordinateSpace => CoordinateSpace.PresentationViewportSpace;
 }

@@ -188,7 +188,7 @@ internal static class TextRuntimeBuilder
 
     private static Vector2D<float> EffectiveBaselineForGlyphSpace(Vector2D<float> baselineAuthored, CoordinateSpace space)
     {
-        if (space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace)
+        if (space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace or CoordinateSpace.SwapchainSpace)
             return new Vector2D<float>(MathF.Round(baselineAuthored.X), MathF.Round(baselineAuthored.Y));
         return baselineAuthored;
     }
@@ -264,7 +264,10 @@ internal static class TextRuntimeBuilder
         // for Y sign and for routing to the swapchain UI queue.
         baselineAuthored = worldTranslation;
         space = bt.CoordinateSpace;
-        var viewport = host.CameraRuntimeState.ViewportSizeWorld;
+        var crs = host.CameraRuntimeState;
+        var viewport = bt.CoordinateSpace == CoordinateSpace.PresentationViewportSpace
+            ? CameraPresentationLayout.ResolvePresentationViewportSize(crs)
+            : crs.ViewportSizeWorld;
         vpW = viewport.X;
         vpH = viewport.Y;
     }

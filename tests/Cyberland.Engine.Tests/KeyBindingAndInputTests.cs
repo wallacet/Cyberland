@@ -229,6 +229,8 @@ public sealed class KeyBindingAndInputTests
         Assert.Equal(Vector2.Zero, service.MouseDelta);
         Assert.Equal(Vector2.Zero, service.MouseWheelDelta);
         AssertVectorNear(new Vector2(66.666664f, 133.33333f), service.GetMousePosition(CoordinateSpace.ViewportSpace), 0.0001f);
+        AssertVectorNear(service.GetMousePosition(CoordinateSpace.ViewportSpace),
+            service.GetMousePosition(CoordinateSpace.PresentationViewportSpace), 0.0001f);
         AssertVectorNear(new Vector2(66.666664f, 586.6667f), service.GetMousePosition(CoordinateSpace.WorldSpace), 0.0001f);
         AssertVectorNear(service.GetMousePosition(CoordinateSpace.WorldSpace), service.MousePositionWorld, 0.0001f);
         Assert.Equal(new Vector2(100f, 200f), service.GetMousePosition(CoordinateSpace.SwapchainSpace));
@@ -238,6 +240,7 @@ public sealed class KeyBindingAndInputTests
         Assert.Equal(new Vector2(12f, -5f), service.MouseDelta);
         Assert.Equal(Vector2.Zero, service.MouseWheelDelta);
         AssertVectorNear(new Vector2(8f, -3.3333333f), service.GetMouseDelta(CoordinateSpace.ViewportSpace), 0.0001f);
+        AssertVectorNear(new Vector2(8f, -3.3333333f), service.GetMouseDelta(CoordinateSpace.PresentationViewportSpace), 0.0001f);
         AssertVectorNear(new Vector2(8f, 3.3333333f), service.GetMouseDelta(CoordinateSpace.WorldSpace), 0.0001f);
         Assert.Equal(new Vector2(12f, -5f), service.GetMouseDelta(CoordinateSpace.SwapchainSpace));
         Assert.Equal(12f, service.ReadControlValue(InputControl.MouseAxisControl(MouseAxis.DeltaX)));
@@ -337,6 +340,7 @@ public sealed class KeyBindingAndInputTests
         // If ActiveCameraView (0,0) were used, the window center would map to world (640, 360) away from the wrong origin.
         // Host runtime state matches the gameplay camera at (640, 360) so the viewport center maps back to (640, 360).
         AssertVectorNear(new Vector2(640f, 360f), service.GetMousePosition(CoordinateSpace.WorldSpace), 0.001f);
+        AssertVectorNear(new Vector2(640f, 360f), service.GetMousePosition(CoordinateSpace.PresentationViewportSpace), 0.001f);
     }
 
     [Fact]
@@ -361,6 +365,7 @@ public sealed class KeyBindingAndInputTests
         var service = CreateService(pressedKeys, pressedButtons, () => pos, renderer: renderer.Object, host: host);
         service.BeginFrame();
         AssertVectorNear(new Vector2(111f, 222f), service.GetMousePosition(CoordinateSpace.WorldSpace), 0.001f);
+        AssertVectorNear(new Vector2(640f, 360f), service.GetMousePosition(CoordinateSpace.PresentationViewportSpace), 0.001f);
     }
 
     [Fact]
@@ -516,6 +521,19 @@ public sealed class KeyBindingAndInputTests
         Assert.Throws<NotSupportedException>(() => service.GetMouseDelta(CoordinateSpace.LocalSpace));
         Assert.Throws<ArgumentOutOfRangeException>(() => service.GetMousePosition((CoordinateSpace)12345));
         Assert.Throws<ArgumentOutOfRangeException>(() => service.GetMouseDelta((CoordinateSpace)12345));
+    }
+
+    [Fact]
+    public void SilkInputService_presentation_mouse_queries_use_engine_fallback_when_renderer_is_missing()
+    {
+        var pressedKeys = new HashSet<Key>();
+        var pressedButtons = new HashSet<MouseButton>();
+        var pos = new Vector2(1f, 1f);
+        var service = CreateService(pressedKeys, pressedButtons, () => pos, renderer: null, host: null);
+        service.BeginFrame();
+        var p = service.GetMousePosition(CoordinateSpace.PresentationViewportSpace);
+        Assert.True(float.IsFinite(p.X) && float.IsFinite(p.Y));
+        Assert.Equal(Vector2.Zero, service.GetMouseDelta(CoordinateSpace.PresentationViewportSpace));
     }
 
     [Fact]

@@ -171,10 +171,14 @@ public sealed class UiScrollViewRoutingTests
         public IReadOnlyList<InputGameplayCommand> FrameGameplayCommands => Array.Empty<InputGameplayCommand>();
 
         public System.Numerics.Vector2 GetMousePosition(CoordinateSpace space = CoordinateSpace.ViewportSpace) =>
-            space == CoordinateSpace.ViewportSpace ? Viewport : throw new NotSupportedException();
+            space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace
+                ? Viewport
+                : throw new NotSupportedException();
 
         public System.Numerics.Vector2 GetMouseDelta(CoordinateSpace space = CoordinateSpace.ViewportSpace) =>
-            space == CoordinateSpace.ViewportSpace ? System.Numerics.Vector2.Zero : throw new NotSupportedException();
+            space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace
+                ? System.Numerics.Vector2.Zero
+                : throw new NotSupportedException();
 
         public void BeginFrame()
         {

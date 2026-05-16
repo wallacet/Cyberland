@@ -101,6 +101,8 @@ public sealed unsafe partial class VulkanRenderer
             var swapchainPixelSize = new Vector2D<int>((int)_r._swapchainExtent.Width, (int)_r._swapchainExtent.Height);
             var camera = CameraSelection.PickActive(cameras.AsSpan(0, cameraCount), swapchainPixelSize);
             var physical = CameraProjection.ComputePhysicalViewport(camera.ViewportSizeWorld, swapchainPixelSize);
+            var presentationSize = CameraPresentationLayout.ResolvePresentationViewportSize(camera);
+            var presentationPhysical = CameraProjection.ComputePhysicalViewport(presentationSize, swapchainPixelSize);
 
             // Publish the resolved viewport size so the NEXT RunFrame's mod systems (anchors, HUD layout) see the
             // camera chosen for THIS DrawFrame — stable virtual canvas size even under concurrent SubmitCamera races.
@@ -250,6 +252,7 @@ public sealed unsafe partial class VulkanRenderer
                 in screen,
                 in camera,
                 in physical,
+                in presentationPhysical,
                 voSprites,
                 voCount,
                 voSort,

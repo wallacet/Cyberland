@@ -337,6 +337,76 @@ public sealed class TextRenderSystemTests
     }
 
     [Fact]
+    public void TextRenderSystem_presentation_decorations_apply_presentation_clip_rect_from_host_camera()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.ActiveCameraViewportSize = new Vector2D<int>(1920, 1080);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        host.CameraRuntimeState = new CameraRuntimeState(
+            ViewportSizeWorld: new Vector2D<int>(640, 360),
+            PositionWorld: new Vector2D<float>(0f, 0f),
+            RotationRadians: 0f,
+            BackgroundColor: default,
+            Priority: 0,
+            Valid: true,
+            PresentationViewportSizeWorld: new Vector2D<int>(1280, 720));
+
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var transform = ref world.Get<Transform>(e);
+        transform.WorldPosition = new Vector2D<float>(12f, 16f);
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "HUD";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.PresentationViewportSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.Sprites);
+        Assert.All(r.Sprites, s => Assert.True(s.ViewportClipEnabled));
+        Assert.All(r.Sprites, s =>
+        {
+            Assert.Equal(0f, s.ViewportClipRect.X);
+            Assert.Equal(0f, s.ViewportClipRect.Y);
+            Assert.Equal(1280f, s.ViewportClipRect.Width);
+            Assert.Equal(720f, s.ViewportClipRect.Height);
+        });
+    }
+
+    [Fact]
+    public void TextRenderSystem_presentation_decorations_skip_clip_when_host_camera_runtime_invalid()
+    {
+        var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };
+        r.ActiveCameraViewportSize = new Vector2D<int>(800, 600);
+        var host = new GameHostServices { Renderer = r, LocalizedContent = null };
+        host.CameraRuntimeState = default;
+
+        var world = new World();
+        var e = world.CreateEntity();
+        world.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var bt = ref world.GetOrAdd<BitmapText>(e);
+        bt.Visible = true;
+        bt.Content = "No pres clip";
+        bt.IsLocalizationKey = false;
+        bt.CoordinateSpace = CoordinateSpace.PresentationViewportSpace;
+        bt.Style = new TextStyle(BuiltinFonts.UiSans, 14f, new Vector4D<float>(1f, 1f, 1f, 1f), Underline: true);
+
+        var sys = new TextRenderSystem(host);
+        var q = world.QueryChunks(TextRowQuery);
+        sys.OnStart(world, q);
+        sys.OnLateUpdate(q, 0.016f);
+
+        Assert.NotEmpty(r.Sprites);
+        Assert.All(r.Sprites, s => Assert.False(s.ViewportClipEnabled));
+    }
+
+    [Fact]
     public void TextRenderSystem_viewport_underline_aligns_open_type_delta_to_snapped_baseline()
     {
         var r = new RecordingRenderer { MirrorTextGlyphsIntoSprites = false };

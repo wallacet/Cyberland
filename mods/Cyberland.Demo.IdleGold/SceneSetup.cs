@@ -95,7 +95,7 @@ public static class SceneSetup
         world.GetOrAdd<UiDocumentRoot>(rootEntity) = new UiDocumentRoot
         {
             Visible = true,
-            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            CoordinateSpace = CoordinateSpace.PresentationViewportSpace,
             RootPreset = UiDocumentRootPreset.FullViewport,
             SortKeyBase = 860f
         };
@@ -212,7 +212,7 @@ public static class SceneSetup
         text.Content = "FPS —";
         text.Style = new TextStyle(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.42f, 0.9f, 0.58f, 0.95f));
         text.SortKey = 870f;
-        text.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        text.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
         world.GetOrAdd<ViewportAnchor2D>(hudEntity) = new ViewportAnchor2D
         {
             Active = true,
@@ -490,7 +490,7 @@ public static class SceneSetup
         };
         UiLayoutPresets.CenterFixed(cell, 168f, 166f);
         UiLayoutPresets.TopLeftFixed(c.Icon, 36f, 36f);
-        UiLayoutPresets.TopStretch(c.SlotText, 20f);
+        UiLayoutPresets.TopStretch(c.SlotText, 22f);
         UiLayoutPresets.TopStretch(c.TierText, 22f);
         UiLayoutPresets.TopLeftFixed(c.UpgradeButton, 148f, 32f);
         cell.AddChild(c.Icon);
@@ -503,7 +503,8 @@ public static class SceneSetup
     private static EquipCellRefs EquipCell(IRenderer renderer)
     {
         var icon = new UiImage { SourceTextureId = renderer.WhiteTextureId, Tint = TierVisual.Stripe(0) };
-        var slot = TextBlock(" ", 13f, new Vector4D<float>(0.78f, 0.84f, 0.92f, 1f), bold: true);
+        // Bold 13 has no shipped MSDF bake; use 14 bold (same atlas tier as tier label / buttons).
+        var slot = TextBlock(" ", 14f, new Vector4D<float>(0.78f, 0.84f, 0.92f, 1f), bold: true);
         var tier = TextBlock(" ", 14f, new Vector4D<float>(0.9f, 0.92f, 1f, 1f), bold: true);
         var up = TextButton(148f, 34f, "up",
             new Vector4D<float>(0.16f, 0.38f, 0.46f, 1f),

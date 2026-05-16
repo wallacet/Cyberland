@@ -133,7 +133,7 @@ public static class SceneSetup
         text.Visible = false;
         text.Content = " ";
         text.SortKey = 450f;
-        text.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        text.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
         text.Style = new TextStyle(BuiltinFonts.UiSans, 16f, new Vector4D<float>(1f, 1f, 1f, 1f));
         text.IsLocalizationKey = false;
         return entity;

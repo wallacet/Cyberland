@@ -6,7 +6,8 @@ namespace Cyberland.Engine.Scene;
 /// Declarative placement of an entity's <see cref="Transform"/> relative to the swapchain rectangle, optionally syncing a fullscreen <see cref="Sprite"/>.
 /// </summary>
 /// <remarks>
-/// Pair <see cref="CoordinateSpace.ViewportSpace"/> with <see cref="BitmapText"/> for HUD rows.
+/// Pair <see cref="CoordinateSpace.PresentationViewportSpace"/> or <see cref="CoordinateSpace.ViewportSpace"/> with
+/// <see cref="BitmapText"/> for HUD rows (presentation keeps constant on-screen size when the camera zoom changes).
 /// Use <see cref="CoordinateSpace.WorldSpace"/> for world sprites (backgrounds, strips) drawn by <see cref="Systems.SpriteRenderSystem"/>.
 /// Applied each frame by <see cref="Systems.ViewportAnchorSystem"/>.
 /// Adding this component via <see cref="ComponentStore{T}.GetOrAdd(EntityId)"/> also ensures <see cref="Transform"/> exists

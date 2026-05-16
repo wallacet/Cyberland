@@ -30,7 +30,7 @@ public sealed class FpsHudSystem : ISingletonSystem, ISingletonLateUpdate
     {
         var r = _host.Renderer;
         var frame = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
+        var fb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         ref var t = ref fpsRow.Get<Transform>();
         t.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
         ref var bt = ref fpsRow.Get<BitmapText>();

@@ -55,6 +55,7 @@ public sealed class CameraRuntimeStateSystem : ISystem, ILateUpdate
                     PositionWorld = worldPos,
                     RotationRadians = worldRad,
                     ViewportSizeWorld = cam.ViewportSizeWorld,
+                    PresentationViewportSizeWorld = cam.PresentationViewportSizeWorld,
                     Priority = cam.Priority,
                     Enabled = true,
                     BackgroundColor = cam.BackgroundColor

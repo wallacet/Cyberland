@@ -41,7 +41,7 @@ public sealed class HudTitleTextSystem : ISingletonSystem, ISingletonLateUpdate
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
+        var fb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var show = game.Phase == Phase.Title;
@@ -86,7 +86,7 @@ public sealed class HudHintTitleTextSystem : ISingletonSystem, ISingletonLateUpd
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
+        var fb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var show = game.Phase == Phase.Title;
@@ -121,7 +121,7 @@ public sealed class HudGameOverTextSystem : ISingletonSystem, ISingletonLateUpda
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
+        var fb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var end = game.Phase is Phase.GameOver or Phase.Won;
@@ -156,7 +156,7 @@ public sealed class HudHintEndTextSystem : ISingletonSystem, ISingletonLateUpdat
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
+        var fb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var end = game.Phase is Phase.GameOver or Phase.Won;
@@ -191,7 +191,7 @@ public sealed class HudPlayingScoreTextSystem : ISingletonSystem, ISingletonLate
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
+        var fb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         ref var t = ref row.Get<Transform>();
         ref var bt = ref row.Get<BitmapText>();
         var playing = game.Phase == Phase.Playing;
@@ -228,7 +228,7 @@ public sealed class HudScoreNumTextSystem : ISingletonSystem, ISingletonLateUpda
     {
         _ = deltaSeconds;
         ref readonly var game = ref row.World.Get<GameState>(_sessionEntity);
-        var fb = ModLayoutViewport.VirtualSizeForPresentation(_host.Renderer);
+        var fb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         if (game.Score != _lastScore)
         {
             _lastScore = game.Score;

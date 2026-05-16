@@ -38,7 +38,7 @@ public static class SceneSetup
         world.GetOrAdd<UiDocumentRoot>(rootEntity) = new UiDocumentRoot
         {
             Visible = true,
-            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            CoordinateSpace = CoordinateSpace.PresentationViewportSpace,
             RootPreset = UiDocumentRootPreset.FullViewport,
             SortKeyBase = 860f
         };

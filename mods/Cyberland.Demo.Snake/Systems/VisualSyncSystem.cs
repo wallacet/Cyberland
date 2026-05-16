@@ -110,13 +110,14 @@ public sealed class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
         ref var session = ref _world.Get<Session>(_sessionEntity);
         var visuals = _world.Get<VisualBundle>(visualsRow.Entity);
         var fb = ModLayoutViewport.VirtualSizeForPresentation(renderer);
+        var hudFb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         if (fb.X <= 0 || fb.Y <= 0) return;
         session.UpdateLayout(fb.X, fb.Y);
         UpdateSnakeAndFoodSprites(visuals, in session, in fb);
         UpdateOverlayPanels(visuals, in session, in fb);
 
-        SetHudText(visuals, fb, session);
-        UpdateFpsHud(visuals, fb);
+        SetHudText(visuals, hudFb, session);
+        UpdateFpsHud(visuals, hudFb);
     }
 
     private void UpdateSnakeAndFoodSprites(VisualBundle visuals, in Session session, in Vector2D<int> framebufferSize)
@@ -229,7 +230,7 @@ public sealed class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
         text.Visible = false;
         text.Content = " ";
         text.SortKey = 450f;
-        text.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        text.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
         text.Style = HudStyle;
         text.IsLocalizationKey = false;
     }
@@ -275,7 +276,7 @@ public sealed class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
         bt.Style = style;
         bt.Content = content;
         bt.IsLocalizationKey = isKey;
-        bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        bt.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
         bt.SortKey = 450f;
     }
 }

@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.rts",
+  "name": "Cyberland RTS (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.Rts.dll",
+  "contentRoot": "Content",
+  "loadOrder": 32,
+  "disabled": true
+}

@@ -452,7 +452,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     /// </summary>
     internal static bool IsViewportUiOverlaySprite(in SpriteDrawRequest d) =>
         d.Layer >= (int)SpriteLayer.Ui &&
-        (d.Space == CoordinateSpace.ViewportSpace || d.Space == CoordinateSpace.SwapchainSpace);
+        (d.Space == CoordinateSpace.ViewportSpace || d.Space == CoordinateSpace.PresentationViewportSpace ||
+         d.Space == CoordinateSpace.SwapchainSpace);
 
     void IRenderer.SubmitPointLight(in PointLight light)
     {

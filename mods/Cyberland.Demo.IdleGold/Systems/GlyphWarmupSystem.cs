@@ -27,9 +27,11 @@ public sealed class GlyphWarmupSystem : ISingletonSystem, ISingletonLateUpdate
         var strings = BuildWarmupStrings(loc);
         EnqueueStyles(strings, new TextStyle(BuiltinFonts.UiSans, 13f, default));
         EnqueueStyles(strings, new TextStyle(BuiltinFonts.UiSans, 14f, default));
+        EnqueueStyles(strings, new TextStyle(BuiltinFonts.UiSans, 14f, default, Bold: true));
         EnqueueStyles(strings, new TextStyle(BuiltinFonts.UiSans, 15f, default));
         EnqueueStyles(strings, new TextStyle(BuiltinFonts.UiSans, 18f, default, Bold: true));
         EnqueueStyles(strings, new TextStyle(BuiltinFonts.UiSans, 22f, default));
+        EnqueueStyles(strings, new TextStyle(BuiltinFonts.UiSans, 23f, default, Bold: true));
     }
 
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<SessionTag>();

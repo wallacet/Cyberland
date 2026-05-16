@@ -107,6 +107,7 @@ public sealed class RenderingArchitectureContractsTests
             transparentSpriteCount: 0,
             in screen,
             in camera,
+            in physical,
             in physical);
 
         Assert.Same(sprites, plan.Sprites);
@@ -138,6 +139,8 @@ public sealed class RenderingArchitectureContractsTests
         Assert.Equal(physical.OffsetPixels, plan.Physical.OffsetPixels);
         Assert.Equal(physical.SizePixels, plan.Physical.SizePixels);
         Assert.Equal(physical.Scale, plan.Physical.Scale);
+        Assert.Equal(plan.Physical.OffsetPixels, plan.PresentationPhysical.OffsetPixels);
+        Assert.Equal(plan.Physical.Scale, plan.PresentationPhysical.Scale);
         Assert.Equal(0, plan.ViewportUiOverlaySpriteCount);
         Assert.Empty(plan.ViewportUiOverlaySprites);
         Assert.Empty(plan.ViewportUiOverlaySortIndices);
@@ -185,7 +188,8 @@ public sealed class RenderingArchitectureContractsTests
             transparentSpriteCount: 0,
             screen: new Vector2D<float>(1f, 1f),
             camera: camera,
-            physical: physical);
+            physical: physical,
+            presentationPhysical: physical);
 
         var context = new PostEffectContext(cmd, fb, in plan, in fullViewport, in fullScissor, in halfViewport, in halfScissor);
 

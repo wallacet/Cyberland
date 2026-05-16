@@ -31,6 +31,12 @@ public sealed class WorldRequiresComponentTests
     }
 
     [Fact]
+    public void BitmapText_HudDefaultCoordinateSpace_is_presentation_viewport()
+    {
+        Assert.Equal(CoordinateSpace.PresentationViewportSpace, BitmapText.HudDefaultCoordinateSpace);
+    }
+
+    [Fact]
     public void GetOrAdd_BitmapText_with_initial_adds_required_peer_components()
     {
         var w = new World();

@@ -31,6 +31,12 @@ public struct Camera2D : IComponent
     /// <summary>Virtual viewport size in world pixels (width, height); must be positive.</summary>
     public Vector2D<int> ViewportSizeWorld;
 
+    /// <summary>
+    /// When both axes are positive, <see cref="CoordinateSpace.PresentationViewportSpace"/> HUD uses this virtual size for
+    /// layout and letterbox scale instead of <see cref="ViewportSizeWorld"/>; <c>(0,0)</c> means “follow viewport extent.”
+    /// </summary>
+    public Vector2D<int> PresentationViewportSizeWorld;
+
     /// <summary>Scene clear / pillar-letterbox bar color (linear RGBA).</summary>
     public Vector4D<float> BackgroundColor;
 

@@ -51,6 +51,9 @@ internal static class TextGlyphSortComparer
         var depth = a.DepthHint.CompareTo(b.DepthHint);
         if (depth != 0)
             return depth;
+        var space = ((int)a.Space).CompareTo((int)b.Space);
+        if (space != 0)
+            return space;
         return 0;
     }
 

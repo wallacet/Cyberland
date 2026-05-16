@@ -55,5 +55,6 @@ internal static class SpriteBatchRuns
         prev.AlbedoTextureId == next.AlbedoTextureId &&
         prevNormResolved == nextNormResolved &&
         prev.ViewportClipEnabled == next.ViewportClipEnabled &&
+        prev.Space == next.Space &&
         (!prev.ViewportClipEnabled || prev.ViewportClipRect.Equals(next.ViewportClipRect));
 }

@@ -488,7 +488,7 @@ public class UiTextBlock : UiElement
             return;
 
         var inner = ComputedBounds.Deflate(Padding);
-        var applyVpClip = clipGlyphs && space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace;
+        var applyVpClip = clipGlyphs && space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace or CoordinateSpace.SwapchainSpace;
         if (_drawRunReplayValid &&
             _drawRunReplaySpace == space &&
             _drawRunReplaySortKey == sortKey &&
@@ -563,7 +563,7 @@ public class UiTextBlock : UiElement
             if (cached.GlyphCount > 0 && cached.Glyphs is not null)
             {
                 inkReplay = cached.Glyphs.AsSpan(0, cached.GlyphCount);
-                if (cached.Space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace)
+                if (cached.Space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.PresentationViewportSpace and not CoordinateSpace.SwapchainSpace)
                 {
                     var y = TextRenderer.RecoverBaselineYFromGlyph(in inkReplay[0]);
                     decorBaseline = new Vector2D<float>(cached.BaselineLeft.X, y);
@@ -726,7 +726,7 @@ public class UiTextBlock : UiElement
         if (n > 0)
         {
             ink = dest[..n];
-            if (space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace)
+            if (space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.PresentationViewportSpace and not CoordinateSpace.SwapchainSpace)
                 decorBaseline = new Vector2D<float>(baselineLeft.X, TextRenderer.RecoverBaselineYFromGlyph(in ink[0]));
         }
 

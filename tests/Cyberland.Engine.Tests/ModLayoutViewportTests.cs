@@ -25,5 +25,23 @@ public sealed class ModLayoutViewportTests
 
         Assert.Equal(new Vector2D<int>(1280, 720), ModLayoutViewport.VirtualSizeForSimulation(host));
         Assert.Equal(new Vector2D<int>(100, 200), ModLayoutViewport.VirtualSizeForPresentation(r.Object));
+        Assert.Equal(new Vector2D<int>(1280, 720), ModLayoutViewport.VirtualSizeForHudLayout(host));
+    }
+
+    [Fact]
+    public void VirtualSizeForHudLayout_uses_configured_presentation_extent()
+    {
+        var host = new GameHostServices
+        {
+            CameraRuntimeState = new CameraRuntimeState(
+                new Vector2D<int>(560, 315),
+                default,
+                0f,
+                default,
+                0,
+                true,
+                new Vector2D<int>(1280, 720))
+        };
+        Assert.Equal(new Vector2D<int>(1280, 720), ModLayoutViewport.VirtualSizeForHudLayout(host));
     }
 }

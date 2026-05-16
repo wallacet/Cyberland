@@ -159,7 +159,7 @@ public static class SceneSetup
         text.Content = "demo.hdr.title";
         text.Style = new TextStyle(BuiltinFonts.UiSans, 22f, new Vector4D<float>(0.85f, 0.95f, 1f, 1f), Bold: true);
         text.SortKey = 450f;
-        text.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        text.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
         world.GetOrAdd<ViewportAnchor2D>(entity) = new ViewportAnchor2D
         {
             Active = true,
@@ -182,7 +182,7 @@ public static class SceneSetup
         text.Content = "demo.hdr.hint";
         text.Style = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(0.55f, 0.65f, 0.75f, 0.9f), Italic: true);
         text.SortKey = 451f;
-        text.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        text.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
         world.GetOrAdd<ViewportAnchor2D>(entity) = new ViewportAnchor2D
         {
             Active = true,
@@ -205,7 +205,7 @@ public static class SceneSetup
         text.Content = "FPS —";
         text.Style = new TextStyle(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
         text.SortKey = 452f;
-        text.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        text.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
     }
 
     private static void SpawnStationaryHdrLightRig(World world, in DesignCanvas canvas)

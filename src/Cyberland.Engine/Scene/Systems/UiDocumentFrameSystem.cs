@@ -20,7 +20,8 @@ namespace Cyberland.Engine.Scene.Systems;
 /// input for viewport HUD documents, then submits draw calls above prior HUD/text passes (registration order).
 /// </summary>
 /// <remarks>
-/// World-space documents still layout and draw, but pointer routing is implemented only for <see cref="CoordinateSpace.ViewportSpace"/> in v1.
+/// World-space documents still layout and draw, but pointer routing is implemented only for
+/// <see cref="CoordinateSpace.ViewportSpace"/> and <see cref="CoordinateSpace.PresentationViewportSpace"/> in v1.
 /// This system is intentionally serial: it coordinates input edges, document ordering, and renderer submission state
 /// that currently relies on main-thread-only host services.
 /// Candidate parallel work is limited to future per-document layout preparation that proves thread-safe against shared
@@ -72,11 +73,20 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
         var primaryReleased = !primaryDown && _prevPrimary;
         _prevPrimary = primaryDown;
 
-        Vector2D<float>? viewportPointer = null;
+        Vector2D<float>? viewportMouse = null;
+        Vector2D<float>? presentationMouse = null;
         if (input is not null)
         {
-            var mp = input.GetMousePosition(CoordinateSpace.ViewportSpace);
-            viewportPointer = new Vector2D<float>(mp.X, mp.Y);
+            var mpVp = input.GetMousePosition(CoordinateSpace.ViewportSpace);
+            viewportMouse = new Vector2D<float>(mpVp.X, mpVp.Y);
+            // Presentation HUD uses a fixed virtual canvas only when the ECS camera snapshot can resolve it; otherwise
+            // skip presentation pointer routing so topmost hit tests do not treat (0,0) fallbacks as real hits.
+            var presLayout = ModLayoutViewport.VirtualSizeForHudLayout(_host);
+            if (presLayout.X > 0 && presLayout.Y > 0)
+            {
+                var mpPr = input.GetMousePosition(CoordinateSpace.PresentationViewportSpace);
+                presentationMouse = new Vector2D<float>(mpPr.X, mpPr.Y);
+            }
         }
 
         var wheel = input?.MouseWheelDelta ?? Vector2.Zero;
@@ -128,10 +138,7 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
 
             // Use the same-tick ECS camera snapshot when available so retained UI layout, viewport anchors, and
             // bitmap text all resolve against one viewport contract. Fallback to renderer state for early startup.
-            var vpRuntime = _host.CameraRuntimeState.ViewportSizeWorld;
-            var vp = vpRuntime.X > 0 && vpRuntime.Y > 0
-                ? vpRuntime
-                : renderer.ActiveCameraViewportSize;
+            var vp = ModLayoutViewport.VirtualCanvasForUiDocument(_host, renderer, cfg.CoordinateSpace);
             var rootRect = ResolveRootRect(cfg.RootPreset, vp);
 
             var incremental = UiLayoutGating.UseIncrementalDocumentFrames;
@@ -166,34 +173,41 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             _frameDocuments.Add(new FrameDocument(row.Id, cfg, doc, rootRect));
         }
 
-        if (viewportPointer.HasValue && (wheel.Y != 0f || primaryPressed || primaryReleased))
+        if ((viewportMouse.HasValue || presentationMouse.HasValue) &&
+            (wheel.Y != 0f || primaryPressed || primaryReleased))
         {
 #if DEBUG
             using var pointerScope = FrameProfilerScope.Enter("ui.pointer.route");
 #endif
-            var ptVp = viewportPointer.GetValueOrDefault();
-            var routed = TryGetTopmostViewportDocumentAtPoint(ptVp, out var target);
+            var routed = TryGetTopmostScreenLockedDocumentAtPoint(viewportMouse, presentationMouse, out var target);
 
             if (wheel.Y != 0f && routed)
             {
 #if DEBUG
                 using var wheelScope = FrameProfilerScope.Enter("ui.document.wheel");
 #endif
-                if (TryApplyWheel(target.Document, ptVp, wheel.Y, target.RootRect))
+                var ptWheel = PointerForDocumentSpace(target.Root.CoordinateSpace, viewportMouse, presentationMouse);
+                if (TryApplyWheel(target.Document, ptWheel, wheel.Y, target.RootRect))
                     target.Document.MeasureArrange(target.RootRect);
             }
 
             if (primaryPressed)
             {
                 if (routed)
-                    PointerPress(target.Id, target.Document, ptVp, target.RootRect);
+                {
+                    var pt = PointerForDocumentSpace(target.Root.CoordinateSpace, viewportMouse, presentationMouse);
+                    PointerPress(target.Id, target.Document, pt, target.RootRect);
+                }
                 else
                     CancelArmedButton();
             }
             else if (primaryReleased)
             {
                 if (routed)
-                    PointerRelease(target.Id, target.Document, ptVp, target.RootRect);
+                {
+                    var pt = PointerForDocumentSpace(target.Root.CoordinateSpace, viewportMouse, presentationMouse);
+                    PointerRelease(target.Id, target.Document, pt, target.RootRect);
+                }
                 else
                     PointerReleaseWithoutHit();
             }
@@ -236,14 +250,21 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
             _ => throw new ArgumentOutOfRangeException(nameof(preset), preset, "Unsupported UiDocumentRoot preset."),
         };
 
-    private bool TryGetTopmostViewportDocumentAtPoint(Vector2D<float> pointer, out FrameDocument target)
+    private bool TryGetTopmostScreenLockedDocumentAtPoint(
+        Vector2D<float>? viewportPt,
+        Vector2D<float>? presentationPt,
+        out FrameDocument target)
     {
         for (var i = _frameDocuments.Count - 1; i >= 0; i--)
         {
             var doc = _frameDocuments[i];
-            if (doc.Root.CoordinateSpace != CoordinateSpace.ViewportSpace)
+            var space = doc.Root.CoordinateSpace;
+            if (space != CoordinateSpace.ViewportSpace && space != CoordinateSpace.PresentationViewportSpace)
                 continue;
-            if (!doc.RootRect.Contains(pointer))
+            var p = space == CoordinateSpace.PresentationViewportSpace ? presentationPt : viewportPt;
+            if (!p.HasValue)
+                continue;
+            if (!doc.RootRect.Contains(p.Value))
                 continue;
 
             target = doc;
@@ -253,6 +274,14 @@ public sealed class UiDocumentFrameSystem : ISystem, ILateUpdate
         target = default;
         return false;
     }
+
+    private static Vector2D<float> PointerForDocumentSpace(
+        CoordinateSpace space,
+        Vector2D<float>? viewportPt,
+        Vector2D<float>? presentationPt) =>
+        space == CoordinateSpace.PresentationViewportSpace
+            ? presentationPt.GetValueOrDefault()
+            : viewportPt.GetValueOrDefault();
 
     private void PointerPress(EntityId documentId, UiDocument doc, Vector2D<float> pointer, UiRect clip)
     {

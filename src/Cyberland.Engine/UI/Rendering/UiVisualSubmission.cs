@@ -22,7 +22,7 @@ internal static class UiVisualSubmission
         var cx = rect.X + rect.Width * 0.5f;
         var cy = rect.Y + rect.Height * 0.5f;
         var straightA = colorMultiply.W;
-        var clipScreen = space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace;
+        var clipScreen = space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace or CoordinateSpace.SwapchainSpace;
         renderer.SubmitSprite(new SpriteDrawRequest
         {
             CenterWorld = new Vector2D<float>(cx, cy),

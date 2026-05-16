@@ -56,6 +56,12 @@ internal readonly struct FramePlan
     /// <summary>Letterbox mapping from the camera's virtual viewport to the swapchain.</summary>
     public readonly PhysicalViewport Physical;
 
+    /// <summary>
+    /// Letterbox mapping for <see cref="Scene.CoordinateSpace.PresentationViewportSpace"/> HUD when it differs from
+    /// <see cref="Physical"/>; otherwise identical to <see cref="Physical"/>.
+    /// </summary>
+    public readonly PhysicalViewport PresentationPhysical;
+
     /// <summary>Opaque viewport/swapchain-space UI sprites composited after HDR (straight-alpha), separate from deferred G-buffer sprites.</summary>
     public readonly SpriteDrawRequest[] ViewportUiOverlaySprites;
 
@@ -93,6 +99,7 @@ internal readonly struct FramePlan
         in Vector2D<float> screen,
         in CameraViewRequest camera,
         in PhysicalViewport physical,
+        in PhysicalViewport presentationPhysical,
         SpriteDrawRequest[]? viewportUiOverlaySprites = null,
         int viewportUiOverlaySpriteCount = 0,
         int[]? viewportUiOverlaySortIndices = null,
@@ -122,6 +129,7 @@ internal readonly struct FramePlan
         Screen = screen;
         Camera = camera;
         Physical = physical;
+        PresentationPhysical = presentationPhysical;
         ViewportUiOverlaySprites = viewportUiOverlaySprites ?? [];
         ViewportUiOverlaySpriteCount = viewportUiOverlaySpriteCount;
         ViewportUiOverlaySortIndices = viewportUiOverlaySortIndices ?? [];

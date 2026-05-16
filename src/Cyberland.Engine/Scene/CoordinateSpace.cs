@@ -19,10 +19,17 @@ public enum CoordinateSpace
     LocalSpace,
 
     /// <summary>
-    /// Virtual viewport space: top-left origin, +Y down, extent of the active camera viewport.
-    /// Preferred for HUD and pointer interactions that should stay stable across letterboxing.
+    /// Virtual viewport space: top-left origin, +Y down, extent of the active camera’s
+    /// <see cref="Camera2D.ViewportSizeWorld"/> (matches world zoom / letterbox scale).
     /// </summary>
     ViewportSpace,
+
+    /// <summary>
+    /// Presentation / design canvas: top-left origin, +Y down, extent from <see cref="Camera2D.PresentationViewportSizeWorld"/>
+    /// when set, else same as <see cref="ViewportSpace"/>. HUD text and retained UI should use this so wheel zoom on
+    /// <see cref="Camera2D.ViewportSizeWorld"/> does not change on-screen font size.
+    /// </summary>
+    PresentationViewportSpace,
 
     /// <summary>
     /// Physical swapchain / window pixels: top-left origin, +Y down.

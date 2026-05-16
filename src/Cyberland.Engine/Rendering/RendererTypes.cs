@@ -150,6 +150,13 @@ public struct CameraViewRequest
     public float RotationRadians;
     /// <summary>Virtual viewport size in world pixels (must be positive for the camera to be eligible).</summary>
     public Vector2D<int> ViewportSizeWorld;
+
+    /// <summary>
+    /// When both axes are positive, matches <see cref="Scene.Camera2D.PresentationViewportSizeWorld"/> for this submission;
+    /// otherwise <c>(0,0)</c> so presentation HUD follows <see cref="ViewportSizeWorld"/>.
+    /// </summary>
+    public Vector2D<int> PresentationViewportSizeWorld;
+
     /// <summary>Higher wins; ties broken by submit order.</summary>
     public int Priority;
     /// <summary>When <c>false</c>, the camera is ignored even if submitted.</summary>

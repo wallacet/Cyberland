@@ -36,7 +36,7 @@ public static class TextRenderer
     /// with +Y down (must match the active camera / swapchain projection in the renderer).
     /// </summary>
     private static bool ScreenSpaceYDown(CoordinateSpace space) =>
-        space is CoordinateSpace.ViewportSpace or CoordinateSpace.SwapchainSpace;
+        space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace or CoordinateSpace.SwapchainSpace;
 
     /// <summary>Draws a literal string with a single style in world space.</summary>
     public static void DrawLiteral(
@@ -332,7 +332,7 @@ public static class TextRenderer
     /// stays on the transparent path for correct compositing over the lit scene.
     /// </summary>
     private static bool TransparentSpriteForSpace(CoordinateSpace space) =>
-        space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.SwapchainSpace;
+        space is not CoordinateSpace.ViewportSpace and not CoordinateSpace.PresentationViewportSpace and not CoordinateSpace.SwapchainSpace;
 
     private static TextGlyphDrawRequest CreateGlyphDrawRequest(
         TextGlyphCache.CachedGlyph g,

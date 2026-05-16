@@ -15,7 +15,8 @@ public readonly record struct CameraRuntimeState(
     float RotationRadians,
     Vector4D<float> BackgroundColor,
     int Priority,
-    bool Valid)
+    bool Valid,
+    Vector2D<int> PresentationViewportSizeWorld = default)
 {
     /// <summary>
     /// Creates a runtime snapshot from a resolved camera view request.
@@ -27,7 +28,8 @@ public readonly record struct CameraRuntimeState(
             view.RotationRadians,
             view.BackgroundColor,
             view.Priority,
-            true);
+            true,
+            view.PresentationViewportSizeWorld);
 
     /// <summary>
     /// Creates the default runtime camera snapshot based on swapchain size.

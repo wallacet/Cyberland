@@ -32,7 +32,9 @@ public static class SceneSetup
         var cameraTransform = Transform.Identity;
         cameraTransform.WorldPosition = new Vector2D<float>(640f, 360f);
         world.GetOrAdd<Transform>(cameraEntity) = cameraTransform;
-        world.GetOrAdd<Camera2D>(cameraEntity) = Camera2D.Create(new Vector2D<int>(1280, 720));
+        var cam = Camera2D.Create(new Vector2D<int>(1280, 720));
+        cam.PresentationViewportSizeWorld = new Vector2D<int>(1280, 720);
+        world.GetOrAdd<Camera2D>(cameraEntity) = cam;
 
         var stateEntity = world.CreateEntity();
         world.GetOrAdd<GameState>(stateEntity) = new GameState
@@ -175,7 +177,7 @@ public static class SceneSetup
         world.GetOrAdd<UiDocumentRoot>(rootEntity) = new UiDocumentRoot
         {
             Visible = true,
-            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            CoordinateSpace = CoordinateSpace.PresentationViewportSpace,
             RootPreset = UiDocumentRootPreset.FullViewport,
             SortKeyBase = 800f
         };

@@ -348,6 +348,70 @@ public sealed class UiDocumentFrameSystemTests
     }
 
     [Fact]
+    public void UiDocumentFrameSystem_pointer_routing_skips_presentation_documents_when_presentation_pointer_unavailable()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(400, 300) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.CameraRuntimeState = default;
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(50f, 50f),
+            LeftSequence = new[] { false },
+            Wheel = new Vector2(0f, -1f)
+        };
+
+        var doc = new UiDocument();
+        doc.Root.AddChild(new UiPanel());
+
+        var world = new World();
+        var ent = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.PresentationViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        host.UiDocuments.Register(ent, doc);
+
+        var sys = new UiDocumentFrameSystem(host);
+        sys.OnStart(world, world.QueryChunks(DocRootQuery));
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+    }
+
+    [Fact]
+    public void UiDocumentFrameSystem_resolves_presentation_pointer_when_hud_layout_is_valid()
+    {
+        var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(400, 300) };
+        var host = new GameHostServices { Renderer = renderer, LocalizedContent = null };
+        host.CameraRuntimeState = CameraRuntimeState.CreateDefault(new Vector2D<int>(400, 300));
+        host.Input = new StubUiInput
+        {
+            Viewport = new Vector2(50f, 50f),
+            LeftSequence = new[] { false },
+            Wheel = new Vector2(0f, -1f)
+        };
+
+        var doc = new UiDocument();
+        doc.Root.AddChild(new UiPanel());
+
+        var world = new World();
+        var ent = world.CreateEntity();
+        world.GetOrAdd<UiDocumentRoot>(ent) = new UiDocumentRoot
+        {
+            Visible = true,
+            CoordinateSpace = CoordinateSpace.ViewportSpace,
+            RootPreset = UiDocumentRootPreset.FullViewport,
+            SortKeyBase = 0f
+        };
+        host.UiDocuments.Register(ent, doc);
+
+        var sys = new UiDocumentFrameSystem(host);
+        sys.OnStart(world, world.QueryChunks(DocRootQuery));
+        sys.OnLateUpdate(world.QueryChunks(DocRootQuery), 0.016f);
+    }
+
+    [Fact]
     public void UiDocumentFrameSystem_release_outside_viewport_document_cancels_armed_button()
     {
         var renderer = new RecordingRenderer { ActiveCameraViewportSize = new Vector2D<int>(100, 100) };
@@ -821,10 +885,14 @@ public sealed class UiDocumentFrameSystemTests
         public IReadOnlyList<InputGameplayCommand> FrameGameplayCommands => Array.Empty<InputGameplayCommand>();
 
         public System.Numerics.Vector2 GetMousePosition(CoordinateSpace space = CoordinateSpace.ViewportSpace) =>
-            space == CoordinateSpace.ViewportSpace ? Viewport : throw new NotSupportedException();
+            space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace
+                ? Viewport
+                : throw new NotSupportedException();
 
         public System.Numerics.Vector2 GetMouseDelta(CoordinateSpace space = CoordinateSpace.ViewportSpace) =>
-            space == CoordinateSpace.ViewportSpace ? System.Numerics.Vector2.Zero : throw new NotSupportedException();
+            space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace
+                ? System.Numerics.Vector2.Zero
+                : throw new NotSupportedException();
 
         public void BeginFrame()
         {

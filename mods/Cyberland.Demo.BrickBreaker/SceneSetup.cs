@@ -118,7 +118,7 @@ public static class SceneSetup
             bt.Visible = false;
             bt.Content = " ";
             bt.SortKey = sortKey;
-            bt.CoordinateSpace = CoordinateSpace.ViewportSpace;
+            bt.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
             bt.Style = new TextStyle(BuiltinFonts.UiSans, 15f, new Vector4D<float>(1f, 1f, 1f, 1f));
             bt.IsLocalizationKey = false;
             return e;

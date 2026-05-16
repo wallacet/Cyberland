@@ -623,19 +623,6 @@ public sealed unsafe partial class VulkanRenderer
         _vk!.CmdBindVertexBuffers(cmd, 1, 1, instBind, instOffset);
         _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTextMsdf);
 
-        var push = new TextMsdfPushData
-        {
-            ViewportPhysical = new Vector4D<float>(
-                framePlan.Physical.OffsetPixels.X,
-                framePlan.Physical.OffsetPixels.Y,
-                framePlan.Physical.SizePixels.X,
-                framePlan.Physical.SizePixels.Y),
-            Screen = framePlan.Screen,
-            EdgeSharpness = TextMsdfEdgeSharpness
-        };
-        _vk.CmdPushConstants(cmd, _plTextMsdf, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
-            (uint)sizeof(TextMsdfPushData), &push);
-
         BeginGpuLabel(cmd, "Draw.TextUi.Batch");
         try
         {
@@ -652,8 +639,24 @@ public sealed unsafe partial class VulkanRenderer
                 continue;
             }
 
+            var batchPhysical = startReq.Space == Scene.CoordinateSpace.PresentationViewportSpace
+                ? framePlan.PresentationPhysical
+                : framePlan.Physical;
+            var push = new TextMsdfPushData
+            {
+                ViewportPhysical = new Vector4D<float>(
+                    batchPhysical.OffsetPixels.X,
+                    batchPhysical.OffsetPixels.Y,
+                    batchPhysical.SizePixels.X,
+                    batchPhysical.SizePixels.Y),
+                Screen = framePlan.Screen,
+                EdgeSharpness = TextMsdfEdgeSharpness
+            };
+            _vk.CmdPushConstants(cmd, _plTextMsdf, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
+                (uint)sizeof(TextMsdfPushData), &push);
+
             var scissor = startReq.ViewportClipEnabled
-                ? ViewportClipRectToSwapchainScissor(in startReq.ViewportClipRect, in framePlan, in passScissor)
+                ? ViewportClipRectToSwapchainScissor(in startReq.ViewportClipRect, in batchPhysical, in passScissor)
                 : passScissor;
             _vk.CmdSetScissor(cmd, 0, 1, &scissor);
             var set = tex.DescriptorSet;
@@ -664,6 +667,7 @@ public sealed unsafe partial class VulkanRenderer
             {
                 ref readonly var nextReq = ref sprites[sortIdx[first + run]];
                 if (nextReq.TextureId != startReq.TextureId ||
+                    nextReq.Space != startReq.Space ||
                     nextReq.ViewportClipEnabled != startReq.ViewportClipEnabled)
                     break;
                 if (nextReq.ViewportClipEnabled && !nextReq.ViewportClipRect.Equals(startReq.ViewportClipRect))
@@ -695,6 +699,10 @@ public sealed unsafe partial class VulkanRenderer
         {
             px = CameraProjection.ViewportPixelToSwapchainPixel(g.Center, in plan.Physical);
         }
+        else if (g.Space == Scene.CoordinateSpace.PresentationViewportSpace)
+        {
+            px = CameraProjection.ViewportPixelToSwapchainPixel(g.Center, in plan.PresentationPhysical);
+        }
         else if (g.Space == Scene.CoordinateSpace.SwapchainSpace)
         {
             px = g.Center;
@@ -718,8 +726,9 @@ public sealed unsafe partial class VulkanRenderer
         if (uv.X == 0f && uv.Y == 0f && uv.Z == 0f && uv.W == 0f)
             uv = new Vector4D<float>(0f, 0f, 1f, 1f);
 
-        var halfX = g.HalfExtents.X * plan.Physical.Scale;
-        var halfY = g.HalfExtents.Y * plan.Physical.Scale;
+        var textScale = g.Space == Scene.CoordinateSpace.PresentationViewportSpace ? plan.PresentationPhysical.Scale : plan.Physical.Scale;
+        var halfX = g.HalfExtents.X * textScale;
+        var halfY = g.HalfExtents.Y * textScale;
         // Snap extents to half-pixel increments so scaled quads align better under non-integer letterbox scales.
         halfX = MathF.Max(0.5f, MathF.Round(halfX * 2f) * 0.5f);
         halfY = MathF.Max(0.5f, MathF.Round(halfY * 2f) * 0.5f);
@@ -768,11 +777,11 @@ public sealed unsafe partial class VulkanRenderer
     /// <summary>
     /// Viewport clip (+Y down) → swapchain scissor, intersected with <paramref name="passScissor"/>.
     /// </summary>
-    private static Rect2D ViewportClipRectToSwapchainScissor(in UiRect clipVp, in FramePlan plan, in Rect2D passScissor)
+    private static Rect2D ViewportClipRectToSwapchainScissor(in UiRect clipVp, in PhysicalViewport physical, in Rect2D passScissor)
     {
-        var tl = CameraProjection.ViewportPixelToSwapchainPixel(new Vector2D<float>(clipVp.X, clipVp.Y), plan.Physical);
+        var tl = CameraProjection.ViewportPixelToSwapchainPixel(new Vector2D<float>(clipVp.X, clipVp.Y), in physical);
         var br = CameraProjection.ViewportPixelToSwapchainPixel(new Vector2D<float>(clipVp.Right, clipVp.Bottom),
-            plan.Physical);
+            in physical);
 
         var minX = MathF.Min(tl.X, br.X);
         var minY = MathF.Min(tl.Y, br.Y);
@@ -889,6 +898,11 @@ public sealed unsafe partial class VulkanRenderer
             rotScreen = s.RotationRadians;
             px = CameraProjection.ViewportPixelToSwapchainPixel(s.CenterWorld, in plan.Physical);
         }
+        else if (s.Space == Scene.CoordinateSpace.PresentationViewportSpace)
+        {
+            rotScreen = s.RotationRadians;
+            px = CameraProjection.ViewportPixelToSwapchainPixel(s.CenterWorld, in plan.PresentationPhysical);
+        }
         else if (s.Space == Scene.CoordinateSpace.SwapchainSpace)
         {
             rotScreen = s.RotationRadians;
@@ -905,11 +919,15 @@ public sealed unsafe partial class VulkanRenderer
             px = CameraProjection.ViewportPixelToSwapchainPixel(vpPixel, in plan.Physical);
         }
 
-        var halfX = s.HalfExtentsWorld.X * plan.Physical.Scale;
-        var halfY = s.HalfExtentsWorld.Y * plan.Physical.Scale;
+        var scaleForHalfExtents = s.Space == Scene.CoordinateSpace.PresentationViewportSpace
+            ? plan.PresentationPhysical.Scale
+            : plan.Physical.Scale;
+        var halfX = s.HalfExtentsWorld.X * scaleForHalfExtents;
+        var halfY = s.HalfExtentsWorld.Y * scaleForHalfExtents;
         // Match TryBuildTextGlyphInstance: HUD sprites share the swapchain overlay pass with MSDF text; identical pixel
         // snapping keeps decoration lines aligned with glyph quads under letterbox scaling.
-        if (s.Space == Scene.CoordinateSpace.ViewportSpace || s.Space == Scene.CoordinateSpace.SwapchainSpace)
+        if (s.Space == Scene.CoordinateSpace.ViewportSpace || s.Space == Scene.CoordinateSpace.PresentationViewportSpace ||
+            s.Space == Scene.CoordinateSpace.SwapchainSpace)
         {
             px = new Vector2D<float>(MathF.Round(px.X), MathF.Round(px.Y));
             halfX = MathF.Max(0.5f, MathF.Round(halfX * 2f) * 0.5f);
@@ -1292,7 +1310,10 @@ public sealed unsafe partial class VulkanRenderer
                 Rect2D sci = passScissor;
                 if (startS.ViewportClipEnabled)
                 {
-                    sci = ViewportClipRectToSwapchainScissor(startS.ViewportClipRect, in plan, passScissor);
+                    var clipPhys = startS.Space == Scene.CoordinateSpace.PresentationViewportSpace
+                        ? plan.PresentationPhysical
+                        : plan.Physical;
+                    sci = ViewportClipRectToSwapchainScissor(startS.ViewportClipRect, in clipPhys, passScissor);
                     if (sci.Extent.Width == 0 || sci.Extent.Height == 0)
                     {
                         first++;

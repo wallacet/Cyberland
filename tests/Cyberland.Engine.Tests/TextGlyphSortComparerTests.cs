@@ -1,4 +1,5 @@
 using Cyberland.Engine.Rendering;
+using Cyberland.Engine.Scene;
 using Xunit;
 
 namespace Cyberland.Engine.Tests;
@@ -61,5 +62,20 @@ public sealed class TextGlyphSortComparerTests
         var indices = new[] { 1, 0 };
         TextGlyphSortComparer.SortByOrder(indices, glyphs, 2);
         Assert.Equal(new[] { 0, 1 }, indices);
+    }
+
+    [Fact]
+    public void SortByOrder_breaks_sort_key_ties_with_coordinate_space_before_index()
+    {
+        var glyphs = new[]
+        {
+            new TextGlyphDrawRequest { SortKey = 1f, DepthHint = 0f, Space = CoordinateSpace.ViewportSpace },
+            new TextGlyphDrawRequest { SortKey = 1f, DepthHint = 0f, Space = CoordinateSpace.WorldSpace }
+        };
+
+        var indices = new[] { 0, 1 };
+        TextGlyphSortComparer.SortByOrder(indices, glyphs, 2);
+        // WorldSpace enum value sorts before ViewportSpace in this tie-break.
+        Assert.Equal(new[] { 1, 0 }, indices);
     }
 }

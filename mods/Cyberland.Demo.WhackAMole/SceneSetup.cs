@@ -114,7 +114,7 @@ public static class SceneSetup
         ref var text = ref world.GetOrAdd<BitmapText>(entity);
         text.Visible = true;
         text.Content = string.Empty;
-        text.CoordinateSpace = CoordinateSpace.ViewportSpace;
+        text.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
         text.IsLocalizationKey = false;
         text.SortKey = 400f;
         text.Style = style;

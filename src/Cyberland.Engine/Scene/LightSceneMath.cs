@@ -15,11 +15,14 @@ internal static class LightSceneMath
         MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y));
 
     /// <summary>
-    /// True when <paramref name="entity"/>'s transform root owns a <see cref="Sprite"/> in
-    /// <see cref="CoordinateSpace.ViewportSpace"/>: composed translations are virtual viewport pixels (+Y down), not
-    /// world units (+Y up). Deferred lighting expects the latter (see <see cref="CameraProjection.ViewportPixelToWorld"/>).
+    /// True when <paramref name="entity"/>'s transform root owns a <see cref="Sprite"/> in viewport-locked space
+    /// (<see cref="CoordinateSpace.ViewportSpace"/> or <see cref="CoordinateSpace.PresentationViewportSpace"/>): composed
+    /// translations are virtual canvas pixels (+Y down), not world units (+Y up).
     /// </summary>
-    public static bool RootTransformUsesViewportSpriteSpace(World world, EntityId entity)
+    public static bool RootTransformUsesViewportSpriteSpace(World world, EntityId entity) =>
+        TryGetViewportLockedRootSpriteSpace(world, entity, out _);
+
+    private static bool TryGetViewportLockedRootSpriteSpace(World world, EntityId entity, out CoordinateSpace rootSpriteSpace)
     {
         var id = entity;
         while (true)
@@ -32,9 +35,20 @@ internal static class LightSceneMath
         }
 
         if (!world.Has<Sprite>(id))
+        {
+            rootSpriteSpace = default;
             return false;
+        }
+
         ref readonly var spr = ref world.Get<Sprite>(id);
-        return spr.Space == CoordinateSpace.ViewportSpace;
+        if (spr.Space is CoordinateSpace.ViewportSpace or CoordinateSpace.PresentationViewportSpace)
+        {
+            rootSpriteSpace = spr.Space;
+            return true;
+        }
+
+        rootSpriteSpace = default;
+        return false;
     }
 
     /// <summary>
@@ -48,11 +62,14 @@ internal static class LightSceneMath
         Vector2D<float> transformTranslation,
         in CameraRuntimeState camera)
     {
-        if (!RootTransformUsesViewportSpriteSpace(world, lightEntity))
+        if (!TryGetViewportLockedRootSpriteSpace(world, lightEntity, out var rootSpace))
             return transformTranslation;
         if (!camera.Valid)
             return transformTranslation;
-        var viewportSize = new Vector2D<float>(camera.ViewportSizeWorld.X, camera.ViewportSizeWorld.Y);
+        var vpDims = rootSpace == CoordinateSpace.PresentationViewportSpace
+            ? CameraPresentationLayout.ResolvePresentationViewportSize(camera)
+            : camera.ViewportSizeWorld;
+        var viewportSize = new Vector2D<float>(vpDims.X, vpDims.Y);
         return CameraProjection.ViewportPixelToWorld(
             transformTranslation,
             camera.PositionWorld,
