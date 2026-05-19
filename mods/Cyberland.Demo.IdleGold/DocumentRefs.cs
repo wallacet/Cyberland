@@ -7,7 +7,7 @@ using Cyberland.Engine.UI.Text;
 
 namespace Cyberland.Demo.IdleGold;
 
-/// <summary>Strong handles for retained UI built in <see cref="SceneSetup"/>.</summary>
+/// <summary>Strong handles for retained UI loaded from <c>Content/Ui/idlegold_hud.json</c>.</summary>
 public sealed class DocumentRefs
 {
     public UiRadioGroup NavGroup { get; init; } = null!;

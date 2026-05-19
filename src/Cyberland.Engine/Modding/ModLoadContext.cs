@@ -6,6 +6,7 @@ using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.RuntimeScenes;
+using Cyberland.Engine.RuntimeUi;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -73,6 +74,11 @@ public sealed class ModLoadContext
     /// Optional runtime scene stack (additive worlds). Null until the host calls <see cref="GameHostServices.InitializeRuntimeScenes"/>.
     /// </summary>
     public ISceneRuntime? Scenes => Host.Scenes;
+
+    /// <summary>
+    /// Optional runtime UI JSON loader. Null until the host calls <see cref="GameHostServices.InitializeRuntimeUi"/>.
+    /// </summary>
+    public IUiRuntime? Ui => Host.Ui;
 
     /// <summary>Mounts <see cref="ModManifest.ContentRoot"/> under this mod's folder.</summary>
     /// <remarks>

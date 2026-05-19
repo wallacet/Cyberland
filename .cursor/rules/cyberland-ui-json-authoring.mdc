@@ -1,0 +1,62 @@
+---
+description: UI JSON document format, engine element types, and binding after spawn
+globs: "mods/**/Content/Ui/**/*.json,**/RuntimeUi/**/*.cs,**/UI/**/*.cs"
+alwaysApply: false
+---
+
+# Cyberland — UI JSON authoring
+
+Retained HUDs use **separate** files from scenes: **`Content/Ui/<name>.json`**, loaded by **`IUiRuntime`** when the scene’s **`cyberland.engine/ui-document-root`** lists **`uiPath`**.
+
+## File shape
+
+```json
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "cyberland.engine/vertical-stack",
+    "id": "hud.root",
+    "layout": { "preset": "stretchAll" },
+    "children": [ ]
+  }
+}
+```
+
+- **`root`** applies to the existing **`UiDocument.Root`** panel (layout + **`children`** only — do not nest a second full-screen root).
+- Per-node fields: **`type`**, optional **`id`**, anchors, **`margin`** / **`padding`**, **`layout.preset`**, type-specific keys (flat on the node).
+- **`id`** is unique within the file; used for **`UiElementLookup`** after spawn. **Not** the same as scene entity **`logicalId`**.
+
+## Engine element types (`cyberland.engine/…`)
+
+| Slug | Notes |
+|------|--------|
+| `panel`, `vertical-stack`, `horizontal-stack` | `spacing`, `backgroundColor`, `backgroundTexture` (`white`, `defaultNormal`) |
+| `grid` | `columnCount`, `spacing` |
+| `scroll-view` | `content` subtree (not `children` of viewport); `wheelScrollPixels` |
+| `image` | `sourceTexture`, `tint` |
+| `text-block`, `label` | `text` or `locKey` + `isLocalizationKey`, `fontFamily` (`UiSans`, `Mono`, or full id e.g. `fonttest.jost`), `sizePixels`, style flags |
+| `button` | `normalBackground`, `pressedBackground`; optional child `text-block` |
+| `radio-button` | `groupId`, `optionId`, `width`, `height`, tints |
+
+Register custom types: **`context.Ui.RegisterElementDeserializer("your.mod/widget", …)`** before spawn.
+
+## Layout presets (`layout.preset`)
+
+`stretchAll`, `stretchWidthAutoHeight`, `topStretch` (+ `height`), `topLeftFixed`, `centerFixed`, `topRightFixed`, `bottomRightFixed` (+ `width`, `height`, `margin`, optional `anchoredPosition` override).
+
+## Mod workflow (after scene spawn)
+
+```csharp
+var hud = world.RequireSingleEntityWith<HudRootTag>("HUD root");
+if (!context.Host.UiDocuments.TryGetElements(hud, out var ids))
+    throw new InvalidOperationException("UI not attached.");
+var score = ids.Require<UiTextBlock>("hud.score");
+```
+
+Events, simulation, and dynamic strings stay in C# systems — not in JSON.
+
+## Related rules
+
+- **cyberland-demo-mod-authoring** — demo-only JSON UI policy
+- **cyberland-mod-patterns-hdr** — cold start + scene JSON
+- **cyberland-mod-host-architecture** — `InitializeRuntimeUi`, `ModLoadContext.Ui`

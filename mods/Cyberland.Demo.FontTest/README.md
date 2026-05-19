@@ -14,7 +14,8 @@
 
 1. **`Mod.cs`** — **`RegisterJostFamilyAsync`** before scene; **fire-and-forget** **`LoadBakedMsdfAtlasAsync`** (do **not** await from **`OnLoadAsync`**).
 2. **`FontTestFonts.cs`** — VFS paths and family id constants.
-3. **`SceneSetup.cs`** — grid of **`BitmapText`** samples exercising sizes/families.
+3. **`Content/Scenes/demo_fonttest.json`** + **`Content/Ui/fonttest_matrix.json`** — scene shell and font matrix HUD (`uiPath` on **`ui-document-root`**).
+4. **`tools/FontTestUiJsonGen/`** — optional regenerator for the large matrix JSON.
 4. **`Content/Fonts/Baked/*.manifest.json`** + PNG pages — how optional mod bakes layer on builtins.
 
 ## Features taught
@@ -27,6 +28,7 @@
 
 - **`Content/Fonts/Source/`** — TTF sources (not always required at runtime if bakes exist).
 - **`Content/Fonts/Baked/`** — Jost MSDF manifests + pages.
+- **`Content/Ui/fonttest_matrix.json`** — retained HUD grid (engine + Jost samples).
 
 ## Further reading
 

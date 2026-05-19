@@ -20,17 +20,33 @@ namespace Cyberland.Engine.Hosting;
 public sealed class UiDocumentRegistry
 {
     private readonly Dictionary<EntityId, UiDocument> _documents = new();
+    private readonly Dictionary<EntityId, IReadOnlyDictionary<string, UiElement>> _elementsById = new();
     private readonly HashSet<EntityId> _pruneKeepSet = new();
 
     /// <summary>Associates <paramref name="document"/> with <paramref name="entity"/> (replaces any prior entry).</summary>
-    public void Register(EntityId entity, UiDocument document)
+    /// <param name="entity">Owning ECS entity.</param>
+    /// <param name="document">Built UI document.</param>
+    /// <param name="elementsById">Optional map from JSON <c>id</c> to nodes (from <see cref="RuntimeUi.UiBuildResult"/>).</param>
+    public void Register(EntityId entity, UiDocument document, IReadOnlyDictionary<string, UiElement>? elementsById = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         _documents[entity] = document;
+        if (elementsById is null)
+            _elementsById.Remove(entity);
+        else
+            _elementsById[entity] = elementsById;
     }
 
+    /// <summary>Resolves authored element ids for a registered document.</summary>
+    public bool TryGetElements(EntityId entity, out IReadOnlyDictionary<string, UiElement> elementsById) =>
+        _elementsById.TryGetValue(entity, out elementsById!);
+
     /// <summary>Removes a registration if present.</summary>
-    public bool Unregister(EntityId entity) => _documents.Remove(entity);
+    public bool Unregister(EntityId entity)
+    {
+        _elementsById.Remove(entity);
+        return _documents.Remove(entity);
+    }
 
     /// <summary>Attempts to resolve a document for <paramref name="entity"/>.</summary>
     public bool TryGet(EntityId entity, [NotNullWhen(true)] out UiDocument? document) =>
@@ -61,7 +77,11 @@ public sealed class UiDocumentRegistry
             return 0;
 
         foreach (var key in remove)
+        {
             _documents.Remove(key);
+            _elementsById.Remove(key);
+        }
+
         return remove.Count;
     }
 }

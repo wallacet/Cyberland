@@ -1,5 +1,5 @@
 using Cyberland.Engine.RuntimeScenes;
-using Cyberland.Engine.RuntimeScenes.Serialization;
+using Cyberland.Engine.Serialization;
 using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.BrickBreaker;
@@ -88,8 +88,8 @@ public static class SceneComponentDeserializers
         {
             ctx.World.GetOrAdd<PaddleBody>(ctx.EntityId) = new PaddleBody
             {
-                HalfWidth = SceneComponentJson.ReadFloat(ctx.Data, "halfWidth", 72f),
-                HalfHeight = SceneComponentJson.ReadFloat(ctx.Data, "halfHeight", 10f)
+                HalfWidth = RuntimeJsonReaders.ReadFloat(ctx.Data, "halfWidth", 72f),
+                HalfHeight = RuntimeJsonReaders.ReadFloat(ctx.Data, "halfHeight", 10f)
             };
         });
 
@@ -100,8 +100,8 @@ public static class SceneComponentDeserializers
         {
             ctx.World.GetOrAdd<Cell>(ctx.EntityId) = new Cell
             {
-                X = SceneComponentJson.ReadInt(ctx.Data, "x", 0),
-                Y = SceneComponentJson.ReadInt(ctx.Data, "y", 0)
+                X = RuntimeJsonReaders.ReadInt(ctx.Data, "x", 0),
+                Y = RuntimeJsonReaders.ReadInt(ctx.Data, "y", 0)
             };
         });
 
@@ -109,7 +109,7 @@ public static class SceneComponentDeserializers
         {
             ctx.World.GetOrAdd<ArenaCellState>(ctx.EntityId) = new ArenaCellState
             {
-                Active = SceneComponentJson.ReadBool(ctx.Data, "active", false)
+                Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", false)
             };
         });
 
@@ -117,7 +117,7 @@ public static class SceneComponentDeserializers
         {
             ctx.World.GetOrAdd<LifePipSlot>(ctx.EntityId) = new LifePipSlot
             {
-                Index = (byte)SceneComponentJson.ReadInt(ctx.Data, "index", 0)
+                Index = (byte)RuntimeJsonReaders.ReadInt(ctx.Data, "index", 0)
             };
         });
     }

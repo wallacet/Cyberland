@@ -10,7 +10,7 @@ namespace Cyberland.Demo.MouseChase;
 /// Tutorial game: input → fixed simulation (movement, camera zoom, triggers, round state, restart) → retained HUD document updates.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.UiDocument"/> builds the HUD; systems under <c>Systems/</c>.</para>
+/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/> and <c>Content/Ui/mousechase_hud.json</c>; systems under <c>Systems/</c>.</para>
 /// <para>Single-row drivers use <see cref="ISingletonSystem"/>; <see cref="TriggerResolveSystem"/> stays serial over trigger chunks.</para>
 /// </remarks>
 public sealed partial class Mod : IMod
@@ -60,7 +60,7 @@ public sealed partial class Mod : IMod
         if (!result.Succeeded)
             throw new InvalidOperationException(result.ErrorMessage ?? "Mouse Chase scene spawn failed.");
 
-        return BuildHudDocument(context);
+        return ResolveHudRefs(context);
     }
 
     private static void KickoffBuiltinAtlasLoads(ModLoadContext context)

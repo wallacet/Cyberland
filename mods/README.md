@@ -32,4 +32,6 @@ Each demo is a **guided sample** for engine APIs. In git, **`manifest.json`** se
 
 **Authoring contract for agents:** **`.cursor/rules/cyberland-demo-mod-authoring.mdc`**.
 
+**Retained UI (FontTest, MouseChase, IdleGold):** **`Content/Ui/*.json`** + scene **`uiPath`** on **`ui-document-root`** — see **`.cursor/rules/cyberland-ui-json-authoring.mdc`**.
+
 **Engine patterns (all mods):** **`.cursor/rules/cyberland-mod-host-architecture.mdc`**, **`.cursor/rules/cyberland-mod-patterns-hdr.mdc`**, **`.cursor/rules/cyberland-mod-system-lifecycle.mdc`**.

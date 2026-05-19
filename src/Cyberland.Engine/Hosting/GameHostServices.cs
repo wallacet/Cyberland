@@ -4,6 +4,7 @@ using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.RuntimeScenes;
+using Cyberland.Engine.RuntimeUi;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Core.Ecs;
@@ -72,12 +73,19 @@ public sealed class GameHostServices
     public InGameLoadProgressTracker InGameLoadProgress { get; } = new();
 
     private SceneRuntime? _runtimeScenes;
+    private UiRuntime? _runtimeUi;
 
     /// <summary>Runtime scene stack; null until <see cref="InitializeRuntimeScenes"/> runs.</summary>
     public SceneRuntime? RuntimeScenes => _runtimeScenes;
 
     /// <summary>Same as <see cref="RuntimeScenes"/> as interface reference.</summary>
     public ISceneRuntime? Scenes => _runtimeScenes;
+
+    /// <summary>Runtime UI JSON loader; null until <see cref="InitializeRuntimeUi"/> runs.</summary>
+    public UiRuntime? RuntimeUi => _runtimeUi;
+
+    /// <summary>Same as <see cref="RuntimeUi"/> as interface reference.</summary>
+    public IUiRuntime? Ui => _runtimeUi;
 
     /// <summary>
     /// Wires the root ECS world pair and constructs additive scene services (call once during host bootstrap).
@@ -96,6 +104,19 @@ public sealed class GameHostServices
         ArgumentNullException.ThrowIfNull(rootScheduler);
         _runtimeScenes = new SceneRuntime(this, vfs, parallelism, getLocalized);
         _runtimeScenes.InitializeRoot(rootWorld, rootScheduler);
+    }
+
+    /// <summary>Wires UI JSON loading (call once when <see cref="Renderer"/> is available).</summary>
+    public void InitializeRuntimeUi(
+        VirtualFileSystem vfs,
+        IRenderer renderer,
+        Func<ILocalizedContent?> getLocalized)
+    {
+        ArgumentNullException.ThrowIfNull(vfs);
+        ArgumentNullException.ThrowIfNull(renderer);
+        ArgumentNullException.ThrowIfNull(getLocalized);
+        _runtimeUi = new UiRuntime(vfs, getLocalized);
+        _runtimeUi.SetRenderer(renderer);
     }
 
     /// <summary>Optional hook invoked once per dequeued command after UI input runs on the render tick.</summary>

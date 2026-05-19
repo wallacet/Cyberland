@@ -1,10 +1,12 @@
 using System.Text.Json;
+using Cyberland.Engine.Rendering.Text;
+using Cyberland.Engine.UI.Core;
 using Silk.NET.Maths;
 
-namespace Cyberland.Engine.RuntimeScenes.Serialization;
+namespace Cyberland.Engine.Serialization;
 
-/// <summary>Shared JSON field readers for scene component deserializers.</summary>
-public static class SceneComponentJson
+/// <summary>Shared JSON field readers for scene component and UI element deserializers.</summary>
+public static class RuntimeJsonReaders
 {
     /// <summary>Reads a single-precision float property or returns <paramref name="fallback"/>.</summary>
     public static float ReadFloat(JsonElement data, string name, float fallback)
@@ -37,6 +39,20 @@ public static class SceneComponentJson
             return p.GetString();
         return null;
     }
+
+    /// <summary>
+    /// Maps UI/scene JSON <c>fontFamily</c> shorthand to <see cref="FontLibrary"/> family ids
+    /// (<c>UiSans</c> → <see cref="BuiltinFonts.UiSans"/>, <c>Mono</c> → <see cref="BuiltinFonts.Mono"/>).
+    /// Unrecognized values pass through for mod-registered families (e.g. <c>fonttest.jost</c>).
+    /// </summary>
+    public static string ResolveFontFamilyId(string? fontFamily) =>
+        fontFamily switch
+        {
+            null or "" => BuiltinFonts.UiSans,
+            "UiSans" => BuiltinFonts.UiSans,
+            "Mono" => BuiltinFonts.Mono,
+            _ => fontFamily
+        };
 
     /// <summary>Reads an enum from a string property (case-insensitive) or returns <paramref name="fallback"/>.</summary>
     public static TEnum ReadEnum<TEnum>(JsonElement data, string name, TEnum fallback)
@@ -83,5 +99,17 @@ public static class SceneComponentJson
             ReadFloat(obj, "z", 0f),
             ReadFloat(obj, "w", 1f));
         return true;
+    }
+
+    /// <summary>Reads a UI thickness object (<c>left</c>/<c>top</c>/<c>right</c>/<c>bottom</c>) or returns <paramref name="fallback"/>.</summary>
+    public static UiThickness ReadThickness(JsonElement data, string name, UiThickness fallback)
+    {
+        if (!data.TryGetProperty(name, out var obj) || obj.ValueKind != JsonValueKind.Object)
+            return fallback;
+        return new UiThickness(
+            ReadFloat(obj, "left", fallback.Left),
+            ReadFloat(obj, "top", fallback.Top),
+            ReadFloat(obj, "right", fallback.Right),
+            ReadFloat(obj, "bottom", fallback.Bottom));
     }
 }

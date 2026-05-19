@@ -1,0 +1,2353 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "cyberland.engine/vertical-stack",
+    "spacing": 4,
+    "margin": {
+      "left": 14,
+      "top": 14,
+      "right": 14,
+      "bottom": 14
+    },
+    "layout": {
+      "preset": "stretchAll"
+    },
+    "children": [
+      {
+        "type": "cyberland.engine/vertical-stack",
+        "spacing": 8,
+        "layout": {
+          "preset": "topStretch",
+          "height": 108
+        },
+        "children": [
+          {
+            "type": "cyberland.engine/text-block",
+            "locKey": "idlegold.ui.title",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 23,
+            "bold": true,
+            "color": {
+              "x": 0.94,
+              "y": 0.96,
+              "z": 1,
+              "w": 1
+            },
+            "layout": {
+              "preset": "topStretch",
+              "height": 30
+            },
+            "margin": {
+              "left": 0,
+              "top": 0,
+              "right": 0,
+              "bottom": 10
+            }
+          },
+          {
+            "type": "cyberland.engine/panel",
+            "backgroundColor": {
+              "x": 0.38,
+              "y": 0.58,
+              "z": 0.82,
+              "w": 0.55
+            },
+            "layout": {
+              "preset": "topStretch",
+              "height": 2
+            }
+          },
+          {
+            "type": "cyberland.engine/horizontal-stack",
+            "spacing": 18,
+            "crossAlignment": "Stretch",
+            "layout": {
+              "preset": "topStretch",
+              "height": 44
+            },
+            "children": [
+              {
+                "type": "cyberland.engine/horizontal-stack",
+                "spacing": 10,
+                "crossAlignment": "Center",
+                "layout": {
+                  "preset": "topStretch",
+                  "height": 44
+                },
+                "children": [
+                  {
+                    "type": "cyberland.engine/radio-button",
+                    "id": "nav.gather",
+                    "groupId": "nav",
+                    "optionId": "gather",
+                    "width": 158,
+                    "height": 38,
+                    "normalTint": {
+                      "x": 0.12,
+                      "y": 0.13,
+                      "z": 0.18,
+                      "w": 1
+                    },
+                    "selectedTint": {
+                      "x": 0.24,
+                      "y": 0.42,
+                      "z": 0.58,
+                      "w": 1
+                    },
+                    "layout": {
+                      "preset": "topLeftFixed",
+                      "width": 158,
+                      "height": 38
+                    },
+                    "children": [
+                      {
+                        "type": "cyberland.engine/label",
+                        "locKey": "idlegold.nav.gather",
+                        "isLocalizationKey": true,
+                        "fontFamily": "UiSans",
+                        "sizePixels": 14,
+                        "bold": true,
+                        "color": {
+                          "x": 0.93,
+                          "y": 0.95,
+                          "z": 1,
+                          "w": 1
+                        },
+                        "horizontalAlignment": "Center",
+                        "layout": {
+                          "preset": "stretchAll"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "cyberland.engine/radio-button",
+                    "id": "nav.character",
+                    "groupId": "nav",
+                    "optionId": "character",
+                    "width": 158,
+                    "height": 38,
+                    "normalTint": {
+                      "x": 0.12,
+                      "y": 0.13,
+                      "z": 0.18,
+                      "w": 1
+                    },
+                    "selectedTint": {
+                      "x": 0.24,
+                      "y": 0.42,
+                      "z": 0.58,
+                      "w": 1
+                    },
+                    "layout": {
+                      "preset": "topLeftFixed",
+                      "width": 158,
+                      "height": 38
+                    },
+                    "children": [
+                      {
+                        "type": "cyberland.engine/label",
+                        "locKey": "idlegold.nav.character",
+                        "isLocalizationKey": true,
+                        "fontFamily": "UiSans",
+                        "sizePixels": 14,
+                        "bold": true,
+                        "color": {
+                          "x": 0.93,
+                          "y": 0.95,
+                          "z": 1,
+                          "w": 1
+                        },
+                        "horizontalAlignment": "Center",
+                        "layout": {
+                          "preset": "stretchAll"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "cyberland.engine/radio-button",
+                    "id": "nav.blacksmith",
+                    "groupId": "nav",
+                    "optionId": "blacksmith",
+                    "width": 158,
+                    "height": 38,
+                    "normalTint": {
+                      "x": 0.12,
+                      "y": 0.13,
+                      "z": 0.18,
+                      "w": 1
+                    },
+                    "selectedTint": {
+                      "x": 0.24,
+                      "y": 0.42,
+                      "z": 0.58,
+                      "w": 1
+                    },
+                    "layout": {
+                      "preset": "topLeftFixed",
+                      "width": 158,
+                      "height": 38
+                    },
+                    "children": [
+                      {
+                        "type": "cyberland.engine/label",
+                        "locKey": "idlegold.nav.blacksmith",
+                        "isLocalizationKey": true,
+                        "fontFamily": "UiSans",
+                        "sizePixels": 14,
+                        "bold": true,
+                        "color": {
+                          "x": 0.93,
+                          "y": 0.95,
+                          "z": 1,
+                          "w": 1
+                        },
+                        "horizontalAlignment": "Center",
+                        "layout": {
+                          "preset": "stretchAll"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "cyberland.engine/radio-button",
+                    "id": "nav.log",
+                    "groupId": "nav",
+                    "optionId": "log",
+                    "width": 158,
+                    "height": 38,
+                    "normalTint": {
+                      "x": 0.12,
+                      "y": 0.13,
+                      "z": 0.18,
+                      "w": 1
+                    },
+                    "selectedTint": {
+                      "x": 0.24,
+                      "y": 0.42,
+                      "z": 0.58,
+                      "w": 1
+                    },
+                    "layout": {
+                      "preset": "topLeftFixed",
+                      "width": 158,
+                      "height": 38
+                    },
+                    "children": [
+                      {
+                        "type": "cyberland.engine/label",
+                        "locKey": "idlegold.nav.log",
+                        "isLocalizationKey": true,
+                        "fontFamily": "UiSans",
+                        "sizePixels": 14,
+                        "bold": true,
+                        "color": {
+                          "x": 0.93,
+                          "y": 0.95,
+                          "z": 1,
+                          "w": 1
+                        },
+                        "horizontalAlignment": "Center",
+                        "layout": {
+                          "preset": "stretchAll"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "cyberland.engine/horizontal-stack",
+                "spacing": 14,
+                "crossAlignment": "Center",
+                "layout": {
+                  "preset": "topStretch",
+                  "height": 44
+                },
+                "children": [
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "id": "chrome.gold",
+                    "text": "0",
+                    "fontFamily": "UiSans",
+                    "sizePixels": 22,
+                    "color": {
+                      "x": 1,
+                      "y": 0.78,
+                      "z": 0.28,
+                      "w": 1
+                    },
+                    "verticalAlignment": "CenterInk",
+                    "layout": {
+                      "preset": "topLeftFixed",
+                      "width": 168,
+                      "height": 38
+                    }
+                  },
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "id": "chrome.gps",
+                    "text": "0",
+                    "fontFamily": "UiSans",
+                    "sizePixels": 15,
+                    "color": {
+                      "x": 0.58,
+                      "y": 0.82,
+                      "z": 0.62,
+                      "w": 1
+                    },
+                    "verticalAlignment": "CenterInk",
+                    "layout": {
+                      "preset": "topLeftFixed",
+                      "width": 260,
+                      "height": 38
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "cyberland.engine/panel",
+        "spacing": 0,
+        "margin": {
+          "left": 0,
+          "top": 4,
+          "right": 0,
+          "bottom": 0
+        },
+        "backgroundColor": {
+          "x": 0.03,
+          "y": 0.04,
+          "z": 0.07,
+          "w": 0.97
+        },
+        "layout": {
+          "preset": "stretchAll"
+        },
+        "children": [
+          {
+            "type": "cyberland.engine/panel",
+            "spacing": 0,
+            "backgroundColor": {
+              "x": 0.065,
+              "y": 0.075,
+              "z": 0.11,
+              "w": 0.98
+            },
+            "padding": {
+              "left": 16,
+              "top": 14,
+              "right": 16,
+              "bottom": 14
+            },
+            "layout": {
+              "preset": "stretchAll"
+            },
+            "children": [
+              {
+                "type": "cyberland.engine/panel",
+                "id": "gather.panel",
+                "spacing": 8,
+                "visible": true,
+                "layout": {
+                  "preset": "stretchAll"
+                },
+                "children": [
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "locKey": "idlegold.ui.gather_intro",
+                    "isLocalizationKey": true,
+                    "fontFamily": "UiSans",
+                    "sizePixels": 15,
+                    "color": {
+                      "x": 0.75,
+                      "y": 0.8,
+                      "z": 0.88,
+                      "w": 1
+                    },
+                    "layout": {
+                      "preset": "topStretch",
+                      "height": 36
+                    }
+                  },
+                  {
+                    "type": "cyberland.engine/scroll-view",
+                    "id": "gather.scroll",
+                    "layout": {
+                      "preset": "stretchAll"
+                    },
+                    "content": {
+                      "type": "cyberland.engine/vertical-stack",
+                      "spacing": 18,
+                      "margin": {
+                        "left": 8,
+                        "top": 6,
+                        "right": 16,
+                        "bottom": 8
+                      },
+                      "layout": {
+                        "preset": "stretchAll"
+                      },
+                      "children": [
+                        {
+                          "type": "cyberland.engine/panel",
+                          "spacing": 0,
+                          "backgroundColor": {
+                            "x": 0.28,
+                            "y": 0.42,
+                            "z": 0.58,
+                            "w": 0.42
+                          },
+                          "padding": {
+                            "left": 1,
+                            "top": 1,
+                            "right": 1,
+                            "bottom": 1
+                          },
+                          "layout": {
+                            "preset": "stretchWidthAutoHeight"
+                          },
+                          "children": [
+                            {
+                              "type": "cyberland.engine/panel",
+                              "spacing": 8,
+                              "backgroundColor": {
+                                "x": 0.1,
+                                "y": 0.115,
+                                "z": 0.165,
+                                "w": 0.96
+                              },
+                              "padding": {
+                                "left": 14,
+                                "top": 12,
+                                "right": 14,
+                                "bottom": 8
+                              },
+                              "layout": {
+                                "preset": "stretchWidthAutoHeight"
+                              },
+                              "children": [
+                                {
+                                  "type": "cyberland.engine/horizontal-stack",
+                                  "spacing": 10,
+                                  "crossAlignment": "Start",
+                                  "layout": {
+                                    "preset": "topStretch",
+                                    "height": 52
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "cyberland.engine/image",
+                                      "id": "source.0.stripe",
+                                      "sourceTexture": "white",
+                                      "tint": {
+                                        "x": 0.35,
+                                        "y": 0.55,
+                                        "z": 0.85,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 6,
+                                        "height": 52
+                                      }
+                                    },
+                                    {
+                                      "type": "cyberland.engine/vertical-stack",
+                                      "spacing": 5,
+                                      "layout": {
+                                        "preset": "topStretch",
+                                        "height": 52
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/text-block",
+                                          "id": "source.0.name",
+                                          "text": " ",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 18,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.98,
+                                            "y": 0.99,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "layout": {
+                                            "preset": "topStretch",
+                                            "height": 26
+                                          }
+                                        },
+                                        {
+                                          "type": "cyberland.engine/text-block",
+                                          "id": "source.0.desc",
+                                          "text": " ",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 13,
+                                          "color": {
+                                            "x": 0.62,
+                                            "y": 0.68,
+                                            "z": 0.78,
+                                            "w": 1
+                                          },
+                                          "layout": {
+                                            "preset": "topStretch",
+                                            "height": 22
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "cyberland.engine/horizontal-stack",
+                                  "spacing": 12,
+                                  "crossAlignment": "Center",
+                                  "layout": {
+                                    "preset": "topStretch",
+                                    "height": 44
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "cyberland.engine/button",
+                                      "id": "source.0.unlock",
+                                      "normalBackground": {
+                                        "x": 0.24,
+                                        "y": 0.36,
+                                        "z": 0.5,
+                                        "w": 1
+                                      },
+                                      "pressedBackground": {
+                                        "x": 0.32,
+                                        "y": 0.48,
+                                        "z": 0.64,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 154,
+                                        "height": 40
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/label",
+                                          "id": "source.0.unlock.caption",
+                                          "text": "unlock",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 14,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.96,
+                                            "y": 0.97,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "horizontalAlignment": "Center",
+                                          "layout": {
+                                            "preset": "stretchAll"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "cyberland.engine/button",
+                                      "id": "source.0.level",
+                                      "normalBackground": {
+                                        "x": 0.14,
+                                        "y": 0.44,
+                                        "z": 0.54,
+                                        "w": 1
+                                      },
+                                      "pressedBackground": {
+                                        "x": 0.22,
+                                        "y": 0.58,
+                                        "z": 0.68,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 176,
+                                        "height": 40
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/label",
+                                          "id": "source.0.level.caption",
+                                          "text": "level",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 14,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.96,
+                                            "y": 0.97,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "horizontalAlignment": "Center",
+                                          "layout": {
+                                            "preset": "stretchAll"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "cyberland.engine/text-block",
+                                      "id": "source.0.detail",
+                                      "text": " ",
+                                      "fontFamily": "UiSans",
+                                      "sizePixels": 14,
+                                      "color": {
+                                        "x": 0.52,
+                                        "y": 0.88,
+                                        "z": 0.96,
+                                        "w": 1
+                                      },
+                                      "horizontalAlignment": "End",
+                                      "verticalAlignment": "CenterInk",
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 222,
+                                        "height": 40
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cyberland.engine/panel",
+                          "spacing": 0,
+                          "backgroundColor": {
+                            "x": 0.28,
+                            "y": 0.42,
+                            "z": 0.58,
+                            "w": 0.42
+                          },
+                          "padding": {
+                            "left": 1,
+                            "top": 1,
+                            "right": 1,
+                            "bottom": 1
+                          },
+                          "layout": {
+                            "preset": "stretchWidthAutoHeight"
+                          },
+                          "children": [
+                            {
+                              "type": "cyberland.engine/panel",
+                              "spacing": 8,
+                              "backgroundColor": {
+                                "x": 0.1,
+                                "y": 0.115,
+                                "z": 0.165,
+                                "w": 0.96
+                              },
+                              "padding": {
+                                "left": 14,
+                                "top": 12,
+                                "right": 14,
+                                "bottom": 8
+                              },
+                              "layout": {
+                                "preset": "stretchWidthAutoHeight"
+                              },
+                              "children": [
+                                {
+                                  "type": "cyberland.engine/horizontal-stack",
+                                  "spacing": 10,
+                                  "crossAlignment": "Start",
+                                  "layout": {
+                                    "preset": "topStretch",
+                                    "height": 52
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "cyberland.engine/image",
+                                      "id": "source.1.stripe",
+                                      "sourceTexture": "white",
+                                      "tint": {
+                                        "x": 0.35,
+                                        "y": 0.75,
+                                        "z": 0.45,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 6,
+                                        "height": 52
+                                      }
+                                    },
+                                    {
+                                      "type": "cyberland.engine/vertical-stack",
+                                      "spacing": 5,
+                                      "layout": {
+                                        "preset": "topStretch",
+                                        "height": 52
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/text-block",
+                                          "id": "source.1.name",
+                                          "text": " ",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 18,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.98,
+                                            "y": 0.99,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "layout": {
+                                            "preset": "topStretch",
+                                            "height": 26
+                                          }
+                                        },
+                                        {
+                                          "type": "cyberland.engine/text-block",
+                                          "id": "source.1.desc",
+                                          "text": " ",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 13,
+                                          "color": {
+                                            "x": 0.62,
+                                            "y": 0.68,
+                                            "z": 0.78,
+                                            "w": 1
+                                          },
+                                          "layout": {
+                                            "preset": "topStretch",
+                                            "height": 22
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "cyberland.engine/horizontal-stack",
+                                  "spacing": 12,
+                                  "crossAlignment": "Center",
+                                  "layout": {
+                                    "preset": "topStretch",
+                                    "height": 44
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "cyberland.engine/button",
+                                      "id": "source.1.unlock",
+                                      "normalBackground": {
+                                        "x": 0.24,
+                                        "y": 0.36,
+                                        "z": 0.5,
+                                        "w": 1
+                                      },
+                                      "pressedBackground": {
+                                        "x": 0.32,
+                                        "y": 0.48,
+                                        "z": 0.64,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 154,
+                                        "height": 40
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/label",
+                                          "id": "source.1.unlock.caption",
+                                          "text": "unlock",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 14,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.96,
+                                            "y": 0.97,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "horizontalAlignment": "Center",
+                                          "layout": {
+                                            "preset": "stretchAll"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "cyberland.engine/button",
+                                      "id": "source.1.level",
+                                      "normalBackground": {
+                                        "x": 0.14,
+                                        "y": 0.44,
+                                        "z": 0.54,
+                                        "w": 1
+                                      },
+                                      "pressedBackground": {
+                                        "x": 0.22,
+                                        "y": 0.58,
+                                        "z": 0.68,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 176,
+                                        "height": 40
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/label",
+                                          "id": "source.1.level.caption",
+                                          "text": "level",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 14,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.96,
+                                            "y": 0.97,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "horizontalAlignment": "Center",
+                                          "layout": {
+                                            "preset": "stretchAll"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "cyberland.engine/text-block",
+                                      "id": "source.1.detail",
+                                      "text": " ",
+                                      "fontFamily": "UiSans",
+                                      "sizePixels": 14,
+                                      "color": {
+                                        "x": 0.52,
+                                        "y": 0.88,
+                                        "z": 0.96,
+                                        "w": 1
+                                      },
+                                      "horizontalAlignment": "End",
+                                      "verticalAlignment": "CenterInk",
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 222,
+                                        "height": 40
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cyberland.engine/panel",
+                          "spacing": 0,
+                          "backgroundColor": {
+                            "x": 0.28,
+                            "y": 0.42,
+                            "z": 0.58,
+                            "w": 0.42
+                          },
+                          "padding": {
+                            "left": 1,
+                            "top": 1,
+                            "right": 1,
+                            "bottom": 1
+                          },
+                          "layout": {
+                            "preset": "stretchWidthAutoHeight"
+                          },
+                          "children": [
+                            {
+                              "type": "cyberland.engine/panel",
+                              "spacing": 8,
+                              "backgroundColor": {
+                                "x": 0.1,
+                                "y": 0.115,
+                                "z": 0.165,
+                                "w": 0.96
+                              },
+                              "padding": {
+                                "left": 14,
+                                "top": 12,
+                                "right": 14,
+                                "bottom": 8
+                              },
+                              "layout": {
+                                "preset": "stretchWidthAutoHeight"
+                              },
+                              "children": [
+                                {
+                                  "type": "cyberland.engine/horizontal-stack",
+                                  "spacing": 10,
+                                  "crossAlignment": "Start",
+                                  "layout": {
+                                    "preset": "topStretch",
+                                    "height": 52
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "cyberland.engine/image",
+                                      "id": "source.2.stripe",
+                                      "sourceTexture": "white",
+                                      "tint": {
+                                        "x": 0.75,
+                                        "y": 0.4,
+                                        "z": 0.85,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 6,
+                                        "height": 52
+                                      }
+                                    },
+                                    {
+                                      "type": "cyberland.engine/vertical-stack",
+                                      "spacing": 5,
+                                      "layout": {
+                                        "preset": "topStretch",
+                                        "height": 52
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/text-block",
+                                          "id": "source.2.name",
+                                          "text": " ",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 18,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.98,
+                                            "y": 0.99,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "layout": {
+                                            "preset": "topStretch",
+                                            "height": 26
+                                          }
+                                        },
+                                        {
+                                          "type": "cyberland.engine/text-block",
+                                          "id": "source.2.desc",
+                                          "text": " ",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 13,
+                                          "color": {
+                                            "x": 0.62,
+                                            "y": 0.68,
+                                            "z": 0.78,
+                                            "w": 1
+                                          },
+                                          "layout": {
+                                            "preset": "topStretch",
+                                            "height": 22
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "cyberland.engine/horizontal-stack",
+                                  "spacing": 12,
+                                  "crossAlignment": "Center",
+                                  "layout": {
+                                    "preset": "topStretch",
+                                    "height": 44
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "cyberland.engine/button",
+                                      "id": "source.2.unlock",
+                                      "normalBackground": {
+                                        "x": 0.24,
+                                        "y": 0.36,
+                                        "z": 0.5,
+                                        "w": 1
+                                      },
+                                      "pressedBackground": {
+                                        "x": 0.32,
+                                        "y": 0.48,
+                                        "z": 0.64,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 154,
+                                        "height": 40
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/label",
+                                          "id": "source.2.unlock.caption",
+                                          "text": "unlock",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 14,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.96,
+                                            "y": 0.97,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "horizontalAlignment": "Center",
+                                          "layout": {
+                                            "preset": "stretchAll"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "cyberland.engine/button",
+                                      "id": "source.2.level",
+                                      "normalBackground": {
+                                        "x": 0.14,
+                                        "y": 0.44,
+                                        "z": 0.54,
+                                        "w": 1
+                                      },
+                                      "pressedBackground": {
+                                        "x": 0.22,
+                                        "y": 0.58,
+                                        "z": 0.68,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 176,
+                                        "height": 40
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/label",
+                                          "id": "source.2.level.caption",
+                                          "text": "level",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 14,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.96,
+                                            "y": 0.97,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "horizontalAlignment": "Center",
+                                          "layout": {
+                                            "preset": "stretchAll"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "cyberland.engine/text-block",
+                                      "id": "source.2.detail",
+                                      "text": " ",
+                                      "fontFamily": "UiSans",
+                                      "sizePixels": 14,
+                                      "color": {
+                                        "x": 0.52,
+                                        "y": 0.88,
+                                        "z": 0.96,
+                                        "w": 1
+                                      },
+                                      "horizontalAlignment": "End",
+                                      "verticalAlignment": "CenterInk",
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 222,
+                                        "height": 40
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cyberland.engine/panel",
+                          "spacing": 0,
+                          "backgroundColor": {
+                            "x": 0.28,
+                            "y": 0.42,
+                            "z": 0.58,
+                            "w": 0.42
+                          },
+                          "padding": {
+                            "left": 1,
+                            "top": 1,
+                            "right": 1,
+                            "bottom": 1
+                          },
+                          "layout": {
+                            "preset": "stretchWidthAutoHeight"
+                          },
+                          "children": [
+                            {
+                              "type": "cyberland.engine/panel",
+                              "spacing": 8,
+                              "backgroundColor": {
+                                "x": 0.1,
+                                "y": 0.115,
+                                "z": 0.165,
+                                "w": 0.96
+                              },
+                              "padding": {
+                                "left": 14,
+                                "top": 12,
+                                "right": 14,
+                                "bottom": 8
+                              },
+                              "layout": {
+                                "preset": "stretchWidthAutoHeight"
+                              },
+                              "children": [
+                                {
+                                  "type": "cyberland.engine/horizontal-stack",
+                                  "spacing": 10,
+                                  "crossAlignment": "Start",
+                                  "layout": {
+                                    "preset": "topStretch",
+                                    "height": 52
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "cyberland.engine/image",
+                                      "id": "source.3.stripe",
+                                      "sourceTexture": "white",
+                                      "tint": {
+                                        "x": 0.85,
+                                        "y": 0.55,
+                                        "z": 0.35,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 6,
+                                        "height": 52
+                                      }
+                                    },
+                                    {
+                                      "type": "cyberland.engine/vertical-stack",
+                                      "spacing": 5,
+                                      "layout": {
+                                        "preset": "topStretch",
+                                        "height": 52
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/text-block",
+                                          "id": "source.3.name",
+                                          "text": " ",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 18,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.98,
+                                            "y": 0.99,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "layout": {
+                                            "preset": "topStretch",
+                                            "height": 26
+                                          }
+                                        },
+                                        {
+                                          "type": "cyberland.engine/text-block",
+                                          "id": "source.3.desc",
+                                          "text": " ",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 13,
+                                          "color": {
+                                            "x": 0.62,
+                                            "y": 0.68,
+                                            "z": 0.78,
+                                            "w": 1
+                                          },
+                                          "layout": {
+                                            "preset": "topStretch",
+                                            "height": 22
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "cyberland.engine/horizontal-stack",
+                                  "spacing": 12,
+                                  "crossAlignment": "Center",
+                                  "layout": {
+                                    "preset": "topStretch",
+                                    "height": 44
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "cyberland.engine/button",
+                                      "id": "source.3.unlock",
+                                      "normalBackground": {
+                                        "x": 0.24,
+                                        "y": 0.36,
+                                        "z": 0.5,
+                                        "w": 1
+                                      },
+                                      "pressedBackground": {
+                                        "x": 0.32,
+                                        "y": 0.48,
+                                        "z": 0.64,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 154,
+                                        "height": 40
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/label",
+                                          "id": "source.3.unlock.caption",
+                                          "text": "unlock",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 14,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.96,
+                                            "y": 0.97,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "horizontalAlignment": "Center",
+                                          "layout": {
+                                            "preset": "stretchAll"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "cyberland.engine/button",
+                                      "id": "source.3.level",
+                                      "normalBackground": {
+                                        "x": 0.14,
+                                        "y": 0.44,
+                                        "z": 0.54,
+                                        "w": 1
+                                      },
+                                      "pressedBackground": {
+                                        "x": 0.22,
+                                        "y": 0.58,
+                                        "z": 0.68,
+                                        "w": 1
+                                      },
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 176,
+                                        "height": 40
+                                      },
+                                      "children": [
+                                        {
+                                          "type": "cyberland.engine/label",
+                                          "id": "source.3.level.caption",
+                                          "text": "level",
+                                          "fontFamily": "UiSans",
+                                          "sizePixels": 14,
+                                          "bold": true,
+                                          "color": {
+                                            "x": 0.96,
+                                            "y": 0.97,
+                                            "z": 1,
+                                            "w": 1
+                                          },
+                                          "horizontalAlignment": "Center",
+                                          "layout": {
+                                            "preset": "stretchAll"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "cyberland.engine/text-block",
+                                      "id": "source.3.detail",
+                                      "text": " ",
+                                      "fontFamily": "UiSans",
+                                      "sizePixels": 14,
+                                      "color": {
+                                        "x": 0.52,
+                                        "y": 0.88,
+                                        "z": 0.96,
+                                        "w": 1
+                                      },
+                                      "horizontalAlignment": "End",
+                                      "verticalAlignment": "CenterInk",
+                                      "layout": {
+                                        "preset": "topLeftFixed",
+                                        "width": 222,
+                                        "height": 40
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "cyberland.engine/panel",
+                "id": "character.panel",
+                "spacing": 12,
+                "visible": false,
+                "layout": {
+                  "preset": "stretchAll"
+                },
+                "children": [
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "locKey": "idlegold.ui.character_intro",
+                    "isLocalizationKey": true,
+                    "fontFamily": "UiSans",
+                    "sizePixels": 15,
+                    "color": {
+                      "x": 0.72,
+                      "y": 0.78,
+                      "z": 0.88,
+                      "w": 1
+                    },
+                    "layout": {
+                      "preset": "topStretch",
+                      "height": 34
+                    }
+                  },
+                  {
+                    "type": "cyberland.engine/scroll-view",
+                    "layout": {
+                      "preset": "stretchAll"
+                    },
+                    "content": {
+                      "type": "cyberland.engine/vertical-stack",
+                      "spacing": 12,
+                      "layout": {
+                        "preset": "stretchAll"
+                      },
+                      "children": [
+                        {
+                          "type": "cyberland.engine/panel",
+                          "spacing": 8,
+                          "backgroundColor": {
+                            "x": 0.1,
+                            "y": 0.115,
+                            "z": 0.16,
+                            "w": 0.92
+                          },
+                          "padding": {
+                            "left": 12,
+                            "top": 10,
+                            "right": 12,
+                            "bottom": 10
+                          },
+                          "layout": {
+                            "preset": "topStretch",
+                            "height": 92
+                          },
+                          "children": [
+                            {
+                              "type": "cyberland.engine/text-block",
+                              "id": "stat.0.summary",
+                              "text": " ",
+                              "fontFamily": "UiSans",
+                              "sizePixels": 14,
+                              "color": {
+                                "x": 0.82,
+                                "y": 0.86,
+                                "z": 0.92,
+                                "w": 1
+                              },
+                              "layout": {
+                                "preset": "topStretch",
+                                "height": 28
+                              }
+                            },
+                            {
+                              "type": "cyberland.engine/button",
+                              "id": "stat.0.buy",
+                              "normalBackground": {
+                                "x": 0.16,
+                                "y": 0.38,
+                                "z": 0.46,
+                                "w": 1
+                              },
+                              "pressedBackground": {
+                                "x": 0.22,
+                                "y": 0.52,
+                                "z": 0.6,
+                                "w": 1
+                              },
+                              "layout": {
+                                "preset": "topLeftFixed",
+                                "width": 200,
+                                "height": 32
+                              },
+                              "children": [
+                                {
+                                  "type": "cyberland.engine/label",
+                                  "id": "stat.0.buy.caption",
+                                  "text": "buy",
+                                  "fontFamily": "UiSans",
+                                  "sizePixels": 14,
+                                  "bold": true,
+                                  "color": {
+                                    "x": 0.96,
+                                    "y": 0.97,
+                                    "z": 1,
+                                    "w": 1
+                                  },
+                                  "horizontalAlignment": "Center",
+                                  "layout": {
+                                    "preset": "stretchAll"
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cyberland.engine/panel",
+                          "spacing": 8,
+                          "backgroundColor": {
+                            "x": 0.1,
+                            "y": 0.115,
+                            "z": 0.16,
+                            "w": 0.92
+                          },
+                          "padding": {
+                            "left": 12,
+                            "top": 10,
+                            "right": 12,
+                            "bottom": 10
+                          },
+                          "layout": {
+                            "preset": "topStretch",
+                            "height": 92
+                          },
+                          "children": [
+                            {
+                              "type": "cyberland.engine/text-block",
+                              "id": "stat.1.summary",
+                              "text": " ",
+                              "fontFamily": "UiSans",
+                              "sizePixels": 14,
+                              "color": {
+                                "x": 0.82,
+                                "y": 0.86,
+                                "z": 0.92,
+                                "w": 1
+                              },
+                              "layout": {
+                                "preset": "topStretch",
+                                "height": 28
+                              }
+                            },
+                            {
+                              "type": "cyberland.engine/button",
+                              "id": "stat.1.buy",
+                              "normalBackground": {
+                                "x": 0.16,
+                                "y": 0.38,
+                                "z": 0.46,
+                                "w": 1
+                              },
+                              "pressedBackground": {
+                                "x": 0.22,
+                                "y": 0.52,
+                                "z": 0.6,
+                                "w": 1
+                              },
+                              "layout": {
+                                "preset": "topLeftFixed",
+                                "width": 200,
+                                "height": 32
+                              },
+                              "children": [
+                                {
+                                  "type": "cyberland.engine/label",
+                                  "id": "stat.1.buy.caption",
+                                  "text": "buy",
+                                  "fontFamily": "UiSans",
+                                  "sizePixels": 14,
+                                  "bold": true,
+                                  "color": {
+                                    "x": 0.96,
+                                    "y": 0.97,
+                                    "z": 1,
+                                    "w": 1
+                                  },
+                                  "horizontalAlignment": "Center",
+                                  "layout": {
+                                    "preset": "stretchAll"
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cyberland.engine/panel",
+                          "spacing": 8,
+                          "backgroundColor": {
+                            "x": 0.1,
+                            "y": 0.115,
+                            "z": 0.16,
+                            "w": 0.92
+                          },
+                          "padding": {
+                            "left": 12,
+                            "top": 10,
+                            "right": 12,
+                            "bottom": 10
+                          },
+                          "layout": {
+                            "preset": "topStretch",
+                            "height": 92
+                          },
+                          "children": [
+                            {
+                              "type": "cyberland.engine/text-block",
+                              "id": "stat.2.summary",
+                              "text": " ",
+                              "fontFamily": "UiSans",
+                              "sizePixels": 14,
+                              "color": {
+                                "x": 0.82,
+                                "y": 0.86,
+                                "z": 0.92,
+                                "w": 1
+                              },
+                              "layout": {
+                                "preset": "topStretch",
+                                "height": 28
+                              }
+                            },
+                            {
+                              "type": "cyberland.engine/button",
+                              "id": "stat.2.buy",
+                              "normalBackground": {
+                                "x": 0.16,
+                                "y": 0.38,
+                                "z": 0.46,
+                                "w": 1
+                              },
+                              "pressedBackground": {
+                                "x": 0.22,
+                                "y": 0.52,
+                                "z": 0.6,
+                                "w": 1
+                              },
+                              "layout": {
+                                "preset": "topLeftFixed",
+                                "width": 200,
+                                "height": 32
+                              },
+                              "children": [
+                                {
+                                  "type": "cyberland.engine/label",
+                                  "id": "stat.2.buy.caption",
+                                  "text": "buy",
+                                  "fontFamily": "UiSans",
+                                  "sizePixels": 14,
+                                  "bold": true,
+                                  "color": {
+                                    "x": 0.96,
+                                    "y": 0.97,
+                                    "z": 1,
+                                    "w": 1
+                                  },
+                                  "horizontalAlignment": "Center",
+                                  "layout": {
+                                    "preset": "stretchAll"
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "cyberland.engine/panel",
+                          "spacing": 8,
+                          "backgroundColor": {
+                            "x": 0.1,
+                            "y": 0.115,
+                            "z": 0.16,
+                            "w": 0.92
+                          },
+                          "padding": {
+                            "left": 12,
+                            "top": 10,
+                            "right": 12,
+                            "bottom": 10
+                          },
+                          "layout": {
+                            "preset": "topStretch",
+                            "height": 92
+                          },
+                          "children": [
+                            {
+                              "type": "cyberland.engine/text-block",
+                              "id": "stat.3.summary",
+                              "text": " ",
+                              "fontFamily": "UiSans",
+                              "sizePixels": 14,
+                              "color": {
+                                "x": 0.82,
+                                "y": 0.86,
+                                "z": 0.92,
+                                "w": 1
+                              },
+                              "layout": {
+                                "preset": "topStretch",
+                                "height": 28
+                              }
+                            },
+                            {
+                              "type": "cyberland.engine/button",
+                              "id": "stat.3.buy",
+                              "normalBackground": {
+                                "x": 0.16,
+                                "y": 0.38,
+                                "z": 0.46,
+                                "w": 1
+                              },
+                              "pressedBackground": {
+                                "x": 0.22,
+                                "y": 0.52,
+                                "z": 0.6,
+                                "w": 1
+                              },
+                              "layout": {
+                                "preset": "topLeftFixed",
+                                "width": 200,
+                                "height": 32
+                              },
+                              "children": [
+                                {
+                                  "type": "cyberland.engine/label",
+                                  "id": "stat.3.buy.caption",
+                                  "text": "buy",
+                                  "fontFamily": "UiSans",
+                                  "sizePixels": 14,
+                                  "bold": true,
+                                  "color": {
+                                    "x": 0.96,
+                                    "y": 0.97,
+                                    "z": 1,
+                                    "w": 1
+                                  },
+                                  "horizontalAlignment": "Center",
+                                  "layout": {
+                                    "preset": "stretchAll"
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "cyberland.engine/panel",
+                "id": "blacksmith.panel",
+                "spacing": 12,
+                "visible": false,
+                "layout": {
+                  "preset": "stretchAll"
+                },
+                "children": [
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "locKey": "idlegold.ui.blacksmith_intro",
+                    "isLocalizationKey": true,
+                    "fontFamily": "UiSans",
+                    "sizePixels": 15,
+                    "color": {
+                      "x": 0.72,
+                      "y": 0.78,
+                      "z": 0.88,
+                      "w": 1
+                    },
+                    "layout": {
+                      "preset": "topStretch",
+                      "height": 34
+                    }
+                  },
+                  {
+                    "type": "cyberland.engine/grid",
+                    "columnCount": 3,
+                    "spacing": 10,
+                    "layout": {
+                      "preset": "stretchAll"
+                    },
+                    "children": [
+                      {
+                        "type": "cyberland.engine/panel",
+                        "spacing": 5,
+                        "backgroundColor": {
+                          "x": 0.1,
+                          "y": 0.115,
+                          "z": 0.155,
+                          "w": 0.93
+                        },
+                        "padding": {
+                          "left": 10,
+                          "top": 10,
+                          "right": 10,
+                          "bottom": 10
+                        },
+                        "layout": {
+                          "preset": "centerFixed",
+                          "width": 168,
+                          "height": 166
+                        },
+                        "children": [
+                          {
+                            "type": "cyberland.engine/image",
+                            "id": "equip.0.icon",
+                            "sourceTexture": "white",
+                            "tint": {
+                              "x": 0.5,
+                              "y": 0.5,
+                              "z": 0.5,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 36,
+                              "height": 36
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.0.slot",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.78,
+                              "y": 0.84,
+                              "z": 0.92,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.0.tier",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.9,
+                              "y": 0.92,
+                              "z": 1,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/button",
+                            "id": "equip.0.upgrade",
+                            "normalBackground": {
+                              "x": 0.16,
+                              "y": 0.38,
+                              "z": 0.46,
+                              "w": 1
+                            },
+                            "pressedBackground": {
+                              "x": 0.22,
+                              "y": 0.52,
+                              "z": 0.6,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 148,
+                              "height": 32
+                            },
+                            "children": [
+                              {
+                                "type": "cyberland.engine/label",
+                                "id": "equip.0.upgrade.caption",
+                                "text": "up",
+                                "fontFamily": "UiSans",
+                                "sizePixels": 14,
+                                "bold": true,
+                                "color": {
+                                  "x": 0.96,
+                                  "y": 0.97,
+                                  "z": 1,
+                                  "w": 1
+                                },
+                                "horizontalAlignment": "Center",
+                                "layout": {
+                                  "preset": "stretchAll"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "cyberland.engine/panel",
+                        "spacing": 5,
+                        "backgroundColor": {
+                          "x": 0.1,
+                          "y": 0.115,
+                          "z": 0.155,
+                          "w": 0.93
+                        },
+                        "padding": {
+                          "left": 10,
+                          "top": 10,
+                          "right": 10,
+                          "bottom": 10
+                        },
+                        "layout": {
+                          "preset": "centerFixed",
+                          "width": 168,
+                          "height": 166
+                        },
+                        "children": [
+                          {
+                            "type": "cyberland.engine/image",
+                            "id": "equip.1.icon",
+                            "sourceTexture": "white",
+                            "tint": {
+                              "x": 0.5,
+                              "y": 0.5,
+                              "z": 0.5,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 36,
+                              "height": 36
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.1.slot",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.78,
+                              "y": 0.84,
+                              "z": 0.92,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.1.tier",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.9,
+                              "y": 0.92,
+                              "z": 1,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/button",
+                            "id": "equip.1.upgrade",
+                            "normalBackground": {
+                              "x": 0.16,
+                              "y": 0.38,
+                              "z": 0.46,
+                              "w": 1
+                            },
+                            "pressedBackground": {
+                              "x": 0.22,
+                              "y": 0.52,
+                              "z": 0.6,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 148,
+                              "height": 32
+                            },
+                            "children": [
+                              {
+                                "type": "cyberland.engine/label",
+                                "id": "equip.1.upgrade.caption",
+                                "text": "up",
+                                "fontFamily": "UiSans",
+                                "sizePixels": 14,
+                                "bold": true,
+                                "color": {
+                                  "x": 0.96,
+                                  "y": 0.97,
+                                  "z": 1,
+                                  "w": 1
+                                },
+                                "horizontalAlignment": "Center",
+                                "layout": {
+                                  "preset": "stretchAll"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "cyberland.engine/panel",
+                        "spacing": 5,
+                        "backgroundColor": {
+                          "x": 0.1,
+                          "y": 0.115,
+                          "z": 0.155,
+                          "w": 0.93
+                        },
+                        "padding": {
+                          "left": 10,
+                          "top": 10,
+                          "right": 10,
+                          "bottom": 10
+                        },
+                        "layout": {
+                          "preset": "centerFixed",
+                          "width": 168,
+                          "height": 166
+                        },
+                        "children": [
+                          {
+                            "type": "cyberland.engine/image",
+                            "id": "equip.2.icon",
+                            "sourceTexture": "white",
+                            "tint": {
+                              "x": 0.5,
+                              "y": 0.5,
+                              "z": 0.5,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 36,
+                              "height": 36
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.2.slot",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.78,
+                              "y": 0.84,
+                              "z": 0.92,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.2.tier",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.9,
+                              "y": 0.92,
+                              "z": 1,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/button",
+                            "id": "equip.2.upgrade",
+                            "normalBackground": {
+                              "x": 0.16,
+                              "y": 0.38,
+                              "z": 0.46,
+                              "w": 1
+                            },
+                            "pressedBackground": {
+                              "x": 0.22,
+                              "y": 0.52,
+                              "z": 0.6,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 148,
+                              "height": 32
+                            },
+                            "children": [
+                              {
+                                "type": "cyberland.engine/label",
+                                "id": "equip.2.upgrade.caption",
+                                "text": "up",
+                                "fontFamily": "UiSans",
+                                "sizePixels": 14,
+                                "bold": true,
+                                "color": {
+                                  "x": 0.96,
+                                  "y": 0.97,
+                                  "z": 1,
+                                  "w": 1
+                                },
+                                "horizontalAlignment": "Center",
+                                "layout": {
+                                  "preset": "stretchAll"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "cyberland.engine/panel",
+                        "spacing": 5,
+                        "backgroundColor": {
+                          "x": 0.1,
+                          "y": 0.115,
+                          "z": 0.155,
+                          "w": 0.93
+                        },
+                        "padding": {
+                          "left": 10,
+                          "top": 10,
+                          "right": 10,
+                          "bottom": 10
+                        },
+                        "layout": {
+                          "preset": "centerFixed",
+                          "width": 168,
+                          "height": 166
+                        },
+                        "children": [
+                          {
+                            "type": "cyberland.engine/image",
+                            "id": "equip.3.icon",
+                            "sourceTexture": "white",
+                            "tint": {
+                              "x": 0.5,
+                              "y": 0.5,
+                              "z": 0.5,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 36,
+                              "height": 36
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.3.slot",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.78,
+                              "y": 0.84,
+                              "z": 0.92,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.3.tier",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.9,
+                              "y": 0.92,
+                              "z": 1,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/button",
+                            "id": "equip.3.upgrade",
+                            "normalBackground": {
+                              "x": 0.16,
+                              "y": 0.38,
+                              "z": 0.46,
+                              "w": 1
+                            },
+                            "pressedBackground": {
+                              "x": 0.22,
+                              "y": 0.52,
+                              "z": 0.6,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 148,
+                              "height": 32
+                            },
+                            "children": [
+                              {
+                                "type": "cyberland.engine/label",
+                                "id": "equip.3.upgrade.caption",
+                                "text": "up",
+                                "fontFamily": "UiSans",
+                                "sizePixels": 14,
+                                "bold": true,
+                                "color": {
+                                  "x": 0.96,
+                                  "y": 0.97,
+                                  "z": 1,
+                                  "w": 1
+                                },
+                                "horizontalAlignment": "Center",
+                                "layout": {
+                                  "preset": "stretchAll"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "cyberland.engine/panel",
+                        "spacing": 5,
+                        "backgroundColor": {
+                          "x": 0.1,
+                          "y": 0.115,
+                          "z": 0.155,
+                          "w": 0.93
+                        },
+                        "padding": {
+                          "left": 10,
+                          "top": 10,
+                          "right": 10,
+                          "bottom": 10
+                        },
+                        "layout": {
+                          "preset": "centerFixed",
+                          "width": 168,
+                          "height": 166
+                        },
+                        "children": [
+                          {
+                            "type": "cyberland.engine/image",
+                            "id": "equip.4.icon",
+                            "sourceTexture": "white",
+                            "tint": {
+                              "x": 0.5,
+                              "y": 0.5,
+                              "z": 0.5,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 36,
+                              "height": 36
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.4.slot",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.78,
+                              "y": 0.84,
+                              "z": 0.92,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/text-block",
+                            "id": "equip.4.tier",
+                            "text": " ",
+                            "fontFamily": "UiSans",
+                            "sizePixels": 14,
+                            "bold": true,
+                            "color": {
+                              "x": 0.9,
+                              "y": 0.92,
+                              "z": 1,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topStretch",
+                              "height": 22
+                            }
+                          },
+                          {
+                            "type": "cyberland.engine/button",
+                            "id": "equip.4.upgrade",
+                            "normalBackground": {
+                              "x": 0.16,
+                              "y": 0.38,
+                              "z": 0.46,
+                              "w": 1
+                            },
+                            "pressedBackground": {
+                              "x": 0.22,
+                              "y": 0.52,
+                              "z": 0.6,
+                              "w": 1
+                            },
+                            "layout": {
+                              "preset": "topLeftFixed",
+                              "width": 148,
+                              "height": 32
+                            },
+                            "children": [
+                              {
+                                "type": "cyberland.engine/label",
+                                "id": "equip.4.upgrade.caption",
+                                "text": "up",
+                                "fontFamily": "UiSans",
+                                "sizePixels": 14,
+                                "bold": true,
+                                "color": {
+                                  "x": 0.96,
+                                  "y": 0.97,
+                                  "z": 1,
+                                  "w": 1
+                                },
+                                "horizontalAlignment": "Center",
+                                "layout": {
+                                  "preset": "stretchAll"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "cyberland.engine/panel",
+                        "visible": false,
+                        "layout": {
+                          "preset": "stretchAll"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "cyberland.engine/panel",
+                "id": "log.panel",
+                "spacing": 8,
+                "visible": false,
+                "layout": {
+                  "preset": "stretchAll"
+                },
+                "children": [
+                  {
+                    "type": "cyberland.engine/scroll-view",
+                    "id": "log.scroll",
+                    "layout": {
+                      "preset": "stretchAll"
+                    },
+                    "content": {
+                      "type": "cyberland.engine/panel",
+                      "spacing": 0,
+                      "margin": {
+                        "left": 8,
+                        "top": 6,
+                        "right": 16,
+                        "bottom": 10
+                      },
+                      "layout": {
+                        "preset": "stretchAll"
+                      },
+                      "children": [
+                        {
+                          "type": "cyberland.engine/text-block",
+                          "id": "log.body",
+                          "text": " ",
+                          "fontFamily": "UiSans",
+                          "sizePixels": 13,
+                          "color": {
+                            "x": 0.78,
+                            "y": 0.82,
+                            "z": 0.88,
+                            "w": 1
+                          },
+                          "layout": {
+                            "preset": "stretchAll"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

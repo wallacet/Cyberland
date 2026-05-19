@@ -13,7 +13,8 @@
 ## Learning path
 
 1. **`Mod.cs`** — synchronous **`LoadBakedMsdfAtlas`** loop (first-frame glyphs; see **cyberland-demo-mod-authoring**), **`UiCommandDispatcher`** assignment, system registration.
-2. **`SceneSetup.cs`** — HUD document, session entity, **`DocumentRefs`** / **`SceneBootstrap`** returned to **`Mod`**.
+2. **`Content/Scenes/demo_idlegold.json`** + **`Content/Ui/idlegold_hud.json`** — scene shell and full retained HUD tree (`uiPath`).
+3. **`Mod.UiBind.cs`** — **`DocumentRefs`** from element ids, tab wiring, purchase commands, FPS **`BitmapText`** spawn.
 3. **`UiGameCommand.cs`**, **`UiCommandHandler.cs`** — typed UI commands and dispatch into the session row.
 4. **`Systems/SimulationSystem.cs`** — economy tick on the session singleton.
 5. **`Systems/HudBindSystem.cs`** — binding localized strings into HUD elements.
@@ -27,6 +28,7 @@
 ## Content
 
 - **`Content/Locale/en/idlegold.json`** — strings for HUD and buttons.
+- **`Content/Ui/idlegold_hud.json`** — retained HUD (tabs, sources, stats, blacksmith, log).
 
 ## Further reading
 

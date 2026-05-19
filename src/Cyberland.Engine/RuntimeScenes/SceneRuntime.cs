@@ -10,6 +10,7 @@ using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Modding;
 using Cyberland.Engine.RuntimeScenes.Serialization;
+using Cyberland.Engine.RuntimeUi;
 using Cyberland.Engine.Scene;
 
 namespace Cyberland.Engine.RuntimeScenes;
@@ -284,6 +285,7 @@ public sealed class SceneRuntime : ISceneRuntime
                 var count = SpawnEntities(world, parsed, options.AllowUnknownComponentTypes, strings, session, spawned);
                 ResolvePendingParentLinks(world, session);
                 ResolvePendingCameraFollowTargets(world, session);
+                await ResolvePendingUiDocumentsAsync(session, cancellationToken).ConfigureAwait(false);
                 return new SceneSpawnResult { Succeeded = true, EntitiesSpawned = count };
             }
             catch (Exception ex)
@@ -684,6 +686,21 @@ public sealed class SceneRuntime : ISceneRuntime
                 throw new InvalidOperationException($"Unknown targetLogicalId '{targetLogicalId}'.");
             ref var follow = ref world.Get<CameraFollow2D>(camera);
             follow.Target = target;
+        }
+    }
+
+    private async ValueTask ResolvePendingUiDocumentsAsync(SceneSpawnSession session, CancellationToken cancellationToken)
+    {
+        if (session.PendingUiDocuments.Count == 0)
+            return;
+
+        var ui = _host.Ui ?? throw new InvalidOperationException("Scene uiPath requires host UI runtime.");
+        foreach (var (entity, uiPath) in session.PendingUiDocuments)
+        {
+            var attach = await ui.AttachToEntityAsync(entity, uiPath, _host, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            if (!attach.Succeeded)
+                throw new InvalidOperationException(attach.ErrorMessage ?? $"Failed to attach UI '{uiPath}'.");
         }
     }
 

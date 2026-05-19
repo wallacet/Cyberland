@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "cyberland.engine/panel",
+    "layout": { "preset": "stretchAll" },
+    "children": [
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.title",
+        "text": " ",
+        "fontFamily": "UiSans",
+        "sizePixels": 24,
+        "color": { "x": 1, "y": 1, "z": 1, "w": 1 },
+        "layout": { "preset": "topLeftFixed", "width": 740, "height": 32 },
+        "anchoredPosition": { "x": 40, "y": 36 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.detail",
+        "text": " ",
+        "fontFamily": "UiSans",
+        "sizePixels": 18,
+        "color": { "x": 1, "y": 1, "z": 1, "w": 1 },
+        "layout": { "preset": "topLeftFixed", "width": 860, "height": 28 },
+        "anchoredPosition": { "x": 40, "y": 74 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.status",
+        "text": " ",
+        "fontFamily": "UiSans",
+        "sizePixels": 18,
+        "color": { "x": 1, "y": 1, "z": 1, "w": 1 },
+        "layout": { "preset": "topLeftFixed", "width": 900, "height": 24 },
+        "anchoredPosition": { "x": 40, "y": 108 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.fps",
+        "text": "FPS -",
+        "fontFamily": "Mono",
+        "sizePixels": 14,
+        "color": { "x": 0.4, "y": 0.88, "z": 0.52, "w": 0.9 },
+        "layout": { "preset": "topRightFixed", "width": 120, "height": 22, "margin": 14 }
+      }
+    ]
+  }
+}

@@ -33,6 +33,7 @@
                                             {
                                                 "type":  "cyberland.engine/ui-document-root",
                                                 "data":  {
+                                                             "uiPath":  "Ui/fonttest_matrix.json",
                                                              "sortKeyBase":  860
                                                          }
                                             }

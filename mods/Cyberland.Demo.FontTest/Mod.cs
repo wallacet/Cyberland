@@ -9,8 +9,8 @@ namespace Cyberland.Demo.FontTest;
 /// Font validation demo: built-in atlases plus a custom registered family (Jost) with mod-shipped MSDF bakes.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> <see cref="FontTestFonts"/> for VFS paths, then private <see cref="SetupSceneAsync"/> and <see cref="Mod.UiDocument"/> for the on-screen matrix.</para>
-/// <para><b>Load order inside <see cref="OnLoadAsync"/>:</b> register the custom family first (async I/O to VFS TTFs), then fire-and-forget baked page loads, then spawn scene JSON and build the UI document.</para>
+/// <para><b>Where to read next:</b> <see cref="FontTestFonts"/> for VFS paths, <c>Content/Ui/fonttest_matrix.json</c>, then private <see cref="SetupSceneAsync"/>.</para>
+/// <para><b>Load order inside <see cref="OnLoadAsync"/>:</b> register the custom family first (async I/O to VFS TTFs), then fire-and-forget baked page loads, then spawn scene JSON (HUD attaches via scene <c>uiPath</c>).</para>
 /// <para><b>Do not await <see cref="ModLoadContext.LoadBakedMsdfAtlasAsync"/> here</b> — completion requires the render loop to drain uploads while <see cref="ModLoader"/> still blocks on this method.</para>
 /// </remarks>
 public sealed partial class Mod : IMod
@@ -47,8 +47,6 @@ public sealed partial class Mod : IMod
 
         if (!result.Succeeded)
             throw new InvalidOperationException(result.ErrorMessage ?? "FontTest scene spawn failed.");
-
-        BuildFontTestUiDocument(context);
     }
 
     private static async Task RegisterJostFamilyAsync(ModLoadContext context)

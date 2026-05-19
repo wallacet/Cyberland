@@ -19,7 +19,7 @@ Shipped demos under **`mods/Cyberland.Demo*`** are **teaching mods**: they shoul
 1. **`mods/Cyberland.Demo`** — HDR baseline: scene JSON cold start, component deserializers, parallel vs singleton registration, lights, post.
 2. Branch by topic:
    - **Arcade / session row:** Pong, Snake, BrickBreaker.
-   - **Retained UI + locale:** MouseChase, WhackAMole.
+   - **Retained UI JSON + locale:** MouseChase, IdleGold (**`Content/Ui/`** + **`uiPath`**).
    - **Idle + UI commands + MSDF sync load:** IdleGold.
    - **Custom fonts + atlas matrix + async pitfall:** FontTest.
    - **RTS-style camera, selection, deferred lights:** Rts.
@@ -31,6 +31,7 @@ Shipped demos under **`mods/Cyberland.Demo*`** are **teaching mods**: they shoul
 3. Add the project to **`Cyberland.sln`** (same change as adding the folder).
 4. **`Mod.cs`:** `IMod` implementation at assembly root; follow **Mod.cs XML template** below; **private `SetupSceneAsync`** for cold start (see **Scene JSON + cold-start helper**).
 5. **`Content/Scenes/*.json`** for root-world layout (and optional additive samples); register mod component types via **`RegisterComponentDeserializer`** (dedicated `*SceneComponentDeserializers.cs` when the list grows).
+6. If the demo uses **retained UI**, add **`Content/Ui/*.json`** and set **`uiPath`** on the HUD entity’s **`cyberland.engine/ui-document-root`** (see **UI JSON** below). **Do not** add **`Mod.UiDocument.cs`** or call **`new UiDocument()`** in demos.
 6. **`Components/`** and **`Systems/`** folders for ECS types; avoid one-shot-only systems (see **cyberland-ecs-one-shot**).
 7. **`*InputSetup`:** static helper beside **`Mod`** for **`AddDefaultInputBinding`** when the demo needs keys/gamepad.
 8. **System ids:** stable strings under **`cyberland.demo.<slug>/…`** (match manifest id slug).
@@ -46,7 +47,7 @@ Use these headings (order fixed) so every demo skims the same way:
 3. **`## Run`** — `Run-CyberlandDemo-Test.ps1 -Demo …` and note that manifests are disabled in git; optional manual **`manifest.json`** toggle.
 4. **`## Learning path`** — ordered bullets: **`Mod.cs`** (bootstrap + registration) → **`Content/Scenes/…`** + deserializers if used → 2–5 key **`Systems/…`** (and **`Components/…`** if the data model is the lesson).
 5. **`## Features taught`** — bullets mapping to APIs (`IRenderer`, `BitmapText`, `ISceneRuntime.SpawnIntoWorldAsync`, `ISingletonSystem`, `IParallelSystem`, `ILocalizedContent`, `UiCommandDispatcher`, tilemap, etc.).
-6. **`## Content`** — locale JSON paths, **`Content/Scenes/`**, other **`Content/`** assets, optional **`content.release.manifest.json`**.
+6. **`## Content`** — locale JSON paths, **`Content/Scenes/`**, **`Content/Ui/`** when used, other **`Content/`** assets, optional **`content.release.manifest.json`**.
 7. **`## Further reading`** — links to **`.cursor/rules/`** (this file, **cyberland-mod-patterns-hdr**, **cyberland-mod-host-architecture**) and root **`README.md`** sections as needed.
 
 ## `Mod.cs` XML template
@@ -82,7 +83,15 @@ Keep **`OnLoadAsync`** body comments for **registration order** where dependenci
 
 **`logicalId` in JSON** is still allowed for **scene-internal** references (`parentLogicalId`, `targetLogicalId` on camera-follow, tooling, additive reload). Mod code must not duplicate those strings.
 
-**Retained UI** (`UiDocuments.Register`): resolve the **`ui-document-root`** entity via **`RequireSingleEntityWith<HudRootTag>`**, then build the document in **`Mod.UiDocument.cs`** (or equivalent partial).
+## UI JSON (retained HUD — demos only)
+
+**Author layout in JSON; wire behavior in C#.** Demos must not build widget trees in code.
+
+1. **`Content/Ui/<screen>.json`** — `schemaVersion`, `root` tree, **`cyberland.engine/*`** types, stable **`id`** on every node systems touch (see **cyberland-ui-json-authoring**).
+2. Scene entity: **`cyberland.engine/ui-document-root`** with **`"uiPath": "Ui/<screen>.json"`** (VFS path relative to mounted **`Content/`**, no `Content/` prefix).
+3. **`await context.Scenes.SpawnIntoWorldAsync`** attaches the document automatically when **`context.Host.Ui`** is initialized (after renderer bootstrap).
+4. After spawn: **`context.Host.UiDocuments.TryGetElements(hudEntity, out var ids)`** then **`ids.Require<T>("your.id")`** ( **`Cyberland.Engine.RuntimeUi.UiElementLookup`** ) into ref structs; wire **`Clicked`**, **`UiCommandDispatcher`**, and dynamic text in **`Mod.UiBind.cs`** / systems — never duplicate the tree in C#.
+5. **Custom mod widgets:** **`context.Ui!.RegisterElementDeserializer("cyberland.demo.<slug>/…", …)`** before scene spawn (rare in demos).
 
 **Procedural post-spawn** (RTS checkerboard texture, sprite **`ref`** writes) stays in a **`Wire*`** / **`Mod.*.cs`** partial that uses **tags only** for entity lookup.
 

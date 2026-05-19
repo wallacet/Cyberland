@@ -12,4 +12,7 @@ internal sealed class SceneSpawnSession
     public List<(EntityId Camera, string TargetLogicalId)> PendingCameraFollowTargets { get; } = new();
 
     public Dictionary<string, EntityId> LogicalIdToEntity { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Entities with <c>ui-document-root</c> + <c>uiPath</c> to attach after spawn.</summary>
+    public List<(EntityId Entity, string UiPath)> PendingUiDocuments { get; } = new();
 }

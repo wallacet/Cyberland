@@ -1,6 +1,6 @@
 using Cyberland.Demo.Rts.Components;
 using Cyberland.Engine.RuntimeScenes;
-using Cyberland.Engine.RuntimeScenes.Serialization;
+using Cyberland.Engine.Serialization;
 
 namespace Cyberland.Demo.Rts;
 
@@ -39,7 +39,7 @@ public static class SceneComponentDeserializers
         {
             ctx.World.GetOrAdd<RtsSelectionBarTag>(ctx.EntityId) = new RtsSelectionBarTag
             {
-                Index = (byte)SceneComponentJson.ReadInt(ctx.Data, "index", 0)
+                Index = (byte)RuntimeJsonReaders.ReadInt(ctx.Data, "index", 0)
             };
         });
     }

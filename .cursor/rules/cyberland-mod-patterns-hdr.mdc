@@ -35,6 +35,13 @@ Ship mods so they read like the repo’s best samples: **cold start** via a **pr
 
 - Split **runtime** systems by responsibility (input, simulate, lights-fill, HUD); **do not** scatter spawn code across multiple **`OnStart`** handlers or phase updates.
 
+## UI setup (retained HUD)
+
+- Author trees in **`Content/Ui/*.json`**; link from scene via **`ui-document-root.data.uiPath`**.
+- Use stable element **`id`** strings for post-spawn binding (**`UiDocuments.TryGetElements`** + **`UiElementLookup.Require<T>`**).
+- Engine types: **`IUiRuntime`** / **`context.Ui`**, **`EngineUiElementDeserializers`**, **`UiBuildResult`** — see **cyberland-ui-json-authoring**.
+- **`mods/Cyberland.Demo*`:** JSON-only UI trees (no **`new UiDocument()`** in mod code). Non-demo mods may still prototype UI in C# until migrated.
+
 ## Scheduler / host contract
 
 - **`OnStart`** / **`OnSingletonStart`** runs **before** phase callbacks for that registration; treat required host services and entities as **available**. Validate impossible configuration with **`throw`** and clear messages—do not soften failures into silent skips.

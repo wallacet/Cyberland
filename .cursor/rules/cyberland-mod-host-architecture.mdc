@@ -86,6 +86,12 @@ Treat those bands as reserved for engine infrastructure so gameplay mods remain 
 - **Streaming policy** (cell grid vs trigger-driven loads) is summarized on **`SceneStreamingPolicy`**; **`TryLiftSubtree`** / **`TryLiftEntities`** move supported engine components across worlds with an **`EntityId`** remap table—**`LogicalActorId`** stays stable for save graphs.
 - **GPU / load safety:** do not **`await`** GPU-heavy work from **`ModLoader.LoadAll`** (see **`LoadBakedMsdfAtlasAsync`**); runtime scene IO applies under **`PumpAsync`** while the render loop is alive.
 
+## Runtime UI (retained HUD JSON)
+
+- **`Cyberland.Engine.RuntimeUi`** deserializes **`Content/Ui/*.json`** into **`UiDocument`** trees. **`GameHostServices.InitializeRuntimeUi`** (from **`GameApplication`** after renderer init) exposes **`IUiRuntime`** on **`context.Host.Ui`** and **`ModLoadContext.Ui`**.
+- Scene **`cyberland.engine/ui-document-root`** may set **`uiPath`** (VFS path relative to mod **`Content/`**, e.g. **`"Ui/hud.json"`**). **`SceneSpawnSession`** queues loads; **`SceneRuntime.ResolvePendingUiDocumentsAsync`** attaches after spawn.
+- After attach, **`context.Host.UiDocuments.TryGetElements(hudEntity, out var ids)`** returns the id → element map for **`Mod.UiBind`** wiring (commands, localization refresh). Authoring: **`.cursor/rules/cyberland-ui-json-authoring.mdc`**.
+
 ## Adding a new gameplay feature (checklist)
 
 1. Prefer a **new `ISystem` or `IParallelSystem`** in the appropriate mod project (`Cyberland.Game` for campaign, or a new mod under **`mods/`**).

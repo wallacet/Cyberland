@@ -107,6 +107,23 @@ public sealed class ModdingTests
     }
 
     [Fact]
+    public void ModLoadContext_Ui_null_until_host_initializes_runtime_ui()
+    {
+        var host = new GameHostServices { Renderer = new RecordingRenderer() };
+        var ctx = new ModLoadContext(
+            new ModManifest { Id = "m", ContentRoot = "Content" },
+            Path.GetTempPath(),
+            new VirtualFileSystem(),
+            TestLoc(new VirtualFileSystem(), new LocalizationManager()),
+            new World(),
+            new SystemScheduler(new ParallelismSettings()),
+            host);
+        Assert.Null(ctx.Ui);
+        host.InitializeRuntimeUi(new VirtualFileSystem(), host.Renderer, () => null);
+        Assert.NotNull(ctx.Ui);
+    }
+
+    [Fact]
     public void ModLoadContext_mount_helpers_use_mod_directory()
     {
         var modRoot = Path.Combine(Path.GetTempPath(), "cyb mod ctx " + Guid.NewGuid());

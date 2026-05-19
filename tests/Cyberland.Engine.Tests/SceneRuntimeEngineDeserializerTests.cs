@@ -6,7 +6,7 @@ using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.RuntimeScenes;
-using Cyberland.Engine.RuntimeScenes.Serialization;
+using Cyberland.Engine.Serialization;
 using Cyberland.Engine.Scene;
 using Cyberland.Engine.UI.Ecs;
 using Silk.NET.Maths;
@@ -34,7 +34,7 @@ public sealed class SceneRuntimeEngineDeserializerTests
     }
 
     [Fact]
-    public void SceneComponentJson_Readers_cover_defaults_and_vectors()
+    public void RuntimeJsonReaders_Readers_cover_defaults_and_vectors()
     {
         using var doc = JsonDocument.Parse(
             """
@@ -49,19 +49,28 @@ public sealed class SceneRuntimeEngineDeserializerTests
             }
             """);
         var data = doc.RootElement;
-        Assert.Equal(1.5f, SceneComponentJson.ReadFloat(data, "f", 0f));
-        Assert.Equal(9f, SceneComponentJson.ReadFloat(data, "missing", 9f));
-        Assert.Equal(3, SceneComponentJson.ReadInt(data, "i", 0));
-        Assert.True(SceneComponentJson.ReadBool(data, "b", false));
-        Assert.Equal("WorldSpace", SceneComponentJson.ReadString(data, "s"));
-        Assert.Equal(CoordinateSpace.WorldSpace, SceneComponentJson.ReadEnum(data, "s", CoordinateSpace.ViewportSpace));
-        Assert.True(SceneComponentJson.TryReadVec2(data, "v2", out var v2));
+        Assert.Equal(1.5f, RuntimeJsonReaders.ReadFloat(data, "f", 0f));
+        Assert.Equal(9f, RuntimeJsonReaders.ReadFloat(data, "missing", 9f));
+        Assert.Equal(3, RuntimeJsonReaders.ReadInt(data, "i", 0));
+        Assert.True(RuntimeJsonReaders.ReadBool(data, "b", false));
+        Assert.Equal("WorldSpace", RuntimeJsonReaders.ReadString(data, "s"));
+        Assert.Equal(CoordinateSpace.WorldSpace, RuntimeJsonReaders.ReadEnum(data, "s", CoordinateSpace.ViewportSpace));
+        Assert.True(RuntimeJsonReaders.TryReadVec2(data, "v2", out var v2));
         Assert.Equal(2f, v2.X);
-        Assert.True(SceneComponentJson.TryReadVec3(data, "v3", out var v3));
+        Assert.True(RuntimeJsonReaders.TryReadVec3(data, "v3", out var v3));
         Assert.Equal(3f, v3.Z);
-        Assert.True(SceneComponentJson.TryReadVec4(data, "v4", out var v4));
+        Assert.True(RuntimeJsonReaders.TryReadVec4(data, "v4", out var v4));
         Assert.Equal(0.4f, v4.W);
-        Assert.False(SceneComponentJson.TryReadVec2(data, "nope", out _));
+        Assert.False(RuntimeJsonReaders.TryReadVec2(data, "nope", out _));
+    }
+
+    [Fact]
+    public void RuntimeJsonReaders_ResolveFontFamilyId_maps_builtin_shorthand()
+    {
+        Assert.Equal(BuiltinFonts.UiSans, RuntimeJsonReaders.ResolveFontFamilyId(null));
+        Assert.Equal(BuiltinFonts.UiSans, RuntimeJsonReaders.ResolveFontFamilyId("UiSans"));
+        Assert.Equal(BuiltinFonts.Mono, RuntimeJsonReaders.ResolveFontFamilyId("Mono"));
+        Assert.Equal("fonttest.jost", RuntimeJsonReaders.ResolveFontFamilyId("fonttest.jost"));
     }
 
     [Fact]

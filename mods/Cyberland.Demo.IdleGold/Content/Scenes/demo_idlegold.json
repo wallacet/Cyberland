@@ -43,6 +43,7 @@
                                             {
                                                 "type":  "cyberland.engine/ui-document-root",
                                                 "data":  {
+                                                             "uiPath":  "Ui/idlegold_hud.json",
                                                              "sortKeyBase":  900
                                                          }
                                             }

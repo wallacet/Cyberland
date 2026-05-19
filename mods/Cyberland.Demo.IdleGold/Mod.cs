@@ -12,7 +12,7 @@ namespace Cyberland.Demo.IdleGold;
 /// Idle gold UI showcase: passive income, purchases through retained UI, ECS singleton session row.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.UiDocument"/> builds the HUD; <see cref="UiCommandHandler"/> for commands.</para>
+/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/> and <c>Content/Ui/idlegold_hud.json</c>; <see cref="UiCommandHandler"/> for commands.</para>
 /// <para><b>Frame flow:</b> UI buttons enqueue into <see cref="Cyberland.Engine.Hosting.GameHostServices.UiCommands"/>; <see cref="SimulationSystem"/> advances economy in late update; <see cref="HudBindSystem"/> mirrors state into labels.</para>
 /// <para><b>MSDF bootstrap:</b> synchronous <see cref="LoadBuiltinUiAtlasesForIdleGold"/> so first UI frames use baked glyphs — see **cyberland-demo-mod-authoring**.</para>
 /// </remarks>
@@ -20,6 +20,11 @@ public sealed partial class Mod : IMod
 {
     /// <summary>VFS path to the root-world scene document.</summary>
     public const string ScenePath = "Scenes/demo_idlegold.json";
+
+    public const string NavGather = "gather";
+    public const string NavCharacter = "character";
+    public const string NavBlacksmith = "blacksmith";
+    public const string NavLog = "log";
 
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
@@ -64,7 +69,7 @@ public sealed partial class Mod : IMod
         var world = context.World;
         var session = world.RequireSingleEntityWith<SessionTag>("IdleGold session");
         WireSession(world, session, context.LocalizedContent.Strings);
-        return BuildRetainedUi(context, session);
+        return BootstrapUi(context, session);
     }
 
     private static void WireSession(Cyberland.Engine.Core.Ecs.World world, Cyberland.Engine.Core.Ecs.EntityId session, LocalizationManager loc)

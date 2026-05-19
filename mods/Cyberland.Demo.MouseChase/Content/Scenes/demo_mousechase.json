@@ -378,6 +378,7 @@
                                             {
                                                 "type":  "cyberland.engine/ui-document-root",
                                                 "data":  {
+                                                             "uiPath":  "Ui/mousechase_hud.json",
                                                              "sortKeyBase":  800
                                                          }
                                             }
