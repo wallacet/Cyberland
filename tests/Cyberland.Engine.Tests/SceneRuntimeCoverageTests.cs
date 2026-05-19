@@ -736,7 +736,8 @@ public sealed class SceneRuntimeCoverageTests
         var (_, rt, _, _) = CreateRuntime(vfs);
         var dir = Path.Combine(Path.GetTempPath(), "cyberland_scene_slice4_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(dir, "Content", "Scenes"));
-        var pad = new string('z', 500_000);
+        // Large JSON DOM so JsonDocument.Parse exceeds a 1 ms wall budget on fast CI runners (parsing is not incremental).
+        var pad = new string('z', 8_000_000);
         var json = "{\"schemaVersion\":1,\"padding\":\"" + pad + "\",\"entities\":[{\"components\":[{\"type\":\"cyberland.engine/transform\",\"data\":{}}]}]}";
         await File.WriteAllTextAsync(Path.Combine(dir, "Content", "Scenes", "s4.json"), json);
         vfs.Mount(dir);
@@ -745,6 +746,7 @@ public sealed class SceneRuntimeCoverageTests
         Assert.False(r1.Completed);
         var r2 = await rt.PumpAsync(id, new SceneLoadPumpOptions { MaxElapsed = TimeSpan.FromMilliseconds(1) });
         Assert.False(r2.Completed);
+        Assert.Equal(0, r2.EntitiesCommitted);
         var r3 = await rt.PumpAsync(id);
         Assert.True(r3.Completed);
     }
