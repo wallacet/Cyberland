@@ -76,67 +76,6 @@
                                         ]
                      },
                      {
-                         "logicalId":  "f4444444-4444-4444-4444-000000000104",
-                         "components":  [
-                                            {
-                                                "type":  "cyberland.demo.rts/unit-tag",
-                                                "data":  {
-
-                                                         }
-                                            },
-                                            {
-                                                "type":  "cyberland.engine/transform",
-                                                "data":  {
-                                                             "localX":  800,
-                                                             "localY":  900
-                                                         }
-                                            },
-                                            {
-                                                "type":  "cyberland.engine/sprite",
-                                                "data":  {
-                                                             "colorMultiply":  {
-                                                                                   "y":  0.82,
-                                                                                   "w":  1,
-                                                                                   "z":  0.35,
-                                                                                   "x":  0.85
-                                                                               },
-                                                             "layer":  100,
-                                                             "sortKey":  10,
-                                                             "halfExtents":  {
-                                                                                 "y":  24,
-                                                                                 "x":  24
-                                                                             }
-                                                         }
-                                            }
-                                        ]
-                     },
-                     {
-                         "logicalId":  "f4444444-4444-4444-4444-000000000105",
-                         "components":  [
-                                            {
-                                                "type":  "cyberland.engine/transform",
-                                                "data":  {
-                                                             "localX":  6,
-                                                             "localY":  14,
-                                                             "parentLogicalId":  "f4444444-4444-4444-4444-000000000104"
-                                                         }
-                                            },
-                                            {
-                                                "type":  "cyberland.engine/point-light",
-                                                "data":  {
-                                                             "radius":  420,
-                                                             "color":  {
-                                                                           "y":  0.92,
-                                                                           "z":  0.72,
-                                                                           "x":  1
-                                                                       },
-                                                             "intensity":  0.48,
-                                                             "falloffExponent":  2.1
-                                                         }
-                                            }
-                                        ]
-                     },
-                     {
                          "logicalId":  "f4444444-4444-4444-4444-000000000110",
                          "components":  [
                                             {

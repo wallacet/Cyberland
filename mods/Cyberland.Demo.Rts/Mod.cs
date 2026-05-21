@@ -5,10 +5,10 @@ using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.Rts;
 
-/// <summary>RTS-style tutorial: pan/zoom camera, one selectable unit with move orders, deferred lights, selection frame, FPS HUD.</summary>
+/// <summary>RTS-style tutorial: pan/zoom camera, ~10 units, box select, formation moves with separation, FPS HUD.</summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.RtsPlayfield"/> registers the checkerboard texture; systems under <c>Systems/</c>.</para>
-/// <para><b>Frame flow (simplified):</b> <see cref="RtsInputSystem"/> → <see cref="RtsUnitMoveSystem"/> → <see cref="RtsCameraSystem"/> → <see cref="RtsSelectionFrameSystem"/> → <see cref="RtsFpsHudSystem"/>.</para>
+/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.RtsPlayfield"/> spawns units + checkerboard; systems under <c>Systems/</c>.</para>
+/// <para><b>Frame flow (simplified):</b> <see cref="RtsInputSystem"/> → <see cref="RtsUnitMoveSystem"/> (serial) → <see cref="RtsCameraSystem"/> → <see cref="RtsSelectionFrameSystem"/> → <see cref="RtsFpsHudSystem"/>.</para>
 /// <para><b>MSDF:</b> mono atlas is kicked async (fire-and-forget) for the FPS row; first frames may briefly fall back until upload drains.</para>
 /// </remarks>
 public sealed partial class Mod : IMod
@@ -29,7 +29,7 @@ public sealed partial class Mod : IMod
 
         var host = context.Host;
         context.RegisterSingleton("cyberland.demo.rts/input", new RtsInputSystem(host));
-        context.RegisterSingleton("cyberland.demo.rts/unit-move", new RtsUnitMoveSystem());
+        context.RegisterSerial("cyberland.demo.rts/unit-move", new RtsUnitMoveSystem());
         context.RegisterSingleton("cyberland.demo.rts/camera", new RtsCameraSystem(host));
         context.RegisterSingleton("cyberland.demo.rts/selection", new RtsSelectionFrameSystem());
         context.RegisterSingleton("cyberland.demo.rts/fps-hud", new RtsFpsHudSystem(host));

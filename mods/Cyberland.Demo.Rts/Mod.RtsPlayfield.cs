@@ -8,7 +8,7 @@ using TextureId = System.UInt32;
 
 namespace Cyberland.Demo.Rts;
 
-/// <summary>Procedural checkerboard texture and session entity wiring after JSON spawn.</summary>
+/// <summary>Procedural checkerboard texture, unit spawn, and session entity wiring after JSON spawn.</summary>
 public sealed partial class Mod
 {
     public static void WirePlayfieldAfterSpawn(ModLoadContext context)
@@ -22,22 +22,22 @@ public sealed partial class Mod
             throw new InvalidOperationException("RTS demo failed to register background texture.");
 
         var backgroundEntity = world.RequireSingleEntityWith<RtsBackgroundTag>("RTS background");
-        var unitEntity = world.RequireSingleEntityWith<RtsUnitTag>("RTS unit");
-        ConfigurePlayfieldSprites(world, renderer, backgroundEntity, bgTextureId, unitEntity);
+        ConfigureBackgroundSprite(world, renderer, backgroundEntity, bgTextureId);
 
         var cameraEntity = world.RequireSingleEntityWith<RtsCameraTag>("RTS camera");
+        ref readonly var cameraTransform = ref world.Get<Transform>(cameraEntity);
+        SpawnUnits(world, renderer, cameraTransform.WorldPosition);
         var sessionEntity = world.RequireSingleEntityWith<RtsSessionState>("RTS session");
         world.GetOrAdd<RtsSessionState>(sessionEntity) = new RtsSessionState
         {
             CameraEntity = cameraEntity,
-            UnitEntity = unitEntity,
             SelectionBar0 = default,
             SelectionBar1 = default,
             SelectionBar2 = default,
             SelectionBar3 = default,
-            UnitSelected = false,
-            HasMoveTarget = false,
-            MoveTargetWorld = default
+            BoxDragActive = false,
+            BoxDragStartWorld = default,
+            BoxDragEndWorld = default
         };
 
         ref var session = ref world.Get<RtsSessionState>(sessionEntity);
@@ -64,12 +64,53 @@ public sealed partial class Mod
         }
     }
 
-    private static void ConfigurePlayfieldSprites(
+    private static void SpawnUnits(World world, IRenderer renderer, Vector2D<float> cameraCenterWorld)
+    {
+        var cols = RtsConstants.SpawnGridColumns;
+        var rows = (RtsConstants.UnitCount + cols - 1) / cols;
+        var spacing = RtsConstants.FormationSpacing;
+        var gridW = (cols - 1) * spacing;
+        var gridH = (rows - 1) * spacing;
+        var originX = cameraCenterWorld.X - gridW * 0.5f;
+        var originY = cameraCenterWorld.Y - gridH * 0.5f;
+
+        for (var i = 0; i < RtsConstants.UnitCount; i++)
+        {
+            var col = i % cols;
+            var row = i / cols;
+            var pos = new Vector2D<float>(originX + col * spacing, originY + row * spacing);
+
+            var entity = world.CreateEntity();
+            // Must seed Identity — default Transform has zero scale and sprites won't render.
+            var transform = Transform.Identity;
+            transform.WorldPosition = pos;
+            world.GetOrAdd<Transform>(entity) = transform;
+
+            ref var spr = ref world.GetOrAdd<Sprite>(entity);
+            spr = Sprite.DefaultWhiteUnlit(
+                renderer.WhiteTextureId,
+                renderer.DefaultNormalTextureId,
+                RtsConstants.UnitHalfExtents);
+            spr.Visible = true;
+            spr.Transparent = false;
+            spr.ColorMultiply = new Vector4D<float>(0.85f, 0.82f, 0.35f, 1f);
+            spr.SortKey = 10f + i;
+
+            _ = world.GetOrAdd<RtsUnitTag>(entity);
+            world.GetOrAdd<RtsUnitState>(entity) = new RtsUnitState
+            {
+                Selected = false,
+                HasMoveOrder = false,
+                MoveTargetWorld = default
+            };
+        }
+    }
+
+    private static void ConfigureBackgroundSprite(
         World world,
         IRenderer renderer,
         EntityId backgroundEntity,
-        TextureId bgTextureId,
-        EntityId unitEntity)
+        TextureId bgTextureId)
     {
         ref var bgSpr = ref world.Get<Sprite>(backgroundEntity);
         bgSpr.Visible = true;
@@ -80,16 +121,6 @@ public sealed partial class Mod
         bgSpr.ColorMultiply = new Vector4D<float>(0.35f, 0.38f, 0.48f, 1f);
         bgSpr.Layer = (int)SpriteLayer.World;
         bgSpr.SortKey = -500f;
-
-        ref var unitSpr = ref world.Get<Sprite>(unitEntity);
-        unitSpr.Visible = true;
-        unitSpr.Transparent = false;
-        unitSpr.AlbedoTextureId = renderer.WhiteTextureId;
-        unitSpr.NormalTextureId = renderer.DefaultNormalTextureId;
-        unitSpr.HalfExtents = RtsConstants.UnitHalfExtents;
-        unitSpr.ColorMultiply = new Vector4D<float>(0.85f, 0.82f, 0.35f, 1f);
-        unitSpr.Layer = (int)SpriteLayer.World;
-        unitSpr.SortKey = 10f;
     }
 
     private static byte[] BuildCheckerboardTexture()

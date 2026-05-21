@@ -40,10 +40,8 @@ public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
 
         var k = 1f - MathF.Exp(-RtsConstants.ZoomSmoothingPerSecond * deltaSeconds);
         var cw = cam2.ViewportSizeWorld.X;
-        var ch = cam2.ViewportSizeWorld.Y;
         var nw = cw + (zoom.TargetViewportWidth - cw) * k;
-        var nh = ch + (zoom.TargetViewportHeight - ch) * k;
-        cam2.ViewportSizeWorld = new Vector2D<int>((int)MathF.Round(nw), (int)MathF.Round(nh));
+        cam2.ViewportSizeWorld = ViewportSizeFromWidth((int)MathF.Round(nw));
 
         var ax = input.ReadAxis("cyberland.demo.rts/pan_x");
         var ay = input.ReadAxis("cyberland.demo.rts/pan_y");
@@ -92,6 +90,14 @@ public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
             RtsConstants.ZoomViewportMinWidth,
             RtsConstants.ZoomViewportMaxWidth);
         zoom.TargetViewportHeight = zoom.TargetViewportWidth * (9f / 16f);
+    }
+
+    /// <summary>Locks 16:9 so letterbox/pillarbox geometry stays stable while the window size is unchanged.</summary>
+    private static Vector2D<int> ViewportSizeFromWidth(int width)
+    {
+        var w = Math.Max(1, width);
+        var h = Math.Max(1, (int)MathF.Round(w * (9f / 16f)));
+        return new Vector2D<int>(w, h);
     }
 
     private static void ClampCameraCenter(ref Transform tf, int viewportW, int viewportH)
