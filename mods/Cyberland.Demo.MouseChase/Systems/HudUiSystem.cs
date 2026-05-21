@@ -29,7 +29,7 @@ public sealed class HudUiSystem : ISingletonSystem, ISingletonLateUpdate
 
     public void OnSingletonStart(in SingletonEntity stateRow)
     {
-        if (!stateRow.World.Components<MouseChaseHudRootTag>().Contains(_hud.RootEntity))
+        if (!stateRow.World.Components<HudRootTag>().Contains(_hud.RootEntity))
             throw new InvalidOperationException("MouseChase HUD root tag missing; SceneSetup must register UiDocumentRoot.");
     }
 

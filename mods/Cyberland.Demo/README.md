@@ -17,11 +17,11 @@ Manifests stay **`"disabled": true`** in git (pre-commit). To toggle by hand, ed
 ## Learning path
 
 1. **`Mod.cs`** — private **`SetupSceneAsync`**, registration order, shader smoke-test, baked atlas kickoff.
-2. **`Content/Scenes/demo_hdr.json`** + **`DemoSceneComponentDeserializers.cs`** — root-world layout (camera, player, HUD, lights, bloom, global post).
+2. **`Content/Scenes/hdr.json`** + **`SceneComponentDeserializers.cs`** + **`Content/Ui/hdr_hud.json`** — root-world layout and retained HUD.
 3. **`Systems/InputSystem.cs`** — parallel velocity SoA + scheduler-thread axis read between barriers.
 4. **`Systems/IntegrateSystem.cs`** — **`ISingletonSystem`** + fixed-step motion.
 5. **`Systems/VelocityDampSystem.cs`** — honest **`IParallelSystem`** over **`QueryChunks<Velocity>`**.
-6. **`Systems/HdrPostVolumeFillSystem.cs`**, **`FpsDisplaySystem.cs`** — late singleton presentation.
+6. **`Systems/PostVolumeFillSystem.cs`**, **`HudUiSystem.cs`** — late singleton presentation.
 
 ## Features taught
 
@@ -32,9 +32,9 @@ Manifests stay **`"disabled": true`** in git (pre-commit). To toggle by hand, ed
 
 ## Content
 
-- **`Content/Scenes/demo_hdr.json`** — root-world entity layout (schema version 1).
-- **`Content/Scenes/demo_overlay.json`**, **`demo_room.json`** — small additive-world samples (`BeginLoad` in **`Mod.cs`**).
-- **`Content/Locale/en/demo_hdr.json`** — HUD strings.
+- **`Content/Scenes/hdr.json`** — root-world entity layout (schema version 1).
+- **`Content/Scenes/overlay.json`**, **`room.json`** — small additive-world samples (`BeginLoad` in **`Mod.cs`**).
+- **`Content/Locale/en/hdr.json`** — HUD strings.
 - **`content.release.manifest.json`** — no required binary bundle for local dev beyond engine defaults.
 
 ## Further reading

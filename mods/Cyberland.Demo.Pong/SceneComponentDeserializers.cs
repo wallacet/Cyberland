@@ -2,7 +2,7 @@ using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.Pong;
 
-/// <summary>Registers <c>cyberland.demo.pong/*</c> scene JSON types for <c>Scenes/demo_pong.json</c>.</summary>
+/// <summary>Registers <c>cyberland.demo.pong/*</c> scene JSON types for <c>Scenes/pong.json</c>.</summary>
 public static class SceneComponentDeserializers
 {
     public static void Register(ISceneRuntime scenes)
@@ -47,21 +47,7 @@ public static class SceneComponentDeserializers
 
     private static void RegisterHudTags(ISceneRuntime scenes)
     {
-        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-title-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<HudTitleTextTag>(ctx.EntityId));
-        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-game-over-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<HudGameOverTextTag>(ctx.EntityId));
-        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-hint-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<HudHintTextTag>(ctx.EntityId));
-        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-score-you-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<HudScoreYouTextTag>(ctx.EntityId));
-        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-score-player-num-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<HudScorePlayerNumTextTag>(ctx.EntityId));
-        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-score-cpu-label-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<HudScoreCpuLabelTextTag>(ctx.EntityId));
-        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-score-cpu-num-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<HudScoreCpuNumTextTag>(ctx.EntityId));
-        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-fps-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<HudFpsTextTag>(ctx.EntityId));
+        scenes.RegisterComponentDeserializer("cyberland.demo.pong/hud-root-tag", static (in SceneComponentDeserializeContext ctx) =>
+            _ = ctx.World.GetOrAdd<HudRootTag>(ctx.EntityId));
     }
 }

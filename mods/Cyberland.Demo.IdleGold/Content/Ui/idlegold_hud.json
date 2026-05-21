@@ -304,6 +304,21 @@
                       "width": 260,
                       "height": 38
                     }
+                  },
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "id": "chrome.fps",
+                    "text": "FPS —",
+                    "fontFamily": "Mono",
+                    "sizePixels": 14,
+                    "color": { "x": 0.42, "y": 0.9, "z": 0.58, "w": 0.95 },
+                    "verticalAlignment": "CenterInk",
+                    "layout": {
+                      "preset": "topRightFixed",
+                      "width": 120,
+                      "height": 22,
+                      "margin": 8
+                    }
                   }
                 ]
               }

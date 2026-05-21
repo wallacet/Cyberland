@@ -3,7 +3,7 @@ using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.WhackAMole;
 
-/// <summary>Registers <c>cyberland.demo.whackamole/*</c> types for <c>Scenes/demo_whackamole.json</c>.</summary>
+/// <summary>Registers <c>cyberland.demo.whackamole/*</c> types for <c></c>.</summary>
 public static class SceneComponentDeserializers
 {
     public static void Register(ISceneRuntime scenes)
@@ -12,7 +12,7 @@ public static class SceneComponentDeserializers
 
         scenes.RegisterComponentDeserializer("cyberland.demo.whackamole/state", static (in SceneComponentDeserializeContext ctx) =>
         {
-            ctx.World.GetOrAdd<WhackAMoleState>(ctx.EntityId) = new WhackAMoleState
+            ctx.World.GetOrAdd<State>(ctx.EntityId) = new State
             {
                 Phase = WhackAMolePhase.Ready,
                 Score = 0,
@@ -24,14 +24,8 @@ public static class SceneComponentDeserializers
         scenes.RegisterComponentDeserializer("cyberland.demo.whackamole/target-tag", static (in SceneComponentDeserializeContext ctx) =>
             _ = ctx.World.GetOrAdd<WhackAMoleTargetTag>(ctx.EntityId));
 
-        scenes.RegisterComponentDeserializer("cyberland.demo.whackamole/score-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<WhackAMoleScoreTextTag>(ctx.EntityId));
-
-        scenes.RegisterComponentDeserializer("cyberland.demo.whackamole/timer-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<WhackAMoleTimerTextTag>(ctx.EntityId));
-
-        scenes.RegisterComponentDeserializer("cyberland.demo.whackamole/overlay-text-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<WhackAMoleOverlayTextTag>(ctx.EntityId));
+        scenes.RegisterComponentDeserializer("cyberland.demo.whackamole/hud-root-tag", static (in SceneComponentDeserializeContext ctx) =>
+            _ = ctx.World.GetOrAdd<HudRootTag>(ctx.EntityId));
 
         scenes.RegisterComponentDeserializer("cyberland.demo.whackamole/background-tag", static (in SceneComponentDeserializeContext ctx) =>
             _ = ctx.World.GetOrAdd<BackgroundTag>(ctx.EntityId));

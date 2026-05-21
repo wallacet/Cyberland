@@ -3,7 +3,7 @@ using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.IdleGold;
 
-/// <summary>Registers <c>cyberland.demo.idlegold/*</c> types for <c>Scenes/demo_idlegold.json</c>.</summary>
+/// <summary>Registers <c>cyberland.demo.idlegold/*</c> types for <c></c>.</summary>
 public static class SceneComponentDeserializers
 {
     public static void Register(ISceneRuntime scenes)
@@ -14,6 +14,6 @@ public static class SceneComponentDeserializers
             _ = ctx.World.GetOrAdd<SessionTag>(ctx.EntityId));
 
         scenes.RegisterComponentDeserializer("cyberland.demo.idlegold/hud-root-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<IdleGoldHudRootTag>(ctx.EntityId));
+            _ = ctx.World.GetOrAdd<HudRootTag>(ctx.EntityId));
     }
 }

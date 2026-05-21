@@ -3,7 +3,7 @@ using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.FontTest;
 
-/// <summary>Registers <c>cyberland.demo.fonttest/*</c> types for <c>Scenes/demo_fonttest.json</c>.</summary>
+/// <summary>Registers <c>cyberland.demo.fonttest/*</c> types for <c></c>.</summary>
 public static class SceneComponentDeserializers
 {
     public static void Register(ISceneRuntime scenes)
@@ -11,6 +11,6 @@ public static class SceneComponentDeserializers
         ArgumentNullException.ThrowIfNull(scenes);
 
         scenes.RegisterComponentDeserializer("cyberland.demo.fonttest/ui-root-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<FontTestUiRootTag>(ctx.EntityId));
+            _ = ctx.World.GetOrAdd<UiRootTag>(ctx.EntityId));
     }
 }

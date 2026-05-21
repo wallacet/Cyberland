@@ -64,7 +64,7 @@ Keep **`OnLoadAsync`** body comments for **registration order** where dependenci
 
 ## Scene JSON + cold-start helper
 
-**HDR reference:** **`mods/Cyberland.Demo/Mod.cs`** (`SetupSceneAsync`), **`DemoSceneComponentDeserializers.cs`**, **`Content/Scenes/demo_hdr.json`**.
+**HDR reference:** **`mods/Cyberland.Demo/Mod.cs`** (`SetupSceneAsync`), **`SceneComponentDeserializers.cs`**, **`Content/Scenes/hdr.json`**, **`Content/Ui/hdr_hud.json`**.
 
 - Put **static layout** (camera, tagged singleton rows, lights, HUD copy, post volumes) in **`Content/Scenes/<name>.json`** at design resolution (e.g. 1280×720 for this tutorial).
 - Keep a **private `SetupSceneAsync` on `Mod`**: register deserializers, **`await context.Scenes.SpawnIntoWorldAsync(context.World, path, …)`**, fail fast on errors—**before** any **`Register*`**.

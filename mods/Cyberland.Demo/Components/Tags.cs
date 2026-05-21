@@ -11,11 +11,5 @@ public struct BackgroundTag : IComponent;
 /// <summary>Decorative column sprite used only for HDR/emissive teaching—not queried by gameplay systems.</summary>
 public struct NeonStripTag : IComponent;
 
-/// <summary>Localized HUD title row (<c>demo.hdr.title</c>).</summary>
-public struct HudTitleTag : IComponent;
-
-/// <summary>Localized HUD hint row (<c>demo.hdr.hint</c>).</summary>
-public struct HudHintTag : IComponent;
-
-/// <summary>FPS counter updated by <see cref="FpsDisplaySystem"/>.</summary>
-public struct HudFpsTag : IComponent;
+/// <summary>Retained HUD root (<c>Content/Ui/hdr_hud.json</c> via <c>ui-document-root</c>).</summary>
+public struct HudRootTag : IComponent;

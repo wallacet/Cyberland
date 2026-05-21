@@ -4,7 +4,7 @@ using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.BrickBreaker;
 
-/// <summary>Registers <c>cyberland.demo.brick/*</c> types for <c>Scenes/demo_brickbreaker.json</c>.</summary>
+/// <summary>Registers <c>cyberland.demo.brick/*</c> types for <c></c>.</summary>
 public static class SceneComponentDeserializers
 {
     public static void Register(ISceneRuntime scenes)

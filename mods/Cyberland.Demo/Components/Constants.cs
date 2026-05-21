@@ -11,10 +11,10 @@ public static class Constants
 }
 
 /// <summary>
-/// Bloom post-volume tuning shared by <c>demo_hdr.json</c> (initial state) and <see cref="HdrPostVolumeFillSystem"/> (per-frame).
+/// Bloom post-volume tuning shared by <c>Scenes/hdr.json</c> (initial state) and <see cref="PostVolumeFillSystem"/> (per-frame).
 /// Player horizontal position maps to a bloom mix so the rig feels reactive without extra entities.
 /// </summary>
-public static class HdrDemoBloom
+public static class BloomTuning
 {
     /// <summary>Bloom override when the player is at the left side of the screen (<c>tNorm ≈ 0</c>).</summary>
     public const float GainAtPlayerLeft = 2.35f;

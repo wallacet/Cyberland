@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "cyberland.engine/panel",
+    "layout": { "preset": "stretchAll" },
+    "children": [
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.score",
+        "text": "Score: 0",
+        "fontFamily": "UiSans",
+        "sizePixels": 18,
+        "layout": { "preset": "bottomLeftFixed", "width": 200, "height": 24, "margin": 24 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.timer",
+        "text": "Time: 01:00",
+        "fontFamily": "UiSans",
+        "sizePixels": 16,
+        "layout": { "preset": "bottomLeftFixed", "width": 320, "height": 22, "margin": 24 },
+        "anchoredPosition": { "x": 24, "y": 52 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.overlay",
+        "text": " ",
+        "fontFamily": "UiSans",
+        "sizePixels": 22,
+        "bold": true,
+        "layout": { "preset": "centerFixed", "width": 520, "height": 32 }
+      }
+    ]
+  }
+}

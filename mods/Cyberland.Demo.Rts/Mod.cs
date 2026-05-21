@@ -7,8 +7,8 @@ namespace Cyberland.Demo.Rts;
 
 /// <summary>RTS-style tutorial: pan/zoom camera, ~10 units, control groups, box select, formation moves with separation, FPS HUD.</summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.RtsPlayfield"/> spawns units + checkerboard; systems under <c>Systems/</c>.</para>
-/// <para><b>Frame flow (simplified):</b> <see cref="RtsInputSystem"/> (groups, selection, orders) → <see cref="RtsUnitMoveSystem"/> (serial) → <see cref="RtsCameraSystem"/> (focus + pan/zoom) → <see cref="RtsSelectionFrameSystem"/> → <see cref="RtsFpsHudSystem"/>.</para>
+/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.Playfield"/> wires checkerboard + session; systems under <c>Systems/</c>.</para>
+/// <para><b>Frame flow (simplified):</b> <see cref="InputSystem"/> (groups, selection, orders) → <see cref="UnitMoveSystem"/> (serial) → <see cref="CameraSystem"/> (focus + pan/zoom) → <see cref="SelectionFrameSystem"/> → <see cref="HudUiSystem"/>.</para>
 /// <para><b>MSDF:</b> mono atlas is kicked async (fire-and-forget) for the FPS row; first frames may briefly fall back until upload drains.</para>
 /// </remarks>
 public sealed partial class Mod : IMod
@@ -17,22 +17,22 @@ public sealed partial class Mod : IMod
     public const int ViewportHeight = 720;
 
     /// <summary>VFS path to the root-world scene document.</summary>
-    public const string ScenePath = "Scenes/demo_rts.json";
+    public const string ScenePath = "Scenes/rts.json";
 
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
-        RtsInputSetup.RegisterDefaultBindings(context);
+        InputSetup.RegisterDefaultBindings(context);
         _ = context.LoadBakedMsdfAtlasAsync(BuiltinFonts.BakedAtlasManifestPath.MonoRegular14);
-        await SetupSceneAsync(context);
+        var hud = await SetupSceneAsync(context);
 
         var host = context.Host;
-        context.RegisterSingleton("cyberland.demo.rts/input", new RtsInputSystem(host));
-        context.RegisterSerial("cyberland.demo.rts/unit-move", new RtsUnitMoveSystem());
-        context.RegisterSingleton("cyberland.demo.rts/camera", new RtsCameraSystem(host));
-        context.RegisterSingleton("cyberland.demo.rts/selection", new RtsSelectionFrameSystem());
-        context.RegisterSingleton("cyberland.demo.rts/fps-hud", new RtsFpsHudSystem(host));
+        context.RegisterSingleton("cyberland.demo.rts/input", new InputSystem(host));
+        context.RegisterSerial("cyberland.demo.rts/unit-move", new UnitMoveSystem());
+        context.RegisterSingleton("cyberland.demo.rts/camera", new CameraSystem(host));
+        context.RegisterSingleton("cyberland.demo.rts/selection", new SelectionFrameSystem());
+        context.RegisterSingleton("cyberland.demo.rts/hud-ui", new HudUiSystem(host, hud));
     }
 
     /// <inheritdoc />
@@ -40,7 +40,7 @@ public sealed partial class Mod : IMod
     {
     }
 
-    private static async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
+    private static async ValueTask<HudDocumentRefs> SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (context.Scenes is null)
@@ -57,5 +57,6 @@ public sealed partial class Mod : IMod
             throw new InvalidOperationException(result.ErrorMessage ?? "RTS scene spawn failed.");
 
         WirePlayfieldAfterSpawn(context);
+        return ResolveHudRefs(context);
     }
 }

@@ -13,7 +13,7 @@ Ship mods so they read like the repo’s best samples: **cold start** via a **pr
 **Standard (preferred for new and migrated mods):**
 
 - Author entities in **`Content/Scenes/<name>.json`** (see **`RuntimeScenes/Serialization/SceneDocument`** and engine builtins such as **`cyberland.engine/transform`**).
-- Register mod-specific component types from **`OnLoadAsync`** (or from the private setup helper) via **`context.Scenes.RegisterComponentDeserializer`** — see **`mods/Cyberland.Demo/DemoSceneComponentDeserializers.cs`**.
+- Register mod-specific component types from **`OnLoadAsync`** (or from the private setup helper) via **`context.Scenes.RegisterComponentDeserializer`** — see **`mods/Cyberland.Demo/SceneComponentDeserializers.cs`**.
 - Add a **private** **`async ValueTask SetupSceneAsync(ModLoadContext context, CancellationToken cancellationToken = default)`** on **`Mod`** (same placement as other bootstrap helpers, not a separate public **`SceneSetup`** type).
 - **Await it from `OnLoadAsync`** *before* **`context.RegisterSerial` / `RegisterParallel` / `RegisterSingleton`**, so entities exist before any **`OnStart`** / **`OnSingletonStart`** runs.
 - Inside the helper: register deserializers, then **`await context.Scenes.SpawnIntoWorldAsync(context.World, "Content/Scenes/….json", cancellationToken: cancellationToken)`** into the **root** world. **`throw`** on failure; require **`context.Scenes`** and any host services the deserializers need (e.g. **`Renderer`** for texture ids).

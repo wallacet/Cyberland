@@ -16,13 +16,13 @@ namespace Cyberland.Demo.MouseChase;
 public sealed partial class Mod : IMod
 {
     /// <summary>VFS path to the root-world scene document.</summary>
-    public const string ScenePath = "Scenes/demo_mousechase.json";
+    public const string ScenePath = "Scenes/mousechase.json";
 
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
-        MouseChaseInputSetup.RegisterDefaultBindings(context);
+        InputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("mouse_chase.json");
         KickoffBuiltinAtlasLoads(context);
 

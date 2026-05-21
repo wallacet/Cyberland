@@ -11,7 +11,7 @@ public sealed partial class Mod
     private static HudDocumentRefs ResolveHudRefs(ModLoadContext context)
     {
         var world = context.World;
-        var hudEntity = world.RequireSingleEntityWith<MouseChaseHudRootTag>("Mouse Chase HUD root");
+        var hudEntity = world.RequireSingleEntityWith<HudRootTag>("Mouse Chase HUD root");
         if (!context.Host.UiDocuments.TryGetElements(hudEntity, out var ids))
             throw new InvalidOperationException("Mouse Chase HUD document was not attached from JSON.");
 

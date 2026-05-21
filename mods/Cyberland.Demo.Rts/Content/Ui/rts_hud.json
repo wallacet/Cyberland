@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "cyberland.engine/panel",
+    "layout": { "preset": "stretchAll" },
+    "children": [
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.fps",
+        "text": "FPS —",
+        "fontFamily": "Mono",
+        "sizePixels": 14,
+        "color": { "x": 0.4, "y": 0.88, "z": 0.52, "w": 0.9 },
+        "layout": { "preset": "topRightFixed", "width": 120, "height": 22, "margin": 14 }
+      }
+    ]
+  }
+}

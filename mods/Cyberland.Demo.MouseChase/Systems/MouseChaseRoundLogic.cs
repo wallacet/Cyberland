@@ -4,7 +4,7 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.MouseChase.Systems;
 
-internal static class MouseChaseRoundLogic
+internal static class RoundLogic
 {
     public const float RoundDurationSeconds = 70f;
     public const float StartingHealth = 100f;

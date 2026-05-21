@@ -20,14 +20,13 @@ public sealed partial class Mod
         var refs = ResolveDocumentRefs(context);
         WireTabs(refs);
         WirePurchases(context.Host, refs);
-        SpawnFpsHud(context.World, refs);
         return new SceneBootstrap(refs, sessionEntity);
     }
 
     private static DocumentRefs ResolveDocumentRefs(ModLoadContext context)
     {
         var world = context.World;
-        var hudRoot = world.RequireSingleEntityWith<IdleGoldHudRootTag>("IdleGold HUD root");
+        var hudRoot = world.RequireSingleEntityWith<HudRootTag>("IdleGold HUD root");
         if (!context.Host.UiDocuments.TryGetElements(hudRoot, out var ids))
             throw new InvalidOperationException("IdleGold HUD document was not attached from JSON.");
 
@@ -43,6 +42,7 @@ public sealed partial class Mod
             LogPanel = ids.Require<UiPanel>("log.panel"),
             ChromeGold = ids.Require<UiTextBlock>("chrome.gold"),
             ChromeGps = ids.Require<UiTextBlock>("chrome.gps"),
+            ChromeFps = ids.Require<UiTextBlock>("chrome.fps"),
             SourceCards =
             [
                 ResolveSourceCard(ids, 0),
@@ -103,32 +103,6 @@ public sealed partial class Mod
             UpgradeButton = ids.Require<UiButton>($"equip.{index}.upgrade"),
             UpgradeCaption = ids.Require<UiLabel>($"equip.{index}.upgrade.caption")
         };
-
-    private static void SpawnFpsHud(World world, DocumentRefs refs)
-    {
-        var hudEntity = world.CreateEntity();
-        world.GetOrAdd<FpsHudTag>(hudEntity);
-        world.GetOrAdd<Transform>(hudEntity) = Transform.Identity;
-        ref var text = ref world.GetOrAdd<BitmapText>(hudEntity);
-        text.Visible = true;
-        text.IsLocalizationKey = false;
-        text.Content = "FPS —";
-        text.Style = new TextStyle(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.42f, 0.9f, 0.58f, 0.95f));
-        text.SortKey = 870f;
-        text.CoordinateSpace = BitmapText.HudDefaultCoordinateSpace;
-        world.GetOrAdd<ViewportAnchor2D>(hudEntity) = new ViewportAnchor2D
-        {
-            Active = true,
-            ContentSpace = CoordinateSpace.ViewportSpace,
-            Anchor = ViewportAnchorPreset.TopRight,
-            OffsetX = 96f,
-            OffsetY = 18f,
-            SyncSpriteHalfExtentsToViewport = false
-        };
-
-        refs.HasFpsHud = true;
-        refs.FpsHudEntity = hudEntity;
-    }
 
     private static void WireTabs(DocumentRefs refs)
     {

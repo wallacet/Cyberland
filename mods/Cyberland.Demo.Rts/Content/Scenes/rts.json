@@ -1,0 +1,337 @@
+{
+    "schemaVersion":  1,
+    "entities":  [
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000101",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.rts/camera-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  1500,
+                                                             "localY":  1500
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/camera2d",
+                                                "data":  {
+                                                             "matchPresentationViewport":  true,
+                                                             "viewportWidth":  1280,
+                                                             "viewportHeight":  720
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.demo.rts/camera-zoom-state",
+                                                "data":  {
+
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000102",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.rts/background-tag",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+                                                             "localX":  1500,
+                                                             "localY":  1500
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "colorMultiply":  {
+                                                                                   "y":  0.38,
+                                                                                   "w":  1,
+                                                                                   "z":  0.48,
+                                                                                   "x":  0.35
+                                                                               },
+                                                             "layer":  0,
+                                                             "sortKey":  -500
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000103",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.engine/ambient-light",
+                                                "data":  {
+                                                             "intensity":  0.55
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000110",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.rts/selection-bar-tag",
+                                                "data":  {
+                                                             "index":  0
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "visible":  false,
+                                                             "colorMultiply":  {
+                                                                                   "y":  1,
+                                                                                   "w":  0.95,
+                                                                                   "z":  0.35,
+                                                                                   "x":  0.2
+                                                                               },
+                                                             "halfExtents":  {
+                                                                                 "y":  2,
+                                                                                 "x":  2
+                                                                             },
+                                                             "transparent":  true,
+                                                             "layer":  100,
+                                                             "sortKey":  200
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000111",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.rts/selection-bar-tag",
+                                                "data":  {
+                                                             "index":  1
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "visible":  false,
+                                                             "colorMultiply":  {
+                                                                                   "y":  1,
+                                                                                   "w":  0.95,
+                                                                                   "z":  0.35,
+                                                                                   "x":  0.2
+                                                                               },
+                                                             "halfExtents":  {
+                                                                                 "y":  2,
+                                                                                 "x":  2
+                                                                             },
+                                                             "transparent":  true,
+                                                             "layer":  100,
+                                                             "sortKey":  200
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000112",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.rts/selection-bar-tag",
+                                                "data":  {
+                                                             "index":  2
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "visible":  false,
+                                                             "colorMultiply":  {
+                                                                                   "y":  1,
+                                                                                   "w":  0.95,
+                                                                                   "z":  0.35,
+                                                                                   "x":  0.2
+                                                                               },
+                                                             "halfExtents":  {
+                                                                                 "y":  2,
+                                                                                 "x":  2
+                                                                             },
+                                                             "transparent":  true,
+                                                             "layer":  100,
+                                                             "sortKey":  200
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000113",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.rts/selection-bar-tag",
+                                                "data":  {
+                                                             "index":  3
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/transform",
+                                                "data":  {
+
+                                                         }
+                                            },
+                                            {
+                                                "type":  "cyberland.engine/sprite",
+                                                "data":  {
+                                                             "visible":  false,
+                                                             "colorMultiply":  {
+                                                                                   "y":  1,
+                                                                                   "w":  0.95,
+                                                                                   "z":  0.35,
+                                                                                   "x":  0.2
+                                                                               },
+                                                             "halfExtents":  {
+                                                                                 "y":  2,
+                                                                                 "x":  2
+                                                                             },
+                                                             "transparent":  true,
+                                                             "layer":  100,
+                                                             "sortKey":  200
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000200",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1388, "localY": 1472 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 10, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000201",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1444, "localY": 1472 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 11, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000202",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1500, "localY": 1472 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 12, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000203",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1556, "localY": 1472 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 13, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000204",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1612, "localY": 1472 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 14, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000205",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1388, "localY": 1528 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 15, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000206",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1444, "localY": 1528 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 16, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000207",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1500, "localY": 1528 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 17, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000208",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1556, "localY": 1528 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 18, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId": "f4444444-4444-4444-4444-000000000209",
+                         "components": [
+                             { "type": "cyberland.demo.rts/unit-tag", "data": {} },
+                             { "type": "cyberland.engine/transform", "data": { "localX": 1612, "localY": 1528 } },
+                             { "type": "cyberland.engine/sprite", "data": { "halfExtents": { "x": 24, "y": 24 }, "visible": true, "layer": 100, "sortKey": 19, "colorMultiply": { "x": 0.85, "y": 0.82, "z": 0.35, "w": 1 } } },
+                             { "type": "cyberland.demo.rts/unit-state", "data": {} }
+                         ]
+                     },
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000120",
+                         "components":  [
+                                            {
+                                                "type":  "cyberland.demo.rts/session",
+                                                "data":  {
+
+                                                         }
+                                            }
+                                        ]
+                     },
+                     {
+                         "logicalId":  "f4444444-4444-4444-4444-000000000121",
+                         "components":  [
+                                            { "type": "cyberland.demo.rts/hud-root-tag", "data": {} },
+                                            {
+                                                "type": "cyberland.engine/ui-document-root",
+                                                "data": {
+                                                    "uiPath": "Ui/rts_hud.json",
+                                                    "sortKeyBase": 452
+                                                }
+                                            }
+                                        ]
+                     }
+                 ]
+}

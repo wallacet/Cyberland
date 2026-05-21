@@ -19,6 +19,7 @@ public sealed class DocumentRefs
 
     public UiTextBlock ChromeGold { get; init; } = null!;
     public UiTextBlock ChromeGps { get; init; } = null!;
+    public UiTextBlock ChromeFps { get; init; } = null!;
 
     public SourceCardRefs[] SourceCards { get; init; } = null!;
 
@@ -30,10 +31,6 @@ public sealed class DocumentRefs
     public UiTextBlock LogBody { get; init; } = null!;
     public string CurrentTabId { get; set; } = Mod.NavGather;
 
-    public bool HasFpsHud { get; set; }
-
-    /// <summary>Viewport <see cref="BitmapText"/> FPS overlay when <see cref="HasFpsHud"/>.</summary>
-    public EntityId FpsHudEntity { get; set; }
 }
 
 public sealed class SourceCardRefs

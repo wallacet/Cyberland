@@ -38,12 +38,12 @@ public sealed class RoundResetSystem : ISingletonSystem, ISingletonFixedUpdate
 
         state.PendingRestartRequest = false;
 
-        MouseChaseRoundLogic.ResetState(ref state);
+        RoundLogic.ResetState(ref state);
 
         var world = stateRow.World;
         ref var playerTransform = ref world.Get<Transform>(_playerEntity);
         playerTransform.LocalPosition = new Vector2D<float>(260f, 360f);
         ref var collectibleTransform = ref world.Get<Transform>(_collectibleEntity);
-        MouseChaseRoundLogic.RespawnCollectible(ref collectibleTransform, _rng);
+        RoundLogic.RespawnCollectible(ref collectibleTransform, _rng);
     }
 }

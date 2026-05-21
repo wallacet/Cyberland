@@ -9,30 +9,30 @@ namespace Cyberland.Demo.Snake;
 /// Snake sample: Control + Session + Tilemap + VisualBundle; simulation lives in <see cref="Session.Step"/>.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="BootstrapSystem"/> allocates segment/HUD entities.</para>
+/// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="SegmentPoolBootstrapSystem"/> allocates segment/HUD entities.</para>
 /// <para>Gameplay systems use <see cref="ISingletonSystem"/> for single-row archetypes (session, control, tilemap, visuals).</para>
 /// </remarks>
 public sealed class Mod : IMod
 {
     /// <summary>VFS path to the root-world scene document.</summary>
-    public const string ScenePath = "Scenes/demo_snake.json";
+    public const string ScenePath = "Scenes/snake.json";
 
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
     {
         context.MountDefaultContent();
-        SnakeInputSetup.RegisterDefaultBindings(context);
+        InputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("snake.json");
         KickoffBuiltinAtlasLoads(context);
 
         await SetupSceneAsync(context);
 
         var host = context.Host;
-        context.RegisterSingleton("cyberland.demo.snake/bootstrap", new BootstrapSystem(host));
+        context.RegisterSingleton("cyberland.demo.snake/bootstrap", new SegmentPoolBootstrapSystem(host));
         context.RegisterSingleton("cyberland.demo.snake/input", new InputSystem(host));
         context.RegisterSingleton("cyberland.demo.snake/tick", new TickSystem(host));
         context.RegisterSingleton("cyberland.demo.snake/tilemap-layout", new TilemapLayoutSystem(host));
-        context.RegisterSingleton("cyberland.demo.snake/lights", new SnakeLightsFillSystem(host));
+        context.RegisterSingleton("cyberland.demo.snake/lights", new LightsFillSystem(host));
         context.RegisterSingleton("cyberland.demo.snake/visual-sync", new VisualSyncSystem(host));
     }
 

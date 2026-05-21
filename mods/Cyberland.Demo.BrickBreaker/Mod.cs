@@ -17,7 +17,7 @@ namespace Cyberland.Demo.BrickBreaker;
 public sealed partial class Mod : IMod
 {
     /// <summary>VFS path to the root-world scene document.</summary>
-    public const string ScenePath = "Scenes/demo_brickbreaker.json";
+    public const string ScenePath = "Scenes/brickbreaker.json";
 
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
@@ -26,7 +26,7 @@ public sealed partial class Mod : IMod
         InputSetup.RegisterDefaultBindings(context);
         context.LocalizedContent.MergeStringTable("brick.json");
         KickoffBuiltinAtlasLoads(context);
-        BrickBreakerHudGlyphWarmup.Warm(context);
+        HudGlyphWarmup.Warm(context);
 
         var host = context.Host;
 
@@ -82,7 +82,7 @@ public sealed partial class Mod : IMod
         if (!result.Succeeded)
             throw new InvalidOperationException(result.ErrorMessage ?? "BrickBreaker scene spawn failed.");
 
-        BrickBreakerSceneWire.Apply(context.World);
+        SceneWire.Apply(context.World);
     }
 
     private static void KickoffBuiltinAtlasLoads(ModLoadContext context)

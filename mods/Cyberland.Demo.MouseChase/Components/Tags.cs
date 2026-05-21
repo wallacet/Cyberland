@@ -10,4 +10,4 @@ public struct ExitZoneTag : IComponent;
 public struct GateZoneTag : IComponent;
 
 /// <summary>Marks the retained HUD document entity for <see cref="Systems.HudUiSystem"/> startup lookup.</summary>
-public struct MouseChaseHudRootTag : IComponent;
+public struct HudRootTag : IComponent;

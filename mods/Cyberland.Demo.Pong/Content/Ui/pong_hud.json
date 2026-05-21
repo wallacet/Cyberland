@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "cyberland.engine/panel",
+    "layout": { "preset": "stretchAll" },
+    "children": [
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.title",
+        "locKey": "demo.pong.title",
+        "isLocalizationKey": true,
+        "fontFamily": "UiSans",
+        "sizePixels": 23,
+        "bold": true,
+        "color": { "x": 0.25, "y": 0.92, "z": 1, "w": 1 },
+        "layout": { "preset": "bottomLeftFixed", "width": 400, "height": 28, "margin": 36 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.game_over",
+        "locKey": "demo.pong.game_over",
+        "isLocalizationKey": true,
+        "fontFamily": "UiSans",
+        "sizePixels": 20,
+        "underline": true,
+        "color": { "x": 1, "y": 0.42, "z": 0.48, "w": 1 },
+        "layout": { "preset": "bottomLeftFixed", "width": 400, "height": 24, "margin": 36 },
+        "anchoredPosition": { "x": 36, "y": 78 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.hint",
+        "text": " ",
+        "fontFamily": "UiSans",
+        "sizePixels": 16,
+        "color": { "x": 0.52, "y": 0.58, "z": 0.68, "w": 0.92 },
+        "layout": { "preset": "topLeftFixed", "width": 700, "height": 24, "margin": 36 },
+        "anchoredPosition": { "x": 36, "y": 100 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.score_you",
+        "locKey": "demo.pong.score_you",
+        "isLocalizationKey": true,
+        "fontFamily": "UiSans",
+        "sizePixels": 18,
+        "color": { "x": 0.72, "y": 0.88, "z": 1, "w": 1 },
+        "layout": { "preset": "bottomLeftFixed", "width": 120, "height": 22, "margin": 32 },
+        "anchoredPosition": { "x": 32, "y": 40 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.score_player",
+        "text": "0",
+        "fontFamily": "Mono",
+        "sizePixels": 18,
+        "color": { "x": 0.92, "y": 0.96, "z": 1, "w": 1 },
+        "layout": { "preset": "bottomLeftFixed", "width": 80, "height": 22, "margin": 32 },
+        "anchoredPosition": { "x": 118, "y": 40 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.score_cpu_label",
+        "locKey": "demo.pong.score_cpu",
+        "isLocalizationKey": true,
+        "fontFamily": "UiSans",
+        "sizePixels": 18,
+        "color": { "x": 0.72, "y": 0.88, "z": 1, "w": 1 },
+        "layout": { "preset": "bottomRightFixed", "width": 120, "height": 22, "margin": 32 },
+        "anchoredPosition": { "x": -210, "y": 40 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.score_cpu",
+        "text": "0",
+        "fontFamily": "Mono",
+        "sizePixels": 18,
+        "color": { "x": 0.92, "y": 0.96, "z": 1, "w": 1 },
+        "layout": { "preset": "bottomRightFixed", "width": 80, "height": 22, "margin": 32 },
+        "anchoredPosition": { "x": -88, "y": 40 }
+      },
+      {
+        "type": "cyberland.engine/text-block",
+        "id": "hud.fps",
+        "text": "FPS —",
+        "fontFamily": "Mono",
+        "sizePixels": 14,
+        "color": { "x": 0.4, "y": 0.88, "z": 0.52, "w": 0.9 },
+        "layout": { "preset": "bottomRightFixed", "width": 120, "height": 22, "margin": 14 }
+      }
+    ]
+  }
+}

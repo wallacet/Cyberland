@@ -1,32 +1,28 @@
 using Cyberland.Engine;
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Localization;
+using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Scene;
 using Silk.NET.Maths;
+using TextureId = System.UInt32;
 
 namespace Cyberland.Demo.Pong;
 
 /// <summary>
-/// Keeps sprites and HUD text aligned with <see cref="State"/> each frame. Uses the singleton session row plus explicit sprite/HUD ids from scene JSON.
+/// Keeps sprites aligned with <see cref="State"/> and updates retained HUD text from <c>Content/Ui/pong_hud.json</c>.
 /// </summary>
-/// <remarks>Static sprite/text setup lives in the <c>VisualSyncSystem.Bootstrap.cs</c> partial.</remarks>
-public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
+[RunBefore("cyberland.engine/ui-document-frame")]
+public sealed class VisualSyncSystem : ISingletonSystem, ISingletonLateUpdate
 {
-    /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<State, Control>();
 
-    // Pixel sizes align with BuiltinFonts baked manifests in Mod.KickoffBuiltinAtlasLoads (glyph cache keys use quantized em sizes).
-    private static readonly TextStyle TitleStyle = new(BuiltinFonts.UiSans, 23f, new Vector4D<float>(0.25f, 0.92f, 1f, 1f), Bold: true);
-    private static readonly TextStyle HintStyle = new(BuiltinFonts.UiSans, 16f, new Vector4D<float>(0.52f, 0.58f, 0.68f, 0.92f));
-    private static readonly TextStyle HudStyle = new(BuiltinFonts.UiSans, 18f, new Vector4D<float>(0.72f, 0.88f, 1f, 1f));
-    private static readonly TextStyle NumberStyle = new(BuiltinFonts.Mono, 18f, new Vector4D<float>(0.92f, 0.96f, 1f, 1f));
-    private static readonly TextStyle GameOverStyle = new(BuiltinFonts.UiSans, 20f, new Vector4D<float>(1f, 0.42f, 0.48f, 1f), Underline: true);
-    private static readonly TextStyle FpsStyle = new(BuiltinFonts.Mono, 14f, new Vector4D<float>(0.4f, 0.88f, 0.52f, 0.9f));
-
     private readonly GameHostServices _host;
+    private readonly LocalizationManager _strings;
+    private readonly HudDocumentRefs _hud;
     private VisualIds _v;
-    private HudTextIds _t;
     private int _cachedPlayerPoints = int.MinValue;
     private int _cachedCpuPoints = int.MinValue;
     private string _cachedPlayerPointsText = "0";
@@ -34,20 +30,21 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
     private readonly FpsMovingAverage _fpsAverage = new(FpsMovingAverage.DefaultWindowSeconds);
     private World _world = null!;
 
-    public VisualSyncSystem(GameHostServices host) => _host = host;
+    public VisualSyncSystem(GameHostServices host, LocalizationManager strings, HudDocumentRefs hud)
+    {
+        _host = host;
+        _strings = strings;
+        _hud = hud;
+    }
 
-    /// <inheritdoc />
     public void OnSingletonStart(in SingletonEntity sessionRow)
     {
         _world = sessionRow.World;
-        _v = PongSceneWire.ResolveVisuals(_world);
-        _t = PongSceneWire.ResolveHudTexts(_world);
+        _v = SceneWire.ResolveVisuals(_world);
         var renderer = _host.Renderer;
         ConfigureSpritesOnStart(renderer.WhiteTextureId, renderer.DefaultNormalTextureId);
-        ConfigureTextRowsOnStart();
     }
 
-    /// <inheritdoc />
     public void OnSingletonLateUpdate(in SingletonEntity sessionRow, float deltaSeconds)
     {
         _world = sessionRow.World;
@@ -55,84 +52,98 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
         _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
         var r = _host.Renderer;
         ref readonly var st = ref sessionRow.Get<State>();
-        // Layout on the same virtual rect as the active camera.
         var fb = ModLayoutViewport.VirtualSizeForPresentation(r);
-        var hudFb = ModLayoutViewport.VirtualSizeForHudLayout(_host);
         SetBg(fb);
         SetTitle(fb, st);
         SetHint(fb, st);
         SetScores(fb, st);
         SetPlaying(st);
-        SyncHudText(hudFb, in st);
-        UpdateFpsHud(hudFb);
+        SyncHudText(in st);
+        _hud.Fps.Text = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
     }
 
-    private void SyncHudText(Vector2D<int> fb, in State st)
+    private void SyncHudText(in State st)
     {
-        HideAllText();
-        if (st.Phase is Phase.Title or Phase.GameOver)
+        var showMenu = st.Phase is Phase.Title or Phase.GameOver;
+        _hud.Title.Visible = showMenu;
+        _hud.GameOver.Visible = st.Phase == Phase.GameOver;
+        _hud.Hint.Visible = showMenu;
+        if (showMenu)
         {
-            SetRow(_t.Title, "demo.pong.title", true, PongLayout.HudMarginX, fb.Y - PongLayout.TitleTextOffsetY);
-            if (st.Phase == Phase.GameOver) SetRow(_t.GameOverLine, "demo.pong.game_over", true, PongLayout.HudMarginX, fb.Y - PongLayout.GameOverTextOffsetY);
+            _hud.Title.Text = _strings.Get("demo.pong.title");
+            if (st.Phase == Phase.GameOver)
+                _hud.GameOver.Text = _strings.Get("demo.pong.game_over");
             var hintKey = st.Phase == Phase.Title ? "demo.pong.hint_title" : "demo.pong.hint_gameover";
-            var hy = st.Phase == Phase.GameOver ? PongLayout.HintSpriteYGameOver : PongLayout.HintSpriteYTitle;
-            SetRow(_t.Hint, hintKey, true, PongLayout.HudMarginX, hy);
+            _hud.Hint.Text = _strings.Get(hintKey);
         }
 
-        if (st.Phase != Phase.Playing) return;
-        if (st.PlayerPoints != _cachedPlayerPoints) { _cachedPlayerPoints = st.PlayerPoints; _cachedPlayerPointsText = st.PlayerPoints.ToString(); }
-        if (st.CpuPoints != _cachedCpuPoints) { _cachedCpuPoints = st.CpuPoints; _cachedCpuPointsText = st.CpuPoints.ToString(); }
-        SetRow(_t.ScoreYou, "demo.pong.score_you", true, 32f, fb.Y - 40f);
-        SetRow(_t.ScorePlayerNum, _cachedPlayerPointsText, false, 118f, fb.Y - 40f);
-        SetRow(_t.ScoreCpuLabel, "demo.pong.score_cpu", true, fb.X - PongLayout.ScoreColumnCpuLabelOffset, fb.Y - 40f);
-        SetRow(_t.ScoreCpuNum, _cachedCpuPointsText, false, fb.X - PongLayout.ScoreColumnCpuNumOffset, fb.Y - 40f);
+        var playing = st.Phase == Phase.Playing;
+        _hud.ScoreYou.Visible = playing;
+        _hud.ScorePlayer.Visible = playing;
+        _hud.ScoreCpuLabel.Visible = playing;
+        _hud.ScoreCpu.Visible = playing;
+        if (!playing)
+            return;
+
+        if (st.PlayerPoints != _cachedPlayerPoints)
+        {
+            _cachedPlayerPoints = st.PlayerPoints;
+            _cachedPlayerPointsText = st.PlayerPoints.ToString();
+        }
+
+        if (st.CpuPoints != _cachedCpuPoints)
+        {
+            _cachedCpuPoints = st.CpuPoints;
+            _cachedCpuPointsText = st.CpuPoints.ToString();
+        }
+
+        _hud.ScoreYou.Text = _strings.Get("demo.pong.score_you");
+        _hud.ScorePlayer.Text = _cachedPlayerPointsText;
+        _hud.ScoreCpuLabel.Text = _strings.Get("demo.pong.score_cpu");
+        _hud.ScoreCpu.Text = _cachedCpuPointsText;
     }
 
-    private void UpdateFpsHud(Vector2D<int> fb)
+    private void ConfigureSpritesOnStart(TextureId whiteTextureId, TextureId normalTextureId)
     {
-        var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
-        ref var transform = ref _world.Get<Transform>(_t.Fps);
-        transform.LocalPosition = new Vector2D<float>(fb.X - 120f, fb.Y - 26f);
-        ref var text = ref _world.Get<BitmapText>(_t.Fps);
-        text.Visible = true;
-        text.Content = label;
-        text.IsLocalizationKey = false;
-        text.Style = FpsStyle;
+        ConfigureSprite(_v.Background, (int)SpriteLayer.Background, 0f, whiteTextureId, normalTextureId, new Vector4D<float>(0.04f, 0.05f, 0.08f, 1f));
+        ConfigureSprite(_v.TitleBar, (int)SpriteLayer.Ui, 1f, whiteTextureId, normalTextureId, new Vector4D<float>(0.1f, 0.85f, 0.95f, 1f));
+        ConfigureSprite(_v.HintBar, (int)SpriteLayer.Ui, 5f, whiteTextureId, normalTextureId, new Vector4D<float>(0.5f, 0.55f, 0.65f, 1f), transparent: true, alpha: 0.85f);
+        ConfigureSprite(_v.ScorePlayer, (int)SpriteLayer.Ui, 4f, whiteTextureId, normalTextureId, new Vector4D<float>(0.2f, 0.9f, 1f, 1f), new Vector3D<float>(0.2f, 0.85f, 1f), 0.3f);
+        ConfigureSprite(_v.ScoreCpu, (int)SpriteLayer.Ui, 4f, whiteTextureId, normalTextureId, new Vector4D<float>(1f, 0.35f, 0.4f, 1f), new Vector3D<float>(1f, 0.4f, 0.45f), 0.25f);
+        ConfigureSprite(_v.LeftPad, (int)SpriteLayer.World, 2f, whiteTextureId, normalTextureId, new Vector4D<float>(0.3f, 0.85f, 1f, 1f), new Vector3D<float>(0.3f, 0.9f, 1f), 0.4f);
+        ConfigureSprite(_v.RightPad, (int)SpriteLayer.World, 2f, whiteTextureId, normalTextureId, new Vector4D<float>(1f, 0.35f, 0.45f, 1f), new Vector3D<float>(1f, 0.4f, 0.5f), 0.25f);
+        ConfigureSprite(_v.Ball, (int)SpriteLayer.World, 3f, whiteTextureId, normalTextureId, new Vector4D<float>(1f, 1f, 1f, 1f), new Vector3D<float>(1f, 1f, 1f), 0.9f);
     }
 
-    private void HideAllText()
+    private void ConfigureSprite(
+        EntityId entity,
+        int layer,
+        float sortKey,
+        TextureId albedoTextureId,
+        TextureId normalTextureId,
+        Vector4D<float> colorMultiply,
+        Vector3D<float>? emissiveTint = null,
+        float emissiveIntensity = 0f,
+        bool transparent = false,
+        float alpha = 1f)
     {
-        HideText(_t.Title);
-        HideText(_t.GameOverLine);
-        HideText(_t.Hint);
-        HideText(_t.ScoreYou);
-        HideText(_t.ScorePlayerNum);
-        HideText(_t.ScoreCpuLabel);
-        HideText(_t.ScoreCpuNum);
-    }
-
-    private void HideText(EntityId entity)
-    {
-        ref var text = ref _world.Get<BitmapText>(entity);
-        text.Visible = false;
-    }
-
-    private void SetRow(EntityId entity, string content, bool isLocalizationKey, float x, float y)
-    {
-        ref var transform = ref _world.Get<Transform>(entity);
-        transform.LocalPosition = new Vector2D<float>(x, y);
-
-        ref var text = ref _world.Get<BitmapText>(entity);
-        text.Visible = true;
-        text.Content = content;
-        text.IsLocalizationKey = isLocalizationKey;
+        ref var sprite = ref _world.Get<Sprite>(entity);
+        sprite.Visible = false;
+        sprite.Layer = layer;
+        sprite.SortKey = sortKey;
+        sprite.AlbedoTextureId = albedoTextureId;
+        sprite.NormalTextureId = normalTextureId;
+        sprite.ColorMultiply = colorMultiply;
+        sprite.Transparent = transparent;
+        sprite.Alpha = alpha;
+        sprite.EmissiveTint = emissiveTint ?? default;
+        sprite.EmissiveIntensity = emissiveIntensity;
     }
 
     private void SetBg(Vector2D<int> fb)
     {
         ref var transform = ref _world.Get<Transform>(_v.Background);
         transform.LocalPosition = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
-
         ref var spr = ref _world.Get<Sprite>(_v.Background);
         spr.Visible = true;
         spr.HalfExtents = new Vector2D<float>(fb.X * 0.5f, fb.Y * 0.5f);
@@ -144,12 +155,11 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
         ref var transform = ref _world.Get<Transform>(_v.TitleBar);
         transform.LocalPosition = new Vector2D<float>(
             fb.X * 0.5f,
-            st.Phase == Phase.Playing ? fb.Y - PongLayout.TitleBarYPlaying : fb.Y - PongLayout.TitleBarYMenu);
-
+            st.Phase == Phase.Playing ? fb.Y - Layout.TitleBarYPlaying : fb.Y - Layout.TitleBarYMenu);
         ref var spr = ref _world.Get<Sprite>(_v.TitleBar);
-        var widthScale = st.Phase == Phase.Playing ? PongLayout.TitleBarWidthPlaying : PongLayout.TitleBarWidthMenu;
+        var widthScale = st.Phase == Phase.Playing ? Layout.TitleBarWidthPlaying : Layout.TitleBarWidthMenu;
         spr.Visible = true;
-        spr.HalfExtents = new Vector2D<float>(fb.X * widthScale * titlePulse, st.Phase == Phase.Playing ? PongLayout.TitleBarHalfHPlaying : PongLayout.TitleBarHalfHMenu);
+        spr.HalfExtents = new Vector2D<float>(fb.X * widthScale * titlePulse, st.Phase == Phase.Playing ? Layout.TitleBarHalfHPlaying : Layout.TitleBarHalfHMenu);
         spr.EmissiveIntensity = 1.6f;
     }
 
@@ -158,11 +168,10 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
         ref var transform = ref _world.Get<Transform>(_v.HintBar);
         transform.LocalPosition = new Vector2D<float>(
             fb.X * 0.5f,
-            st.Phase == Phase.GameOver ? PongLayout.HintSpriteYGameOver : PongLayout.HintSpriteYTitle);
-
+            st.Phase == Phase.GameOver ? Layout.HintSpriteYGameOver : Layout.HintSpriteYTitle);
         ref var spr = ref _world.Get<Sprite>(_v.HintBar);
         spr.Visible = st.Phase is Phase.Title or Phase.GameOver;
-        spr.HalfExtents = new Vector2D<float>(fb.X * PongLayout.HintBarWidthFrac, PongLayout.HintBarHalfH);
+        spr.HalfExtents = new Vector2D<float>(fb.X * Layout.HintBarWidthFrac, Layout.HintBarHalfH);
     }
 
     private void SetScores(Vector2D<int> fb, in State st)
@@ -173,15 +182,14 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
         var playing = st.Phase == Phase.Playing;
         ref var ps = ref _world.Get<Sprite>(_v.ScorePlayer);
         ref var playerTransform = ref _world.Get<Transform>(_v.ScorePlayer);
-        playerTransform.LocalPosition = new Vector2D<float>(PongLayout.ScoreColumnPlayerX, PongLayout.ScoreBarBaseY + ph * 0.5f);
+        playerTransform.LocalPosition = new Vector2D<float>(Layout.ScoreColumnPlayerX, Layout.ScoreBarBaseY + ph * 0.5f);
         ps.Visible = playing;
-        ps.HalfExtents = new Vector2D<float>(PongLayout.ScoreBarHalfWidth, ph * 0.5f + PongLayout.ScoreBarMinHalfHeight);
-
+        ps.HalfExtents = new Vector2D<float>(Layout.ScoreBarHalfWidth, ph * 0.5f + Layout.ScoreBarMinHalfHeight);
         ref var cs = ref _world.Get<Sprite>(_v.ScoreCpu);
         ref var cpuTransform = ref _world.Get<Transform>(_v.ScoreCpu);
-        cpuTransform.LocalPosition = new Vector2D<float>(fb.X - PongLayout.ScoreColumnPlayerX, PongLayout.ScoreBarBaseY + ch * 0.5f);
+        cpuTransform.LocalPosition = new Vector2D<float>(fb.X - Layout.ScoreColumnPlayerX, Layout.ScoreBarBaseY + ch * 0.5f);
         cs.Visible = playing;
-        cs.HalfExtents = new Vector2D<float>(PongLayout.ScoreBarHalfWidth, ch * 0.5f + PongLayout.ScoreBarMinHalfHeight);
+        cs.HalfExtents = new Vector2D<float>(Layout.ScoreBarHalfWidth, ch * 0.5f + Layout.ScoreBarMinHalfHeight);
     }
 
     private void SetPlaying(in State st)
@@ -197,13 +205,11 @@ public sealed partial class VisualSyncSystem : ISingletonSystem, ISingletonLateU
         ref var ls = ref _world.Get<Sprite>(_v.LeftPad);
         ls.Visible = playing;
         ls.HalfExtents = new Vector2D<float>(Constants.PaddleHalfW, Constants.PaddleHalfH);
-
         ref var rightTransform = ref _world.Get<Transform>(_v.RightPad);
         rightTransform.LocalPosition = new Vector2D<float>(st.ArenaMaxX, rightY);
         ref var rs = ref _world.Get<Sprite>(_v.RightPad);
         rs.Visible = playing;
         rs.HalfExtents = new Vector2D<float>(Constants.PaddleHalfW, Constants.PaddleHalfH);
-
         ref var ballTransform = ref _world.Get<Transform>(_v.Ball);
         ballTransform.LocalPosition = new Vector2D<float>(ballX, ballY);
         ref var bs = ref _world.Get<Sprite>(_v.Ball);

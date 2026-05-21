@@ -19,18 +19,4 @@ public struct RightPaddleSpriteTag : IComponent;
 
 public struct BallSpriteTag : IComponent;
 
-public struct HudTitleTextTag : IComponent;
-
-public struct HudGameOverTextTag : IComponent;
-
-public struct HudHintTextTag : IComponent;
-
-public struct HudScoreYouTextTag : IComponent;
-
-public struct HudScorePlayerNumTextTag : IComponent;
-
-public struct HudScoreCpuLabelTextTag : IComponent;
-
-public struct HudScoreCpuNumTextTag : IComponent;
-
-public struct HudFpsTextTag : IComponent;
+public struct HudRootTag : IComponent;

@@ -50,7 +50,7 @@ public sealed class TriggerResolveSystem : ISystem, IFixedUpdate
                         state.Score += 10;
                         state.LocaleSpriteSeen = true;
                         ref var collectibleTransform = ref w.Get<Transform>(_collectibleEntity);
-                        MouseChaseRoundLogic.RespawnCollectible(ref collectibleTransform, _rng);
+                        RoundLogic.RespawnCollectible(ref collectibleTransform, _rng);
                         continue;
                     }
 

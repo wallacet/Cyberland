@@ -19,7 +19,7 @@ namespace Cyberland.Demo.IdleGold;
 public sealed partial class Mod : IMod
 {
     /// <summary>VFS path to the root-world scene document.</summary>
-    public const string ScenePath = "Scenes/demo_idlegold.json";
+    public const string ScenePath = "Scenes/idlegold.json";
 
     public const string NavGather = "gather";
     public const string NavCharacter = "character";

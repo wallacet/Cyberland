@@ -139,25 +139,18 @@ public sealed class HudBindSystem : ISingletonSystem, ISingletonLateUpdate
                 break;
         }
 
-        if (_refs.HasFpsHud)
+        var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
+        _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
+        _fpsHudTimer += deltaSeconds;
+        var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
+        if (_fpsHudTimer >= 0.25f || _lastFpsLabel.Length == 0)
         {
-            var frameSeconds = _host.LastPresentDeltaSeconds > 1e-6f ? _host.LastPresentDeltaSeconds : deltaSeconds;
-            _fpsAverage.AddFrameDeltaSeconds(frameSeconds);
-            _fpsHudTimer += deltaSeconds;
-
-            ref var hud = ref row.World.Get<BitmapText>(_refs.FpsHudEntity);
-            hud.Visible = true;
-
-            var label = _fpsAverage.TryGetAverageFps(out var f) ? $"FPS {MathF.Round(f)}" : "FPS —";
-            if (_fpsHudTimer >= 0.25f || _lastFpsLabel.Length == 0)
+            if (_fpsHudTimer >= 0.25f)
+                _fpsHudTimer = 0f;
+            if (label != _lastFpsLabel)
             {
-                if (_fpsHudTimer >= 0.25f)
-                    _fpsHudTimer = 0f;
-                if (label != _lastFpsLabel)
-                {
-                    _lastFpsLabel = label;
-                    hud.Content = label;
-                }
+                _lastFpsLabel = label;
+                _refs.ChromeFps.Text = label;
             }
         }
     }

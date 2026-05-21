@@ -3,7 +3,7 @@ using Cyberland.Engine.Scene;
 
 namespace Cyberland.Demo.Snake;
 
-/// <summary>Registers <c>cyberland.demo.snake/*</c> types for <c>Scenes/demo_snake.json</c>.</summary>
+/// <summary>Registers <c>cyberland.demo.snake/*</c> types for <c>Scenes/snake.json</c>.</summary>
 public static class SceneComponentDeserializers
 {
     public static void Register(ISceneRuntime scenes)

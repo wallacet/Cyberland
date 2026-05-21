@@ -3,7 +3,7 @@ using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.MouseChase;
 
-/// <summary>Registers <c>cyberland.demo.mousechase/*</c> types for <c>Scenes/demo_mousechase.json</c>.</summary>
+/// <summary>Registers <c>cyberland.demo.mousechase/*</c> types for <c></c>.</summary>
 public static class SceneComponentDeserializers
 {
     public static void Register(ISceneRuntime scenes)
@@ -45,6 +45,6 @@ public static class SceneComponentDeserializers
             _ = ctx.World.GetOrAdd<GateZoneTag>(ctx.EntityId));
 
         scenes.RegisterComponentDeserializer("cyberland.demo.mousechase/hud-root-tag", static (in SceneComponentDeserializeContext ctx) =>
-            _ = ctx.World.GetOrAdd<MouseChaseHudRootTag>(ctx.EntityId));
+            _ = ctx.World.GetOrAdd<HudRootTag>(ctx.EntityId));
     }
 }

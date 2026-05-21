@@ -9,14 +9,14 @@ namespace Cyberland.Demo.FontTest;
 /// Font validation demo: built-in atlases plus a custom registered family (Jost) with mod-shipped MSDF bakes.
 /// </summary>
 /// <remarks>
-/// <para><b>Where to read next:</b> <see cref="FontTestFonts"/> for VFS paths, <c>Content/Ui/fonttest_matrix.json</c>, then private <see cref="SetupSceneAsync"/>.</para>
+/// <para><b>Where to read next:</b> <see cref=""/> for VFS paths, <c>Content/Ui/fonttest_matrix.json</c>, then private <see cref="SetupSceneAsync"/>.</para>
 /// <para><b>Load order inside <see cref="OnLoadAsync"/>:</b> register the custom family first (async I/O to VFS TTFs), then fire-and-forget baked page loads, then spawn scene JSON (HUD attaches via scene <c>uiPath</c>).</para>
 /// <para><b>Do not await <see cref="ModLoadContext.LoadBakedMsdfAtlasAsync"/> here</b> — completion requires the render loop to drain uploads while <see cref="ModLoader"/> still blocks on this method.</para>
 /// </remarks>
 public sealed partial class Mod : IMod
 {
     /// <summary>VFS path to the root-world scene document.</summary>
-    public const string ScenePath = "Scenes/demo_fonttest.json";
+    public const string ScenePath = "Scenes/fonttest.json";
 
     /// <inheritdoc />
     public async ValueTask OnLoadAsync(ModLoadContext context)
@@ -55,9 +55,9 @@ public sealed partial class Mod : IMod
         await context.Host.Fonts
             .RegisterFamilyFromVirtualPathsAsync(
                 assets,
-                FontTestFonts.JostFamilyId,
-                FontTestFonts.JostRegularVfsPath,
-                FontTestFonts.JostBoldVfsPath)
+                Fonts.JostFamilyId,
+                Fonts.JostRegularVfsPath,
+                Fonts.JostBoldVfsPath)
             .ConfigureAwait(false);
     }
 
@@ -65,7 +65,7 @@ public sealed partial class Mod : IMod
     {
         foreach (var path in BuiltinBakedManifestPaths)
             _ = context.LoadBakedMsdfAtlasAsync(path);
-        foreach (var path in FontTestFonts.BakedJostManifestVfsPaths)
+        foreach (var path in Fonts.BakedJostManifestVfsPaths)
             _ = context.LoadBakedMsdfAtlasAsync(path);
     }
 
