@@ -1,21 +1,35 @@
 using Cyberland.Demo.Rts.Components;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
+using Cyberland.Engine.Input;
 using Cyberland.Engine.Scene;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Rts.Systems;
 
-/// <summary>Early: quit, marquee box select, click select, right-click formation move orders.</summary>
+/// <summary>Early: quit, control groups, marquee/click select (Shift/Ctrl), formation move orders.</summary>
 public sealed class RtsInputSystem : ISingletonSystem, ISingletonEarlyUpdate
 {
+    private enum RtsSelectionMode
+    {
+        Replace,
+        Add,
+        Remove
+    }
+
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
-    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<RtsSessionState>();
+    public SystemQuerySpec QuerySpec => SystemQuerySpec.All<RtsSessionState, RtsControlGroups>();
 
     private readonly GameHostServices _host;
     private EntityId[] _selectedScratch = [];
     private Vector2D<float> _dragStartScreen;
+    private readonly bool[] _prevDigitDown = new bool[RtsControlGroups.GroupCount];
+    private static readonly Key[] GroupKeys =
+    [
+        Key.Number1, Key.Number2, Key.Number3, Key.Number4, Key.Number5,
+        Key.Number6, Key.Number7, Key.Number8, Key.Number9, Key.Number0
+    ];
 
     public RtsInputSystem(GameHostServices host) => _host = host;
 
@@ -29,7 +43,6 @@ public sealed class RtsInputSystem : ISingletonSystem, ISingletonEarlyUpdate
     /// <inheritdoc />
     public void OnSingletonEarlyUpdate(in SingletonEntity sessionRow, float deltaSeconds)
     {
-        _ = deltaSeconds;
         var input = _host.Input;
         var renderer = _host.Renderer;
 
@@ -40,7 +53,11 @@ public sealed class RtsInputSystem : ISingletonSystem, ISingletonEarlyUpdate
         }
 
         ref var session = ref sessionRow.Get<RtsSessionState>();
+        ref var groups = ref sessionRow.Get<RtsControlGroups>();
         var world = sessionRow.World;
+        session.GroupKeyClock += deltaSeconds;
+
+        ProcessControlGroupHotkeys(ref session, ref groups, world, input);
 
         if (input.ConsumeMouseButtonPressed(MouseButton.Left))
         {
@@ -67,10 +84,11 @@ public sealed class RtsInputSystem : ISingletonSystem, ISingletonEarlyUpdate
                 (end.X - _dragStartScreen.X) * (end.X - _dragStartScreen.X) +
                 (end.Y - _dragStartScreen.Y) * (end.Y - _dragStartScreen.Y));
 
+            var mode = ResolveSelectionMode(input);
             if (dragPx < RtsConstants.BoxSelectMinDragScreenPx)
-                ApplyClickSelect(world, session.BoxDragEndWorld);
+                ApplyClickSelect(world, session.BoxDragEndWorld, mode);
             else
-                ApplyBoxSelect(world, session.BoxDragStartWorld, session.BoxDragEndWorld);
+                ApplyBoxSelect(world, session.BoxDragStartWorld, session.BoxDragEndWorld, mode);
         }
 
         if (input.ConsumeMouseButtonPressed(MouseButton.Right))
@@ -88,9 +106,137 @@ public sealed class RtsInputSystem : ISingletonSystem, ISingletonEarlyUpdate
                 }
             }
         }
+
+        UpdateDigitEdgeLatch(input);
     }
 
-    private static void ApplyClickSelect(World world, Vector2D<float> worldPoint)
+    private void ProcessControlGroupHotkeys(
+        ref RtsSessionState session,
+        ref RtsControlGroups groups,
+        World world,
+        IInputService input)
+    {
+        var ctrl = IsCtrlHeld(input);
+        var shift = IsShiftHeld(input);
+
+        for (var g = 0; g < RtsControlGroups.GroupCount; g++)
+        {
+            if (!ConsumeDigitPressed(g, input))
+                continue;
+
+            if (ctrl)
+            {
+                var count = CollectSelected(world, _selectedScratch);
+                if (count > 0)
+                    RtsControlGroupLogic.AssignFromSelection(ref groups, g, world, _selectedScratch.AsSpan(0, count));
+                RecordGroupKeyTap(ref session, (byte)g);
+                continue;
+            }
+
+            if (shift)
+            {
+                RtsControlGroupLogic.ApplyRecallAdditive(ref groups, g, world);
+                session.ActiveGroupIndex = (byte)g;
+                RecordGroupKeyTap(ref session, (byte)g);
+                continue;
+            }
+
+            // Plain digit: already-selected → camera center; else double-tap → visible select; else recall.
+            if (RtsControlGroupLogic.SelectionMatchesGroup(ref groups, g, world))
+            {
+                RequestCameraFocusOnGroup(ref session, ref groups, g, world);
+                RecordGroupKeyTap(ref session, (byte)g);
+                continue;
+            }
+
+            if (session.LastGroupKeyIndex == g &&
+                session.GroupKeyClock - session.LastGroupKeyTime <= RtsConstants.GroupDoubleTapSeconds)
+            {
+                ApplyVisibleGroupSelect(ref session, ref groups, g, world);
+                session.ActiveGroupIndex = (byte)g;
+                RecordGroupKeyTap(ref session, (byte)g);
+                continue;
+            }
+
+            RtsControlGroupLogic.ApplyRecallReplace(ref groups, g, world);
+            session.ActiveGroupIndex = (byte)g;
+            RecordGroupKeyTap(ref session, (byte)g);
+        }
+    }
+
+    private void RequestCameraFocusOnGroup(
+        ref RtsSessionState session,
+        ref RtsControlGroups groups,
+        int groupIndex,
+        World world)
+    {
+        if (!RtsControlGroupLogic.TryComputeCentroidWorld(ref groups, groupIndex, world, out var centroid))
+            return;
+
+        ref readonly var cam2 = ref world.Get<Camera2D>(session.CameraEntity);
+        var clamped = RtsCameraBounds.ClampCenterPosition(
+            centroid,
+            cam2.ViewportSizeWorld.X,
+            cam2.ViewportSizeWorld.Y);
+        session.PendingCameraFocusWorld = clamped;
+        session.PendingCameraFocus = true;
+    }
+
+    private void ApplyVisibleGroupSelect(
+        ref RtsSessionState session,
+        ref RtsControlGroups groups,
+        int groupIndex,
+        World world)
+    {
+        ref readonly var camTf = ref world.Get<Transform>(session.CameraEntity);
+        ref readonly var cam2 = ref world.Get<Camera2D>(session.CameraEntity);
+        RtsControlGroupLogic.SelectVisibleMembersInViewport(
+            ref groups,
+            groupIndex,
+            world,
+            camTf.WorldPosition,
+            camTf.WorldRotationRadians,
+            cam2.ViewportSizeWorld);
+    }
+
+    private static void RecordGroupKeyTap(ref RtsSessionState session, byte groupIndex)
+    {
+        session.LastGroupKeyIndex = groupIndex;
+        session.LastGroupKeyTime = session.GroupKeyClock;
+    }
+
+    private bool ConsumeDigitPressed(int groupIndex, IInputService input)
+    {
+        var key = GroupKeys[groupIndex];
+        var down = input.IsControlDown(InputControl.Keyboard(key));
+        var pressed = down && !_prevDigitDown[groupIndex];
+        return pressed;
+    }
+
+    private void UpdateDigitEdgeLatch(IInputService input)
+    {
+        for (var g = 0; g < RtsControlGroups.GroupCount; g++)
+            _prevDigitDown[g] = input.IsControlDown(InputControl.Keyboard(GroupKeys[g]));
+    }
+
+    private static RtsSelectionMode ResolveSelectionMode(IInputService input)
+    {
+        if (IsCtrlHeld(input))
+            return RtsSelectionMode.Remove;
+        if (IsShiftHeld(input))
+            return RtsSelectionMode.Add;
+        return RtsSelectionMode.Replace;
+    }
+
+    private static bool IsShiftHeld(IInputService input) =>
+        input.IsControlDown(InputControl.Keyboard(Key.ShiftLeft)) ||
+        input.IsControlDown(InputControl.Keyboard(Key.ShiftRight));
+
+    private static bool IsCtrlHeld(IInputService input) =>
+        input.IsControlDown(InputControl.Keyboard(Key.ControlLeft)) ||
+        input.IsControlDown(InputControl.Keyboard(Key.ControlRight));
+
+    private static void ApplyClickSelect(World world, Vector2D<float> worldPoint, RtsSelectionMode mode)
     {
         EntityId? hit = null;
         var bestSort = float.NegativeInfinity;
@@ -110,16 +256,34 @@ public sealed class RtsInputSystem : ISingletonSystem, ISingletonEarlyUpdate
             }
         }
 
-        foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<RtsUnitTag, RtsUnitState>()))
+        if (mode == RtsSelectionMode.Replace)
         {
-            var states = chunk.Column<RtsUnitState>();
-            var entities = chunk.Entities;
-            for (var i = 0; i < entities.Length; i++)
-                states[i].Selected = hit.HasValue && entities[i] == hit.Value;
+            foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<RtsUnitTag, RtsUnitState>()))
+            {
+                var states = chunk.Column<RtsUnitState>();
+                var entities = chunk.Entities;
+                for (var i = 0; i < chunk.Count; i++)
+                    states[i].Selected = hit.HasValue && entities[i] == hit.Value;
+            }
+
+            return;
         }
+
+        if (!hit.HasValue)
+            return;
+
+        ref var hitState = ref world.Get<RtsUnitState>(hit.Value);
+        if (mode == RtsSelectionMode.Add)
+            hitState.Selected = true;
+        else if (mode == RtsSelectionMode.Remove)
+            hitState.Selected = false;
     }
 
-    private static void ApplyBoxSelect(World world, Vector2D<float> a, Vector2D<float> b)
+    private static void ApplyBoxSelect(
+        World world,
+        Vector2D<float> a,
+        Vector2D<float> b,
+        RtsSelectionMode mode)
     {
         var minX = MathF.Min(a.X, b.X);
         var maxX = MathF.Max(a.X, b.X);
@@ -131,12 +295,26 @@ public sealed class RtsInputSystem : ISingletonSystem, ISingletonEarlyUpdate
             var transforms = chunk.Column<Transform>();
             var sprites = chunk.Column<Sprite>();
             var states = chunk.Column<RtsUnitState>();
-            var entities = chunk.Entities;
-            for (var i = 0; i < entities.Length; i++)
+            for (var i = 0; i < chunk.Count; i++)
             {
                 var p = transforms[i].WorldPosition;
                 var h = sprites[i].HalfExtents;
-                states[i].Selected = AabbIntersectsRect(p, h, minX, minY, maxX, maxY);
+                var inBox = AabbIntersectsRect(p, h, minX, minY, maxX, maxY);
+
+                switch (mode)
+                {
+                    case RtsSelectionMode.Replace:
+                        states[i].Selected = inBox;
+                        break;
+                    case RtsSelectionMode.Add:
+                        if (inBox)
+                            states[i].Selected = true;
+                        break;
+                    case RtsSelectionMode.Remove:
+                        if (inBox)
+                            states[i].Selected = false;
+                        break;
+                }
             }
         }
     }
@@ -148,7 +326,7 @@ public sealed class RtsInputSystem : ISingletonSystem, ISingletonEarlyUpdate
         {
             var states = chunk.Column<RtsUnitState>();
             var entities = chunk.Entities;
-            for (var i = 0; i < entities.Length; i++)
+            for (var i = 0; i < chunk.Count; i++)
             {
                 if (!states[i].Selected)
                     continue;

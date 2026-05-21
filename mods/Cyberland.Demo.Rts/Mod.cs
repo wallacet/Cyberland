@@ -5,10 +5,10 @@ using Cyberland.Engine.RuntimeScenes;
 
 namespace Cyberland.Demo.Rts;
 
-/// <summary>RTS-style tutorial: pan/zoom camera, ~10 units, box select, formation moves with separation, FPS HUD.</summary>
+/// <summary>RTS-style tutorial: pan/zoom camera, ~10 units, control groups, box select, formation moves with separation, FPS HUD.</summary>
 /// <remarks>
 /// <para><b>Where to read next:</b> private <see cref="SetupSceneAsync"/> spawns <see cref="ScenePath"/>; <see cref="Mod.RtsPlayfield"/> spawns units + checkerboard; systems under <c>Systems/</c>.</para>
-/// <para><b>Frame flow (simplified):</b> <see cref="RtsInputSystem"/> → <see cref="RtsUnitMoveSystem"/> (serial) → <see cref="RtsCameraSystem"/> → <see cref="RtsSelectionFrameSystem"/> → <see cref="RtsFpsHudSystem"/>.</para>
+/// <para><b>Frame flow (simplified):</b> <see cref="RtsInputSystem"/> (groups, selection, orders) → <see cref="RtsUnitMoveSystem"/> (serial) → <see cref="RtsCameraSystem"/> (focus + pan/zoom) → <see cref="RtsSelectionFrameSystem"/> → <see cref="RtsFpsHudSystem"/>.</para>
 /// <para><b>MSDF:</b> mono atlas is kicked async (fire-and-forget) for the FPS row; first frames may briefly fall back until upload drains.</para>
 /// </remarks>
 public sealed partial class Mod : IMod

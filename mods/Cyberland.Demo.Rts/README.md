@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Small **RTS-style** sample: **pannable/zoomable `Camera2D`**, **~10 controllable units**, **marquee box select**, **formation move orders** with **circle separation** (no overlap), deferred ambient lighting, selection frame, and an **FPS HUD** row.
+Small **RTS-style** sample: **pannable/zoomable `Camera2D`**, **~10 controllable units**, **control groups (1–0)**, **marquee box select**, **formation move orders** with **circle separation** (no overlap), deferred ambient lighting, selection frame, and an **FPS HUD** row.
 
 ## Run
 
@@ -12,30 +12,46 @@ Small **RTS-style** sample: **pannable/zoomable `Camera2D`**, **~10 controllable
 
 ## Controls
 
-- **Left-click** on a unit — select only that unit; click empty ground to clear.
-- **Left-drag** — box-select all units whose bounds intersect the marquee.
-- **Right-click** (with selection) — move selected units to a **grid formation** centered on the click.
-- **WASD / arrows / edge scroll** — pan camera; **mouse wheel** — zoom.
-- **Escape** — quit (via `cyberland.common/quit` binding).
+### Selection (mouse)
 
-Shift-click additive selection is not implemented.
+- **Left-click** on a unit — select only that unit; click empty ground to clear.
+- **Left-drag** — box-select (replace selection).
+- **Shift + click / box** — add to selection.
+- **Ctrl + click / box** — remove from selection.
+- **Right-click** (with selection) — move selected units to a **grid formation** centered on the click.
+
+### Control groups (keyboard)
+
+| Input | Effect |
+|--------|--------|
+| **1–9, 0** | Recall group (replace selection); **no camera move** on first recall |
+| **Same key again** (group already fully selected) | **Center camera** on group centroid |
+| **Double-tap** same key (within ~0.35s) | Select group members **visible in the camera view** |
+| **Ctrl + 1–9, 0** | Assign current selection to group |
+| **Shift + 1–9, 0** | Add group to selection |
+
+### Camera
+
+- **WASD / arrows / edge scroll** — pan
+- **Mouse wheel** — zoom
+- **Escape** — quit (`cyberland.common/quit`)
 
 ## Learning path
 
 1. **`Mod.cs`** — singleton chain: input → unit-move (serial) → camera → selection → FPS HUD.
-2. **`Mod.RtsPlayfield.cs`** — checkerboard texture, spawn 10 units, session/selection-bar wiring.
-3. **`RtsFormation.cs`**, **`RtsUnitCollision.cs`** — formation slots and separation helpers.
-4. **`Systems/RtsInputSystem.cs`** — box/click select and move orders.
-5. **`Systems/RtsUnitMoveSystem.cs`** — steering + global separation pass.
-6. **`Systems/RtsCameraSystem.cs`**, **`RtsSelectionFrameSystem.cs`**, **`RtsFpsHudSystem.cs`**.
+2. **`Mod.RtsPlayfield.cs`** — checkerboard, spawn 10 units, session/groups wiring.
+3. **`Components/RtsControlGroups.cs`**, **`RtsControlGroupLogic`** — group storage and recall.
+4. **`RtsCameraBounds.cs`** — playfield clamp shared with camera focus.
+5. **`Systems/RtsInputSystem.cs`** — modifiers, hotkeys, orders.
+6. **`Systems/RtsUnitMoveSystem.cs`**, **`Systems/RtsCameraSystem.cs`**, selection frame, FPS HUD.
 
 ## Features taught
 
 - **`IRenderer.RegisterTextureRgba`** for procedurally generated art.
 - **`Camera2D`** + **`PresentationViewportSizeWorld`** for HUD-stable zoom.
-- Per-unit **`RtsUnitState`** (selection + independent move targets).
-- **`ISystem`** + **`RegisterSerial`** for deterministic multi-entity simulation at small scale.
-- **`AmbientLightSource`** from scene JSON (stock deferred lighting path).
+- Per-unit **`RtsUnitState`** and session **`RtsControlGroups`**.
+- **`CameraProjection.WorldToViewportPixel`** for visible-unit selection.
+- **`ISystem`** + **`RegisterSerial`** for deterministic multi-entity movement.
 
 ## Content
 

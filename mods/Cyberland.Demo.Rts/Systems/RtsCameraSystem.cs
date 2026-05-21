@@ -7,7 +7,7 @@ using Silk.NET.Maths;
 
 namespace Cyberland.Demo.Rts.Systems;
 
-/// <summary>Late: smooth mouse-wheel zoom (clamped), WASD + edge scroll pan, clamp center to the playfield.</summary>
+/// <summary>Late: pending camera focus, smooth zoom, WASD + edge scroll pan, playfield clamp.</summary>
 /// <remarks>
 /// Operates on the singleton camera row (<see cref="RtsCameraTag"/>). Panning adjusts <see cref="Transform.WorldPosition"/> in **world** space (+Y up);
 /// zoom mutates <see cref="Camera2D.ViewportSizeWorld"/> via <see cref="RtsCameraZoomState"/> targets so the virtual canvas grows/shrinks while staying clamped to authored playfield bounds.
@@ -18,13 +18,14 @@ public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<RtsCameraTag, Transform, Camera2D, RtsCameraZoomState>();
 
     private readonly GameHostServices _host;
+    private EntityId _sessionEntity;
 
     public RtsCameraSystem(GameHostServices host) => _host = host;
 
     /// <inheritdoc />
     public void OnSingletonStart(in SingletonEntity cameraRow)
     {
-        _ = cameraRow;
+        _sessionEntity = cameraRow.World.RequireSingleEntityWith<RtsSessionState>("RTS session");
     }
 
     /// <inheritdoc />
@@ -35,6 +36,14 @@ public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
         ref var cam2 = ref cameraRow.Get<Camera2D>();
         ref var tf = ref cameraRow.Get<Transform>();
         ref var zoom = ref cameraRow.Get<RtsCameraZoomState>();
+
+        ref var session = ref cameraRow.World.Get<RtsSessionState>(_sessionEntity);
+        if (session.PendingCameraFocus)
+        {
+            tf.WorldPosition = session.PendingCameraFocusWorld;
+            RtsCameraBounds.ClampCenter(ref tf, cam2.ViewportSizeWorld.X, cam2.ViewportSizeWorld.Y);
+            session.PendingCameraFocus = false;
+        }
 
         ApplyWheelToZoomTargets(ref zoom, input);
 
@@ -71,7 +80,7 @@ public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
         var p = tf.WorldPosition;
         tf.WorldPosition = new Vector2D<float>(p.X + pan.X * deltaSeconds, p.Y + pan.Y * deltaSeconds);
 
-        ClampCameraCenter(ref tf, cam2.ViewportSizeWorld.X, cam2.ViewportSizeWorld.Y);
+        RtsCameraBounds.ClampCenter(ref tf, cam2.ViewportSizeWorld.X, cam2.ViewportSizeWorld.Y);
     }
 
     /// <summary>Wheel deltas are often ±120 per notch; scale targets exponentially and clamp width, then lock 16:9 height.</summary>
@@ -81,7 +90,6 @@ public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
         if (MathF.Abs(zd) <= 0.001f)
             return;
 
-        // Positive wheel (typical scroll-up) → zoom in → smaller viewport (same sign convention as MouseChase).
         var notches = Math.Clamp(MathF.Abs(zd) / 120f, 0.25f, 8f);
         var per = zd > 0f ? MathF.Pow(0.94f, notches) : MathF.Pow(1.06f, notches);
         zoom.TargetViewportWidth *= per;
@@ -92,37 +100,10 @@ public sealed class RtsCameraSystem : ISingletonSystem, ISingletonLateUpdate
         zoom.TargetViewportHeight = zoom.TargetViewportWidth * (9f / 16f);
     }
 
-    /// <summary>Locks 16:9 so letterbox/pillarbox geometry stays stable while the window size is unchanged.</summary>
     private static Vector2D<int> ViewportSizeFromWidth(int width)
     {
         var w = Math.Max(1, width);
         var h = Math.Max(1, (int)MathF.Round(w * (9f / 16f)));
         return new Vector2D<int>(w, h);
-    }
-
-    private static void ClampCameraCenter(ref Transform tf, int viewportW, int viewportH)
-    {
-        var play = RtsConstants.PlaySize;
-        var halfW = viewportW * 0.5f;
-        var halfH = viewportH * 0.5f;
-        var p = tf.WorldPosition;
-        float cx = p.X;
-        float cy = p.Y;
-
-        var minCx = halfW;
-        var maxCx = play - halfW;
-        if (minCx > maxCx)
-            cx = play * 0.5f;
-        else
-            cx = Math.Clamp(cx, minCx, maxCx);
-
-        var minCy = halfH;
-        var maxCy = play - halfH;
-        if (minCy > maxCy)
-            cy = play * 0.5f;
-        else
-            cy = Math.Clamp(cy, minCy, maxCy);
-
-        tf.WorldPosition = new Vector2D<float>(cx, cy);
     }
 }

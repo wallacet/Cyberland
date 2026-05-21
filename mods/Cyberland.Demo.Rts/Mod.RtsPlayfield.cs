@@ -37,8 +37,15 @@ public sealed partial class Mod
             SelectionBar3 = default,
             BoxDragActive = false,
             BoxDragStartWorld = default,
-            BoxDragEndWorld = default
+            BoxDragEndWorld = default,
+            PendingCameraFocus = false,
+            PendingCameraFocusWorld = default,
+            ActiveGroupIndex = RtsSessionState.NoActiveGroup,
+            LastGroupKeyIndex = RtsSessionState.NoActiveGroup,
+            LastGroupKeyTime = 0f,
+            GroupKeyClock = 0f
         };
+        _ = world.GetOrAdd<RtsControlGroups>(sessionEntity);
 
         ref var session = ref world.Get<RtsSessionState>(sessionEntity);
         foreach (var chunk in world.QueryChunks(SystemQuerySpec.All<RtsSelectionBarTag>()))

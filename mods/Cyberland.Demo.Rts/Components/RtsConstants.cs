@@ -37,4 +37,9 @@ public static class RtsConstants
 
     /// <summary>Exponential smoothing rate toward <see cref="RtsCameraZoomState"/> (higher = snappier).</summary>
     public const float ZoomSmoothingPerSecond = 12f;
+
+    public const int ControlGroupCount = 10;
+
+    /// <summary>Max seconds between digit presses to count as a control-group double-tap.</summary>
+    public const float GroupDoubleTapSeconds = 0.35f;
 }
