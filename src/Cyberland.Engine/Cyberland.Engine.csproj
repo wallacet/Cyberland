@@ -16,14 +16,13 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Rendering\Shaders\*.glsl" />
-    <EmbeddedResource Include="Rendering\Shaders\Spirv\*.spv" />
     <EmbeddedResource Include="Rendering\Text\Builtin\*.ttf" />
     <EmbeddedResource Include="Rendering\Text\Builtin\coverage-null-literal.json" />
     <EmbeddedResource Include="Rendering\Text\Baked\*.json" />
     <EmbeddedResource Include="Rendering\Text\Baked\*.png" />
   </ItemGroup>
 
-  <Target Name="BakeEngineSpirvShaders" BeforeTargets="CoreCompile"
+  <Target Name="BakeEngineSpirvShaders" BeforeTargets="IncludeBakedSpirv"
           Inputs="$(MSBuildThisFileDirectory)Rendering\Shaders\**\*.glsl"
           Outputs="$(MSBuildThisFileDirectory)Rendering\Shaders\Spirv\**\*.spv">
     <PropertyGroup>
@@ -32,6 +31,15 @@
     </PropertyGroup>
     <MakeDir Directories="$(_EngineSpirvOutputDir)" />
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\..\tools\Cyberland.ShaderBaker\Cyberland.ShaderBaker.csproj&quot; -- --input-dir &quot;$(_EngineShaderSourceDir)&quot; --output-dir &quot;$(_EngineSpirvOutputDir)&quot;" />
+  </Target>
+
+  <!-- Runs unconditionally after the baker (even when incremental build skips it)
+       so that generated .spv files are always embedded — must run before
+       SplitResourcesByCulture which partitions EmbeddedResource items. -->
+  <Target Name="IncludeBakedSpirv" BeforeTargets="SplitResourcesByCulture">
+    <ItemGroup>
+      <EmbeddedResource Include="Rendering\Shaders\Spirv\*.spv" />
+    </ItemGroup>
   </Target>
 
   <ItemGroup>
