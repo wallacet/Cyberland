@@ -574,7 +574,7 @@ public sealed unsafe partial class VulkanRenderer
             PushConstantRangeCount = 1,
             PPushConstantRanges = pcrF
         };
-        if (_vk.CreatePipelineLayout(_device, in plBleed, null, out _plDeferredBleed) != Result.Success)
+        if (_vk!.CreatePipelineLayout(_device, in plBleed, null, out _plDeferredBleed) != Result.Success)
             throw new GraphicsInitializationException("pl deferred bleed failed.");
 
         var dslTr = stackalloc DescriptorSetLayout[1];

@@ -91,15 +91,17 @@ public interface IRenderer
     IShaderModuleHandle CreateShaderModuleFromSpirv(ReadOnlySpan<byte> spirvBytes, string? debugName = null);
 
     /// <summary>
-    /// Compiles GLSL at runtime and creates a shader module. This path exists as a fallback and should not be used for shipped content.
+    /// Compiles GLSL at runtime and creates a shader module. Prefer <see cref="CreateShaderModuleFromSpirv"/> with
+    /// precompiled SPIR-V for shipped content; this path is convenient for prototyping or shaders that must be
+    /// assembled at load time.
     /// </summary>
     /// <param name="glsl">Full shader source text.</param>
     /// <param name="stage">Target shader stage.</param>
     /// <param name="debugName">Optional debug marker used by GPU tooling.</param>
-    /// <param name="sourceDescription">Optional source label used in warning logs.</param>
+    /// <param name="sourceDescription">Optional source label logged once per shader for diagnostics.</param>
     /// <returns>An opaque handle that must be disposed by the caller.</returns>
     /// <remarks>
-    /// Call on the window/render thread. Runtime GLSL compilation is intentionally logged so missing precompiled SPIR-V can be diagnosed.
+    /// Call on the window/render thread. The first compile per <paramref name="sourceDescription"/> is logged to stdout.
     /// </remarks>
     IShaderModuleHandle CreateShaderModuleFromGlsl(
         string glsl,

@@ -354,7 +354,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         var shaderId = string.IsNullOrWhiteSpace(sourceDescription)
             ? (debugName ?? $"mod.shader.{stage}")
             : sourceDescription!;
-        WarnShaderFallbackOnce(shaderId, "runtime GLSL compile requested for mod shader module");
+        LogModGlslCompileOnce(shaderId);
         var spirv = GlslSpirvCompiler.CompileGlslToSpirv(glsl, MapShaderStage(stage));
         var module = CreateShaderModule(spirv, debugName);
         RegisterCustomShaderModule(module);
@@ -616,9 +616,10 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
     private ShaderModule CreateEngineShaderModule(string sourceFileName, ShaderStage stage, string debugName)
     {
+        var preferRuntime = EngineShaderSources.PreferRuntimeGlslCompile(sourceFileName);
         var precompiledFailureReason = string.Empty;
-        if (!_forceEngineGlslFallback &&
-            !EngineShaderSources.PreferRuntimeGlslCompile(sourceFileName) &&
+
+        if (!_forceEngineGlslFallback && !preferRuntime &&
             EngineShaderSources.TryLoadPrecompiledSpirv(sourceFileName, out var spirvBytes, out precompiledFailureReason))
         {
             if (SpirvBinary.TryDecodeWords(spirvBytes, out var words, out var decodeFailure))
@@ -626,7 +627,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
             WarnShaderFallbackOnce(debugName, $"precompiled SPIR-V decode failed for '{sourceFileName}': {decodeFailure}");
         }
-        else
+        else if (!preferRuntime)
         {
             var reason = _forceEngineGlslFallback
                 ? "forced by CYBERLAND_FORCE_GLSL_SHADER_FALLBACK"
@@ -650,6 +651,17 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
 
         Console.Error.WriteLine(
             $"Cyberland WARNING: shader fallback compile | shader={shaderId} reason={reason}");
+    }
+
+    private void LogModGlslCompileOnce(string shaderId)
+    {
+        lock (_shaderFallbackWarnings)
+        {
+            if (!_shaderFallbackWarnings.Add(shaderId))
+                return;
+        }
+
+        Console.WriteLine($"Mod GLSL compile | shader={shaderId}");
     }
 
     private static ShaderStage MapShaderStage(ShaderModuleStage stage) =>
