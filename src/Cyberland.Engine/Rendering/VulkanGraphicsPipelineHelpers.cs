@@ -58,7 +58,7 @@ internal static unsafe class VulkanGraphicsPipelineHelpers
             ColorWriteMask = ColorComponentFlags.RBit | ColorComponentFlags.GBit | ColorComponentFlags.BBit | ColorComponentFlags.ABit
         };
 
-        /// <summary>Deferred point lights / emissive bleed: add RGB into HDR, replace alpha.</summary>
+        /// <summary>Deferred tiled lighting / emissive bleed: add RGB into HDR, replace alpha.</summary>
         internal static PipelineColorBlendAttachmentState HdrRgbAdditive => new()
         {
             BlendEnable = true,
@@ -92,6 +92,22 @@ internal static unsafe class VulkanGraphicsPipelineHelpers
             SrcAlphaBlendFactor = BlendFactor.Zero,
             DstAlphaBlendFactor = BlendFactor.One,
             AlphaBlendOp = BlendOp.Add,
+            ColorWriteMask = ColorComponentFlags.RBit
+        };
+
+        /// <summary>Directional shadow tiles: keep nearest occluder depth along the light axis (MIN + high clear).</summary>
+        internal static PipelineColorBlendAttachmentState ShadowMapMax => ShadowMapMin;
+
+        /// <summary>Point/spot shadow tiles: keep nearest occluder radius per texel.</summary>
+        internal static PipelineColorBlendAttachmentState ShadowMapMin => new()
+        {
+            BlendEnable = true,
+            SrcColorBlendFactor = BlendFactor.One,
+            DstColorBlendFactor = BlendFactor.One,
+            ColorBlendOp = BlendOp.Min,
+            SrcAlphaBlendFactor = BlendFactor.One,
+            DstAlphaBlendFactor = BlendFactor.One,
+            AlphaBlendOp = BlendOp.Min,
             ColorWriteMask = ColorComponentFlags.RBit
         };
     }

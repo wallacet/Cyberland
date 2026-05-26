@@ -6,7 +6,7 @@ namespace Cyberland.Engine.Tests;
 
 public sealed class RenderingHelpersTests
 {
-    /// <summary>Mirrors composite_vert: top-left UV origin, +Y down (matches Vulkan framebuffer).</summary>
+    /// <summary>Mirrors fullscreen_triangle.vert: top-left UV origin, +Y down (matches Vulkan framebuffer).</summary>
     private static Vector2D<float> FullscreenUvFromPixelCenter(int px, int py, float w, float h) =>
         new((px + 0.5f) / w, (py + 0.5f) / h);
 
@@ -23,7 +23,7 @@ public sealed class RenderingHelpersTests
     private static float PointAttenuationSmooth(float dist, float radius, float exponent)
     {
         var t = Math.Clamp(dist / MathF.Max(radius, 1e-4f), 0f, 1f);
-        return MathF.Pow(MathF.Max(1f - t, 0f), MathF.Max(exponent, 0.1f));
+        return MathF.Pow(MathF.Max(1f - t, 0f), exponent);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class RenderingHelpersTests
     [Fact]
     public void Bloom_extract_prefilter_maps_half_cell_to_footprint_center_not_plus_one_full_pixel()
     {
-        // bloom_extract.frag.glsl: uvFull = (halfCoord * 2 + 0.5) / fullSz — center of 2×2 full-res block for composite alignment.
+        // bloom_extract.frag.glsl: srcUvFull = (halfCoordTexels * 2 + 0.5) / fullSizeTexels — center of 2×2 full-res block for composite alignment.
         // Old (halfCoord * 2 + 1) shifted bloom ~0.5 full texels toward +X/+Y (lower-right ghost vs HDR).
         var fullW = 1280f;
         var fullH = 720f;
@@ -58,7 +58,7 @@ public sealed class RenderingHelpersTests
     [Fact]
     public void Composite_matches_bloom_chain_pixel_center_uv_when_fragcoord_is_integer_grid()
     {
-        // composite.frag.glsl: uv = (floor(gl_FragCoord.xy) + 0.5) / fullSz — aligns with bloom_extract when FragCoord is integer.
+        // composite.frag.glsl: texelUv = (floor(gl_FragCoord.xy) + 0.5) / fullSizeTexels — aligns with bloom_extract when FragCoord is integer.
         var w = 1280f;
         var fragX = 10f;
         var uvNaive = fragX / w;
@@ -247,6 +247,36 @@ public sealed class RenderingHelpersTests
     }
 
     [Fact]
+    public void BloomGain_zero_gates_bloom_off()
+    {
+        var s = EngineDefaultGlobalPostProcess.DefaultSettings;
+        s.BloomGain = 0f;
+        // When BloomGain is 0, bloom contributes nothing — the bloom source should multiply to zero in composite.
+        Assert.Equal(0f, s.BloomGain);
+        Assert.True(s.BloomEnabled);
+    }
+
+    [Fact]
+    public void BloomRadius_zero_gates_bloom_off()
+    {
+        var s = EngineDefaultGlobalPostProcess.DefaultSettings;
+        s.BloomRadius = 0f;
+        // With BloomRadius == 0, the Gaussian blur has zero spread — no bloom bleed.
+        Assert.Equal(0f, s.BloomRadius);
+        Assert.True(s.BloomEnabled);
+    }
+
+    [Fact]
+    public void Bloom_default_settings_have_positive_radius_and_gain()
+    {
+        var s = EngineDefaultGlobalPostProcess.DefaultSettings;
+        Assert.True(s.BloomRadius > 0f, "default BloomRadius should be positive");
+        Assert.True(s.BloomGain > 0f, "default BloomGain should be positive");
+        Assert.True(s.BloomEnabled, "default bloom should be enabled");
+        Assert.True(s.BloomExtractThreshold > 0f, "bloom extract threshold should be positive");
+    }
+
+    [Fact]
     public void PostProcessVolumeMerge_higher_priority_overrides_and_AABB_gate()
     {
         var g = new GlobalPostProcessSettings
@@ -255,7 +285,7 @@ public sealed class RenderingHelpersTests
             BloomRadius = 1f,
             BloomGain = 1f,
             EmissiveToHdrGain = 0.45f,
-            EmissiveToBloomGain = 0.45f,
+            BloomSourceGain = 0.45f,
             Exposure = 1f,
             Saturation = 1f,
             TonemapEnabled = true,
@@ -280,8 +310,8 @@ public sealed class RenderingHelpersTests
                         BloomGain = 2f,
                         HasEmissiveToHdrGain = true,
                         EmissiveToHdrGain = 0.8f,
-                        HasEmissiveToBloomGain = true,
-                        EmissiveToBloomGain = 1.15f,
+                        HasBloomSourceGain = true,
+                        BloomSourceGain = 1.15f,
                         HasExposure = false,
                         Exposure = 1f,
                         HasSaturation = false,
@@ -306,8 +336,8 @@ public sealed class RenderingHelpersTests
                         BloomGain = 3f,
                         HasEmissiveToHdrGain = true,
                         EmissiveToHdrGain = 0.7f,
-                        HasEmissiveToBloomGain = true,
-                        EmissiveToBloomGain = 1.25f,
+                        HasBloomSourceGain = true,
+                        BloomSourceGain = 1.25f,
                         HasExposure = false,
                         Exposure = 1f,
                         HasSaturation = false,
@@ -326,7 +356,7 @@ public sealed class RenderingHelpersTests
         Assert.Equal(3f, r.BloomGain);
         Assert.Equal(1.5f, r.BloomRadius);
         Assert.Equal(0.7f * 0.45f, r.EmissiveToHdrGain);
-        Assert.Equal(1.25f * 0.45f, r.EmissiveToBloomGain);
+        Assert.Equal(1.25f * 0.45f, r.BloomSourceGain);
 
         var miss = new[]
         {
@@ -417,7 +447,7 @@ public sealed class RenderingHelpersTests
             BloomGain = 1f,
             BloomRadius = 1f,
             EmissiveToHdrGain = 1f,
-            EmissiveToBloomGain = 1f,
+            BloomSourceGain = 1f,
             Exposure = 1f,
             Saturation = 1f
         };
@@ -522,6 +552,78 @@ public sealed class RenderingHelpersTests
     }
 
     [Fact]
+    public void PostProcessVolumeMerge_applies_new_override_fields()
+    {
+        var g = new GlobalPostProcessSettings
+        {
+            BloomEnabled = true,
+            BloomRadius = 1f,
+            BloomGain = 1f,
+            EmissiveToHdrGain = 0.5f,
+            BloomSourceGain = 0.5f,
+            Exposure = 1f,
+            Saturation = 1f,
+            TonemapEnabled = true,
+            BloomExtractThreshold = 0.5f,
+            BloomExtractKnee = 0.4f,
+            ColorGradingShadows = new Vector3D<float>(1f, 0.8f, 0.6f),
+            ColorGradingMidtones = new Vector3D<float>(1f, 1f, 0.9f),
+            ColorGradingHighlights = new Vector3D<float>(0.9f, 1f, 1f),
+            Shadows = ShadowSettings.Default
+        };
+
+        var inside = new Vector2D<float>(5f, 5f);
+        var customShadows = ShadowSettings.Default with { SdfScale = 0.25f };
+
+        var vol = new PostProcessVolumeSubmission
+        {
+            Volume = new PostProcessVolume
+            {
+                HalfExtentsLocal = new Vector2D<float>(10f, 10f),
+                Priority = 1,
+                Overrides = new PostProcessOverrides
+                {
+                    HasShadows = true,
+                    Shadows = customShadows,
+                    HasTonemapEnabled = true,
+                    TonemapEnabled = false,
+                    HasColorGradingShadows = true,
+                    ColorGradingShadows = new Vector3D<float>(0.5f, 0.5f, 0.5f),
+                    HasColorGradingMidtones = true,
+                    ColorGradingMidtones = new Vector3D<float>(2f, 2f, 2f),
+                    HasColorGradingHighlights = true,
+                    ColorGradingHighlights = new Vector3D<float>(1.5f, 1.5f, 1.5f),
+                    HasBloomEnabled = true,
+                    BloomEnabled = false,
+                    HasBloomExtractThreshold = true,
+                    BloomExtractThreshold = 2f,
+                    HasBloomExtractKnee = true,
+                    BloomExtractKnee = 0.5f
+                }
+            },
+            WorldPosition = inside,
+            WorldRotationRadians = 0f,
+            WorldScale = new Vector2D<float>(1f, 1f)
+        };
+
+        var r = PostProcessVolumeMerge.ResolveAtPoint(in g, new[] { vol }, inside);
+        Assert.Equal(0.25f, r.Shadows.SdfScale);
+        Assert.False(r.TonemapEnabled);
+        Assert.Equal(0.5f * 1f, r.ColorGradingShadows.X);
+        Assert.Equal(0.5f * 0.8f, r.ColorGradingShadows.Y);
+        Assert.Equal(0.5f * 0.6f, r.ColorGradingShadows.Z);
+        Assert.Equal(2f * 1f, r.ColorGradingMidtones.X);
+        Assert.Equal(2f * 1f, r.ColorGradingMidtones.Y);
+        Assert.Equal(2f * 0.9f, r.ColorGradingMidtones.Z);
+        Assert.Equal(1.5f * 0.9f, r.ColorGradingHighlights.X);
+        Assert.Equal(1.5f * 1f, r.ColorGradingHighlights.Y);
+        Assert.Equal(1.5f * 1f, r.ColorGradingHighlights.Z);
+        Assert.False(r.BloomEnabled);
+        Assert.Equal(0.5f * 2f, r.BloomExtractThreshold);
+        Assert.Equal(0.4f * 0.5f, r.BloomExtractKnee);
+    }
+
+    [Fact]
     public void LightRigMath_DirectionToOrFallback_returns_normalized_direction_and_fallback()
     {
         var from = new Vector2D<float>(0f, 0f);
@@ -535,5 +637,27 @@ public sealed class RenderingHelpersTests
         var fallbackDir = LightRigMath.DirectionToOrFallback(from, from, fallback);
         Assert.Equal(fallback.X, fallbackDir.X);
         Assert.Equal(fallback.Y, fallbackDir.Y);
+    }
+
+    [Fact]
+    public void LightRigMath_DirectionToOrFallback_normalizes_non_unit_fallback()
+    {
+        var origin = new Vector2D<float>(5f, 5f);
+        // Non-unit fallback (length 10).
+        var fb = new Vector2D<float>(6f, 8f);
+        var dir = LightRigMath.DirectionToOrFallback(origin, origin, fb);
+        var len = MathF.Sqrt(dir.X * dir.X + dir.Y * dir.Y);
+        Assert.Equal(1f, len, 3);
+        Assert.Equal(0.6f, dir.X, 3);
+        Assert.Equal(0.8f, dir.Y, 3);
+    }
+
+    [Fact]
+    public void LightRigMath_DirectionToOrFallback_zero_fallback_returns_default_down()
+    {
+        var origin = new Vector2D<float>(0f, 0f);
+        var dir = LightRigMath.DirectionToOrFallback(origin, origin, new Vector2D<float>(0f, 0f));
+        Assert.Equal(0f, dir.X);
+        Assert.Equal(-1f, dir.Y);
     }
 }

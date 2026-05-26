@@ -11,8 +11,8 @@ namespace Cyberland.Engine.Rendering;
 public sealed unsafe partial class VulkanRenderer
 {
     private const uint DescriptorPoolCombinedImageSamplerCount = 640;
-    private const uint DescriptorPoolUniformBufferCount = 40;
-    private const uint DescriptorPoolStorageBufferCount = 12;
+    private const uint DescriptorPoolUniformBufferCount = 48;
+    private const uint DescriptorPoolStorageBufferCount = 24;
     private const uint DescriptorPoolMaxSets = 640;
 
     private void CreateDescriptorLayoutsAndPool()
@@ -70,30 +70,6 @@ public sealed unsafe partial class VulkanRenderer
         };
         VulkanGraphicsPipelineHelpers.CreateDescriptorSetLayoutOrThrow(_vk!, _device, em, out _dslEmissiveScene, "dsl emissive scene failed.");
 
-        Span<DescriptorSetLayoutBinding> light = stackalloc DescriptorSetLayoutBinding[3];
-        light[0] = new DescriptorSetLayoutBinding
-        {
-            Binding = 0,
-            DescriptorType = DescriptorType.UniformBuffer,
-            DescriptorCount = 1,
-            StageFlags = ShaderStageFlags.FragmentBit
-        };
-        light[1] = new DescriptorSetLayoutBinding
-        {
-            Binding = 1,
-            DescriptorType = DescriptorType.StorageBuffer,
-            DescriptorCount = 1,
-            StageFlags = ShaderStageFlags.FragmentBit
-        };
-        light[2] = new DescriptorSetLayoutBinding
-        {
-            Binding = 2,
-            DescriptorType = DescriptorType.StorageBuffer,
-            DescriptorCount = 1,
-            StageFlags = ShaderStageFlags.FragmentBit
-        };
-        VulkanGraphicsPipelineHelpers.CreateDescriptorSetLayoutOrThrow(_vk!, _device, light, out _dslLighting, "dsl lighting failed.");
-
         Span<DescriptorSetLayoutBinding> gbuf = stackalloc DescriptorSetLayoutBinding[2];
         gbuf[0] = new DescriptorSetLayoutBinding
         {
@@ -110,16 +86,6 @@ public sealed unsafe partial class VulkanRenderer
             StageFlags = ShaderStageFlags.FragmentBit | ShaderStageFlags.VertexBit
         };
         VulkanGraphicsPipelineHelpers.CreateDescriptorSetLayoutOrThrow(_vk!, _device, gbuf, out _dslGbufferRead, "dsl gbuffer read failed.");
-
-        Span<DescriptorSetLayoutBinding> ssbo = stackalloc DescriptorSetLayoutBinding[1];
-        ssbo[0] = new DescriptorSetLayoutBinding
-        {
-            Binding = 0,
-            DescriptorType = DescriptorType.StorageBuffer,
-            DescriptorCount = 1,
-            StageFlags = ShaderStageFlags.FragmentBit | ShaderStageFlags.VertexBit
-        };
-        VulkanGraphicsPipelineHelpers.CreateDescriptorSetLayoutOrThrow(_vk!, _device, ssbo, out _dslPointSsbo, "dsl point ssbo failed.");
 
         VulkanGraphicsPipelineHelpers.CreateDescriptorSetLayoutOrThrow(_vk!, _device, b, out _dslTransparentResolve, "dsl transparent resolve failed.");
 
@@ -297,23 +263,11 @@ public sealed unsafe partial class VulkanRenderer
         _descriptorManager.UpdateEmissiveSceneDescriptorSet();
     }
 
-    private void AllocateLightingDescriptorSet()
-    {
-        _descriptorManager ??= new DescriptorManager(this);
-        _descriptorManager.AllocateLightingDescriptorSet();
-    }
-
-    private void UpdateLightingDescriptorSet()
-    {
-        _descriptorManager ??= new DescriptorManager(this);
-        _descriptorManager.UpdateLightingDescriptorSet();
-    }
-
     private void EnsurePointLightSsbo()
     {
         if (_pointLightSsbo.Handle != default)
             return;
-        var bytes = (ulong)(DeferredRenderingConstants.MaxPointLights * 2 * sizeof(Vector4D<float>));
+        var bytes = (ulong)(DeferredRenderingConstants.MaxPointLights * 3 * sizeof(Vector4D<float>));
         CreateHostVisibleBuffer(bytes, BufferUsageFlags.StorageBufferBit, out _pointLightSsbo, out _pointLightSsboMemory);
         void* p;
         if (_vk!.MapMemory(_device, _pointLightSsboMemory, 0, bytes, 0, &p) != Result.Success)
@@ -325,7 +279,7 @@ public sealed unsafe partial class VulkanRenderer
     {
         if (_directionalLightSsbo.Handle == default)
         {
-            var dBytes = (ulong)(DeferredRenderingConstants.MaxDirectionalLights * 2 * sizeof(Vector4D<float>));
+            var dBytes = (ulong)(DeferredRenderingConstants.MaxDirectionalLights * 3 * sizeof(Vector4D<float>));
             CreateHostVisibleBuffer(dBytes, BufferUsageFlags.StorageBufferBit, out _directionalLightSsbo, out _directionalLightSsboMemory);
             void* p;
             if (_vk!.MapMemory(_device, _directionalLightSsboMemory, 0, dBytes, 0, &p) != Result.Success)
@@ -334,7 +288,7 @@ public sealed unsafe partial class VulkanRenderer
         }
         if (_spotLightSsbo.Handle == default)
         {
-            var sBytes = (ulong)(DeferredRenderingConstants.MaxSpotLights * 3 * sizeof(Vector4D<float>));
+            var sBytes = (ulong)(DeferredRenderingConstants.MaxSpotLights * 4 * sizeof(Vector4D<float>));
             CreateHostVisibleBuffer(sBytes, BufferUsageFlags.StorageBufferBit, out _spotLightSsbo, out _spotLightSsboMemory);
             void* p;
             if (_vk!.MapMemory(_device, _spotLightSsboMemory, 0, sBytes, 0, &p) != Result.Success)
@@ -356,19 +310,6 @@ public sealed unsafe partial class VulkanRenderer
             };
             if (_vk!.AllocateDescriptorSets(_device, in ai, out _dsGbufferRead) != Result.Success)
                 throw new GraphicsInitializationException("alloc ds gbuffer");
-        }
-
-        fixed (DescriptorSetLayout* dslP = &_dslPointSsbo)
-        {
-            DescriptorSetAllocateInfo ai = new()
-            {
-                SType = StructureType.DescriptorSetAllocateInfo,
-                DescriptorPool = _descriptorPool,
-                DescriptorSetCount = 1,
-                PSetLayouts = dslP
-            };
-            if (_vk!.AllocateDescriptorSets(_device, in ai, out _dsPointSsbo) != Result.Success)
-                throw new GraphicsInitializationException("alloc ds point ssbo");
         }
 
         fixed (DescriptorSetLayout* dslTr = &_dslTransparentResolve)
@@ -398,32 +339,6 @@ public sealed unsafe partial class VulkanRenderer
         }
 
         UpdateDeferredGbufferAndResolveDescriptorSets();
-        UpdatePointSsboDescriptorSet();
-    }
-
-    private void UpdatePointSsboDescriptorSet()
-    {
-        if (_vk is null || _dsPointSsbo.Handle == default || _pointLightSsbo.Handle == default)
-            return;
-
-        DescriptorBufferInfo bi = new()
-        {
-            Buffer = _pointLightSsbo,
-            Offset = 0,
-            Range = (ulong)(DeferredRenderingConstants.MaxPointLights * 2 * sizeof(Vector4D<float>))
-        };
-
-        WriteDescriptorSet w = new()
-        {
-            SType = StructureType.WriteDescriptorSet,
-            DstSet = _dsPointSsbo,
-            DstBinding = 0,
-            DescriptorCount = 1,
-            DescriptorType = DescriptorType.StorageBuffer,
-            PBufferInfo = &bi
-        };
-
-        _vk!.UpdateDescriptorSets(_device, 1, &w, 0, null);
     }
 
     private void UpdateDeferredGbufferAndResolveDescriptorSets()

@@ -16,7 +16,7 @@ namespace Cyberland.Engine.Scene.Systems;
 /// Downstream systems can read the composed <see cref="Transform.WorldMatrix"/> directly or access position/rotation/
 /// scale via <see cref="Transform"/>'s PRS properties (decomposed on demand with a per-row cache).
 /// </remarks>
-public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUpdate
+public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUpdate, IParallelLateUpdate
 {
     /// <inheritdoc cref="IEcsQuerySource.QuerySpec"/>
     public SystemQuerySpec QuerySpec => SystemQuerySpec.All<Transform>();
@@ -53,6 +53,22 @@ public sealed class TransformHierarchySystem : IParallelSystem, IParallelEarlyUp
     public void OnParallelEarlyUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
     {
         _ = deltaSeconds;
+        SolveTransforms(query, parallelOptions);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Re-solves after fixed integration so render/light submitters read the same <see cref="Transform.WorldMatrix"/>
+    /// as the integrated <see cref="Transform.LocalPosition"/> for this frame (early-only solve is one fixed step stale).
+    /// </remarks>
+    public void OnParallelLateUpdate(ChunkQueryAll query, float deltaSeconds, ParallelOptions parallelOptions)
+    {
+        _ = deltaSeconds;
+        SolveTransforms(query, parallelOptions);
+    }
+
+    private void SolveTransforms(ChunkQueryAll query, ParallelOptions parallelOptions)
+    {
         var world = _world;
         var w = _world;
 

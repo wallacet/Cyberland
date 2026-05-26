@@ -221,7 +221,8 @@ public sealed unsafe partial class VulkanRenderer
             PColorAttachments = gRefs
         };
 
-        SubpassDependency depG = new()
+        var depsG = stackalloc SubpassDependency[2];
+        depsG[0] = new SubpassDependency
         {
             SrcSubpass = Vk.SubpassExternal,
             DstSubpass = 0,
@@ -229,6 +230,15 @@ public sealed unsafe partial class VulkanRenderer
             DstStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
             SrcAccessMask = 0,
             DstAccessMask = AccessFlags.ColorAttachmentWriteBit
+        };
+        depsG[1] = new SubpassDependency
+        {
+            SrcSubpass = 0,
+            DstSubpass = Vk.SubpassExternal,
+            SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+            DstStageMask = PipelineStageFlags.FragmentShaderBit,
+            SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+            DstAccessMask = AccessFlags.ShaderReadBit
         };
 
         var gAttU = stackalloc AttachmentDescription[2];
@@ -242,8 +252,8 @@ public sealed unsafe partial class VulkanRenderer
             PAttachments = gAttU,
             SubpassCount = 1,
             PSubpasses = &subG,
-            DependencyCount = 1,
-            PDependencies = &depG
+            DependencyCount = 2,
+            PDependencies = depsG
         };
 
         if (_vk!.CreateRenderPass(_device, in rpcG, null, out _rpGbufferUndefined) != Result.Success)
@@ -300,6 +310,16 @@ public sealed unsafe partial class VulkanRenderer
         wAttU[0] = wAccum;
         wAttU[1] = wReveal;
 
+        SubpassDependency depW = new()
+        {
+            SrcSubpass = Vk.SubpassExternal,
+            DstSubpass = 0,
+            SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+            DstStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+            SrcAccessMask = 0,
+            DstAccessMask = AccessFlags.ColorAttachmentWriteBit
+        };
+
         RenderPassCreateInfo rpcW = new()
         {
             SType = StructureType.RenderPassCreateInfo,
@@ -308,7 +328,7 @@ public sealed unsafe partial class VulkanRenderer
             SubpassCount = 1,
             PSubpasses = &subW,
             DependencyCount = 1,
-            PDependencies = &depG
+            PDependencies = &depW
         };
 
         if (_vk.CreateRenderPass(_device, in rpcW, null, out _rpWboitUndefined) != Result.Success)
@@ -330,4 +350,151 @@ public sealed unsafe partial class VulkanRenderer
 
     private RenderPass HdrCompositeRpFor(bool written) =>
         written ? _rpOffscreenInitialShaderRead : _rpOffscreenInitialUndefined;
+
+    private void CreateShadowSdfRenderPasses()
+    {
+        // _rpShadowOccluderMask: R8 mask, Clear→Store, Undefined→ShaderReadOnly.
+        {
+            AttachmentDescription att = new()
+            {
+                Format = DeferredRenderingConstants.ShadowOccluderMaskFormat,
+                Samples = SampleCountFlags.Count1Bit,
+                LoadOp = AttachmentLoadOp.Clear,
+                StoreOp = AttachmentStoreOp.Store,
+                StencilLoadOp = AttachmentLoadOp.DontCare,
+                StencilStoreOp = AttachmentStoreOp.DontCare,
+                InitialLayout = ImageLayout.Undefined,
+                FinalLayout = ImageLayout.ShaderReadOnlyOptimal
+            };
+
+            AttachmentReference colorRef = new() { Attachment = 0, Layout = ImageLayout.ColorAttachmentOptimal };
+
+            SubpassDescription sub = new()
+            {
+                PipelineBindPoint = PipelineBindPoint.Graphics,
+                ColorAttachmentCount = 1,
+                PColorAttachments = &colorRef
+            };
+
+            SubpassDependency dep = new()
+            {
+                SrcSubpass = 0,
+                DstSubpass = Vk.SubpassExternal,
+                SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+                DstStageMask = PipelineStageFlags.FragmentShaderBit,
+                SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+                DstAccessMask = AccessFlags.ShaderReadBit
+            };
+
+            RenderPassCreateInfo rpci = new()
+            {
+                SType = StructureType.RenderPassCreateInfo,
+                AttachmentCount = 1,
+                PAttachments = &att,
+                SubpassCount = 1,
+                PSubpasses = &sub,
+                DependencyCount = 1,
+                PDependencies = &dep
+            };
+
+            if (_vk!.CreateRenderPass(_device, in rpci, null, out _rpShadowOccluderMask) != Result.Success)
+                throw new GraphicsInitializationException("vkCreateRenderPass (shadow occluder mask) failed.");
+        }
+
+        // _rpShadowJfaSeed: R16G16_SNORM seed, Clear→Store, Undefined→ShaderReadOnly.
+        {
+            AttachmentDescription att = new()
+            {
+                Format = DeferredRenderingConstants.ShadowJfaSeedFormat,
+                Samples = SampleCountFlags.Count1Bit,
+                LoadOp = AttachmentLoadOp.Clear,
+                StoreOp = AttachmentStoreOp.Store,
+                StencilLoadOp = AttachmentLoadOp.DontCare,
+                StencilStoreOp = AttachmentStoreOp.DontCare,
+                InitialLayout = ImageLayout.Undefined,
+                FinalLayout = ImageLayout.ShaderReadOnlyOptimal
+            };
+
+            AttachmentReference colorRef = new() { Attachment = 0, Layout = ImageLayout.ColorAttachmentOptimal };
+
+            SubpassDescription sub = new()
+            {
+                PipelineBindPoint = PipelineBindPoint.Graphics,
+                ColorAttachmentCount = 1,
+                PColorAttachments = &colorRef
+            };
+
+            SubpassDependency dep = new()
+            {
+                SrcSubpass = 0,
+                DstSubpass = Vk.SubpassExternal,
+                SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+                DstStageMask = PipelineStageFlags.FragmentShaderBit,
+                SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+                DstAccessMask = AccessFlags.ShaderReadBit
+            };
+
+            RenderPassCreateInfo rpci = new()
+            {
+                SType = StructureType.RenderPassCreateInfo,
+                AttachmentCount = 1,
+                PAttachments = &att,
+                SubpassCount = 1,
+                PSubpasses = &sub,
+                DependencyCount = 1,
+                PDependencies = &dep
+            };
+
+            if (_vk.CreateRenderPass(_device, in rpci, null, out _rpShadowJfaSeed) != Result.Success)
+                throw new GraphicsInitializationException("vkCreateRenderPass (shadow JFA seed) failed.");
+        }
+
+        // _rpShadowSdfFinal: R16F SDF, Load→Store, ShaderReadOnly→ShaderReadOnly.
+        {
+            AttachmentDescription att = new()
+            {
+                Format = DeferredRenderingConstants.ShadowSdfFormat,
+                Samples = SampleCountFlags.Count1Bit,
+                LoadOp = AttachmentLoadOp.Load,
+                StoreOp = AttachmentStoreOp.Store,
+                StencilLoadOp = AttachmentLoadOp.DontCare,
+                StencilStoreOp = AttachmentStoreOp.DontCare,
+                InitialLayout = ImageLayout.ShaderReadOnlyOptimal,
+                FinalLayout = ImageLayout.ShaderReadOnlyOptimal
+            };
+
+            AttachmentReference colorRef = new() { Attachment = 0, Layout = ImageLayout.ColorAttachmentOptimal };
+
+            SubpassDescription sub = new()
+            {
+                PipelineBindPoint = PipelineBindPoint.Graphics,
+                ColorAttachmentCount = 1,
+                PColorAttachments = &colorRef
+            };
+
+            SubpassDependency dep = new()
+            {
+                SrcSubpass = 0,
+                DstSubpass = Vk.SubpassExternal,
+                SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+                DstStageMask = PipelineStageFlags.FragmentShaderBit,
+                SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+                DstAccessMask = AccessFlags.ShaderReadBit
+            };
+
+            RenderPassCreateInfo rpci = new()
+            {
+                SType = StructureType.RenderPassCreateInfo,
+                AttachmentCount = 1,
+                PAttachments = &att,
+                SubpassCount = 1,
+                PSubpasses = &sub,
+                DependencyCount = 1,
+                PDependencies = &dep
+            };
+
+            if (_vk.CreateRenderPass(_device, in rpci, null, out _rpShadowSdfFinal) != Result.Success)
+                throw new GraphicsInitializationException("vkCreateRenderPass (shadow SDF final) failed.");
+        }
+    }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
 using Cyberland.Engine.Serialization;
@@ -48,6 +49,7 @@ public static class EngineSceneComponentDeserializers
             sprite.EmissiveIntensity = RuntimeJsonReaders.ReadFloat(ctx.Data, "emissiveIntensity", sprite.EmissiveIntensity);
             sprite.Alpha = RuntimeJsonReaders.ReadFloat(ctx.Data, "alpha", sprite.Alpha);
             sprite.Transparent = RuntimeJsonReaders.ReadBool(ctx.Data, "transparent", sprite.Transparent);
+            sprite.CastsShadow = RuntimeJsonReaders.ReadBool(ctx.Data, "castsShadow", sprite.CastsShadow);
         });
 
         scenes.RegisterComponentDeserializer("cyberland.engine/viewport-anchor-2d", static (in SceneComponentDeserializeContext ctx) =>
@@ -84,49 +86,54 @@ public static class EngineSceneComponentDeserializers
 
         scenes.RegisterComponentDeserializer("cyberland.engine/ambient-light", static (in SceneComponentDeserializeContext ctx) =>
         {
+            var rawColor = RuntimeJsonReaders.TryReadVec3(ctx.Data, "color", out var col) ? col : Vector3D<float>.One;
             ctx.World.GetOrAdd<AmbientLightSource>(ctx.EntityId) = new AmbientLightSource
             {
                 Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
-                Color = RuntimeJsonReaders.TryReadVec3(ctx.Data, "color", out var col) ? col : Vector3D<float>.One,
+                Color = ClampLightColor(rawColor, "ambient-light"),
                 Intensity = RuntimeJsonReaders.ReadFloat(ctx.Data, "intensity", 1f)
             };
         });
 
         scenes.RegisterComponentDeserializer("cyberland.engine/directional-light", static (in SceneComponentDeserializeContext ctx) =>
         {
+            var rawColor = RuntimeJsonReaders.TryReadVec3(ctx.Data, "color", out var col) ? col : Vector3D<float>.One;
             ctx.World.GetOrAdd<DirectionalLightSource>(ctx.EntityId) = new DirectionalLightSource
             {
                 Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
-                Color = RuntimeJsonReaders.TryReadVec3(ctx.Data, "color", out var col) ? col : Vector3D<float>.One,
+                Color = ClampLightColor(rawColor, "directional-light"),
                 Intensity = RuntimeJsonReaders.ReadFloat(ctx.Data, "intensity", 1f),
-                CastsShadow = RuntimeJsonReaders.ReadBool(ctx.Data, "castsShadow", false)
+                CastsShadow = RuntimeJsonReaders.ReadBool(ctx.Data, "castsShadow", true)
             };
         });
 
         scenes.RegisterComponentDeserializer("cyberland.engine/spot-light", static (in SceneComponentDeserializeContext ctx) =>
         {
+            var rawColor = RuntimeJsonReaders.TryReadVec3(ctx.Data, "color", out var col) ? col : Vector3D<float>.One;
             ctx.World.GetOrAdd<SpotLightSource>(ctx.EntityId) = new SpotLightSource
             {
                 Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
                 Radius = RuntimeJsonReaders.ReadFloat(ctx.Data, "radius", 100f),
                 InnerConeRadians = RuntimeJsonReaders.ReadFloat(ctx.Data, "innerConeRadians", MathF.PI / 4f),
                 OuterConeRadians = RuntimeJsonReaders.ReadFloat(ctx.Data, "outerConeRadians", MathF.PI / 2f),
-                Color = RuntimeJsonReaders.TryReadVec3(ctx.Data, "color", out var col) ? col : Vector3D<float>.One,
+                Color = ClampLightColor(rawColor, "spot-light"),
                 Intensity = RuntimeJsonReaders.ReadFloat(ctx.Data, "intensity", 1f),
-                CastsShadow = RuntimeJsonReaders.ReadBool(ctx.Data, "castsShadow", false)
+                FalloffExponent = RuntimeJsonReaders.ReadFloat(ctx.Data, "falloffExponent", 2f),
+                CastsShadow = RuntimeJsonReaders.ReadBool(ctx.Data, "castsShadow", true)
             };
         });
 
         scenes.RegisterComponentDeserializer("cyberland.engine/point-light", static (in SceneComponentDeserializeContext ctx) =>
         {
+            var rawColor = RuntimeJsonReaders.TryReadVec3(ctx.Data, "color", out var col) ? col : Vector3D<float>.One;
             ctx.World.GetOrAdd<PointLightSource>(ctx.EntityId) = new PointLightSource
             {
                 Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
                 Radius = RuntimeJsonReaders.ReadFloat(ctx.Data, "radius", 100f),
-                Color = RuntimeJsonReaders.TryReadVec3(ctx.Data, "color", out var col) ? col : Vector3D<float>.One,
+                Color = ClampLightColor(rawColor, "point-light"),
                 Intensity = RuntimeJsonReaders.ReadFloat(ctx.Data, "intensity", 1f),
                 FalloffExponent = RuntimeJsonReaders.ReadFloat(ctx.Data, "falloffExponent", 2f),
-                CastsShadow = RuntimeJsonReaders.ReadBool(ctx.Data, "castsShadow", false)
+                CastsShadow = RuntimeJsonReaders.ReadBool(ctx.Data, "castsShadow", true)
             };
         });
 
@@ -141,13 +148,7 @@ public static class EngineSceneComponentDeserializers
                 {
                     HalfExtentsLocal = new Vector2D<float>(halfW, halfH),
                     Priority = RuntimeJsonReaders.ReadInt(ctx.Data, "priority", 0),
-                    Overrides = new PostProcessOverrides
-                    {
-                        HasBloomGain = RuntimeJsonReaders.ReadBool(ctx.Data, "hasBloomGain", false),
-                        BloomGain = RuntimeJsonReaders.ReadFloat(ctx.Data, "bloomGain", 1f),
-                        HasExposure = false,
-                        HasSaturation = false
-                    }
+                    Overrides = ReadPostProcessOverrides(ctx.Data)
                 }
             };
         });
@@ -158,22 +159,7 @@ public static class EngineSceneComponentDeserializers
             {
                 Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
                 Priority = RuntimeJsonReaders.ReadInt(ctx.Data, "priority", 0),
-                Settings = new GlobalPostProcessSettings
-                {
-                    BloomEnabled = RuntimeJsonReaders.ReadBool(ctx.Data, "bloomEnabled", true),
-                    BloomRadius = RuntimeJsonReaders.ReadFloat(ctx.Data, "bloomRadius", 1f),
-                    BloomGain = RuntimeJsonReaders.ReadFloat(ctx.Data, "bloomGain", 1f),
-                    BloomExtractThreshold = RuntimeJsonReaders.ReadFloat(ctx.Data, "bloomExtractThreshold", 0.5f),
-                    BloomExtractKnee = RuntimeJsonReaders.ReadFloat(ctx.Data, "bloomExtractKnee", 0.5f),
-                    EmissiveToHdrGain = RuntimeJsonReaders.ReadFloat(ctx.Data, "emissiveToHdrGain", 0.5f),
-                    EmissiveToBloomGain = RuntimeJsonReaders.ReadFloat(ctx.Data, "emissiveToBloomGain", 0.5f),
-                    Exposure = RuntimeJsonReaders.ReadFloat(ctx.Data, "exposure", 1f),
-                    Saturation = RuntimeJsonReaders.ReadFloat(ctx.Data, "saturation", 1f),
-                    TonemapEnabled = RuntimeJsonReaders.ReadBool(ctx.Data, "tonemapEnabled", true),
-                    ColorGradingShadows = RuntimeJsonReaders.TryReadVec3(ctx.Data, "colorGradingShadows", out var sh) ? sh : Vector3D<float>.One,
-                    ColorGradingMidtones = RuntimeJsonReaders.TryReadVec3(ctx.Data, "colorGradingMidtones", out var mid) ? mid : Vector3D<float>.One,
-                    ColorGradingHighlights = RuntimeJsonReaders.TryReadVec3(ctx.Data, "colorGradingHighlights", out var hi) ? hi : Vector3D<float>.One
-                }
+                Settings = ReadGlobalPostProcessSettings(ctx.Data)
             };
         });
 
@@ -239,4 +225,152 @@ public static class EngineSceneComponentDeserializers
                 ctx.SpawnSession.PendingUiDocuments.Add((ctx.EntityId, uiPath));
         });
     }
+
+    /// <summary>Reads sparse override fields from JSON; omitted fields leave their <c>Has*</c> flag false (no override).</summary>
+    internal static PostProcessOverrides ReadPostProcessOverrides(JsonElement data)
+    {
+        var o = new PostProcessOverrides();
+
+        o.HasBloomGain = RuntimeJsonReaders.ReadBool(data, "hasBloomGain", false);
+        o.BloomGain = RuntimeJsonReaders.ReadFloat(data, "bloomGain", 1f);
+        o.HasBloomRadius = RuntimeJsonReaders.ReadBool(data, "hasBloomRadius", false);
+        o.BloomRadius = RuntimeJsonReaders.ReadFloat(data, "bloomRadius", 1f);
+        o.HasEmissiveToHdrGain = RuntimeJsonReaders.ReadBool(data, "hasEmissiveToHdrGain", false);
+        o.EmissiveToHdrGain = RuntimeJsonReaders.ReadFloat(data, "emissiveToHdrGain", 1f);
+        o.HasBloomSourceGain = RuntimeJsonReaders.ReadBool(data, "hasBloomSourceGain", false);
+        o.BloomSourceGain = RuntimeJsonReaders.ReadFloat(data, "bloomSourceGain", 1f);
+        o.HasExposure = RuntimeJsonReaders.ReadBool(data, "hasExposure", false);
+        o.Exposure = RuntimeJsonReaders.ReadFloat(data, "exposure", 1f);
+        o.HasSaturation = RuntimeJsonReaders.ReadBool(data, "hasSaturation", false);
+        o.Saturation = RuntimeJsonReaders.ReadFloat(data, "saturation", 1f);
+        o.HasShadows = RuntimeJsonReaders.ReadBool(data, "hasShadows", false);
+        if (o.HasShadows)
+            o.Shadows = ReadShadowSettings(data, ShadowSettings.Default);
+        o.HasTonemapEnabled = RuntimeJsonReaders.ReadBool(data, "hasTonemapEnabled", false);
+        o.TonemapEnabled = RuntimeJsonReaders.ReadBool(data, "tonemapEnabled", true);
+        o.HasColorGradingShadows = RuntimeJsonReaders.TryReadVec3(data, "colorGradingShadowsOverride", out var cgs);
+        if (o.HasColorGradingShadows) o.ColorGradingShadows = cgs;
+        o.HasColorGradingMidtones = RuntimeJsonReaders.TryReadVec3(data, "colorGradingMidtonesOverride", out var cgm);
+        if (o.HasColorGradingMidtones) o.ColorGradingMidtones = cgm;
+        o.HasColorGradingHighlights = RuntimeJsonReaders.TryReadVec3(data, "colorGradingHighlightsOverride", out var cgh);
+        if (o.HasColorGradingHighlights) o.ColorGradingHighlights = cgh;
+        o.HasBloomEnabled = RuntimeJsonReaders.ReadBool(data, "hasBloomEnabled", false);
+        o.BloomEnabled = RuntimeJsonReaders.ReadBool(data, "bloomEnabled", true);
+        o.HasBloomExtractThreshold = RuntimeJsonReaders.ReadBool(data, "hasBloomExtractThreshold", false);
+        o.BloomExtractThreshold = RuntimeJsonReaders.ReadFloat(data, "bloomExtractThreshold", 1f);
+        o.HasBloomExtractKnee = RuntimeJsonReaders.ReadBool(data, "hasBloomExtractKnee", false);
+        o.BloomExtractKnee = RuntimeJsonReaders.ReadFloat(data, "bloomExtractKnee", 1f);
+
+        return o;
+    }
+
+    /// <summary>Merges scene JSON onto <see cref="EngineDefaultGlobalPostProcess.DefaultSettings"/> so omitted fields (e.g. shadows) keep engine baselines.</summary>
+    internal static GlobalPostProcessSettings ReadGlobalPostProcessSettings(JsonElement data)
+    {
+        var baseline = EngineDefaultGlobalPostProcess.DefaultSettings;
+        return baseline with
+        {
+            BloomEnabled = RuntimeJsonReaders.ReadBool(data, "bloomEnabled", baseline.BloomEnabled),
+            BloomRadius = RuntimeJsonReaders.ReadFloat(data, "bloomRadius", baseline.BloomRadius),
+            BloomGain = RuntimeJsonReaders.ReadFloat(data, "bloomGain", baseline.BloomGain),
+            BloomExtractThreshold = RuntimeJsonReaders.ReadFloat(data, "bloomExtractThreshold", baseline.BloomExtractThreshold),
+            BloomExtractKnee = RuntimeJsonReaders.ReadFloat(data, "bloomExtractKnee", baseline.BloomExtractKnee),
+            EmissiveToHdrGain = RuntimeJsonReaders.ReadFloat(data, "emissiveToHdrGain", baseline.EmissiveToHdrGain),
+            BloomSourceGain = RuntimeJsonReaders.ReadFloat(data, "bloomSourceGain", baseline.BloomSourceGain),
+            Exposure = RuntimeJsonReaders.ReadFloat(data, "exposure", baseline.Exposure),
+            Saturation = RuntimeJsonReaders.ReadFloat(data, "saturation", baseline.Saturation),
+            TonemapEnabled = RuntimeJsonReaders.ReadBool(data, "tonemapEnabled", baseline.TonemapEnabled),
+            ColorGradingShadows = RuntimeJsonReaders.TryReadVec3(data, "colorGradingShadows", out var sh)
+                ? sh
+                : baseline.ColorGradingShadows,
+            ColorGradingMidtones = RuntimeJsonReaders.TryReadVec3(data, "colorGradingMidtones", out var mid)
+                ? mid
+                : baseline.ColorGradingMidtones,
+            ColorGradingHighlights = RuntimeJsonReaders.TryReadVec3(data, "colorGradingHighlights", out var hi)
+                ? hi
+                : baseline.ColorGradingHighlights,
+            Shadows = ReadShadowSettings(data, baseline.Shadows),
+            EmissivePromotion = ReadEmissivePromotionSettings(data, baseline.EmissivePromotion)
+        };
+    }
+
+    internal static ShadowSettings ReadShadowSettings(JsonElement data, ShadowSettings baseline)
+    {
+        if (data.TryGetProperty("shadows", out var shadows) && shadows.ValueKind == JsonValueKind.Object)
+        {
+            RejectObsoleteShadowKeys(shadows);
+            return baseline with
+            {
+                Enabled = RuntimeJsonReaders.ReadBool(shadows, "enabled", baseline.Enabled),
+                SdfScale = RuntimeJsonReaders.ReadFloat(shadows, "sdfScale", baseline.SdfScale),
+                ConeTraceSamples = RuntimeJsonReaders.ReadInt(shadows, "coneTraceSamples", baseline.ConeTraceSamples),
+                SoftShadowK = RuntimeJsonReaders.ReadFloat(shadows, "softShadowK", baseline.SoftShadowK),
+                DepthBias = RuntimeJsonReaders.ReadFloat(shadows, "depthBias", baseline.DepthBias),
+                DirectionalTraceWorldDist = RuntimeJsonReaders.ReadFloat(shadows, "directionalTraceWorldDist", baseline.DirectionalTraceWorldDist),
+            };
+        }
+
+        if (data.TryGetProperty("shadowsEnabled", out _))
+            return baseline with { Enabled = RuntimeJsonReaders.ReadBool(data, "shadowsEnabled", baseline.Enabled) };
+
+        return baseline;
+    }
+
+    internal static EmissivePromotionSettings ReadEmissivePromotionSettings(JsonElement data, EmissivePromotionSettings baseline)
+    {
+        if (data.TryGetProperty("emissivePromotion", out var promo) && promo.ValueKind == JsonValueKind.Object)
+        {
+            return baseline with
+            {
+                EmissiveLightThreshold = RuntimeJsonReaders.ReadFloat(promo, "emissiveLightThreshold", baseline.EmissiveLightThreshold),
+                MaxPromotedLightsPerFrame = RuntimeJsonReaders.ReadInt(promo, "maxPromotedLightsPerFrame", baseline.MaxPromotedLightsPerFrame),
+                EmissivePromotionRadiusGain = RuntimeJsonReaders.ReadFloat(promo, "emissivePromotionRadiusGain", baseline.EmissivePromotionRadiusGain),
+                EmissivePromotionIntensityGain = RuntimeJsonReaders.ReadFloat(promo, "emissivePromotionIntensityGain", baseline.EmissivePromotionIntensityGain),
+            };
+        }
+
+        return baseline;
+    }
+
+    /// <summary>
+    /// Hard-errors on legacy shadow-atlas JSON keys so authors immediately see the breaking change instead of silently
+    /// ignored properties. Per cyberland-api-evolution we do not maintain back-compat aliases.
+    /// </summary>
+    internal static void RejectObsoleteShadowKeys(JsonElement shadows)
+    {
+        var obsolete = ObsoleteShadowKeys;
+        for (var i = 0; i < obsolete.Length; i++)
+        {
+            var key = obsolete[i];
+            if (shadows.TryGetProperty(key, out _))
+            {
+                throw new InvalidOperationException(
+                    $"Obsolete shadow JSON key '{key}': the engine now uses an SDF cone-trace pipeline. Use the new keys: sdfScale, coneTraceSamples, softShadowK, depthBias, directionalTraceWorldDist.");
+            }
+        }
+    }
+
+    /// <summary>Clamps negative RGB to zero and emits an <see cref="EngineDiagnostics"/> warning.</summary>
+    internal static Vector3D<float> ClampLightColor(Vector3D<float> color, string lightType)
+    {
+        if (color.X >= 0f && color.Y >= 0f && color.Z >= 0f)
+            return color;
+        EngineDiagnostics.Report(
+            EngineErrorSeverity.Warning,
+            "Cyberland.Engine.Rendering",
+            $"Negative light color on {lightType} ({color.X:F3}, {color.Y:F3}, {color.Z:F3}); clamping to zero.");
+        return new Vector3D<float>(
+            MathF.Max(color.X, 0f),
+            MathF.Max(color.Y, 0f),
+            MathF.Max(color.Z, 0f));
+    }
+
+    private static readonly string[] ObsoleteShadowKeys =
+    {
+        "atlasSize",
+        "directionalResolution",
+        "spotResolution",
+        "pointResolution",
+        "filterRadius",
+    };
 }

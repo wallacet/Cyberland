@@ -24,6 +24,15 @@ internal struct PostProcessVolumeSubmission
 /// <see cref="SpriteCount"/> / <see cref="ViewportUiOverlaySpriteCount"/> are authoritative batch sizes — backing arrays can be
 /// longer (grow-only scratch); iterators must stop at the counts.
 /// </para>
+/// <para>
+/// <b>Pass ordering:</b> see <see cref="RenderPassDependencyModel"/> for the canonical pass DAG.
+/// <b>CPU stages</b> (frame plan thread, before GPU work): tile binning
+/// (<see cref="RenderPassDependencyModel.PassStage.TileCull"/>) writes per-tile index SSBOs.
+/// <b>GPU chain</b>: EmissivePrepass → GBufferOpaque → OccluderMask → JfaInit → JfaSteps → JfaToSdf
+/// (all under <see cref="RenderPassDependencyModel.PassStage.ShadowSdf"/>) →
+/// <see cref="RenderPassDependencyModel.PassStage.DeferredLighting"/> (tiled deferred lighting) →
+/// EmissiveBleed.
+/// </para>
 /// </remarks>
 internal readonly struct FramePlan
 {
@@ -76,6 +85,9 @@ internal readonly struct FramePlan
 
     public readonly int[] TextGlyphSortIndices;
 
+    /// <summary>Per-frame camera snapshot for shadow SDF and tile culling. Built once by the plan builder.</summary>
+    public readonly ShadowSdfCamera ShadowCamera;
+
     public FramePlan(
         SpriteDrawRequest[] sprites,
         int spriteCount,
@@ -105,7 +117,8 @@ internal readonly struct FramePlan
         int[]? viewportUiOverlaySortIndices = null,
         TextGlyphDrawRequest[]? textGlyphs = null,
         int textGlyphCount = 0,
-        int[]? textGlyphSortIndices = null)
+        int[]? textGlyphSortIndices = null,
+        ShadowSdfCamera shadowCamera = default)
     {
         Sprites = sprites;
         SpriteCount = spriteCount;
@@ -136,6 +149,7 @@ internal readonly struct FramePlan
         TextGlyphs = textGlyphs ?? [];
         TextGlyphCount = textGlyphCount;
         TextGlyphSortIndices = textGlyphSortIndices ?? [];
+        ShadowCamera = shadowCamera;
     }
 }
 
@@ -181,6 +195,11 @@ internal readonly struct PostEffectContext
 
 internal interface IPostEffect
 {
+    /// <summary>
+    /// Called when swapchain-dependent resources are recreated (e.g. window resize). Effects that manage their own
+    /// GPU images should rebuild them here. Effects relying solely on renderer-managed targets (bloom images,
+    /// offscreen framebuffers) may implement an empty body.
+    /// </summary>
     void RecreateTargets();
     void Record(in PostEffectContext context, ref ImageView workingView);
 }

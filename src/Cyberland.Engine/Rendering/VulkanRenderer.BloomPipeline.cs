@@ -26,13 +26,13 @@ public sealed unsafe partial class VulkanRenderer
         /// <param name="cmd">Primary command buffer for this frame.</param>
         /// <param name="bloomOn">When false, clears bloom targets without building the pyramid.</param>
         /// <param name="bloomRadius">Drives blur width via <see cref="GetBloomGaussianRadiusScale"/>.</param>
-        /// <param name="emissiveToBloomGain">Scales emissive into the extract pass.</param>
+        /// <param name="bloomSourceGain">Scales prefiltered HDR source color in the extract pass.</param>
         /// <param name="extractThreshold">See <see cref="GlobalPostProcessSettings.BloomExtractThreshold"/>.</param>
         /// <param name="extractKnee">See <see cref="GlobalPostProcessSettings.BloomExtractKnee"/>.</param>
         /// <param name="vpHalf">Half-res viewport (bloom0 / bloom1 size).</param>
         /// <param name="sciHalf">Half-res scissor; must cover full attachments for correct clears.</param>
         /// <param name="bloomFinalView">Resolved bloom source for composite (typically <see cref="_viewBloom0"/>).</param>
-        public void Record(CommandBuffer cmd, bool bloomOn, float bloomRadius, float emissiveToBloomGain, float extractThreshold, float extractKnee, Viewport vpHalf, Rect2D sciHalf, out ImageView bloomFinalView)
+        public void Record(CommandBuffer cmd, bool bloomOn, float bloomRadius, float bloomSourceGain, float extractThreshold, float extractKnee, Viewport vpHalf, Rect2D sciHalf, out ImageView bloomFinalView)
         {
             bloomFinalView = _r._viewBloom0;
             _r.BeginGpuLabel(cmd, "Pass.Bloom.Pipeline");
@@ -63,7 +63,7 @@ public sealed unsafe partial class VulkanRenderer
 
             var radiusScale = GetBloomGaussianRadiusScale(bloomRadius);
 
-            RecordPrefilter(cmd, vpHalf, sciHalf, emissiveToBloomGain, extractThreshold, extractKnee);
+            RecordPrefilter(cmd, vpHalf, sciHalf, bloomSourceGain, extractThreshold, extractKnee);
             RecordDownsampleChain(cmd);
             RecordSmallestBlur(cmd, radiusScale);
             RecordUpsampleAndRecombineBlur(cmd, radiusScale, vpHalf, sciHalf);
@@ -75,7 +75,7 @@ public sealed unsafe partial class VulkanRenderer
             }
         }
 
-        private void RecordPrefilter(CommandBuffer cmd, Viewport vpHalf, Rect2D sciHalf, float emissiveToBloomGain, float extractThreshold, float extractKnee)
+        private void RecordPrefilter(CommandBuffer cmd, Viewport vpHalf, Rect2D sciHalf, float bloomSourceGain, float extractThreshold, float extractKnee)
         {
             _r.BeginGpuLabel(cmd, "Pass.Bloom.Prefilter");
             try
@@ -108,7 +108,7 @@ public sealed unsafe partial class VulkanRenderer
             {
                 Threshold = extractThreshold,
                 Knee = extractKnee,
-                BloomSourceGain = emissiveToBloomGain,
+                BloomSourceGain = bloomSourceGain,
                 Pad0 = 0f
             };
 
@@ -176,8 +176,7 @@ public sealed unsafe partial class VulkanRenderer
                     SrcW = srcW,
                     SrcH = srcH,
                     DstW = _r._bloomDownW[i],
-                    DstH = _r._bloomDownH[i],
-                    FineBlend = 0f
+                    DstH = _r._bloomDownH[i]
                 };
                 _r._vk.CmdPushConstants(cmd, _r._plBloomDownsample, ShaderStageFlags.FragmentBit, 0, (uint)sizeof(BloomResamplePush), &dsPush);
 
@@ -193,6 +192,20 @@ public sealed unsafe partial class VulkanRenderer
             }
         }
 
+        // PERF: each Gaussian ping-pong iteration clears the FULL half-res _fbBloom1 framebuffer
+        // (sciBloom1Full) even though the draw viewport (vpSmall/sciSmall) is only the smallest mip —
+        // typically 4× or more smaller in each dimension. With BloomBlurPingPongs = 4, that is 8 full
+        // half-res clears per frame, most of which overwrite texels that are never read in this pass.
+        //
+        // Why: the full RenderArea clear is required so stale texels beyond the small viewport do not
+        // leak into later passes that sample _fbBloom1 at larger extents (the upsample chain reads the
+        // image through a descriptor whose sampler can reach edges outside the small draw rect). A prior
+        // attempt with a partial RenderArea matching sciSmall left ghost bloom at frame edges.
+        //
+        // Potential fix: switch the bloom1 render pass to VK_ATTACHMENT_LOAD_OP_DONT_CARE and manually
+        // clear only the border region, or pre-clear bloom1 once before the loop and use LOAD_OP_LOAD.
+        // Both require careful Vulkan render-pass restructuring and validation-layer testing; the current
+        // cost is a few hundred microseconds of GPU fill on modern hardware and acceptable for now.
         private void RecordSmallestBlur(CommandBuffer cmd, float radiusScale)
         {
             _r.BeginGpuLabel(cmd, "Pass.Bloom.Blur.Smallest");
@@ -338,8 +351,7 @@ public sealed unsafe partial class VulkanRenderer
                     SrcW = _r._bloomDownW[i + 1],
                     SrcH = _r._bloomDownH[i + 1],
                     DstW = _r._bloomDownW[i],
-                    DstH = _r._bloomDownH[i],
-                    FineBlend = 0f
+                    DstH = _r._bloomDownH[i]
                 };
                 _r._vk.CmdPushConstants(cmd, _r._plBloomUpsample, ShaderStageFlags.FragmentBit, 0, (uint)sizeof(BloomResamplePush), &upPush);
                 _r._vk.CmdDraw(cmd, 3, 1, 0, 0);
@@ -457,8 +469,7 @@ public sealed unsafe partial class VulkanRenderer
                 SrcW = _r._bloomDownW[0],
                 SrcH = _r._bloomDownH[0],
                 DstW = _r._bloomHalfW,
-                DstH = _r._bloomHalfH,
-                FineBlend = 0f
+                DstH = _r._bloomHalfH
             };
             _r._vk.CmdPushConstants(cmd, _r._plBloomUpsample, ShaderStageFlags.FragmentBit, 0, (uint)sizeof(BloomResamplePush), &upHalfPush);
             _r._vk.CmdDraw(cmd, 3, 1, 0, 0);
@@ -501,8 +512,12 @@ public sealed unsafe partial class VulkanRenderer
         }
     }
 
+    /// <summary>Evaluates whether the bloom pipeline will produce visible output for the given post-process state.</summary>
+    internal static bool IsBloomEffective(bool bloomEnabled, float bloomGain, float bloomRadius)
+        => bloomEnabled && bloomGain > 0f && bloomRadius > 0f;
+
     /// <summary>Scales separable Gaussian texel step from post-process bloom intensity (wider halos when brighter).</summary>
-    private static float GetBloomGaussianRadiusScale(float bloomIntensity)
+    internal static float GetBloomGaussianRadiusScale(float bloomIntensity)
     {
         var t = Math.Clamp(bloomIntensity, 0.02f, 24f);
         return 0.85f + Math.Clamp(t * 0.55f, 0f, 4f);

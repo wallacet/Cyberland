@@ -174,25 +174,41 @@ public interface IRenderer
 
     /// <summary>Queues a radial point light (cleared/rebuilt each frame by the caller’s systems).</summary>
     /// <remarks>
-    /// The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxPointLights</c> lights per frame.
-    /// When submissions exceed the cap, the renderer first applies a deterministic value-ordering pass, keeps the
-    /// first lights in that ordering, and drops the tail.
+    /// <para>The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxPointLights</c> lights per frame.
+    /// When submissions exceed the cap, the renderer applies a value-order sort (shadow-casting first, then
+    /// descending visual weight Intensity×Radius², then positional tie-break, then ascending SubmissionIndex),
+    /// viewport-culls off-screen entries, keeps the top lights, drops the tail,
+    /// and emits a rate-limited warning.</para>
+    /// <para>Point lights use a simplified radial attenuation model without normals.
+    /// Stale SSBO tail rows are safe because the shader reads via the per-frame count UBO.</para>
+    /// <para><see cref="PointLight.CastsShadow"/> = true gates SDF cone-trace sampling. There is no per-light
+    /// atlas allocation; lights are not dropped for shadow reasons.</para>
     /// </remarks>
     void SubmitPointLight(in PointLight light);
 
     /// <summary>Queues a spot light.</summary>
     /// <remarks>
-    /// The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxSpotLights</c> lights per frame.
-    /// When submissions exceed the cap, the renderer first applies a deterministic value-ordering pass, keeps the
-    /// first lights in that ordering, and drops the tail.
+    /// <para>The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxSpotLights</c> lights per frame.
+    /// When submissions exceed the cap, the renderer applies a value-order sort (shadow-casting first, then
+    /// descending visual weight Intensity×Radius², then positional tie-break, then ascending SubmissionIndex),
+    /// viewport-culls off-screen entries, keeps the top lights, drops the tail,
+    /// and emits a rate-limited warning.</para>
+    /// <para>Spot lights use a simplified radial + cone model without normals.
+    /// Stale SSBO tail rows are safe because the shader reads via the per-frame count UBO.</para>
+    /// <para><see cref="SpotLight.CastsShadow"/> = true gates SDF cone-trace sampling. There is no per-light
+    /// atlas allocation; lights are not dropped for shadow reasons.</para>
     /// </remarks>
     void SubmitSpotLight(in SpotLight light);
 
     /// <summary>Queues a directional light.</summary>
     /// <remarks>
-    /// The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxDirectionalLights</c> lights per frame.
-    /// When submissions exceed the cap, the renderer first applies a deterministic value-ordering pass, keeps the
-    /// first lights in that ordering, and drops the tail.
+    /// <para>The stock deferred path keeps at most <c>DeferredRenderingConstants.MaxDirectionalLights</c> lights per frame.
+    /// When submissions exceed the cap, the renderer applies a deterministic value-ordering pass, keeps the
+    /// first lights in that ordering, drops the tail, and emits a rate-limited warning.</para>
+    /// <para>Directional lights use N·L with a synthetic 0.8 Z component for the light vector.
+    /// Stale SSBO tail rows are safe because the shader reads via the per-frame count UBO.</para>
+    /// <para><see cref="DirectionalLight.CastsShadow"/> = true gates SDF cone-trace sampling. There is no per-light
+    /// atlas allocation; lights are not dropped for shadow reasons.</para>
     /// </remarks>
     void SubmitDirectionalLight(in DirectionalLight light);
 
@@ -203,6 +219,10 @@ public interface IRenderer
     void SubmitPostProcessVolume(in PostProcessVolume volume, Vector2D<float> worldPosition, float worldRotationRadians, Vector2D<float> worldScale);
 
     /// <summary>Global post-process toggles and parameters. Persists until the next call (not reset each frame).</summary>
+    /// <remarks>
+    /// The host <see cref="Scene.Systems.GlobalPostProcessSystem"/> overrides this from ECS each frame.
+    /// To author globals, add a <see cref="Scene.GlobalPostProcessSource"/> entity to your scene.
+    /// </remarks>
     void SetGlobalPostProcess(in GlobalPostProcessSettings settings);
 
     /// <summary>

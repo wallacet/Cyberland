@@ -14,13 +14,18 @@ public sealed class EngineDefaultGlobalPostProcessTests
         Assert.Equal(0.32f, s.BloomExtractThreshold);
         Assert.Equal(0.5f, s.BloomExtractKnee);
         Assert.Equal(0.45f, s.EmissiveToHdrGain);
-        Assert.Equal(0.45f, s.EmissiveToBloomGain);
+        Assert.Equal(0.45f, s.BloomSourceGain);
         Assert.Equal(1f, s.Exposure);
         Assert.Equal(1.04f, s.Saturation);
         Assert.True(s.TonemapEnabled);
         Assert.Equal(1f, s.ColorGradingShadows.X);
         Assert.Equal(1f, s.ColorGradingMidtones.Y);
         Assert.Equal(1f, s.ColorGradingHighlights.Z);
+        Assert.True(s.Shadows.Enabled);
+        Assert.Equal(1.5f, s.EmissivePromotion.EmissiveLightThreshold);
+        Assert.Equal(64, s.EmissivePromotion.MaxPromotedLightsPerFrame);
+        Assert.Equal(3f, s.EmissivePromotion.EmissivePromotionRadiusGain);
+        Assert.Equal(1f, s.EmissivePromotion.EmissivePromotionIntensityGain);
     }
 
     [Fact]
@@ -37,7 +42,7 @@ public sealed class EngineDefaultGlobalPostProcessTests
         Assert.Equal(expected.BloomExtractThreshold, applied.BloomExtractThreshold);
         Assert.Equal(expected.BloomExtractKnee, applied.BloomExtractKnee);
         Assert.Equal(expected.EmissiveToHdrGain, applied.EmissiveToHdrGain);
-        Assert.Equal(expected.EmissiveToBloomGain, applied.EmissiveToBloomGain);
+        Assert.Equal(expected.BloomSourceGain, applied.BloomSourceGain);
         Assert.Equal(expected.Exposure, applied.Exposure);
         Assert.Equal(expected.Saturation, applied.Saturation);
         Assert.Equal(expected.TonemapEnabled, applied.TonemapEnabled);

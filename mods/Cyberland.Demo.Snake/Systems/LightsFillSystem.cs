@@ -68,7 +68,6 @@ public sealed class LightsFillSystem : ISingletonSystem, ISingletonLateUpdate
         dir.Active = true;
         dir.Color = new Vector3D<float>(0.52f, 0.5f, 0.46f);
         dir.Intensity = 0.2f;
-        dir.CastsShadow = false;
 
         var spotPos = WorldViewportSpace.ViewportPixelToWorldCenter(new Vector2D<float>(ox + cell * 2f, oy + cell * 1.5f), fb);
         var dirVec = LightRigMath.DirectionToOrFallback(spotPos, gridCenterWorld, new Vector2D<float>(0f, 1f));
@@ -84,7 +83,6 @@ public sealed class LightsFillSystem : ISingletonSystem, ISingletonLateUpdate
         sp.OuterConeRadians = MathF.PI / 2.15f;
         sp.Color = new Vector3D<float>(0.35f, 0.72f, 1f);
         sp.Intensity = 0.36f;
-        sp.CastsShadow = false;
 
         var headWorld = s.Phase == Phase.Playing && s.Snake.Count > 0
             ? s.CellCenterWorld(s.Snake.First!.Value.x, s.Snake.First!.Value.y, fb)
@@ -98,7 +96,6 @@ public sealed class LightsFillSystem : ISingletonSystem, ISingletonLateUpdate
         hp.Color = new Vector3D<float>(0.35f, 1f, 0.55f);
         hp.Intensity = headIntensity;
         hp.FalloffExponent = 2f;
-        hp.CastsShadow = false;
 
         var foodWorld = s.Phase == Phase.Playing
             ? s.CellCenterWorld(s.Food.x, s.Food.y, fb)
@@ -112,6 +109,5 @@ public sealed class LightsFillSystem : ISingletonSystem, ISingletonLateUpdate
         fp.Color = new Vector3D<float>(1f, 0.45f, 0.28f);
         fp.Intensity = foodIntensity;
         fp.FalloffExponent = 2.2f;
-        fp.CastsShadow = false;
     }
 }

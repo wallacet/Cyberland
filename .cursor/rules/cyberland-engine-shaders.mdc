@@ -1,0 +1,54 @@
+---
+description: Rebuild engine shaders (GLSL → SPIR-V) after editing Cyberland.Engine GLSL sources
+globs: "src/Cyberland.Engine/Rendering/Shaders/**/*.glsl,tools/Cyberland.ShaderBaker/**/*.cs"
+alwaysApply: false
+---
+
+# Cyberland — Engine shader recompile
+
+## When you edit engine GLSL
+
+Any change under `src/Cyberland.Engine/Rendering/Shaders/` (including `shadow_sdf_sampling.glsl` includes) must be followed by a **Cyberland.Engine rebuild** so SPIR-V and embedded resources stay in sync with source.
+
+**Agent workflow (same turn as the shader edit):**
+
+1. Save the `.glsl` file(s).
+2. Rebuild the engine (this runs `BakeEngineSpirvShaders` before compile):
+   ```powershell
+   dotnet build src/Cyberland.Engine/Cyberland.Engine.csproj -c Debug
+   ```
+3. If you changed push constants, descriptor bindings, or lighting/shadow behavior, also run engine tests:
+   ```powershell
+   dotnet test tests/Cyberland.Engine.Tests/Cyberland.Engine.Tests.csproj -c Debug /p:CollectCoverage=true
+   ```
+4. For visual checks, rebuild/run the host (demo scripts clear artifacts and rebuild):
+   ```powershell
+   .\scripts\Run-CyberlandDemo-Test.ps1 -Demo hdr
+   ```
+
+Do **not** hand-edit files under `Rendering/Shaders/Spirv/` — they are generated output.
+
+## How baking works
+
+- **MSBuild:** `Cyberland.Engine.csproj` target `BakeEngineSpirvShaders` invokes `tools/Cyberland.ShaderBaker` on `Rendering/Shaders/*.glsl` and writes `Rendering/Shaders/Spirv/*.spv`.
+- **Includes:** `shadow_sdf_sampling.glsl` is merged into `tiled_deferred_lighting.frag.glsl` at bake time (and via `EngineShaderSources.LoadFragmentWithShadowInclude` for runtime GLSL fallback). Key exported functions: `sdfSoftShadow`, `sdfSoftShadowSwapchainFrag`, `sdfSoftShadowSwapchainFragSwapchainLight`, `sdfDirectionalShadow`.
+- **Embedded SPIR-V:** `.spv` files ship as embedded resources; most shaders load precompiled SPIR-V at startup.
+- **Runtime GLSL:** `tiled_deferred_lighting` and `shadow_occluder` (vert/frag) always compile from GLSL at startup (`EngineShaderSources.PreferRuntimeGlslCompile`) so push-constant/include drift cannot silently break lighting or shadows. Still rebuild after edits so tests, CI, and other shaders pick up fresh SPIR-V.
+
+## Coordinate spaces (READ before editing any shadow shader)
+
+Every shadow-related shader marches in **swapchain pixels** (+Y down). World (+Y up) inputs are converted exactly once via the `worldToSwapchainPx()` helper in `shadow_sdf_sampling.glsl`. SDF samples are in **SDF texels** and converted to swapchain px via `1 / sdfScale` at the texture tap. Locals carry their space suffix (`fragWorld`, `fragSwapchainPx`, `marchDirSwapchainPx`, `distSdfPx`, `distSwapchainPx`); CI scanners flag bare `pos`, `dist`, `t`. See `cyberland-world-screen-space` and the canary test `ShadowSpaceConventionsTests`.
+
+**Shared camera projection.** `ShadowSdfCamera` is the canonical world-to-swapchain projector used by **all** deferred frame stages — light viewport culling, CPU tile binning, light SSBO upload, and the SDF shadow pipeline — not just shadows. When editing `ShadowSdfCamera` or `WorldToSwapchainPx`, verify that lighting, tile culling, and shadow tests all pass.
+
+## Related edits
+
+When adding or renaming a shader stage file, also update:
+
+- `EngineShaderSources.cs` (constants + load paths)
+- `VulkanRenderer.Deferred.Pipelines.GraphicsPipelines.cs` (descriptor set layouts)
+- `VulkanRenderer.Deferred.Pipelines.ShadowSdf.cs` (image lifecycle + dispatch)
+- `tools/Cyberland.ShaderBaker/Program.cs` if include-merge rules change
+- `tests/Cyberland.Engine.Tests/EngineShaderSourcesTests.cs` (`AllBuiltInShaders` theory data)
+
+Mod-local GLSL under `mods/**/Content/Shaders/` follows each mod’s own bake target (e.g. `Cyberland.Demo`); rebuild that mod project after editing mod shaders.

@@ -27,6 +27,9 @@ public sealed unsafe partial class VulkanRenderer
     private RenderPass _rpGbufferShaderRead = default;
     private RenderPass _rpWboitUndefined = default;
     private RenderPass _rpWboitShaderRead = default;
+    private RenderPass _rpShadowOccluderMask = default;
+    private RenderPass _rpShadowJfaSeed = default;
+    private RenderPass _rpShadowSdfFinal = default;
 
     /// <summary>Since last image (re)alloc, this attachment has been rendered to at least once (layout is ShaderReadOnly until next Begin).</summary>
     private bool _offsWrittenEmissive;
@@ -83,6 +86,23 @@ public sealed unsafe partial class VulkanRenderer
     private DeviceMemory _spotLightSsboMemory = default;
     private void* _spotLightSsboMapped;
 
+    private VkBuffer _ssboTileBins = default;
+    private DeviceMemory _memTileBins = default;
+    private void* _tileBinsMapped;
+    private VkBuffer _ssboTileIndices = default;
+    private DeviceMemory _memTileIndices = default;
+    private void* _tileIndicesMapped;
+
+    private VkBuffer _ssboSpotTileBins = default;
+    private DeviceMemory _memSpotTileBins = default;
+    private void* _spotTileBinsMapped;
+    private VkBuffer _ssboSpotTileIndices = default;
+    private DeviceMemory _memSpotTileIndices = default;
+    private void* _spotTileIndicesMapped;
+
+    private DescriptorSetLayout _dslTiledLighting = default;
+    private DescriptorSet _dsTiledLighting = default;
+
     private Image _imgBloom0 = default;
     private DeviceMemory _memBloom0 = default;
     private ImageView _viewBloom0 = default;
@@ -103,6 +123,8 @@ public sealed unsafe partial class VulkanRenderer
     private readonly Framebuffer[] _fbBloomDown = new Framebuffer[DeferredRenderingConstants.BloomDownsampleLevels];
 
     private Sampler _samplerLinear = default;
+    /// <summary>Nearest-neighbor sampler bound to JFA seed descriptors (<c>_dsJfaSrcSeedA</c>, <c>_dsJfaSrcSeedB</c>) in <see cref="UpdateJfaDescriptorSets"/>.</summary>
+    private Sampler _samplerNearest = default;
 
     private DescriptorPool _descriptorPool = default;
     private DescriptorSetLayout _dslTexture = default;
@@ -111,13 +133,11 @@ public sealed unsafe partial class VulkanRenderer
     /// <summary>Two combined samplers (coarse + fine) for dual-filter bloom upsample.</summary>
     private DescriptorSetLayout _dslBloomDual = default;
     private DescriptorSetLayout _dslEmissiveScene = default;
-    private DescriptorSetLayout _dslLighting = default;
     private DescriptorSetLayout _dslGbufferRead = default;
-    private DescriptorSetLayout _dslPointSsbo = default;
     private DescriptorSetLayout _dslTransparentResolve = default;
+    private DescriptorSetLayout _dslJfaSrc = default;
 
     private DescriptorSet _dsEmissiveScene = default;
-    private DescriptorSet _dsLighting = default;
     private DescriptorSet _dsBloomExtract = default;
     /// <summary>Coarse + fine pyramid views for dual-filter bloom upsample (dual-sampler layout).</summary>
     private DescriptorSet _dsBloomUpsample = default;
@@ -126,7 +146,6 @@ public sealed unsafe partial class VulkanRenderer
 
     private DescriptorSet _dsBloomGaussianSrcBloom1 = default;
     private DescriptorSet _dsGbufferRead = default;
-    private DescriptorSet _dsPointSsbo = default;
     private DescriptorSet _dsTransparentResolve = default;
     private DescriptorSet _dsHdrOpaqueForTransparent = default;
     // Pyramid level descriptors: [0]=half-res bloom0, [1..N]=bloomDown[i-1]
@@ -139,23 +158,23 @@ public sealed unsafe partial class VulkanRenderer
     private PipelineLayout _plBloomGaussian = default;
     private PipelineLayout _plBloomUpsample = default;
     private PipelineLayout _plBloomCopy = default;
-    private PipelineLayout _plDeferredBase = default;
-    private PipelineLayout _plDeferredPoint = default;
+    private PipelineLayout _plTiledDeferredLighting = default;
     private PipelineLayout _plDeferredBleed = default;
     private PipelineLayout _plTransparentResolve = default;
     private PipelineLayout _plTextMsdf = default;
+    private PipelineLayout _plShadowOccluder = default;
+    private PipelineLayout _plJfaInit = default;
+    private PipelineLayout _plJfaStep = default;
+    private PipelineLayout _plJfaToSdf = default;
 
     private ShaderModule _modVertSprite = default;
     private ShaderModule _modFragEmissive = default;
     private ShaderModule _modFragGbuffer = default;
     private ShaderModule _modFragSwapchainUi = default;
-    private ShaderModule _modFragDeferredBase = default;
-    private ShaderModule _modVertDeferredPoint = default;
-    private ShaderModule _modFragDeferredPoint = default;
+    private ShaderModule _modFragTiledDeferredLighting = default;
     private ShaderModule _modFragDeferredBleed = default;
     private ShaderModule _modFragTransparentWboit = default;
     private ShaderModule _modFragTransparentResolve = default;
-    private ShaderModule _modVertComposite = default;
     private ShaderModule _modFragComposite = default;
     private ShaderModule _modFragBloomExtract = default;
     private ShaderModule _modFragBloomDownsample = default;
@@ -164,12 +183,17 @@ public sealed unsafe partial class VulkanRenderer
     private ShaderModule _modFragBloomCopy = default;
     private ShaderModule _modVertTextMsdf = default;
     private ShaderModule _modFragTextMsdf = default;
+    private ShaderModule _modVertShadowOccluder = default;
+    private ShaderModule _modFragShadowOccluder = default;
+    private ShaderModule _modVertFullscreenTriangle = default;
+    private ShaderModule _modFragJfaInit = default;
+    private ShaderModule _modFragJfaStep = default;
+    private ShaderModule _modFragJfaToSdf = default;
 
     private Pipeline _pipeEmissive = default;
     private Pipeline _pipeSpriteGbuffer = default;
     private Pipeline _pipeSwapchainUiOverlay = default;
-    private Pipeline _pipeDeferredBase = default;
-    private Pipeline _pipeDeferredPoint = default;
+    private Pipeline _pipeTiledDeferredLighting = default;
     private Pipeline _pipeDeferredBleed = default;
     private Pipeline _pipeTransparentWboit = default;
     private Pipeline _pipeTransparentResolve = default;
@@ -180,6 +204,10 @@ public sealed unsafe partial class VulkanRenderer
     private Pipeline _pipeBloomUpsample = default;
     private Pipeline _pipeBloomCopy = default;
     private Pipeline _pipeTextMsdf = default;
+    private Pipeline _pipeShadowOccluder = default;
+    private Pipeline _pipeJfaInit = default;
+    private Pipeline _pipeJfaStep = default;
+    private Pipeline _pipeJfaToSdf = default;
     private BloomPipeline? _bloomPipeline;
     private DescriptorManager? _descriptorManager;
     private OffscreenTargets? _offscreenTargets;
@@ -228,6 +256,10 @@ public sealed unsafe partial class VulkanRenderer
     private int _lastFrameDroppedPointLights;
     private int _lastFrameDroppedDirectionalLights;
     private int _lastFrameDroppedSpotLights;
+    private long _pointLightOverflowWarningTick;
+    private long _spotLightOverflowWarningTick;
+    private long _directionalLightOverflowWarningTick;
+    private long _ambientLightOverflowWarningTick;
 
     /// <summary>One composite descriptor set per in-flight frame so updating bloom binding cannot race overlapping GPU work.</summary>
     private DescriptorSet[] _dsCompositeSlots = new DescriptorSet[MaxFramesInFlight];
@@ -279,10 +311,18 @@ public sealed unsafe partial class VulkanRenderer
         public float Exposure;
         public float Saturation;
         public float EmissiveHdrGain;
-        public float BloomSourceGain;
         /// <summary>1 = apply pow(1/2.2) for UNORM swapchain; 0 = linear out (sRGB swapchain encodes on write).</summary>
         public float ApplyManualDisplayGamma;
+        /// <summary>1 = Reinhard tonemap; 0 = skip (linear debug output).</summary>
+        public float TonemapEnabled;
+        public float Pad0;
         public float Pad1;
+        /// <summary>RGB shadow-band tint (W unused, padding for vec4 alignment).</summary>
+        public Vector4D<float> ColorGradingShadows;
+        /// <summary>RGB midtone-band tint.</summary>
+        public Vector4D<float> ColorGradingMidtones;
+        /// <summary>RGB highlight-band tint.</summary>
+        public Vector4D<float> ColorGradingHighlights;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -310,8 +350,27 @@ public sealed unsafe partial class VulkanRenderer
         public float SrcH;
         public float DstW;
         public float DstH;
-        /// <summary>1 = dual-filter upsample (tent + fine mip); 0 = final half-res pass (coarse tent only).</summary>
-        public float FineBlend;
+    }
+
+    /// <summary>Push constants for the tiled deferred lighting fullscreen pass.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TiledLightingPush
+    {
+        public Vector4D<float> ScreenSizeSwapchainPx_Pad;
+        public Vector4D<float> CameraPosWorld_CameraRotRad;
+        public Vector4D<float> ViewportSizeWorld_PhysicalScale;
+        public Vector4D<float> PhysicalRectSwapchainPx;
+        /// <summary>
+        /// .X = shadow enabled (1 or 0). .Y/.Z/.W reserved for future use (e.g. shadow quality, bias overrides).
+        /// Push constant layout is ABI-sensitive with the GPU shader — do not shrink.
+        /// </summary>
+        public Vector4D<float> ShadowSettings;
+        /// <summary>
+        /// .X = tileSizeSwapchainPx, .Y = tilesX (clamped), .Z = tilesY (clamped),
+        /// .W = maxLightsPerTile — shared loop cap for both point and spot iteration in the shader;
+        /// CPU binning caps spot lists at <see cref="DeferredRenderingConstants.MaxSpotLightsPerTile"/> (≤ .W).
+        /// </summary>
+        public Vector4D<float> TileSizeAndCounts;
     }
 
     /// <summary>

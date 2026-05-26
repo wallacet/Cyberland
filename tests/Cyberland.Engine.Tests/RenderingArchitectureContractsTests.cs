@@ -214,6 +214,8 @@ public sealed class RenderingArchitectureContractsTests
         [
             RenderPassDependencyModel.PassStage.EmissivePrepass,
             RenderPassDependencyModel.PassStage.GBufferOpaque,
+            RenderPassDependencyModel.PassStage.TileCull,
+            RenderPassDependencyModel.PassStage.ShadowSdf,
             RenderPassDependencyModel.PassStage.DeferredLighting,
             RenderPassDependencyModel.PassStage.TransparentWboit,
             RenderPassDependencyModel.PassStage.TransparentResolve,
@@ -231,6 +233,7 @@ public sealed class RenderingArchitectureContractsTests
         [
             RenderPassDependencyModel.PassStage.EmissivePrepass,
             RenderPassDependencyModel.PassStage.GBufferOpaque,
+            RenderPassDependencyModel.PassStage.TileCull,
             RenderPassDependencyModel.PassStage.DeferredLighting,
             RenderPassDependencyModel.PassStage.TransparentResolve,
             RenderPassDependencyModel.PassStage.TransparentWboit,
@@ -244,7 +247,7 @@ public sealed class RenderingArchitectureContractsTests
     [Fact]
     public void RenderPassDependencyModel_declares_expected_dependency_edge_count()
     {
-        Assert.Equal(6, RenderPassDependencyModel.Dependencies.Length);
+        Assert.Equal(8, RenderPassDependencyModel.Dependencies.Length);
     }
 
     [Fact]
@@ -254,6 +257,7 @@ public sealed class RenderingArchitectureContractsTests
         [
             RenderPassDependencyModel.PassStage.EmissivePrepass,
             RenderPassDependencyModel.PassStage.GBufferOpaque,
+            RenderPassDependencyModel.PassStage.TileCull,
             RenderPassDependencyModel.PassStage.DeferredLighting,
             RenderPassDependencyModel.PassStage.TransparentWboit,
             RenderPassDependencyModel.PassStage.TransparentResolve,

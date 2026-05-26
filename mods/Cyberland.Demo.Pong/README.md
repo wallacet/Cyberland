@@ -18,7 +18,7 @@ Or enable **`mods/Cyberland.Demo.Pong/manifest.json`** temporarily and run **Cyb
 2. **`SceneSetup.cs`** — session entity, arena visuals, HUD **`BitmapText`** ids.
 3. **`Systems/SimulationSystem.cs`** — circle-vs-rectangle paddle hits (not engine **`TriggerSystem`** in the same fixed ordering — see engine remarks on **`TriggerSystem`** vs mod fixed).
 4. **`Systems/VisualSyncSystem.cs`** — interpolation with **`GameHostServices.FixedAccumulatorSeconds`**.
-5. **`Systems/PongLightsFillSystem.cs`** — deferred lights from session state.
+5. **`Systems/LightsFillSystem.cs`** — deferred lights from session state.
 
 ## Features taught
 

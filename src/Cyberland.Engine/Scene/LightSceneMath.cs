@@ -8,11 +8,24 @@ namespace Cyberland.Engine.Scene;
 /// <summary>Shared 2D lighting direction and scale math for <see cref="Systems"/> light submitters.</summary>
 internal static class LightSceneMath
 {
-    public static Vector2D<float> DirectionFromWorldRotation(float radians) =>
-        new(MathF.Cos(radians), MathF.Sin(radians));
+    public static Vector2D<float> DirectionFromWorldRotation(float radians)
+    {
+        if (!float.IsFinite(radians))
+            return new Vector2D<float>(1f, 0f);
+        return new(MathF.Cos(radians), MathF.Sin(radians));
+    }
 
-    public static float MaxAbsScale(in Vector2D<float> scale) =>
-        MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y));
+    /// <summary>
+    /// Returns <c>max(|scaleX|, |scaleY|)</c> — the radius scale factor for point and spot lights.
+    /// Uniform scale on light entities is recommended; with non-uniform scale the radius uses the larger axis.
+    /// </summary>
+    public static float MaxAbsScale(in Vector2D<float> scale)
+    {
+        var ax = MathF.Abs(scale.X);
+        var ay = MathF.Abs(scale.Y);
+        var m = MathF.Max(ax, ay);
+        return float.IsFinite(m) ? m : 1f;
+    }
 
     /// <summary>
     /// True when <paramref name="entity"/>'s transform root owns a <see cref="Sprite"/> in viewport-locked space
@@ -56,6 +69,18 @@ internal static class LightSceneMath
     /// position expected by <see cref="IRenderer.SubmitPointLight"/> / <see cref="IRenderer.SubmitSpotLight"/> when the
     /// light lives under a viewport-authored sprite subtree.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When <c>camera.Valid</c> is <c>false</c> (early startup frames or post-world-swap before camera state updates),
+    /// viewport-pixel translations pass through as-is. Viewport-locked lights may appear at wrong positions for up to
+    /// one frame. This is a known race; callers accept the transient artifact rather than deferring light submission.
+    /// </para>
+    /// <para>
+    /// <b>Thread safety:</b> reads only — component stores and parent transforms are accessed read-only. Safe to call
+    /// from <see cref="Core.Ecs.IParallelSystem"/> workers during the late phase, which forbids structural mutation.
+    /// Do not call from phases that add/remove entities or components.
+    /// </para>
+    /// </remarks>
     public static Vector2D<float> ResolveLightPositionWorldForSubmit(
         World world,
         EntityId lightEntity,

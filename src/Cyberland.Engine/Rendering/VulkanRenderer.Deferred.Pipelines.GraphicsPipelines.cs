@@ -14,7 +14,6 @@ public sealed unsafe partial class VulkanRenderer
     {
         _modVertSprite = CreateEngineShaderModule(EngineShaderSources.SpriteVert, ShaderStage.Vertex, "shader.Sprite.Vert");
         _modFragEmissive = CreateEngineShaderModule(EngineShaderSources.SpriteEmissiveFrag, ShaderStage.Fragment, "shader.Sprite.Emissive.Frag");
-        _modVertComposite = CreateEngineShaderModule(EngineShaderSources.CompositeVert, ShaderStage.Vertex, "shader.Composite.Vert");
         _modFragComposite = CreateEngineShaderModule(EngineShaderSources.CompositeFrag, ShaderStage.Fragment, "shader.Composite.Frag");
         _modFragBloomExtract = CreateEngineShaderModule(EngineShaderSources.BloomExtractFrag, ShaderStage.Fragment, "shader.Bloom.Extract.Frag");
         _modFragBloomDownsample = CreateEngineShaderModule(EngineShaderSources.BloomDownsampleFrag, ShaderStage.Fragment, "shader.Bloom.Downsample.Frag");
@@ -23,6 +22,7 @@ public sealed unsafe partial class VulkanRenderer
         _modFragBloomCopy = CreateEngineShaderModule(EngineShaderSources.BloomCopyFrag, ShaderStage.Fragment, "shader.Bloom.Copy.Frag");
         _modVertTextMsdf = CreateEngineShaderModule(EngineShaderSources.TextMsdfVert, ShaderStage.Vertex, "shader.TextMsdf.Vert");
         _modFragTextMsdf = CreateEngineShaderModule(EngineShaderSources.TextMsdfFrag, ShaderStage.Fragment, "shader.TextMsdf.Frag");
+        _modVertFullscreenTriangle = CreateEngineShaderModule(EngineShaderSources.FullscreenTriangleVert, ShaderStage.Vertex, "shader.FullscreenTri.Vert");
         CompileDeferredShaderModules();
     }
 
@@ -333,7 +333,7 @@ public sealed unsafe partial class VulkanRenderer
         {
             SType = StructureType.PipelineShaderStageCreateInfo,
             Stage = ShaderStageFlags.VertexBit,
-            Module = _modVertComposite,
+            Module = _modVertFullscreenTriangle,
             PName = (byte*)mainName
         };
 
@@ -421,7 +421,7 @@ public sealed unsafe partial class VulkanRenderer
         {
             SType = StructureType.PipelineShaderStageCreateInfo,
             Stage = ShaderStageFlags.VertexBit,
-            Module = _modVertComposite,
+            Module = _modVertFullscreenTriangle,
             PName = (byte*)mainName
         };
 
@@ -439,13 +439,113 @@ public sealed unsafe partial class VulkanRenderer
         Marshal.FreeHGlobal(mainName);
     }
 
+    private void CreateShadowJfaPipelines()
+    {
+        _modVertShadowOccluder = CreateEngineShaderModule(EngineShaderSources.ShadowOccluderVert, Glslang.NET.ShaderStage.Vertex, "shader.ShadowOccluder.Vert");
+        _modFragShadowOccluder = CreateEngineShaderModule(EngineShaderSources.ShadowOccluderFrag, Glslang.NET.ShaderStage.Fragment, "shader.ShadowOccluder.Frag");
+        _modFragJfaInit = CreateEngineShaderModule(EngineShaderSources.JfaInitFrag, Glslang.NET.ShaderStage.Fragment, "shader.JfaInit.Frag");
+        _modFragJfaStep = CreateEngineShaderModule(EngineShaderSources.JfaStepFrag, Glslang.NET.ShaderStage.Fragment, "shader.JfaStep.Frag");
+        _modFragJfaToSdf = CreateEngineShaderModule(EngineShaderSources.JfaToSdfFrag, Glslang.NET.ShaderStage.Fragment, "shader.JfaToSdf.Frag");
+
+        var mainName = Marshal.StringToHGlobalAnsi("main");
+
+        // Shadow occluder pipeline: vertex+instance driven, writes to R8 mask
+        {
+            var pushOcc = new PushConstantRange { StageFlags = ShaderStageFlags.VertexBit, Offset = 0, Size = 48 };
+            var dslOcc = stackalloc DescriptorSetLayout[1];
+            dslOcc[0] = _dslTexture;
+            PipelineLayoutCreateInfo plci = new()
+            {
+                SType = StructureType.PipelineLayoutCreateInfo,
+                SetLayoutCount = 1, PSetLayouts = dslOcc,
+                PushConstantRangeCount = 1, PPushConstantRanges = &pushOcc
+            };
+            if (_vk!.CreatePipelineLayout(_device, in plci, null, out _plShadowOccluder) != Result.Success)
+                throw new GraphicsInitializationException("pl shadow occluder failed.");
+
+            PipelineShaderStageCreateInfo vs = new() { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.VertexBit, Module = _modVertShadowOccluder, PName = (byte*)mainName };
+            PipelineShaderStageCreateInfo fs = new() { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.FragmentBit, Module = _modFragShadowOccluder, PName = (byte*)mainName };
+
+            VertexInputBindingDescription bind0 = new() { Binding = 0, Stride = 2 * sizeof(float), InputRate = VertexInputRate.Vertex };
+            VertexInputBindingDescription bind1 = new() { Binding = 1, Stride = (uint)sizeof(SpriteInstanceGpu), InputRate = VertexInputRate.Instance };
+            var binds = stackalloc VertexInputBindingDescription[2]; binds[0] = bind0; binds[1] = bind1;
+
+            var attrs = stackalloc VertexInputAttributeDescription[6];
+            attrs[0] = new VertexInputAttributeDescription { Binding = 0, Location = 0, Format = Format.R32G32Sfloat, Offset = 0 };
+            for (var ai = 0; ai < 5; ai++)
+                attrs[ai + 1] = new VertexInputAttributeDescription { Binding = 1, Location = (uint)(ai + 1), Format = Format.R32G32B32A32Sfloat, Offset = (uint)(ai * 16) };
+
+            PipelineVertexInputStateCreateInfo vi = new() { SType = StructureType.PipelineVertexInputStateCreateInfo, VertexBindingDescriptionCount = 2, PVertexBindingDescriptions = binds, VertexAttributeDescriptionCount = 6, PVertexAttributeDescriptions = attrs };
+            PipelineInputAssemblyStateCreateInfo ia = new() { SType = StructureType.PipelineInputAssemblyStateCreateInfo, Topology = PrimitiveTopology.TriangleList };
+            PipelineViewportStateCreateInfo vpSt = new() { SType = StructureType.PipelineViewportStateCreateInfo, ViewportCount = 1, ScissorCount = 1 };
+            PipelineRasterizationStateCreateInfo rs = new() { SType = StructureType.PipelineRasterizationStateCreateInfo, PolygonMode = PolygonMode.Fill, LineWidth = 1f, CullMode = CullModeFlags.None, FrontFace = FrontFace.CounterClockwise };
+            PipelineMultisampleStateCreateInfo ms = new() { SType = StructureType.PipelineMultisampleStateCreateInfo, RasterizationSamples = SampleCountFlags.Count1Bit };
+            var cbOff = VulkanGraphicsPipelineHelpers.BlendAttachmentPresets.Off;
+            PipelineColorBlendStateCreateInfo cbs = new() { SType = StructureType.PipelineColorBlendStateCreateInfo, AttachmentCount = 1, PAttachments = &cbOff };
+
+            DynamicState[] dyn = [DynamicState.Viewport, DynamicState.Scissor];
+            fixed (DynamicState* pDyn = dyn)
+            {
+                PipelineDynamicStateCreateInfo ds = new() { SType = StructureType.PipelineDynamicStateCreateInfo, DynamicStateCount = (uint)dyn.Length, PDynamicStates = pDyn };
+                var stages = stackalloc PipelineShaderStageCreateInfo[2]; stages[0] = vs; stages[1] = fs;
+                GraphicsPipelineCreateInfo gpci = new()
+                {
+                    SType = StructureType.GraphicsPipelineCreateInfo, StageCount = 2, PStages = stages,
+                    PVertexInputState = &vi, PInputAssemblyState = &ia, PViewportState = &vpSt,
+                    PRasterizationState = &rs, PMultisampleState = &ms, PColorBlendState = &cbs, PDynamicState = &ds,
+                    Layout = _plShadowOccluder, RenderPass = _rpShadowOccluderMask, Subpass = 0
+                };
+                if (_vk.CreateGraphicsPipelines(_device, default, 1, in gpci, null, out _pipeShadowOccluder) != Result.Success)
+                    throw new GraphicsInitializationException("pipe shadow occluder failed.");
+            }
+        }
+
+        // JFA fullscreen triangle pipelines
+        PipelineShaderStageCreateInfo vsFst = new() { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.VertexBit, Module = _modVertFullscreenTriangle, PName = (byte*)mainName };
+
+        // JFA Init pipeline
+        {
+            var pushInit = new PushConstantRange { StageFlags = ShaderStageFlags.FragmentBit, Offset = 0, Size = 16 };
+            var dslInit = stackalloc DescriptorSetLayout[1]; dslInit[0] = _dslJfaSrc;
+            PipelineLayoutCreateInfo plci = new() { SType = StructureType.PipelineLayoutCreateInfo, SetLayoutCount = 1, PSetLayouts = dslInit, PushConstantRangeCount = 1, PPushConstantRanges = &pushInit };
+            if (_vk!.CreatePipelineLayout(_device, in plci, null, out _plJfaInit) != Result.Success)
+                throw new GraphicsInitializationException("pl jfa init failed.");
+            PipelineShaderStageCreateInfo fsInit = new() { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.FragmentBit, Module = _modFragJfaInit, PName = (byte*)mainName };
+            VulkanGraphicsPipelineHelpers.CreateFullscreenTrianglePostProcessPipeline(
+                _vk!, _device, _plJfaInit, _rpShadowJfaSeed, 0, vsFst, fsInit, out _pipeJfaInit, "pipe jfa init failed.");
+        }
+
+        // JFA Step pipeline
+        {
+            var pushStep = new PushConstantRange { StageFlags = ShaderStageFlags.FragmentBit, Offset = 0, Size = 16 };
+            var dslStep = stackalloc DescriptorSetLayout[1]; dslStep[0] = _dslJfaSrc;
+            PipelineLayoutCreateInfo plci = new() { SType = StructureType.PipelineLayoutCreateInfo, SetLayoutCount = 1, PSetLayouts = dslStep, PushConstantRangeCount = 1, PPushConstantRanges = &pushStep };
+            if (_vk!.CreatePipelineLayout(_device, in plci, null, out _plJfaStep) != Result.Success)
+                throw new GraphicsInitializationException("pl jfa step failed.");
+            PipelineShaderStageCreateInfo fsStep = new() { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.FragmentBit, Module = _modFragJfaStep, PName = (byte*)mainName };
+            VulkanGraphicsPipelineHelpers.CreateFullscreenTrianglePostProcessPipeline(
+                _vk!, _device, _plJfaStep, _rpShadowJfaSeed, 0, vsFst, fsStep, out _pipeJfaStep, "pipe jfa step failed.");
+        }
+
+        // JFA to SDF pipeline
+        {
+            var pushSdf = new PushConstantRange { StageFlags = ShaderStageFlags.FragmentBit, Offset = 0, Size = 16 };
+            var dslSdf = stackalloc DescriptorSetLayout[1]; dslSdf[0] = _dslBloomDual;
+            PipelineLayoutCreateInfo plci = new() { SType = StructureType.PipelineLayoutCreateInfo, SetLayoutCount = 1, PSetLayouts = dslSdf, PushConstantRangeCount = 1, PPushConstantRanges = &pushSdf };
+            if (_vk!.CreatePipelineLayout(_device, in plci, null, out _plJfaToSdf) != Result.Success)
+                throw new GraphicsInitializationException("pl jfa to sdf failed.");
+            PipelineShaderStageCreateInfo fsSdf = new() { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.FragmentBit, Module = _modFragJfaToSdf, PName = (byte*)mainName };
+            VulkanGraphicsPipelineHelpers.CreateFullscreenTrianglePostProcessPipeline(
+                _vk!, _device, _plJfaToSdf, _rpShadowSdfFinal, 0, vsFst, fsSdf, out _pipeJfaToSdf, "pipe jfa to sdf failed.");
+        }
+
+        Marshal.FreeHGlobal(mainName);
+    }
+
     private void CompileDeferredShaderModules()
     {
         _modFragGbuffer = CreateEngineShaderModule(EngineShaderSources.SpriteGbufferFrag, ShaderStage.Fragment, "shader.Gbuffer.Frag");
         _modFragSwapchainUi = CreateEngineShaderModule(EngineShaderSources.SpriteSwapchainUiFrag, ShaderStage.Fragment, "shader.SwapchainUi.Frag");
-        _modFragDeferredBase = CreateEngineShaderModule(EngineShaderSources.DeferredBaseFrag, ShaderStage.Fragment, "shader.Deferred.Base.Frag");
-        _modVertDeferredPoint = CreateEngineShaderModule(EngineShaderSources.DeferredPointVert, ShaderStage.Vertex, "shader.Deferred.Point.Vert");
-        _modFragDeferredPoint = CreateEngineShaderModule(EngineShaderSources.DeferredPointFrag, ShaderStage.Fragment, "shader.Deferred.Point.Frag");
         _modFragDeferredBleed = CreateEngineShaderModule(EngineShaderSources.DeferredEmissiveBleedFrag, ShaderStage.Fragment, "shader.Deferred.Bleed.Frag");
         _modFragTransparentWboit = CreateEngineShaderModule(EngineShaderSources.SpriteTransparentWboitFrag, ShaderStage.Fragment, "shader.Transparent.Wboit.Frag");
         _modFragTransparentResolve = CreateEngineShaderModule(EngineShaderSources.TransparentResolveFrag, ShaderStage.Fragment, "shader.Transparent.Resolve.Frag");
@@ -457,47 +557,11 @@ public sealed unsafe partial class VulkanRenderer
         {
             StageFlags = ShaderStageFlags.FragmentBit,
             Offset = 0,
-            Size = (uint)(sizeof(float) * 4)
-        };
-        var pushPt = new PushConstantRange
-        {
-            StageFlags = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit,
-            Offset = 0,
-            Size = (uint)(sizeof(float) * 8)
+            Size = (uint)sizeof(DeferredLightingPush)
         };
 
         var pcrF = stackalloc PushConstantRange[1];
         pcrF[0] = pushScr;
-        var pcrP = stackalloc PushConstantRange[1];
-        pcrP[0] = pushPt;
-
-        var dslGbLit = stackalloc DescriptorSetLayout[2];
-        dslGbLit[0] = _dslGbufferRead;
-        dslGbLit[1] = _dslLighting;
-        PipelineLayoutCreateInfo plDb = new()
-        {
-            SType = StructureType.PipelineLayoutCreateInfo,
-            SetLayoutCount = 2,
-            PSetLayouts = dslGbLit,
-            PushConstantRangeCount = 1,
-            PPushConstantRanges = pcrF
-        };
-        if (_vk!.CreatePipelineLayout(_device, in plDb, null, out _plDeferredBase) != Result.Success)
-            throw new GraphicsInitializationException("pl deferred base failed.");
-
-        var dslGbPt = stackalloc DescriptorSetLayout[2];
-        dslGbPt[0] = _dslGbufferRead;
-        dslGbPt[1] = _dslPointSsbo;
-        PipelineLayoutCreateInfo plDpt = new()
-        {
-            SType = StructureType.PipelineLayoutCreateInfo,
-            SetLayoutCount = 2,
-            PSetLayouts = dslGbPt,
-            PushConstantRangeCount = 1,
-            PPushConstantRanges = pcrP
-        };
-        if (_vk!.CreatePipelineLayout(_device, in plDpt, null, out _plDeferredPoint) != Result.Success)
-            throw new GraphicsInitializationException("pl deferred point failed.");
 
         var dslGbEm = stackalloc DescriptorSetLayout[2];
         dslGbEm[0] = _dslGbufferRead;
@@ -567,28 +631,7 @@ public sealed unsafe partial class VulkanRenderer
         {
             SType = StructureType.PipelineShaderStageCreateInfo,
             Stage = ShaderStageFlags.VertexBit,
-            Module = _modVertComposite,
-            PName = (byte*)mainName
-        };
-        PipelineShaderStageCreateInfo fragDbSt = new()
-        {
-            SType = StructureType.PipelineShaderStageCreateInfo,
-            Stage = ShaderStageFlags.FragmentBit,
-            Module = _modFragDeferredBase,
-            PName = (byte*)mainName
-        };
-        PipelineShaderStageCreateInfo vertDpSt = new()
-        {
-            SType = StructureType.PipelineShaderStageCreateInfo,
-            Stage = ShaderStageFlags.VertexBit,
-            Module = _modVertDeferredPoint,
-            PName = (byte*)mainName
-        };
-        PipelineShaderStageCreateInfo fragDpSt = new()
-        {
-            SType = StructureType.PipelineShaderStageCreateInfo,
-            Stage = ShaderStageFlags.FragmentBit,
-            Module = _modFragDeferredPoint,
+            Module = _modVertFullscreenTriangle,
             PName = (byte*)mainName
         };
         PipelineShaderStageCreateInfo fragBleedSt = new()
@@ -897,50 +940,6 @@ public sealed unsafe partial class VulkanRenderer
             };
             if (_vk.CreateGraphicsPipelines(_device, default, 1, in gpText, null, out _pipeTextMsdf) != Result.Success)
                 throw new GraphicsInitializationException("pipe text msdf failed.");
-
-            var stDb = stackalloc PipelineShaderStageCreateInfo[2];
-            stDb[0] = vertCompSt;
-            stDb[1] = fragDbSt;
-            GraphicsPipelineCreateInfo gpDb = new()
-            {
-                SType = StructureType.GraphicsPipelineCreateInfo,
-                StageCount = 2,
-                PStages = stDb,
-                PVertexInputState = &viEmpty,
-                PInputAssemblyState = &ia,
-                PViewportState = &vpSt,
-                PRasterizationState = &rs,
-                PMultisampleState = &ms,
-                PColorBlendState = &cbs1Off,
-                PDynamicState = &ds,
-                Layout = _plDeferredBase,
-                RenderPass = _rpOffscreenInitialUndefined,
-                Subpass = 0
-            };
-            if (_vk.CreateGraphicsPipelines(_device, default, 1, in gpDb, null, out _pipeDeferredBase) != Result.Success)
-                throw new GraphicsInitializationException("pipe deferred base failed.");
-
-            var stDpt = stackalloc PipelineShaderStageCreateInfo[2];
-            stDpt[0] = vertDpSt;
-            stDpt[1] = fragDpSt;
-            GraphicsPipelineCreateInfo gpDpt = new()
-            {
-                SType = StructureType.GraphicsPipelineCreateInfo,
-                StageCount = 2,
-                PStages = stDpt,
-                PVertexInputState = &vi,
-                PInputAssemblyState = &ia,
-                PViewportState = &vpSt,
-                PRasterizationState = &rs,
-                PMultisampleState = &ms,
-                PColorBlendState = &cbs1Add,
-                PDynamicState = &ds,
-                Layout = _plDeferredPoint,
-                RenderPass = _rpOffscreenInitialUndefined,
-                Subpass = 0
-            };
-            if (_vk.CreateGraphicsPipelines(_device, default, 1, in gpDpt, null, out _pipeDeferredPoint) != Result.Success)
-                throw new GraphicsInitializationException("pipe deferred point failed.");
 
             var stBl = stackalloc PipelineShaderStageCreateInfo[2];
             stBl[0] = vertCompSt;

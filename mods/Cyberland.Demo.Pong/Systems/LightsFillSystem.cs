@@ -63,7 +63,6 @@ public sealed class LightsFillSystem : ISingletonSystem, ISingletonLateUpdate
         dir.Active = true;
         dir.Color = new Vector3D<float>(0.52f, 0.5f, 0.46f);
         dir.Intensity = 0.19f;
-        dir.CastsShadow = false;
 
         var spotPos = new Vector2D<float>(st.ArenaMinX + w * 0.04f, st.ArenaMinY + h * 0.08f);
         var dirVec = LightRigMath.DirectionToOrFallback(spotPos, center, new Vector2D<float>(1f, 0f));
@@ -79,7 +78,6 @@ public sealed class LightsFillSystem : ISingletonSystem, ISingletonLateUpdate
         sp.OuterConeRadians = MathF.PI / 2.2f;
         sp.Color = new Vector3D<float>(0.38f, 0.58f, 1f);
         sp.Intensity = 0.35f;
-        sp.CastsShadow = false;
 
         var ballPos = st.Phase == Phase.Playing ? st.BallPos : center;
         var ballIntensity = st.Phase == Phase.Playing ? 0.52f : 0.28f;
@@ -91,7 +89,6 @@ public sealed class LightsFillSystem : ISingletonSystem, ISingletonLateUpdate
         bp.Color = new Vector3D<float>(0.9f, 0.95f, 1f);
         bp.Intensity = ballIntensity;
         bp.FalloffExponent = 2f;
-        bp.CastsShadow = false;
 
         var leftAccentY = st.Phase == Phase.Playing ? st.LeftPaddleY : arenaCy;
         ref var leftTransform = ref world.Get<Transform>(_leftAccentPoint);
@@ -102,6 +99,5 @@ public sealed class LightsFillSystem : ISingletonSystem, ISingletonLateUpdate
         lp.Color = new Vector3D<float>(0.25f, 0.75f, 1f);
         lp.Intensity = st.Phase == Phase.Playing ? 0.34f : 0.2f;
         lp.FalloffExponent = 2.1f;
-        lp.CastsShadow = false;
     }
 }

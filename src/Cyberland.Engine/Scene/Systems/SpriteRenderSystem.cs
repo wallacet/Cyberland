@@ -101,7 +101,8 @@ public sealed class SpriteRenderSystem : IParallelSystem, IParallelLateUpdate
                     DepthHint = spr.DepthHint,
                     UvRect = spr.UvRect,
                     Transparent = ClassifyDeferredTransparent(in spr),
-                    Space = spr.Space
+                    Space = spr.Space,
+                    CastsShadow = spr.CastsShadow
                 };
             }
 

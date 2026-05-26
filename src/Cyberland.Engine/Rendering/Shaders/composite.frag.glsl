@@ -10,29 +10,45 @@ layout(push_constant) uniform Pp {
     float exposure;
     float saturation;
     float emissiveHdrGain;
-    float bloomSourceGain;
-    // 0 = swapchain sRGB format encodes on write (output linear m); 1 = apply pow(1/2.2) for UNORM swapchain.
+    // 0 = swapchain sRGB format encodes on write (output linear); 1 = apply pow(1/2.2) for UNORM swapchain.
     float applyManualDisplayGamma;
+    float tonemapEnabled;
+    float pad0;
     float pad1;
+    vec4 colorGradingShadows;
+    vec4 colorGradingMidtones;
+    vec4 colorGradingHighlights;
 } pp;
 
 const vec3 LumW = vec3(0.299, 0.587, 0.114);
 
 void main() {
-    vec2 fullSz = vec2(textureSize(hdrTex, 0));
-    vec2 uv = (floor(gl_FragCoord.xy) + vec2(0.5)) / fullSz;
+    vec2 fullSizeTexels = vec2(textureSize(hdrTex, 0));
+    vec2 texelUv = (floor(gl_FragCoord.xy) + vec2(0.5)) / fullSizeTexels;
 
-    vec3 h = texture(hdrTex, uv).rgb;
-    vec3 e = texture(emTex, uv).rgb;
-    vec3 bloom = texture(bloomTex, uv).rgb;
-    vec3 c = h + e * pp.emissiveHdrGain + bloom * pp.bloom;
+    vec3 h = texture(hdrTex, texelUv).rgb;
+    vec3 e = texture(emTex, texelUv).rgb;
+    vec3 bloomSample = texture(bloomTex, texelUv).rgb;
+    vec3 c = h + e * pp.emissiveHdrGain + bloomSample * pp.bloom;
     c *= pp.exposure;
 
     float L = dot(c, LumW);
     c = mix(vec3(L), c, pp.saturation);
-    vec3 m = c / (c + vec3(1.0));
+
+    // Reinhard tonemap (skip when disabled for linear debug output).
+    vec3 tonemapped = pp.tonemapEnabled > 0.5 ? c / (c + vec3(1.0)) : c;
+
+    // Color grading: tint shadow / midtone / highlight luminance bands.
+    float Lm = dot(tonemapped, LumW);
+    float shadowW = 1.0 - smoothstep(0.0, 0.35, Lm);
+    float highlightW = smoothstep(0.5, 1.0, Lm);
+    float midW = 1.0 - shadowW - highlightW;
+    vec3 graded = tonemapped * (pp.colorGradingShadows.rgb * shadowW
+                              + pp.colorGradingMidtones.rgb * midW
+                              + pp.colorGradingHighlights.rgb * highlightW);
+
     if (pp.applyManualDisplayGamma > 0.5)
-        outC = vec4(pow(m, vec3(1.0 / 2.2)), 1.0);
+        outC = vec4(pow(graded, vec3(1.0 / 2.2)), 1.0);
     else
-        outC = vec4(m, 1.0);
+        outC = vec4(graded, 1.0);
 }

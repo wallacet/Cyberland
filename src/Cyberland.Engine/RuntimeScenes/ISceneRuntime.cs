@@ -8,6 +8,10 @@ namespace Cyberland.Engine.RuntimeScenes;
 /// <summary>
 /// Host-facing runtime scene stack: additive worlds, load pump, entity lift, and asset queue.
 /// </summary>
+/// <remarks>
+/// Additive worlds share the single <see cref="Rendering.IRenderer"/> submission queue. Sprite, light, camera, and
+/// post-volume submissions from all active scenes are combined into one frame plan by the renderer.
+/// </remarks>
 public interface ISceneRuntime
 {
     /// <summary>Raised after a successful state transition.</summary>

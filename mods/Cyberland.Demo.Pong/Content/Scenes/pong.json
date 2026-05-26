@@ -267,7 +267,8 @@
                                                                            "y":  0.5,
                                                                            "z":  0.46
                                                                        },
-                                                             "intensity":  0.19
+                                                             "intensity":  0.19,
+                                                             "castsShadow":  false
                                                          }
                                             }
                                         ]
@@ -292,7 +293,8 @@
                                                                            "y":  0.58,
                                                                            "z":  1
                                                                        },
-                                                             "intensity":  0.35
+                                                             "intensity":  0.35,
+                                                             "castsShadow":  false
                                                          }
                                             }
                                         ]
@@ -321,7 +323,8 @@
                                                                            "y":  0.95,
                                                                            "z":  1
                                                                        },
-                                                             "intensity":  0.52
+                                                             "intensity":  0.52,
+                                                             "castsShadow":  false
                                                          }
                                             }
                                         ]
@@ -351,7 +354,8 @@
                                                                            "z":  1
                                                                        },
                                                              "intensity":  0.34,
-                                                             "falloffExponent":  2.1
+                                                             "falloffExponent":  2.1,
+                                                             "castsShadow":  false
                                                          }
                                             }
                                         ]
@@ -367,7 +371,7 @@
                                                              "bloomGain":  0.3,
                                                              "bloomExtractThreshold":  0.32,
                                                              "emissiveToHdrGain":  0.48,
-                                                             "emissiveToBloomGain":  0.45,
+                                                             "bloomSourceGain":  0.45,
                                                              "saturation":  1.05
                                                          }
                                             }

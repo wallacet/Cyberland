@@ -704,7 +704,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void PointLightSystem_skips_when_renderer_null_on_update()
+    public void PointLightSystem_uses_replacement_renderer_on_update()
     {
         var h = Host(new RecordingRenderer());
         var sys = new PointLightSystem(h);
@@ -715,7 +715,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void AmbientLightSystem_skips_when_renderer_null_on_update()
+    public void AmbientLightSystem_uses_replacement_renderer_on_update()
     {
         var h = Host(new RecordingRenderer());
         var sys = new AmbientLightSystem(h);
@@ -737,7 +737,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void DirectionalLightSystem_skips_when_renderer_null_on_update()
+    public void DirectionalLightSystem_uses_replacement_renderer_on_update()
     {
         var h = Host(new RecordingRenderer());
         var sys = new DirectionalLightSystem(h);
@@ -761,7 +761,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void SpotLightSystem_skips_when_renderer_null_on_update()
+    public void SpotLightSystem_uses_replacement_renderer_on_update()
     {
         var h = Host(new RecordingRenderer());
         var sys = new SpotLightSystem(h);
@@ -820,7 +820,7 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
     }
 
     [Fact]
-    public void PostProcessVolumeSystem_skips_when_renderer_null()
+    public void PostProcessVolumeSystem_uses_replacement_renderer_on_update()
     {
         var h = Host(new RecordingRenderer());
         var sys = new PostProcessVolumeSystem(h);
@@ -979,5 +979,228 @@ public sealed class DeferredSubmissionAndSceneSystemsTests
         w.GetOrAdd<Transform>(e) = Transform.Identity;
         w.GetOrAdd<BitmapText>(e) = new BitmapText { Visible = false, Content = "x" };
         sys.OnParallelLateUpdate(w.QueryChunks(spec), 0f, ParOpts());
+    }
+
+    [Fact]
+    public void AmbientLightSystem_skips_zero_intensity()
+    {
+        var r = new RecordingRenderer();
+        var sys = new AmbientLightSystem(Host(r));
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
+        var e = w.CreateEntity();
+        w.GetOrAdd<AmbientLightSource>(e) = new AmbientLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 0f
+        };
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()), 0f, ParOpts());
+        Assert.Empty(r.AmbientLights);
+    }
+
+    [Fact]
+    public void AmbientLightSystem_skips_zero_color()
+    {
+        var r = new RecordingRenderer();
+        var sys = new AmbientLightSystem(Host(r));
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
+        var e = w.CreateEntity();
+        w.GetOrAdd<AmbientLightSource>(e) = new AmbientLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0f, 0f, 0f),
+            Intensity = 5f
+        };
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()), 0f, ParOpts());
+        Assert.Empty(r.AmbientLights);
+    }
+
+    [Fact]
+    public void DirectionalLightSystem_skips_zero_energy()
+    {
+        var r = new RecordingRenderer();
+        var sys = new DirectionalLightSystem(Host(r));
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
+        var e = w.CreateEntity();
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
+        w.GetOrAdd<DirectionalLightSource>(e) = new DirectionalLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0f, 0f, 0f),
+            Intensity = 1f
+        };
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()), 0f, ParOpts());
+        Assert.Empty(r.DirectionalLights);
+    }
+
+    [Fact]
+    public void PointLightSystem_skips_zero_energy()
+    {
+        var r = new RecordingRenderer();
+        var sys = new PointLightSystem(Host(r));
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
+        var e = w.CreateEntity();
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
+        w.GetOrAdd<PointLightSource>(e) = new PointLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0f, 0f, 0f),
+            Intensity = 1f,
+            Radius = 100f
+        };
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()), 0f, ParOpts());
+        Assert.Empty(r.PointLights);
+    }
+
+    [Fact]
+    public void SpotLightSystem_skips_zero_energy()
+    {
+        var r = new RecordingRenderer();
+        var sys = new SpotLightSystem(Host(r));
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+        var e = w.CreateEntity();
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
+        w.GetOrAdd<SpotLightSource>(e) = new SpotLightSource
+        {
+            Active = true,
+            Color = new Vector3D<float>(0f, 0f, 0f),
+            Intensity = 1f,
+            Radius = 50f,
+            InnerConeRadians = 0.3f,
+            OuterConeRadians = 0.6f
+        };
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()), 0f, ParOpts());
+        Assert.Empty(r.SpotLights);
+    }
+
+    [Fact]
+    public void SpotLightSystem_clamps_inner_to_outer_when_inverted()
+    {
+        var r = new RecordingRenderer();
+        var w = new World();
+        var h = Host(r);
+        var spotS = new SpotLightSystem(h);
+        spotS.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+        var e = w.CreateEntity();
+        w.GetOrAdd<Transform>(e) = Transform.Identity;
+        w.GetOrAdd<SpotLightSource>(e) = new SpotLightSource
+        {
+            Active = true,
+            Radius = 50f,
+            InnerConeRadians = 1.0f,
+            OuterConeRadians = 0.5f,
+            Color = new Vector3D<float>(1f, 1f, 1f),
+            Intensity = 1f
+        };
+        spotS.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()), 0f, ParOpts());
+        Assert.Single(r.SpotLights);
+        Assert.Equal(0.5f, r.SpotLights[0].InnerConeRadians, 4);
+        Assert.Equal(1.0f, r.SpotLights[0].OuterConeRadians, 4);
+    }
+
+    // ── Large-chunk parallel path coverage ──────────────────────────────────────
+    // The four light systems skip Parallel.For when chunk.Count <= 8.
+    // These tests create 10 entities each to exercise the parallel dispatch branch.
+
+    [Fact]
+    public void AmbientLightSystem_large_chunk_uses_parallel_path()
+    {
+        var r = new RecordingRenderer();
+        var h = Host(r);
+        var sys = new AmbientLightSystem(h);
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()));
+        for (var i = 0; i < 10; i++)
+        {
+            var e = w.CreateEntity();
+            w.GetOrAdd<AmbientLightSource>(e) = new AmbientLightSource
+            {
+                Active = true,
+                Color = new Vector3D<float>(0.5f, 0.5f, 0.5f),
+                Intensity = 1f + i
+            };
+        }
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<AmbientLightSource>()), 0f, ParOpts());
+        Assert.Equal(10, r.AmbientLights.Count);
+    }
+
+    [Fact]
+    public void DirectionalLightSystem_large_chunk_uses_parallel_path()
+    {
+        var r = new RecordingRenderer();
+        var h = Host(r);
+        var sys = new DirectionalLightSystem(h);
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()));
+        for (var i = 0; i < 10; i++)
+        {
+            var e = w.CreateEntity();
+            w.GetOrAdd<Transform>(e) = Transform.Identity;
+            w.GetOrAdd<DirectionalLightSource>(e) = new DirectionalLightSource
+            {
+                Active = true,
+                Color = new Vector3D<float>(1f, 1f, 1f),
+                Intensity = 1f
+            };
+        }
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<DirectionalLightSource, Transform>()), 0f, ParOpts());
+        Assert.Equal(10, r.DirectionalLights.Count);
+    }
+
+    [Fact]
+    public void PointLightSystem_large_chunk_uses_parallel_path()
+    {
+        var r = new RecordingRenderer();
+        var h = Host(r);
+        var sys = new PointLightSystem(h);
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()));
+        for (var i = 0; i < 10; i++)
+        {
+            var e = w.CreateEntity();
+            w.GetOrAdd<Transform>(e) = MakeTransform(
+                localPos: new Vector2D<float>(i * 10f, 0f),
+                worldPos: new Vector2D<float>(i * 10f, 0f));
+            w.GetOrAdd<PointLightSource>(e) = new PointLightSource
+            {
+                Active = true,
+                Radius = 20f,
+                Color = new Vector3D<float>(1f, 1f, 1f),
+                Intensity = 1f
+            };
+        }
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<PointLightSource, Transform>()), 0f, ParOpts());
+        Assert.Equal(10, r.PointLights.Count);
+    }
+
+    [Fact]
+    public void SpotLightSystem_large_chunk_uses_parallel_path()
+    {
+        var r = new RecordingRenderer();
+        var h = Host(r);
+        var sys = new SpotLightSystem(h);
+        var w = new World();
+        sys.OnStart(w, w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()));
+        for (var i = 0; i < 10; i++)
+        {
+            var e = w.CreateEntity();
+            w.GetOrAdd<Transform>(e) = Transform.Identity;
+            w.GetOrAdd<SpotLightSource>(e) = new SpotLightSource
+            {
+                Active = true,
+                Radius = 50f,
+                InnerConeRadians = 0.3f,
+                OuterConeRadians = 0.6f,
+                Color = new Vector3D<float>(1f, 1f, 1f),
+                Intensity = 1f
+            };
+        }
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<SpotLightSource, Transform>()), 0f, ParOpts());
+        Assert.Equal(10, r.SpotLights.Count);
     }
 }

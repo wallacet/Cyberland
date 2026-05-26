@@ -13,6 +13,7 @@ layout(location = 2) out float vMsdfPixelRange;
 layout(push_constant) uniform PushData
 {
     vec4 viewportPhysical;
+    // screenSize.xy occupies bytes 16–23 for push-constant layout alignment with the C# TextMsdfPushData struct; not read by this stage.
     vec2 screenSize;
     float edgeSharpness;
     float pad0;

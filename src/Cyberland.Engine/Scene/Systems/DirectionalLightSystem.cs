@@ -34,23 +34,36 @@ public sealed class DirectionalLightSystem : IParallelSystem, IParallelLateUpdat
         var r = _host.Renderer;
         foreach (var chunk in query)
         {
-            Parallel.For(0, chunk.Count, parallelOptions, j =>
+            if (chunk.Count <= DeferredRenderingConstants.LightSystemParallelThreshold)
             {
-                ref readonly var s = ref chunk.Column<DirectionalLightSource>()[j];
-                if (!s.Active)
-                    return;
-                ref readonly var t = ref chunk.Column<Transform>()[j];
-                TransformMath.DecomposeToPRS(t.WorldMatrix, out _, out var worldRad, out _);
-                var dir = LightSceneMath.DirectionFromWorldRotation(worldRad);
-                var payload = new DirectionalLight
-                {
-                    DirectionWorld = dir,
-                    Color = s.Color,
-                    Intensity = s.Intensity,
-                    CastsShadow = s.CastsShadow
-                };
-                r.SubmitDirectionalLight(in payload);
-            });
+                for (int j = 0; j < chunk.Count; j++)
+                    SubmitLight(r, chunk, j);
+            }
+            else
+            {
+                Parallel.For(0, chunk.Count, parallelOptions, j =>
+                    SubmitLight(r, chunk, j));
+            }
         }
+    }
+
+    private static void SubmitLight(IRenderer r, MultiComponentChunkView chunk, int j)
+    {
+        ref readonly var s = ref chunk.Column<DirectionalLightSource>()[j];
+        if (!s.Active)
+            return;
+        if (s.Intensity <= 0f || (s.Color.X <= 0f && s.Color.Y <= 0f && s.Color.Z <= 0f))
+            return;
+        ref readonly var t = ref chunk.Column<Transform>()[j];
+        TransformMath.DecomposeToPRS(t.WorldMatrix, out _, out var worldRad, out _);
+        var dir = LightSceneMath.DirectionFromWorldRotation(worldRad);
+        var payload = new DirectionalLight
+        {
+            DirectionWorld = dir,
+            Color = s.Color,
+            Intensity = s.Intensity,
+            CastsShadow = s.CastsShadow
+        };
+        r.SubmitDirectionalLight(in payload);
     }
 }

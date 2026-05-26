@@ -910,6 +910,38 @@ public sealed class SceneRuntimeCoverageTests
     }
 
     [Fact]
+    public void EntityWorldTransfer_TryCopyEngineComponents_copies_light_components()
+    {
+        var src = new World();
+        var dst = new World();
+        var e = src.CreateEntity();
+        src.GetOrAdd<Transform>(e) = Transform.Identity;
+        ref var pt = ref src.GetOrAdd<PointLightSource>(e);
+        pt.Intensity = 5f;
+        pt.Active = true;
+        ref var dir = ref src.GetOrAdd<DirectionalLightSource>(e);
+        dir.Intensity = 2f;
+        dir.Active = true;
+        ref var spot = ref src.GetOrAdd<SpotLightSource>(e);
+        spot.Radius = 10f;
+        spot.Active = true;
+        ref var amb = ref src.GetOrAdd<AmbientLightSource>(e);
+        amb.Intensity = 1f;
+        amb.Active = true;
+        var d = dst.CreateEntity();
+        dst.GetOrAdd<Transform>(d) = Transform.Identity;
+        EntityWorldTransfer.TryCopyEngineComponents(src, e, dst, d);
+        Assert.True(dst.Has<PointLightSource>(d));
+        Assert.Equal(5f, dst.Get<PointLightSource>(d).Intensity);
+        Assert.True(dst.Has<DirectionalLightSource>(d));
+        Assert.Equal(2f, dst.Get<DirectionalLightSource>(d).Intensity);
+        Assert.True(dst.Has<SpotLightSource>(d));
+        Assert.Equal(10f, dst.Get<SpotLightSource>(d).Radius);
+        Assert.True(dst.Has<AmbientLightSource>(d));
+        Assert.Equal(1f, dst.Get<AmbientLightSource>(d).Intensity);
+    }
+
+    [Fact]
     public void EntityWorldTransfer_IsUnderRoot_false_when_parent_chain_cycles()
     {
         var w = new World();

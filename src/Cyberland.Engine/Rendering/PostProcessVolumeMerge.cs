@@ -98,11 +98,42 @@ public static class PostProcessVolumeMerge
             g.BloomGain *= o.BloomGain;
         if (o.HasEmissiveToHdrGain)
             g.EmissiveToHdrGain *= o.EmissiveToHdrGain;
-        if (o.HasEmissiveToBloomGain)
-            g.EmissiveToBloomGain *= o.EmissiveToBloomGain;
+        if (o.HasBloomSourceGain)
+            g.BloomSourceGain *= o.BloomSourceGain;
         if (o.HasExposure)
             g.Exposure *= o.Exposure;
         if (o.HasSaturation)
             g.Saturation *= o.Saturation;
+        if (o.HasShadows)
+            g.Shadows = o.Shadows;
+        if (o.HasTonemapEnabled)
+            g.TonemapEnabled = o.TonemapEnabled;
+        if (o.HasColorGradingShadows)
+        {
+            g.ColorGradingShadows = new Vector3D<float>(
+                g.ColorGradingShadows.X * o.ColorGradingShadows.X,
+                g.ColorGradingShadows.Y * o.ColorGradingShadows.Y,
+                g.ColorGradingShadows.Z * o.ColorGradingShadows.Z);
+        }
+        if (o.HasColorGradingMidtones)
+        {
+            g.ColorGradingMidtones = new Vector3D<float>(
+                g.ColorGradingMidtones.X * o.ColorGradingMidtones.X,
+                g.ColorGradingMidtones.Y * o.ColorGradingMidtones.Y,
+                g.ColorGradingMidtones.Z * o.ColorGradingMidtones.Z);
+        }
+        if (o.HasColorGradingHighlights)
+        {
+            g.ColorGradingHighlights = new Vector3D<float>(
+                g.ColorGradingHighlights.X * o.ColorGradingHighlights.X,
+                g.ColorGradingHighlights.Y * o.ColorGradingHighlights.Y,
+                g.ColorGradingHighlights.Z * o.ColorGradingHighlights.Z);
+        }
+        if (o.HasBloomEnabled)
+            g.BloomEnabled = o.BloomEnabled;
+        if (o.HasBloomExtractThreshold)
+            g.BloomExtractThreshold *= o.BloomExtractThreshold;
+        if (o.HasBloomExtractKnee)
+            g.BloomExtractKnee *= o.BloomExtractKnee;
     }
 }

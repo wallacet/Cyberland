@@ -30,6 +30,10 @@ Manifests stay **`"disabled": true`** in git (pre-commit). To toggle by hand, ed
 - **`ISingletonSystem`** for single-row work (**`IntegrateSystem`**, **`FpsDisplaySystem`**, **`HdrPostVolumeFillSystem`**).
 - **`IParallelSystem`** + **`QueryChunks`** for packed component columns.
 
+## Shadows
+
+**`Content/Scenes/hdr.json`** is the primary shadow showcase: two pillar sprites with `castsShadow: true` act as SDF occluders; a spot light and warm point light cast shadows through the cone-trace path. The neon strip's emissive intensity exceeds `EmissivePromotionSettings.EmissiveLightThreshold`, so the engine auto-promotes it into a shadow-casting point light. Shadow quality uses engine defaults (`ShadowSettings.Default`) — tune `sdfScale` and `coneTraceSamples` in the `shadows` block of `GlobalPostProcessSource` JSON for performance scaling.
+
 ## Content
 
 - **`Content/Scenes/hdr.json`** — root-world entity layout (schema version 1).

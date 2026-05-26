@@ -13,6 +13,7 @@
     <InternalsVisibleTo Include="Cyberland.MsdfAtlasBaker" />
   </ItemGroup>
 
+
   <ItemGroup>
     <EmbeddedResource Include="Rendering\Shaders\*.glsl" />
     <EmbeddedResource Include="Rendering\Shaders\Spirv\*.spv" />
@@ -22,7 +23,9 @@
     <EmbeddedResource Include="Rendering\Text\Baked\*.png" />
   </ItemGroup>
 
-  <Target Name="BakeEngineSpirvShaders" BeforeTargets="CoreCompile">
+  <Target Name="BakeEngineSpirvShaders" BeforeTargets="CoreCompile"
+          Inputs="$(MSBuildThisFileDirectory)Rendering\Shaders\**\*.glsl"
+          Outputs="$(MSBuildThisFileDirectory)Rendering\Shaders\Spirv\**\*.spv">
     <PropertyGroup>
       <_EngineShaderSourceDir>$(MSBuildThisFileDirectory)Rendering\Shaders</_EngineShaderSourceDir>
       <_EngineSpirvOutputDir>$(MSBuildThisFileDirectory)Rendering\Shaders\Spirv</_EngineSpirvOutputDir>

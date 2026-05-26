@@ -5,6 +5,7 @@ on:
     paths:
       - "src/Cyberland.Engine/**"
       - "tests/**"
+      - "tools/Cyberland.ShaderBaker/**"
       - "Directory.Build.props"
       - ".github/workflows/engine-tests.yml"
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - "src/Cyberland.Engine/**"
       - "tests/**"
+      - "tools/Cyberland.ShaderBaker/**"
       - "Directory.Build.props"
       - ".github/workflows/engine-tests.yml"
   workflow_dispatch:

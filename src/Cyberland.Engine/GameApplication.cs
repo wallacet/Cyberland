@@ -296,6 +296,7 @@ public sealed class GameApplication : IDisposable
 
         using var __hostPhase = _host.StartupProgress.BeginPhase("host:startup:host-services", 0.08f, "Wiring host services");
         _input = new SilkInputService(_window.CreateInput(), _renderer, _host);
+        _renderer.Parallelism = _parallelism;
         _host.Renderer = _renderer;
         _host.InitializeRuntimeUi(_vfs, _renderer, () => _localizedContent);
         _host.Input = _input;

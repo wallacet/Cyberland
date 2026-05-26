@@ -144,15 +144,11 @@ public sealed unsafe partial class VulkanRenderer
                     sortIndices[0] = 0;
                 }
             }
-            LightSubmissionPolicy.ClampWithDropCount(drainedSpriteCount, DeferredRenderingConstants.MaxDeferredSprites, out var droppedDeferredSprites);
+            SubmissionClamp.ClampWithDropCount(drainedSpriteCount, DeferredRenderingConstants.MaxDeferredSprites, out var droppedDeferredSprites);
             spriteCount = drainedSpriteCount - droppedDeferredSprites;
-            if (droppedDeferredSprites > 0 && Interlocked.Exchange(ref _r._deferredSpriteOverflowWarningIssued, 1) == 0)
-            {
-                EngineDiagnostics.Report(
-                    EngineErrorSeverity.Warning,
-                    "Cyberland.Engine.Rendering",
+            if (droppedDeferredSprites > 0)
+                EmitOverflowWarning(ref _r._deferredSpriteOverflowWarningTick,
                     $"Deferred sprite submissions exceeded cap ({DeferredRenderingConstants.MaxDeferredSprites}); dropped {droppedDeferredSprites} draws after deterministic layer/sort-key prioritization.");
-            }
 
             var transparentSpriteCount = 0;
             for (var i = 0; i < spriteCount; i++)
@@ -164,14 +160,10 @@ public sealed unsafe partial class VulkanRenderer
             int voCount;
             SpriteDrawRequest[] voSprites;
             voCount = DrainQueue(_r._viewportUiOverlayQueue, ref _r._frameScratchViewportUiOverlay, out voSprites);
-            LightSubmissionPolicy.ClampWithDropCount(voCount, DeferredRenderingConstants.MaxViewportOverlaySprites, out var droppedOverlaySprites);
-            if (droppedOverlaySprites > 0 && Interlocked.Exchange(ref _r._overlaySpriteOverflowWarningIssued, 1) == 0)
-            {
-                EngineDiagnostics.Report(
-                    EngineErrorSeverity.Warning,
-                    "Cyberland.Engine.Rendering",
+            SubmissionClamp.ClampWithDropCount(voCount, DeferredRenderingConstants.MaxViewportOverlaySprites, out var droppedOverlaySprites);
+            if (droppedOverlaySprites > 0)
+                EmitOverflowWarning(ref _r._overlaySpriteOverflowWarningTick,
                     $"Viewport overlay sprite submissions exceeded cap ({DeferredRenderingConstants.MaxViewportOverlaySprites}); dropped {droppedOverlaySprites} draws.");
-            }
             voCount -= droppedOverlaySprites;
             int[] voSort;
             if (voCount == 0)
@@ -196,14 +188,10 @@ public sealed unsafe partial class VulkanRenderer
             int textCount;
             TextGlyphDrawRequest[] textGlyphs;
             textCount = _r.DrainPendingTextGlyphs(ref _r._frameScratchTextGlyphs, out textGlyphs);
-            LightSubmissionPolicy.ClampWithDropCount(textCount, DeferredRenderingConstants.MaxTextGlyphs, out var droppedTextGlyphs);
-            if (droppedTextGlyphs > 0 && Interlocked.Exchange(ref _r._textGlyphOverflowWarningIssued, 1) == 0)
-            {
-                EngineDiagnostics.Report(
-                    EngineErrorSeverity.Warning,
-                    "Cyberland.Engine.Rendering",
+            SubmissionClamp.ClampWithDropCount(textCount, DeferredRenderingConstants.MaxTextGlyphs, out var droppedTextGlyphs);
+            if (droppedTextGlyphs > 0)
+                EmitOverflowWarning(ref _r._textGlyphOverflowWarningTick,
                     $"Text glyph submissions exceeded cap ({DeferredRenderingConstants.MaxTextGlyphs}); dropped {droppedTextGlyphs} glyphs.");
-            }
             textCount -= droppedTextGlyphs;
             int[] textSort;
             if (textCount == 0)
@@ -218,16 +206,75 @@ public sealed unsafe partial class VulkanRenderer
                     textSort[0] = 0;
             }
 
-            if (pointCount > DeferredRenderingConstants.MaxPointLights)
-                LightSubmissionOrdering.SortPointLights(pointLights, pointCount);
-            if (directionalCount > DeferredRenderingConstants.MaxDirectionalLights)
-                LightSubmissionOrdering.SortDirectionalLights(directionalLights, directionalCount);
-            if (spotCount > DeferredRenderingConstants.MaxSpotLights)
-                LightSubmissionOrdering.SortSpotLights(spotLights, spotCount);
+            // Emissive light promotion: scan submitted sprites for high-emissive material rows and append synthetic
+            // point lights so the renderer can illuminate (and cast shadows from) them without explicit ECS lights.
+            // Inputs/outputs are all in WORLD space; the renderer's per-frame light SSBO upload converts to swapchain.
+            pointCount = PromoteEmissiveSpritesIntoPointLights(
+                sprites,
+                spriteCount,
+                sortIndices,
+                resolvedPost.EmissivePromotion,
+                resolvedPost.Shadows.Enabled,
+                ref pointLights,
+                pointCount,
+                ref _r._frameScratchPointLights);
 
-            LightSubmissionPolicy.ClampWithDropCount(pointCount, DeferredRenderingConstants.MaxPointLights, out var droppedPointLights);
-            LightSubmissionPolicy.ClampWithDropCount(directionalCount, DeferredRenderingConstants.MaxDirectionalLights, out var droppedDirectionalLights);
-            LightSubmissionPolicy.ClampWithDropCount(spotCount, DeferredRenderingConstants.MaxSpotLights, out var droppedSpotLights);
+            StampSubmissionIndices(pointLights, pointCount);
+            StampSubmissionIndices(spotLights, spotCount);
+            StampSubmissionIndices(directionalLights, directionalCount);
+            StampSubmissionIndices(ambientLights, ambientCount);
+            if (pointCount > 1)
+                LightSubmissionOrdering.SortPointLights(pointLights, pointCount);
+            if (directionalCount > 1)
+                LightSubmissionOrdering.SortDirectionalLights(directionalLights, directionalCount);
+            if (spotCount > 1)
+                LightSubmissionOrdering.SortSpotLights(spotLights, spotCount);
+            if (ambientCount > 1)
+                LightSubmissionOrdering.SortAmbientLights(ambientLights, ambientCount);
+
+            var sdfScale = resolvedPost.Shadows.SdfScale;
+            if (sdfScale <= 0f) sdfScale = 1f;
+            var shadowCamera = new ShadowSdfCamera(
+                camera.PositionWorld,
+                camera.RotationRadians,
+                new Vector2D<float>(camera.ViewportSizeWorld.X, camera.ViewportSizeWorld.Y),
+                new Vector2D<float>(physical.OffsetPixels.X, physical.OffsetPixels.Y),
+                new Vector2D<float>(physical.SizePixels.X, physical.SizePixels.Y),
+                physical.Scale,
+                screen,
+                sdfScale);
+
+            // Cull off-screen lights BEFORE clamping so visible lights aren't displaced by
+            // off-screen entries that happen to have lower sort keys.
+            pointCount = LightViewportCulling.CullPointLights(pointLights, pointCount, in shadowCamera);
+            spotCount = LightViewportCulling.CullSpotLights(spotLights, spotCount, in shadowCamera);
+
+            pointCount = SubmissionClamp.ClampWithDropCount(pointCount, DeferredRenderingConstants.MaxPointLights, out var droppedPointLights);
+            directionalCount = SubmissionClamp.ClampWithDropCount(directionalCount, DeferredRenderingConstants.MaxDirectionalLights, out var droppedDirectionalLights);
+            spotCount = SubmissionClamp.ClampWithDropCount(spotCount, DeferredRenderingConstants.MaxSpotLights, out var droppedSpotLights);
+            ambientCount = SubmissionClamp.ClampWithDropCount(ambientCount, DeferredRenderingConstants.MaxAmbientLights, out var droppedAmbientLights);
+
+            if (droppedPointLights > 0)
+                EmitOverflowWarning(ref _r._pointLightOverflowWarningTick,
+                    $"Point light submissions exceeded cap ({DeferredRenderingConstants.MaxPointLights}); dropped {droppedPointLights} lights after viewport cull.");
+            if (droppedSpotLights > 0)
+                EmitOverflowWarning(ref _r._spotLightOverflowWarningTick,
+                    $"Spot light submissions exceeded cap ({DeferredRenderingConstants.MaxSpotLights}); dropped {droppedSpotLights} lights after viewport cull.");
+            if (droppedDirectionalLights > 0)
+                EmitOverflowWarning(ref _r._directionalLightOverflowWarningTick,
+                    $"Directional light submissions exceeded cap ({DeferredRenderingConstants.MaxDirectionalLights}); dropped {droppedDirectionalLights} lights after viewport cull.");
+            if (droppedAmbientLights > 0)
+                EmitOverflowWarning(ref _r._ambientLightOverflowWarningTick,
+                    $"Ambient light submissions exceeded cap ({DeferredRenderingConstants.MaxAmbientLights}); dropped {droppedAmbientLights} lights after deterministic intensity sort.");
+
+            // When shadows are globally disabled, strip CastsShadow on ALL surviving lights so cone-trace
+            // loops are skipped in the shader and SSBO flags stay consistent with the SDF sentinel.
+            if (!resolvedPost.Shadows.Enabled)
+            {
+                StripCastsShadow(pointLights, pointCount);
+                StripCastsShadow(spotLights, spotCount);
+                StripCastsShadow(directionalLights, directionalCount);
+            }
 
             return new FramePlan(
                 sprites,
@@ -258,13 +305,120 @@ public sealed unsafe partial class VulkanRenderer
                 voSort,
                 textGlyphs,
                 textCount,
-                textSort);
+                textSort,
+                shadowCamera: shadowCamera);
         }
 
         /// <summary>Thin wrapper so <see cref="ConcurrentQueueDrain.DrainToScratch{T}"/> stays testable in isolation.</summary>
         private static int DrainQueue<T>(ConcurrentQueue<T> queue, ref T[]? scratch, out T[] result) =>
             ConcurrentQueueDrain.DrainToScratch(queue, ref scratch, out result);
 
+        private static void StampSubmissionIndices(PointLight[] lights, int count)
+        {
+            for (var i = 0; i < count; i++)
+                lights[i].SubmissionIndex = i;
+        }
+
+        private static void StampSubmissionIndices(SpotLight[] lights, int count)
+        {
+            for (var i = 0; i < count; i++)
+                lights[i].SubmissionIndex = i;
+        }
+
+        private static void StampSubmissionIndices(DirectionalLight[] lights, int count)
+        {
+            for (var i = 0; i < count; i++)
+                lights[i].SubmissionIndex = i;
+        }
+
+        private static void StampSubmissionIndices(AmbientLight[] lights, int count)
+        {
+            for (var i = 0; i < count; i++)
+                lights[i].SubmissionIndex = i;
+        }
+
+        private static void StripCastsShadow(PointLight[] lights, int count)
+        {
+            for (var i = 0; i < count; i++)
+                lights[i].CastsShadow = false;
+        }
+
+        private static void StripCastsShadow(SpotLight[] lights, int count)
+        {
+            for (var i = 0; i < count; i++)
+                lights[i].CastsShadow = false;
+        }
+
+        private static void StripCastsShadow(DirectionalLight[] lights, int count)
+        {
+            for (var i = 0; i < count; i++)
+                lights[i].CastsShadow = false;
+        }
+
+        private const long OverflowWarningIntervalTicks = 5 * TimeSpan.TicksPerSecond;
+
+        /// <summary>Rate-limited overflow warning: emits at most once per 5 seconds per category.</summary>
+        private static void EmitOverflowWarning(ref long lastTick, string message)
+        {
+            var now = DateTime.UtcNow.Ticks;
+            var prev = Interlocked.Read(ref lastTick);
+            if (now - prev < OverflowWarningIntervalTicks)
+                return;
+            if (Interlocked.CompareExchange(ref lastTick, now, prev) != prev)
+                return;
+            EngineDiagnostics.Report(EngineErrorSeverity.Warning, "Cyberland.Engine.Rendering", message);
+        }
+
+        /// <summary>
+        /// Scans <paramref name="sprites"/> (via <paramref name="sortIndices"/>) for sprites with
+        /// <see cref="SpriteDrawRequest.EmissiveIntensity"/> above the threshold and appends synthetic
+        /// <see cref="PointLight"/> rows to <paramref name="pointLights"/>.
+        /// Returns the new total point-light count. World space throughout.
+        /// </summary>
+        /// <remarks>
+        /// Promotion is gated on <see cref="EmissivePromotionSettings.EmissiveLightThreshold"/> only — NOT on
+        /// <see cref="ShadowSettings.Enabled"/>. When shadows are globally disabled, <c>CastsShadow</c> is stripped
+        /// on <b>all</b> surviving lights (including promoted) by the caller after clamping.
+        /// </remarks>
+        private static int PromoteEmissiveSpritesIntoPointLights(
+            SpriteDrawRequest[] sprites,
+            int spriteCount,
+            int[] sortIndices,
+            in EmissivePromotionSettings promoSettings,
+            bool shadowsEnabled,
+            ref PointLight[] pointLights,
+            int existingPointCount,
+            ref PointLight[]? scratch)
+        {
+#if DEBUG
+            using var __prof = FrameProfilerScope.Enter("FramePlan.EmissivePromotion");
+#endif
+            if (promoSettings.EmissiveLightThreshold <= 0f)
+                return existingPointCount;
+            var cap = System.Math.Min(
+                promoSettings.MaxPromotedLightsPerFrame > 0 ? promoSettings.MaxPromotedLightsPerFrame : 0,
+                DeferredRenderingConstants.MaxPromotedLightsCap);
+            if (cap <= 0)
+                return existingPointCount;
+
+            var required = existingPointCount + cap;
+            if (pointLights.Length < required)
+                Array.Resize(ref pointLights, required);
+            scratch = pointLights;
+
+            var promotedSpan = pointLights.AsSpan(existingPointCount, cap);
+            var promoted = EmissiveLightPromotionCpu.Promote(
+                sprites,
+                spriteCount,
+                sortIndices,
+                promoSettings.EmissiveLightThreshold,
+                promoSettings.EmissivePromotionRadiusGain <= 0f ? 1f : promoSettings.EmissivePromotionRadiusGain,
+                promoSettings.EmissivePromotionIntensityGain <= 0f ? 1f : promoSettings.EmissivePromotionIntensityGain,
+                cap,
+                promotedSpan);
+
+            return existingPointCount + promoted;
+        }
     }
 
     private sealed class RenderBackendExecutor : IRenderBackendExecutor
@@ -298,6 +452,8 @@ public sealed unsafe partial class VulkanRenderer
                 [
                     RenderPassDependencyModel.PassStage.EmissivePrepass,
                     RenderPassDependencyModel.PassStage.GBufferOpaque,
+                    RenderPassDependencyModel.PassStage.ShadowSdf,
+                    RenderPassDependencyModel.PassStage.TileCull,
                     RenderPassDependencyModel.PassStage.DeferredLighting,
                     RenderPassDependencyModel.PassStage.TransparentWboit,
                     RenderPassDependencyModel.PassStage.TransparentResolve,
@@ -362,9 +518,9 @@ public sealed unsafe partial class VulkanRenderer
             var rp = context.FramePlan.ResolvedPost;
             _r._bloomPipeline!.Record(
                 context.Cmd,
-                bloomRadius > 0f,
+                true,
                 bloomRadius,
-                rp.EmissiveToBloomGain,
+                rp.BloomSourceGain,
                 rp.BloomExtractThreshold,
                 rp.BloomExtractKnee,
                 context.HalfViewport,
@@ -380,7 +536,7 @@ public sealed unsafe partial class VulkanRenderer
                 context.Cmd,
                 false,
                 0f,
-                rp.EmissiveToBloomGain,
+                rp.BloomSourceGain,
                 rp.BloomExtractThreshold,
                 rp.BloomExtractKnee,
                 context.HalfViewport,
@@ -444,9 +600,13 @@ public sealed unsafe partial class VulkanRenderer
                 Exposure = post.Exposure,
                 Saturation = post.Saturation,
                 EmissiveHdrGain = post.EmissiveToHdrGain,
-                BloomSourceGain = post.EmissiveToBloomGain,
                 ApplyManualDisplayGamma = _r._swapchainUsesSrgbFramebuffer ? 0f : 1f,
-                Pad1 = 0f
+                TonemapEnabled = post.TonemapEnabled ? 1f : 0f,
+                Pad0 = 0f,
+                Pad1 = 0f,
+                ColorGradingShadows = new Vector4D<float>(post.ColorGradingShadows.X, post.ColorGradingShadows.Y, post.ColorGradingShadows.Z, 0f),
+                ColorGradingMidtones = new Vector4D<float>(post.ColorGradingMidtones.X, post.ColorGradingMidtones.Y, post.ColorGradingMidtones.Z, 0f),
+                ColorGradingHighlights = new Vector4D<float>(post.ColorGradingHighlights.X, post.ColorGradingHighlights.Y, post.ColorGradingHighlights.Z, 0f)
             };
 
             _r._vk.CmdPushConstants(context.Cmd, _r._plComposite, ShaderStageFlags.FragmentBit, 0, (uint)sizeof(CompositePush), &cp);

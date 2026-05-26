@@ -1,0 +1,29 @@
+---
+description: Restricts subagents from building or running tests — only the root agent may do so
+alwaysApply: true
+---
+
+# Cyberland — Subagent build and test restrictions
+
+## Rule
+
+**Subagents (Task tool invocations) must NOT run `dotnet build`, `dotnet test`, or any other command that compiles the solution or executes the test suite.** Building and testing is the **root agent's responsibility** and should only happen after all planned subagent work is complete.
+
+## Why
+
+- Concurrent `dotnet build` / `dotnet test` processes fight over the same `artifacts/` output directory, causing `MSB3027` / `MSB3021` file-lock errors and `testhost` crashes.
+- A subagent's partial changes may fail to compile against in-flight edits from other subagents, producing misleading errors.
+- Coverage runs take 3–4 minutes; parallel coverage runs are wasteful and unreliable.
+
+## What subagents should do instead
+
+- Make their code edits (source, tests, shaders, manifests).
+- Trust that the root agent will build and run the full test suite once all subagent work lands.
+- If a subagent needs to verify a syntax question, it may use `ReadLints` on edited files but must not invoke `dotnet` CLI commands.
+
+## What the root agent should do
+
+1. Wait for all subagents to complete.
+2. Kill any stale `testhost` / `dotnet` processes.
+3. Run a single `dotnet build` followed by `dotnet test` with coverage.
+4. Fix any compilation or test failures introduced by subagent work.

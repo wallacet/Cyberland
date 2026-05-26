@@ -26,18 +26,20 @@ public sealed unsafe partial class VulkanRenderer
         DestroyDsl2(ref _dslBloomExtract);
         DestroyDsl2(ref _dslBloomDual);
         DestroyDsl2(ref _dslEmissiveScene);
-        DestroyDsl2(ref _dslLighting);
         DestroyDsl2(ref _dslGbufferRead);
-        DestroyDsl2(ref _dslPointSsbo);
         DestroyDsl2(ref _dslTransparentResolve);
+        DestroyDsl2(ref _dslJfaSrc);
+        DestroyDsl2(ref _dslTiledLighting);
         DestroyDsl2(ref _dslTexture);
         DestroyLightingBuffer();
+        DestroyTiledLightingResources();
         DestroyTextInstanceBuffer();
         DestroySpriteInstanceBuffer();
         DestroyPointLightSsboResources();
         DestroyDirectionalSpotLightSsboResources();
 
         VulkanGraphicsPipelineHelpers.DestroySamplerIfValid(_vk, _device, ref _samplerLinear);
+        VulkanGraphicsPipelineHelpers.DestroySamplerIfValid(_vk, _device, ref _samplerNearest);
 
         _offscreenTargets ??= new OffscreenTargets(this);
         _offscreenTargets.DestroyGbufferAndWboitAndComposite();
@@ -57,6 +59,9 @@ public sealed unsafe partial class VulkanRenderer
         VulkanGraphicsPipelineHelpers.DestroyRenderPassIfValid(_vk, _device, ref _rpGbufferShaderRead);
         VulkanGraphicsPipelineHelpers.DestroyRenderPassIfValid(_vk, _device, ref _rpWboitUndefined);
         VulkanGraphicsPipelineHelpers.DestroyRenderPassIfValid(_vk, _device, ref _rpWboitShaderRead);
+        VulkanGraphicsPipelineHelpers.DestroyRenderPassIfValid(_vk, _device, ref _rpShadowOccluderMask);
+        VulkanGraphicsPipelineHelpers.DestroyRenderPassIfValid(_vk, _device, ref _rpShadowJfaSeed);
+        VulkanGraphicsPipelineHelpers.DestroyRenderPassIfValid(_vk, _device, ref _rpShadowSdfFinal);
     }
 
     private void DestroyShaderModule2(ref ShaderModule m)
@@ -77,9 +82,6 @@ public sealed unsafe partial class VulkanRenderer
     {
         DestroyShaderModule2(ref _modFragGbuffer);
         DestroyShaderModule2(ref _modFragSwapchainUi);
-        DestroyShaderModule2(ref _modFragDeferredBase);
-        DestroyShaderModule2(ref _modVertDeferredPoint);
-        DestroyShaderModule2(ref _modFragDeferredPoint);
         DestroyShaderModule2(ref _modFragDeferredBleed);
         DestroyShaderModule2(ref _modFragTransparentWboit);
         DestroyShaderModule2(ref _modFragTransparentResolve);
@@ -182,14 +184,10 @@ public sealed unsafe partial class VulkanRenderer
     {
         VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_vk!, _device, ref _pipeSpriteGbuffer);
         VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_vk!, _device, ref _pipeSwapchainUiOverlay);
-        VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_vk!, _device, ref _pipeDeferredBase);
-        VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_vk!, _device, ref _pipeDeferredPoint);
         VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_vk!, _device, ref _pipeDeferredBleed);
         VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_vk!, _device, ref _pipeTransparentWboit);
         VulkanGraphicsPipelineHelpers.DestroyPipelineIfValid(_vk!, _device, ref _pipeTransparentResolve);
 
-        VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_vk!, _device, ref _plDeferredBase);
-        VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_vk!, _device, ref _plDeferredPoint);
         VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_vk!, _device, ref _plDeferredBleed);
         VulkanGraphicsPipelineHelpers.DestroyPipelineLayoutIfValid(_vk!, _device, ref _plTransparentResolve);
     }

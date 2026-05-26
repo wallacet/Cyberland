@@ -114,6 +114,7 @@ public sealed class SceneRuntimeEngineDeserializerTests
         Assert.True(rootWorld.Has<BitmapText>(eid));
         Assert.True(rootWorld.Has<AmbientLightSource>(eid));
         Assert.True(rootWorld.Has<GlobalPostProcessSource>(eid));
+        Assert.True(rootWorld.Get<GlobalPostProcessSource>(eid).Settings.Shadows.Enabled);
         Assert.False(rootWorld.Get<Sprite>(eid).Visible);
         Assert.Equal(50, rootWorld.Get<Sprite>(eid).Layer);
 

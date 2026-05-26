@@ -29,6 +29,11 @@ public static class EntityWorldTransfer
             ld = l;
         }
 
+        CopyIfPresent<AmbientLightSource>(from, src, to, dst);
+        CopyIfPresent<DirectionalLightSource>(from, src, to, dst);
+        CopyIfPresent<SpotLightSource>(from, src, to, dst);
+        CopyIfPresent<PointLightSource>(from, src, to, dst);
+
         return true;
     }
 
@@ -87,6 +92,16 @@ public static class EntityWorldTransfer
         }
 
         return d;
+    }
+
+    private static void CopyIfPresent<T>(World from, EntityId src, World to, EntityId dst) where T : unmanaged, IComponent
+    {
+        if (from.Has<T>(src))
+        {
+            ref readonly var v = ref from.Get<T>(src);
+            ref var vd = ref to.GetOrAdd<T>(dst);
+            vd = v;
+        }
     }
 
     private static bool IsUnderRoot(World world, EntityId id, EntityId root)

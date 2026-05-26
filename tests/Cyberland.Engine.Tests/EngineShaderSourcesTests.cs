@@ -14,22 +14,33 @@ public sealed class EngineShaderSourcesTests
             { EngineShaderSources.SpriteEmissiveFrag, ShaderStage.Fragment },
             { EngineShaderSources.SpriteGbufferFrag, ShaderStage.Fragment },
             { EngineShaderSources.SpriteSwapchainUiFrag, ShaderStage.Fragment },
-            { EngineShaderSources.DeferredBaseFrag, ShaderStage.Fragment },
-            { EngineShaderSources.DeferredPointVert, ShaderStage.Vertex },
-            { EngineShaderSources.DeferredPointFrag, ShaderStage.Fragment },
             { EngineShaderSources.DeferredEmissiveBleedFrag, ShaderStage.Fragment },
+            { EngineShaderSources.ShadowOccluderVert, ShaderStage.Vertex },
+            { EngineShaderSources.ShadowOccluderFrag, ShaderStage.Fragment },
+            { EngineShaderSources.FullscreenTriangleVert, ShaderStage.Vertex },
+            { EngineShaderSources.JfaInitFrag, ShaderStage.Fragment },
+            { EngineShaderSources.JfaStepFrag, ShaderStage.Fragment },
+            { EngineShaderSources.JfaToSdfFrag, ShaderStage.Fragment },
             { EngineShaderSources.SpriteTransparentWboitFrag, ShaderStage.Fragment },
             { EngineShaderSources.TransparentResolveFrag, ShaderStage.Fragment },
-            { EngineShaderSources.CompositeVert, ShaderStage.Vertex },
             { EngineShaderSources.CompositeFrag, ShaderStage.Fragment },
             { EngineShaderSources.BloomExtractFrag, ShaderStage.Fragment },
             { EngineShaderSources.BloomDownsampleFrag, ShaderStage.Fragment },
             { EngineShaderSources.BloomGaussianFrag, ShaderStage.Fragment },
             { EngineShaderSources.BloomUpsampleFrag, ShaderStage.Fragment },
             { EngineShaderSources.BloomCopyFrag, ShaderStage.Fragment },
+            { EngineShaderSources.TiledDeferredLightingFrag, ShaderStage.Fragment },
             { EngineShaderSources.TextMsdfVert, ShaderStage.Vertex },
             { EngineShaderSources.TextMsdfFrag, ShaderStage.Fragment },
         };
+
+    [Fact]
+    public void MergeFragmentWithShadowInclude_supports_single_line_body()
+    {
+        var merged = EngineShaderSources.MergeFragmentWithShadowInclude("// include", "#version 450");
+        Assert.Contains("// include", merged, StringComparison.Ordinal);
+        Assert.Contains("#version 450", merged, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void AllBuiltInShaders_includes_all_EngineShaderSources_constants()
@@ -42,14 +53,20 @@ public sealed class EngineShaderSourcesTests
             .ToArray();
 
         foreach (var shader in declared)
+        {
+            if (shader == EngineShaderSources.ShadowSdfSamplingInclude)
+                continue;
             Assert.Contains(shader, covered);
+        }
     }
 
     [Theory]
     [MemberData(nameof(AllBuiltInShaders))]
     public void Load_returns_glsl_that_compiles_to_spirv(string fileName, ShaderStage stage)
     {
-        var src = EngineShaderSources.Load(fileName);
+        var src = fileName is EngineShaderSources.TiledDeferredLightingFrag
+            ? EngineShaderSources.LoadFragmentWithShadowInclude(fileName)
+            : EngineShaderSources.Load(fileName);
         Assert.Contains("#version 450", src, StringComparison.Ordinal);
         _ = GlslSpirvCompiler.CompileGlslToSpirv(src, stage);
     }
@@ -137,5 +154,42 @@ public sealed class EngineShaderSourcesTests
         Assert.False(ok);
         Assert.Empty(words);
         Assert.Contains("magic mismatch", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PreferRuntimeGlslCompile_marks_shadow_and_deferred_shaders()
+    {
+        Assert.True(EngineShaderSources.PreferRuntimeGlslCompile(EngineShaderSources.TiledDeferredLightingFrag));
+        Assert.True(EngineShaderSources.PreferRuntimeGlslCompile(EngineShaderSources.ShadowOccluderFrag));
+        Assert.False(EngineShaderSources.PreferRuntimeGlslCompile(EngineShaderSources.SpriteVert));
+    }
+
+    [Fact]
+    public void TiledDeferredLighting_uses_three_vec4_point_stride()
+    {
+        var src = EngineShaderSources.LoadFragmentWithShadowInclude(EngineShaderSources.TiledDeferredLightingFrag);
+        Assert.Contains("lid * 3u", src, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RuntimeGlslInclude_covers_all_fragment_shaders_that_reference_sdf_shadow()
+    {
+        var runtimeGlslShaders = AllBuiltInShaders
+            .Where(row => (ShaderStage)row[1] == ShaderStage.Fragment)
+            .Select(row => (string)row[0])
+            .Where(EngineShaderSources.PreferRuntimeGlslCompile)
+            .ToArray();
+
+        foreach (var shader in runtimeGlslShaders)
+        {
+            var rawSrc = EngineShaderSources.Load(shader);
+            if (!rawSrc.Contains("sdfSoftShadow", StringComparison.Ordinal) &&
+                !rawSrc.Contains("sdfDirectionalShadow", StringComparison.Ordinal))
+                continue;
+
+            var merged = EngineShaderSources.LoadFragmentWithShadowInclude(shader);
+            Assert.Contains("worldToSwapchainPx", merged, StringComparison.Ordinal);
+            Assert.Contains("void main(", merged, StringComparison.Ordinal);
+        }
     }
 }

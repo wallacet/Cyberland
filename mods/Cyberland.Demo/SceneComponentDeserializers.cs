@@ -22,6 +22,9 @@ public static class SceneComponentDeserializers
         scenes.RegisterComponentDeserializer("cyberland.demo/neon-strip-tag", static (in SceneComponentDeserializeContext ctx) =>
             ctx.World.GetOrAdd<NeonStripTag>(ctx.EntityId));
 
+        scenes.RegisterComponentDeserializer("cyberland.demo/shadow-floor-tag", static (in SceneComponentDeserializeContext ctx) =>
+            ctx.World.GetOrAdd<ShadowFloorTag>(ctx.EntityId));
+
         scenes.RegisterComponentDeserializer("cyberland.demo/hud-root-tag", static (in SceneComponentDeserializeContext ctx) =>
             ctx.World.GetOrAdd<HudRootTag>(ctx.EntityId));
 

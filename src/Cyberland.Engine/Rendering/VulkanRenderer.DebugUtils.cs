@@ -261,9 +261,7 @@ public sealed unsafe partial class VulkanRenderer
         SetGpuObjectName(ObjectType.DescriptorSetLayout, VkHandle(_dslBloomExtract), "dsl.BloomExtract");
         SetGpuObjectName(ObjectType.DescriptorSetLayout, VkHandle(_dslBloomDual), "dsl.BloomDual");
         SetGpuObjectName(ObjectType.DescriptorSetLayout, VkHandle(_dslEmissiveScene), "dsl.EmissiveScene");
-        SetGpuObjectName(ObjectType.DescriptorSetLayout, VkHandle(_dslLighting), "dsl.Lighting");
         SetGpuObjectName(ObjectType.DescriptorSetLayout, VkHandle(_dslGbufferRead), "dsl.GbufferRead");
-        SetGpuObjectName(ObjectType.DescriptorSetLayout, VkHandle(_dslPointSsbo), "dsl.PointSsbo");
         SetGpuObjectName(ObjectType.DescriptorSetLayout, VkHandle(_dslTransparentResolve), "dsl.TransparentResolve");
 
         SetGpuObjectName(ObjectType.PipelineLayout, VkHandle(_plSpriteTwoTexture), "pl.SpriteTwoTexture");
@@ -274,8 +272,6 @@ public sealed unsafe partial class VulkanRenderer
         SetGpuObjectName(ObjectType.PipelineLayout, VkHandle(_plBloomGaussian), "pl.BloomGaussian");
         SetGpuObjectName(ObjectType.PipelineLayout, VkHandle(_plBloomUpsample), "pl.BloomUpsample");
         SetGpuObjectName(ObjectType.PipelineLayout, VkHandle(_plBloomCopy), "pl.BloomCopy");
-        SetGpuObjectName(ObjectType.PipelineLayout, VkHandle(_plDeferredBase), "pl.DeferredBase");
-        SetGpuObjectName(ObjectType.PipelineLayout, VkHandle(_plDeferredPoint), "pl.DeferredPoint");
         SetGpuObjectName(ObjectType.PipelineLayout, VkHandle(_plDeferredBleed), "pl.DeferredBleed");
         SetGpuObjectName(ObjectType.PipelineLayout, VkHandle(_plTransparentResolve), "pl.TransparentResolve");
 
@@ -283,8 +279,6 @@ public sealed unsafe partial class VulkanRenderer
         SetGpuObjectName(ObjectType.Pipeline, VkHandle(_pipeSpriteGbuffer), "pipe.SpriteGbuffer");
         SetGpuObjectName(ObjectType.Pipeline, VkHandle(_pipeSwapchainUiOverlay), "pipe.SwapchainUiOverlay");
         SetGpuObjectName(ObjectType.Pipeline, VkHandle(_pipeTextMsdf), "pipe.TextMsdf");
-        SetGpuObjectName(ObjectType.Pipeline, VkHandle(_pipeDeferredBase), "pipe.DeferredBase");
-        SetGpuObjectName(ObjectType.Pipeline, VkHandle(_pipeDeferredPoint), "pipe.DeferredPoint");
         SetGpuObjectName(ObjectType.Pipeline, VkHandle(_pipeDeferredBleed), "pipe.DeferredBleed");
         SetGpuObjectName(ObjectType.Pipeline, VkHandle(_pipeTransparentWboit), "pipe.TransparentWboit");
         SetGpuObjectName(ObjectType.Pipeline, VkHandle(_pipeTransparentResolve), "pipe.TransparentResolve");
@@ -305,13 +299,11 @@ public sealed unsafe partial class VulkanRenderer
         SetGpuObjectName(ObjectType.DeviceMemory, VkHandle(_lightingBufferMemory), "mem.LightingUbo");
 
         SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsEmissiveScene), "ds.EmissiveScene");
-        SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsLighting), "ds.Lighting");
         SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsBloomExtract), "ds.BloomExtract");
         SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsBloomUpsample), "ds.BloomUpsample");
         SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsBloomGaussianSrcBloom0), "ds.BloomGaussianSrcBloom0");
         SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsBloomGaussianSrcBloom1), "ds.BloomGaussianSrcBloom1");
         SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsGbufferRead), "ds.GbufferRead");
-        SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsPointSsbo), "ds.PointSsbo");
         SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsTransparentResolve), "ds.TransparentResolve");
         SetGpuObjectName(ObjectType.DescriptorSet, VkHandle(_dsHdrOpaqueForTransparent), "ds.HdrOpaqueForTransparent");
 

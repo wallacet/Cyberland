@@ -9,11 +9,11 @@ layout(push_constant) uniform Pc {
     vec2 padPc;
 } pc;
 void main() {
-    vec2 uv = (floor(gl_FragCoord.xy) + vec2(0.5)) / pc.screenSize;
-    vec3 opaqueCol = texture(hdrOpaque, uv).rgb;
-    vec4 accum = texture(accumTex, uv);
+    vec2 screenUv = (floor(gl_FragCoord.xy) + vec2(0.5)) / pc.screenSize;
+    vec3 opaqueCol = texture(hdrOpaque, screenUv).rgb;
+    vec4 accum = texture(accumTex, screenUv);
     // Reveal stores multiplicative transmittance product (clear=1, blend dst*=1-alpha per fragment).
-    float reveal = texture(revealTex, uv).r;
+    float reveal = texture(revealTex, screenUv).r;
     reveal = clamp(reveal, 0.0, 1.0);
     // Avoid dividing tiny/noisy accum.a (could inflate transCol and leave smears next to clears edges).
     vec3 transCol = accum.a > 1e-4 ? (accum.rgb / accum.a) : vec3(0.0);

@@ -16,6 +16,7 @@ using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
 using Cyberland.Engine;
+using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Scene;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
@@ -45,7 +46,7 @@ namespace Cyberland.Engine.Rendering;
 /// <c>VulkanRenderer.BloomPipeline.cs</c> (bloom pyramid); <c>VulkanRenderer.OffscreenTargets.cs</c>, <c>DescriptorManager</c>, <c>PipelineFactory</c>, <c>TextureUpload</c>.
 /// </para>
 /// <para>
-/// <b>Frame order (recording):</b> emissive sprites → G-buffer (opaque) → deferred lighting → WBOIT (transparent) → resolve → bloom → composite to swapchain.
+/// <b>Frame order (recording):</b> emissive sprites → G-buffer (opaque) → shadow SDF → deferred lighting → WBOIT (transparent) → resolve → bloom → composite to swapchain.
 /// </para>
 /// <para>
 /// <b>HUD text:</b> ECS submits viewport UI into <c>_viewportUiOverlayQueue</c> (see <see cref="IsViewportUiOverlaySprite"/>).
@@ -73,6 +74,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private static readonly string[] DeviceExtensions = ["VK_KHR_swapchain"];
 
     private readonly IWindow _window;
+    private ParallelismSettings? _parallelism;
     private bool _resizePending;
     private readonly bool _logInitializationStages = ReadInitializationStageLoggingEnabled();
     private readonly bool _forceEngineGlslFallback = IsTruthy(Environment.GetEnvironmentVariable("CYBERLAND_FORCE_GLSL_SHADER_FALLBACK"));
@@ -152,9 +154,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private readonly List<ShaderModule> _customShaderModules = new();
     private readonly HashSet<string> _shaderFallbackWarnings = new(StringComparer.Ordinal);
     private readonly float _bloomResolutionScale = ReadBloomResolutionScale();
-    private int _deferredSpriteOverflowWarningIssued;
-    private int _overlaySpriteOverflowWarningIssued;
-    private int _textGlyphOverflowWarningIssued;
+    private long _deferredSpriteOverflowWarningTick;
+    private long _overlaySpriteOverflowWarningTick;
+    private long _textGlyphOverflowWarningTick;
     private TextureId _whiteTextureId = TextureId.MaxValue;
     private TextureId _blackTextureId = TextureId.MaxValue;
     private TextureId _defaultNormalTextureId = TextureId.MaxValue;
@@ -215,6 +217,16 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     /// <summary>Creates an uninitialized renderer; call <see cref="Initialize"/> after construction.</summary>
     /// <param name="window">Silk.NET window that provides a Vulkan surface.</param>
     public VulkanRenderer(IWindow window) => _window = window;
+
+    /// <summary>
+    /// Optional parallelism settings for CPU work done on the render thread (e.g. tile-light culling).
+    /// Set by the host after construction; when <c>null</c>, render-thread CPU passes run sequentially.
+    /// </summary>
+    public ParallelismSettings? Parallelism
+    {
+        get => _parallelism;
+        set => _parallelism = value;
+    }
 
     /// <summary>Current swapchain size in pixels — physical window extent (matches shader <c>screenSize</c>).</summary>
     public Vector2D<int> SwapchainPixelSize => new((int)_swapchainExtent.Width, (int)_swapchainExtent.Height);
@@ -288,13 +300,16 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     /// <summary>Instrumentation: deferred transparent instanced draw calls for the most recent frame encode.</summary>
     public int LastFrameDeferredTransparentSpriteDrawCalls => _lastFrameDeferredTransparentSpriteDrawCalls;
 
-    /// <summary>Instrumentation: point lights submitted in the most recent frame plan before cap/drop policy.</summary>
+    /// <summary>Instrumentation: point lights rendered in the most recent frame (post-clamp count).</summary>
     public int LastFrameSubmittedPointLights => _lastFrameSubmittedPointLights;
 
-    /// <summary>Instrumentation: directional lights submitted in the most recent frame plan before cap/drop policy.</summary>
+    /// <summary>Instrumentation: point lights actually rendered after cap/drop policy (alias for clarity).</summary>
+    public int LastFrameRenderedPointLights => _lastFrameSubmittedPointLights;
+
+    /// <summary>Instrumentation: directional lights rendered in the most recent frame (post-clamp count).</summary>
     public int LastFrameSubmittedDirectionalLights => _lastFrameSubmittedDirectionalLights;
 
-    /// <summary>Instrumentation: spot lights submitted in the most recent frame plan before cap/drop policy.</summary>
+    /// <summary>Instrumentation: spot lights rendered in the most recent frame (post-clamp count).</summary>
     public int LastFrameSubmittedSpotLights => _lastFrameSubmittedSpotLights;
 
     /// <summary>Instrumentation: point lights dropped by cap policy in the most recent frame encode.</summary>
@@ -523,6 +538,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             CreateInstance();
             CreateSurface();
             PickPhysicalDevice();
+            ValidateRequiredFormatFeatures();
             CreateLogicalDevice();
             CreateSwapchain();
             CreateCommandPool();
@@ -575,6 +591,11 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
          value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
          value.Equals("on", StringComparison.OrdinalIgnoreCase));
 
+    // TODO: Wire RunInitializationStage into StartupProgressTracker so the host loading UI can display
+    // Vulkan init progress (instance creation, pipeline build, default textures). Currently this method
+    // only logs to console when CYBERLAND_LOG_VULKAN_INIT_STAGES=1. Full wiring requires either accepting
+    // a StartupProgressTracker at construction or exposing a callback/event for GameApplication to hook.
+    // Blocked on deciding renderer lifetime vs tracker lifetime (renderer outlives loading screen).
     private void RunInitializationStage(string stageName, Action action)
     {
         if (!_logInitializationStages)
@@ -597,6 +618,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     {
         var precompiledFailureReason = string.Empty;
         if (!_forceEngineGlslFallback &&
+            !EngineShaderSources.PreferRuntimeGlslCompile(sourceFileName) &&
             EngineShaderSources.TryLoadPrecompiledSpirv(sourceFileName, out var spirvBytes, out precompiledFailureReason))
         {
             if (SpirvBinary.TryDecodeWords(spirvBytes, out var words, out var decodeFailure))
@@ -612,7 +634,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
             WarnShaderFallbackOnce(debugName, $"precompiled SPIR-V unavailable for '{sourceFileName}': {reason}");
         }
 
-        var glsl = EngineShaderSources.Load(sourceFileName);
+        var glsl = sourceFileName is EngineShaderSources.TiledDeferredLightingFrag
+            ? EngineShaderSources.LoadFragmentWithShadowInclude(sourceFileName)
+            : EngineShaderSources.Load(sourceFileName);
         return CreateShaderModule(GlslSpirvCompiler.CompileGlslToSpirv(glsl, stage), debugName);
     }
 
@@ -693,6 +717,9 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
                 return;
             }
 
+            // ErrorDeviceLost: GPU driver crash / suspend recovery. No in-process recovery is attempted;
+            // the renderer is left in a broken state and the host should exit or restart. See §0.15 in the
+            // shadow rendering cleanup plan for the design rationale.
             if (acquire != Result.Success && acquire != Result.SuboptimalKhr)
                 throw new InvalidOperationException($"AcquireNextImage failed: {acquire}");
 
@@ -1154,6 +1181,30 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
         var vkSurface = ((IVkSurfaceSource)_window).VkSurface!;
         var surfaceHandle = vkSurface.Create<AllocationCallbacks>(new VkHandle(_instance.Handle), null);
         _surface = Unsafe.BitCast<VkNonDispatchableHandle, SurfaceKHR>(surfaceHandle);
+    }
+
+    private void ValidateRequiredFormatFeatures()
+    {
+        ValidateFormatFeature(Format.R16Sfloat, "R16Sfloat (SDF shadow)",
+            FormatFeatureFlags.SampledImageBit | FormatFeatureFlags.SampledImageFilterLinearBit | FormatFeatureFlags.TransferDstBit);
+        ValidateFormatFeature(Format.R8Unorm, "R8Unorm (occluder mask)",
+            FormatFeatureFlags.ColorAttachmentBit);
+        ValidateFormatFeature(Format.R16G16SNorm, "R16G16_SNorm (JFA ping-pong)",
+            FormatFeatureFlags.ColorAttachmentBit | FormatFeatureFlags.SampledImageBit);
+    }
+
+    private void ValidateFormatFeature(Format format, string label, FormatFeatureFlags required)
+    {
+        _vk!.GetPhysicalDeviceFormatProperties(_physicalDevice, format, out var props);
+        var supported = props.OptimalTilingFeatures;
+        if ((supported & required) != required)
+        {
+            var msg = $"GPU does not support required format features for {label}: " +
+                      $"need {required}, have {supported}. " +
+                      "The renderer cannot function correctly on this device.";
+            Diagnostics.EngineDiagnostics.Report(Diagnostics.EngineErrorSeverity.Fatal, "Vulkan Format Check", msg);
+            throw new GraphicsInitializationException(msg);
+        }
     }
 
     private void PickPhysicalDevice()

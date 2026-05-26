@@ -67,16 +67,16 @@ public sealed unsafe partial class VulkanRenderer
         var sprites = framePlan.Sprites;
         var nSprite = framePlan.SpriteCount;
         var overlaySpriteCap = framePlan.ViewportUiOverlaySpriteCount;
-        // Host-visible instance VB is reused across emissive / opaque / transparent / overlay sprite passes. Recording the
-        // full command buffer before submit means later CPU fills overwrite earlier draws unless each pass uses a
-        // disjoint region (gpu executes after all writes — without regions, transparent pass clobbered opaque).
-        var deferredStride = nSprite;
-        var spriteInstanceCapacity = nSprite == 0 ? overlaySpriteCap : deferredStride * 3 + overlaySpriteCap;
-        EnsureSpriteInstanceBufferCapacity(spriteInstanceCapacity);
-        var emissiveInstanceBase = 0;
-        var opaqueInstanceBase = deferredStride;
-        var transparentInstanceBase = deferredStride * 2;
-        var overlaySpriteInstanceBase = deferredStride * 3;
+        // Host-visible instance VB is reused across emissive / opaque / transparent / shadow occluder / overlay
+        // sprite passes. Recording the full command buffer before submit means later CPU fills overwrite earlier
+        // draws unless each pass uses a disjoint region (GPU executes after all writes). Shadow occluders share
+        // this VB at region 3; the overlay occupies region 4.
+        var layout = DeferredRenderingConstants.ComputeSpriteInstanceLayout(nSprite, overlaySpriteCap);
+        EnsureSpriteInstanceBufferCapacity(layout.TotalCapacity);
+        var emissiveInstanceBase = layout.EmissiveBase;
+        var opaqueInstanceBase = layout.OpaqueBase;
+        var transparentInstanceBase = layout.TransparentBase;
+        var overlaySpriteInstanceBase = layout.OverlayBase;
         var post = framePlan.ResolvedPost;
         ResetSpriteFrameCounters();
         _lastFrameSubmittedPointLights = framePlan.PointLightCount;
@@ -85,6 +85,8 @@ public sealed unsafe partial class VulkanRenderer
         _lastFrameDroppedPointLights = framePlan.PointLightDroppedCount;
         _lastFrameDroppedDirectionalLights = framePlan.DirectionalLightDroppedCount;
         _lastFrameDroppedSpotLights = framePlan.SpotLightDroppedCount;
+        int effectiveTileSizePx;
+        Vector2D<int> tileCounts;
         {
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.LightingUpload");
@@ -94,6 +96,8 @@ public sealed unsafe partial class VulkanRenderer
             {
                 UpdateLightingFrameData(in framePlan);
                 UploadPointLightSsboData(in framePlan);
+                (effectiveTileSizePx, tileCounts) = UpdateTileLightBins(in framePlan);
+                UpdateSpotTileLightBins(in framePlan, effectiveTileSizePx, tileCounts);
             }
             finally
             {
@@ -208,6 +212,28 @@ public sealed unsafe partial class VulkanRenderer
             EndGpuLabel(cmd);
         }
 
+        // G-buffer writes must be visible before deferred lighting (or shadow SDF) reads them.
+        {
+            MemoryBarrier gbufBarrier = new()
+            {
+                SType = StructureType.MemoryBarrier,
+                SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+                DstAccessMask = AccessFlags.ShaderReadBit
+            };
+            _vk.CmdPipelineBarrier(
+                cmd,
+                PipelineStageFlags.ColorAttachmentOutputBit,
+                PipelineStageFlags.FragmentShaderBit,
+                0, 1, &gbufBarrier, 0, null, 0, null);
+        }
+
+        {
+#if DEBUG
+            using var __sdf = FrameProfilerScope.Enter("Record.ShadowSdfPass");
+#endif
+            RecordShadowSdfPass(cmd, in framePlan, sortIdx, sprites, nSprite);
+        }
+
         // Camera-driven HDR clear: the active camera's background color doubles as the letterbox bar color
         // (pixels outside the scissor never get written by any pass, so the clear we pick here is what shows
         // through in the bars after the composite copies HDR → swapchain).
@@ -217,21 +243,13 @@ public sealed unsafe partial class VulkanRenderer
             Color = new ClearColorValue { Float32_0 = bg.X, Float32_1 = bg.Y, Float32_2 = bg.Z, Float32_3 = bg.W }
         };
 
-        var screenPushHdr = stackalloc float[4];
-        screenPushHdr[0] = screen.X;
-        screenPushHdr[1] = screen.Y;
-        screenPushHdr[2] = 0f;
-        screenPushHdr[3] = 0f;
+        var tiledPush = BuildTiledLightingPush(in framePlan, effectiveTileSizePx, tileCounts);
 
-        var pointPushHdr = stackalloc float[8];
-        pointPushHdr[0] = physical.OffsetPixels.X;
-        pointPushHdr[1] = physical.OffsetPixels.Y;
-        pointPushHdr[2] = physical.SizePixels.X;
-        pointPushHdr[3] = physical.SizePixels.Y;
-        pointPushHdr[4] = screen.X;
-        pointPushHdr[5] = screen.Y;
-        pointPushHdr[6] = 0f;
-        pointPushHdr[7] = 0f;
+        var screenPushBleed = stackalloc float[4];
+        screenPushBleed[0] = screen.X;
+        screenPushBleed[1] = screen.Y;
+        screenPushBleed[2] = post.EmissiveToHdrGain;
+        screenPushBleed[3] = 0f;
 
         RenderPassBeginInfo rpH = new()
         {
@@ -254,42 +272,18 @@ public sealed unsafe partial class VulkanRenderer
 #if DEBUG
             using var __ = FrameProfilerScope.Enter("Record.DeferredLighting");
 #endif
-            BeginGpuLabel(cmd, "Draw.DeferredBase");
+            BeginGpuLabel(cmd, "Draw.TiledDeferredLighting");
             try
             {
-                _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredBase);
-                var setsBase = stackalloc DescriptorSet[2];
-                setsBase[0] = _dsGbufferRead;
-                setsBase[1] = _dsLighting;
-                _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBase, 0, 2, setsBase, 0, null);
-                _vk.CmdPushConstants(cmd, _plDeferredBase, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
+                _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeTiledDeferredLighting);
+                var setsTiled = stackalloc DescriptorSet[3];
+                setsTiled[0] = _dsGbufferRead;
+                setsTiled[1] = _dsTiledLighting;
+                setsTiled[2] = _dsShadowSdf;
+                _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plTiledDeferredLighting, 0, 3, setsTiled, 0, null);
+                _vk.CmdPushConstants(cmd, _plTiledDeferredLighting, ShaderStageFlags.FragmentBit, 0,
+                    (uint)sizeof(TiledLightingPush), &tiledPush);
                 _vk.CmdDraw(cmd, 3, 1, 0, 0);
-            }
-            finally
-            {
-                EndGpuLabel(cmd);
-            }
-
-            BeginGpuLabel(cmd, "Draw.PointLights");
-            try
-            {
-                _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeDeferredPoint);
-                var setsPt = stackalloc DescriptorSet[2];
-                setsPt[0] = _dsGbufferRead;
-                setsPt[1] = _dsPointSsbo;
-                _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredPoint, 0, 2, setsPt, 0, null);
-                _vk.CmdPushConstants(cmd, _plDeferredPoint, ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit, 0,
-                    (uint)(sizeof(float) * 8), pointPushHdr);
-                var nPt = LightSubmissionPolicy.ClampWithDropCount(
-                    framePlan.PointLightCount,
-                    DeferredRenderingConstants.MaxPointLights,
-                    out _);
-                if (nPt > 0)
-                {
-                    _vk.CmdBindVertexBuffers(cmd, 0, 1, vb, off);
-                    _vk.CmdBindIndexBuffer(cmd, _indexBuffer, 0, IndexType.Uint16);
-                    _vk.CmdDrawIndexed(cmd, 6, (uint)nPt, 0, 0, 0);
-                }
             }
             finally
             {
@@ -304,7 +298,7 @@ public sealed unsafe partial class VulkanRenderer
                 setsBl[0] = _dsGbufferRead;
                 setsBl[1] = _dsEmissiveScene;
                 _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _plDeferredBleed, 0, 2, setsBl, 0, null);
-                _vk.CmdPushConstants(cmd, _plDeferredBleed, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushHdr);
+                _vk.CmdPushConstants(cmd, _plDeferredBleed, ShaderStageFlags.FragmentBit, 0, (uint)(sizeof(float) * 4), screenPushBleed);
                 _vk.CmdDraw(cmd, 3, 1, 0, 0);
             }
             finally
@@ -324,7 +318,7 @@ public sealed unsafe partial class VulkanRenderer
 
         var hasTransparentSprites = framePlan.TransparentSpriteCount > 0;
         if (hasTransparentSprites)
-            RecordTransparentWboitAndResolve(cmd, in framePlan, in vp, in sci, sortIdx, sprites, nSprite, transparentInstanceBase, in cHdr, screenPushHdr);
+            RecordTransparentWboitAndResolve(cmd, in framePlan, in vp, in sci, sortIdx, sprites, nSprite, transparentInstanceBase, in cHdr, screenPushBleed);
 
         RecordPostProcessAndSwapchainOverlay(
             cmd,
@@ -462,8 +456,8 @@ public sealed unsafe partial class VulkanRenderer
         UpdateSceneHdrSourcesForPostProcess(hasTransparentSprites ? _viewHdrComposite : _viewHdr);
 
         var bloomGain = post.BloomEnabled ? post.BloomGain : 0f;
-        var bloomOn = bloomGain > 0f;
         var bloomRadius = post.BloomRadius;
+        var bloomOn = IsBloomEffective(post.BloomEnabled, bloomGain, bloomRadius);
 
         BeginGpuLabel(cmd, "Pass.PostProcess");
         try

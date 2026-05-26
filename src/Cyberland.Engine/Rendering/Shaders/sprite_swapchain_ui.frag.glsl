@@ -1,5 +1,6 @@
 #version 450
 // After HDR composite: straight-alpha over the swapchain (unpremul for correct blend).
+// normalMap (set 1) is declared but not sampled — kept so the dual-texture descriptor layout stays valid.
 layout(set = 0, binding = 0) uniform sampler2D albedo;
 layout(set = 1, binding = 0) uniform sampler2D normalMap;
 layout(location = 0) in vec2 vUv;
@@ -11,5 +12,4 @@ void main() {
     float a = al.a;
     vec3 rgb = a > 1e-4 ? al.rgb / a : vec3(0.0);
     outColor = vec4(rgb, a);
-    outColor.rgb += texture(normalMap, vUv).rgb * 0.0;
 }

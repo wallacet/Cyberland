@@ -173,6 +173,25 @@ public sealed class SceneSystemTests
     }
 
     [Fact]
+    public void TransformHierarchySystem_late_update_recomposes_after_local_changes()
+    {
+        var w = new World();
+        var ent = w.CreateEntity();
+        ref var tf = ref w.GetOrAdd<Transform>(ent);
+        tf = Transform.Identity;
+        tf.LocalPosition = new Vector2D<float>(4f, 6f);
+
+        var sys = new TransformHierarchySystem();
+        StartEcs(sys, w);
+        tf.LocalPosition = new Vector2D<float>(40f, 60f);
+        sys.OnParallelLateUpdate(w.QueryChunks(SystemQuerySpec.All<Transform>()), 0f, ParOpts());
+
+        ref readonly var after = ref w.Get<Transform>(ent);
+        Assert.Equal(40f, after.WorldPosition.X, 3);
+        Assert.Equal(60f, after.WorldPosition.Y, 3);
+    }
+
+    [Fact]
     public void TransformHierarchySystem_recycles_child_adjacency_lists_across_ticks()
     {
         var w = new World();

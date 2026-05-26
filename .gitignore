@@ -106,5 +106,8 @@ mods/*/Content/**/*.flac
 mods/*/Content/**/*.mp3
 mods/*/Content/**/*.m4a
 
+# Baked SPIR-V (regenerated from GLSL by the shader baker at build time)
+src/Cyberland.Engine/Rendering/Shaders/Spirv/*.spv
+
 # Don't commit plans
 .cursor/plans/

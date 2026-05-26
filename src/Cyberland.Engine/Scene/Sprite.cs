@@ -47,6 +47,22 @@ public struct Sprite : IComponent
     public bool Visible;
 
     /// <summary>
+    /// When true and <see cref="Transparent"/> is false, the sprite is rasterized into the SDF occluder mask and
+    /// influences cone-trace shadow visibility. Transparent sprites are excluded from the occluder mask regardless
+    /// of this flag.
+    /// </summary>
+    /// <remarks>
+    /// The shadow silhouette on GPU is the alpha-tested sprite quad footprint (not a pure OBB) — fragments below
+    /// <see cref="Rendering.DeferredRenderingConstants.AlphaDiscardThreshold"/> (0.02) are discarded from the
+    /// occluder mask. Sprites without an <see cref="AlbedoTextureId"/> are skipped (the occluder pass requires
+    /// a texture to sample alpha). CPU test oracles (<see cref="Rendering.ShadowDistanceFieldCpu"/>) approximate
+    /// occluders as axis-aligned OBBs and may diverge for rotated sprites or irregular alpha shapes.
+    /// Shadows use a 2D screen-space SDF; there is no depth or normal-aware bias beyond
+    /// <see cref="Rendering.ShadowSettings.DepthBias"/>.
+    /// </remarks>
+    public bool CastsShadow;
+
+    /// <summary>
     /// Whether <see cref="Transform.WorldPosition"/> is interpreted as world (camera-transformed) or viewport
     /// pixels (+Y down, locked to the camera's virtual viewport / HUD). Defaults to
     /// <see cref="CoordinateSpace.WorldSpace"/>.

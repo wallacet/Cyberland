@@ -11,6 +11,7 @@ layout(location = 0) out vec4 outColor;
 layout(push_constant) uniform PushData
 {
     vec4 viewportPhysical;
+    // screenSize.xy occupies bytes 16–23 for push-constant layout alignment with the C# TextMsdfPushData struct; not read by this stage.
     vec2 screenSize;
     float edgeSharpness;
     float pad0;
@@ -21,10 +22,10 @@ float median3(vec3 v)
     return max(min(v.r, v.g), min(max(v.r, v.g), v.b));
 }
 
-float screenPxRange(float pxRange, vec2 uv)
+float screenPxRange(float pxRange, vec2 glyphUv)
 {
     vec2 unitRange = vec2(pxRange) / vec2(textureSize(texAlbedo, 0));
-    vec2 screenTexSize = vec2(1.0) / fwidth(uv);
+    vec2 screenTexSize = vec2(1.0) / fwidth(glyphUv);
     return max(0.5 * dot(unitRange, screenTexSize), 1.0);
 }
 

@@ -12,20 +12,20 @@ layout(push_constant) uniform BloomExtractPc {
     float pad0;
 } pc;
 
-vec3 prefilteredColor(vec3 c, float t, float kneeW) {
+vec3 prefilteredColor(vec3 c, float thresholdLum, float kneeW) {
     float br = max(max(c.r, max(c.g, c.b)), 1e-5);
-    float soft = clamp(br - t, 0.0, kneeW);
+    float soft = clamp(br - thresholdLum, 0.0, kneeW);
     soft = soft * soft / (4.0 * kneeW + 1e-5);
-    float contr = max(br - t - soft, 0.0);
+    float contr = max(br - thresholdLum - soft, 0.0);
     return c * (contr / br);
 }
 
 void main() {
-    vec2 fullSz = vec2(textureSize(hdrTex, 0));
-    vec2 halfCoord = floor(gl_FragCoord.xy);
-    vec2 uvFull = (halfCoord * 2.0 + vec2(0.5)) / fullSz;
+    vec2 fullSizeTexels = vec2(textureSize(hdrTex, 0));
+    vec2 halfCoordTexels = floor(gl_FragCoord.xy);
+    vec2 srcUvFull = (halfCoordTexels * 2.0 + vec2(0.5)) / fullSizeTexels;
 
-    vec3 scene = texture(hdrTex, uvFull).rgb;
+    vec3 scene = texture(hdrTex, srcUvFull).rgb;
     vec3 bloom = prefilteredColor(scene, pc.threshold, pc.knee) * pc.bloomSourceGain;
     outC = vec4(bloom, 1.0);
 }

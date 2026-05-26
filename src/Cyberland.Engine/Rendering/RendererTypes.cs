@@ -85,6 +85,12 @@ public struct SpriteDrawRequest
     public bool Transparent;
 
     /// <summary>
+    /// Included in the SDF occluder mask raster (opt-in). Transparent sprites are excluded from
+    /// the occluder mask regardless of this flag.
+    /// </summary>
+    public bool CastsShadow;
+
+    /// <summary>
     /// Coordinate space for <see cref="CenterWorld"/> and <see cref="HalfExtentsWorld"/>:
     /// <see cref="CoordinateSpace.WorldSpace"/> or <see cref="CoordinateSpace.ViewportSpace"/>.
     /// </summary>
@@ -179,10 +185,19 @@ public struct PointLight
     public Vector3D<float> Color;
     /// <summary>Brightness scaler (artist-tunable).</summary>
     public float Intensity;
-    /// <summary>Radial falloff exponent (typical 1.5–3). When 0, renderer uses a default.</summary>
+    /// <summary>
+    /// Radial falloff exponent (typical 1.5–3). When &lt;= 0, the CPU upload substitutes 2.0.
+    /// The shader applies <c>max(exponent, 0.1)</c> as a floor to avoid degenerate fragment math.
+    /// </summary>
     public float FalloffExponent;
-    /// <summary>Reserved; 2D path does not cast shadows from sprites.</summary>
+    /// <summary>When false, the light still contributes diffusely but skips SDF cone-trace shadow sampling.</summary>
     public bool CastsShadow;
+
+    /// <summary>Monotonic index assigned at submission time; used as a stable tie-breaker in sorting.</summary>
+    internal int SubmissionIndex;
+
+    /// <summary>Defaults <see cref="CastsShadow"/> to true for new lights.</summary>
+    public PointLight() => CastsShadow = true;
 }
 
 /// <summary>Cone light: position, aim direction, and inner/outer angles in radians.</summary>
@@ -194,16 +209,42 @@ public struct SpotLight
     public Vector2D<float> DirectionWorld;
     /// <summary>Radial reach of the cone in world units.</summary>
     public float Radius;
-    /// <summary>Full cone angle where intensity is full (radians).</summary>
+    /// <summary>Half-angle from the spotlight axis where intensity is full (radians).</summary>
     public float InnerConeRadians;
-    /// <summary>Outer cone angle with smooth falloff (radians).</summary>
+    /// <summary>Half-angle from the spotlight axis at the outer falloff boundary (radians).</summary>
     public float OuterConeRadians;
     /// <summary>Linear RGB color.</summary>
     public Vector3D<float> Color;
     /// <summary>Brightness scaler.</summary>
     public float Intensity;
-    /// <summary>Reserved for future shadowing.</summary>
+    /// <summary>
+    /// Radial falloff exponent (typical 1.5–3). When &lt;= 0, the CPU upload substitutes 2.0.
+    /// The shader applies <c>pow(max(1-d/r,0), exponent)</c> for smooth radial decay.
+    /// </summary>
+    public float FalloffExponent;
+    /// <summary>
+    /// Precomputed <c>cos(InnerConeRadians)</c>. When <see cref="float.NaN"/>, the CPU upload computes it from
+    /// <see cref="InnerConeRadians"/>. Set this to avoid per-frame trig when the angle is stable.
+    /// </summary>
+    public float CosInnerCone;
+    /// <summary>
+    /// Precomputed <c>cos(OuterConeRadians)</c>. When <see cref="float.NaN"/>, the CPU upload computes it from
+    /// <see cref="OuterConeRadians"/>. Set this to avoid per-frame trig when the angle is stable.
+    /// </summary>
+    public float CosOuterCone;
+    /// <summary>When false, the light still contributes but skips SDF cone-trace shadow sampling.</summary>
     public bool CastsShadow;
+
+    /// <summary>Monotonic index assigned at submission time; used as a stable tie-breaker in sorting.</summary>
+    internal int SubmissionIndex;
+
+    /// <summary>Defaults <see cref="CastsShadow"/> to true and cos caches to NaN (recompute-on-upload).</summary>
+    public SpotLight()
+    {
+        CastsShadow = true;
+        CosInnerCone = float.NaN;
+        CosOuterCone = float.NaN;
+    }
 }
 
 /// <summary>Directional sun/key light: angle-only; no position (infinite distance).</summary>
@@ -215,8 +256,14 @@ public struct DirectionalLight
     public Vector3D<float> Color;
     /// <summary>Brightness scaler.</summary>
     public float Intensity;
-    /// <summary>Reserved.</summary>
+    /// <summary>When false, the light still contributes diffusely but skips SDF cone-trace shadow sampling.</summary>
     public bool CastsShadow;
+
+    /// <summary>Monotonic index assigned at submission time; used as a stable tie-breaker in sorting.</summary>
+    internal int SubmissionIndex;
+
+    /// <summary>Defaults <see cref="CastsShadow"/> to true for new lights.</summary>
+    public DirectionalLight() => CastsShadow = true;
 }
 
 /// <summary>Uniform hemispheric fill (no direction).</summary>
@@ -226,6 +273,8 @@ public struct AmbientLight
     public Vector3D<float> Color;
     /// <summary>Overall intensity scaler.</summary>
     public float Intensity;
+    /// <summary>Insertion order stamp for deterministic tie-breaking after sort.</summary>
+    public int SubmissionIndex;
 }
 
 /// <summary>Post-volume authoring data; world placement comes from the owning entity <c>Transform</c>.</summary>
@@ -240,7 +289,8 @@ public struct PostProcessVolume
 }
 
 /// <summary>
-/// Sparse override set: each <c>Has*</c> flag gates whether the paired float multiplies the current global/post chain value.
+/// Sparse override set: each <c>Has*</c> flag gates whether the paired value overrides the current global/post chain value.
+/// Float overrides multiply the global value; bool overrides replace it; <see cref="ShadowSettings"/> replaces entirely.
 /// </summary>
 public struct PostProcessOverrides
 {
@@ -256,10 +306,10 @@ public struct PostProcessOverrides
     public bool HasEmissiveToHdrGain;
     /// <summary>Multiplier applied to emissive contribution in the HDR buffer.</summary>
     public float EmissiveToHdrGain;
-    /// <summary>When true, <see cref="EmissiveToBloomGain"/> applies.</summary>
-    public bool HasEmissiveToBloomGain;
-    /// <summary>Multiplier applied to emissive contribution in bloom extraction.</summary>
-    public float EmissiveToBloomGain;
+    /// <summary>When true, <see cref="BloomSourceGain"/> applies.</summary>
+    public bool HasBloomSourceGain;
+    /// <summary>Multiplier applied to prefiltered HDR source color in bloom extraction.</summary>
+    public float BloomSourceGain;
     /// <summary>When true, <see cref="Exposure"/> applies.</summary>
     public bool HasExposure;
     /// <summary>Multiplier applied to scene exposure.</summary>
@@ -268,6 +318,39 @@ public struct PostProcessOverrides
     public bool HasSaturation;
     /// <summary>Multiplier applied to color saturation (1 = neutral).</summary>
     public float Saturation;
+
+    /// <summary>When true, <see cref="Shadows"/> replaces the global shadow settings entirely.</summary>
+    public bool HasShadows;
+    /// <summary>Replacement shadow settings (not multiplied — replaces the global <see cref="ShadowSettings"/>).</summary>
+    public ShadowSettings Shadows;
+    /// <summary>When true, <see cref="TonemapEnabled"/> replaces the global toggle.</summary>
+    public bool HasTonemapEnabled;
+    /// <summary>Replacement value for <see cref="GlobalPostProcessSettings.TonemapEnabled"/>.</summary>
+    public bool TonemapEnabled;
+    /// <summary>When true, <see cref="ColorGradingShadows"/> multiplies the global shadow-band tint.</summary>
+    public bool HasColorGradingShadows;
+    /// <summary>Per-channel multiplier for shadow-band color grading.</summary>
+    public Vector3D<float> ColorGradingShadows;
+    /// <summary>When true, <see cref="ColorGradingMidtones"/> multiplies the global midtone-band tint.</summary>
+    public bool HasColorGradingMidtones;
+    /// <summary>Per-channel multiplier for midtone-band color grading.</summary>
+    public Vector3D<float> ColorGradingMidtones;
+    /// <summary>When true, <see cref="ColorGradingHighlights"/> multiplies the global highlight-band tint.</summary>
+    public bool HasColorGradingHighlights;
+    /// <summary>Per-channel multiplier for highlight-band color grading.</summary>
+    public Vector3D<float> ColorGradingHighlights;
+    /// <summary>When true, <see cref="BloomEnabled"/> replaces the global toggle.</summary>
+    public bool HasBloomEnabled;
+    /// <summary>Replacement value for <see cref="GlobalPostProcessSettings.BloomEnabled"/>.</summary>
+    public bool BloomEnabled;
+    /// <summary>When true, <see cref="BloomExtractThreshold"/> multiplies the global threshold.</summary>
+    public bool HasBloomExtractThreshold;
+    /// <summary>Multiplier applied to bloom extraction threshold.</summary>
+    public float BloomExtractThreshold;
+    /// <summary>When true, <see cref="BloomExtractKnee"/> multiplies the global knee width.</summary>
+    public bool HasBloomExtractKnee;
+    /// <summary>Multiplier applied to bloom extraction knee width.</summary>
+    public float BloomExtractKnee;
 }
 
 /// <summary>
@@ -289,10 +372,14 @@ public struct GlobalPostProcessSettings
     /// Soft knee width for the bloom threshold (same units as <see cref="BloomExtractThreshold"/>); higher values reduce harsh cutoffs.
     /// </summary>
     public float BloomExtractKnee;
-    /// <summary>How much emissive feeds the HDR scene color.</summary>
+    /// <summary>
+    /// How much emissive feeds the HDR scene color. Emissive contributes via two paths both scaled by this value:
+    /// (1) <c>deferred_emissive_bleed.frag.glsl</c> adds <c>base * sceneEmissive * EmissiveToHdrGain</c> into HDR during
+    /// lighting; (2) <c>composite.frag.glsl</c> adds <c>emissiveTexture * EmissiveToHdrGain</c> from the dedicated emissive texture.
+    /// </summary>
     public float EmissiveToHdrGain;
-    /// <summary>How much emissive feeds bloom extraction.</summary>
-    public float EmissiveToBloomGain;
+    /// <summary>Multiplier on prefiltered HDR source color in bloom extraction (maps to <c>bloomSourceGain</c> push constant in <c>bloom_extract.frag.glsl</c>).</summary>
+    public float BloomSourceGain;
     /// <summary>Exposure multiplier before tonemap.</summary>
     public float Exposure;
     /// <summary>1 = neutral saturation.</summary>
@@ -305,4 +392,10 @@ public struct GlobalPostProcessSettings
     public Vector3D<float> ColorGradingMidtones;
     /// <summary>RGB multipliers for highlights.</summary>
     public Vector3D<float> ColorGradingHighlights;
+
+    /// <summary>Dynamic SDF shadow generation and cone-trace sampling settings. Replaces the former per-light atlas pipeline.</summary>
+    public ShadowSettings Shadows;
+
+    /// <summary>Emissive sprite → point light promotion settings.</summary>
+    public EmissivePromotionSettings EmissivePromotion;
 }

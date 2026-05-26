@@ -39,12 +39,31 @@ internal static class Program
         if (shaderFiles.Length == 0)
             throw new InvalidOperationException($"No .glsl files found in '{inputDirectory}'.");
 
+        var includePath = Path.Combine(inputDirectory, "shadow_sdf_sampling.glsl");
+        var includeText = File.Exists(includePath) ? File.ReadAllText(includePath) : string.Empty;
+        var includeTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "tiled_deferred_lighting.frag.glsl"
+        };
+
+        var includeOnlyFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "shadow_sdf_sampling.glsl"
+        };
         foreach (var shaderPath in shaderFiles)
         {
             var fileName = Path.GetFileName(shaderPath);
-            var stage = InferStageFromFileName(fileName);
+            if (includeOnlyFiles.Contains(fileName))
+                continue;
+            if (!TryInferStageFromFileName(fileName, out var stage))
+                continue;
+
+            var glsl = File.ReadAllText(shaderPath);
+            if (!string.IsNullOrEmpty(includeText) && includeTargets.Contains(fileName))
+                glsl = MergeShaderInclude(includeText, glsl);
+
             var outputPath = Path.Combine(outputDirectory, fileName + ".spv");
-            BakeSingle(shaderPath, stage, outputPath);
+            BakeGlslText(glsl, stage, shaderPath, outputPath);
         }
     }
 
@@ -54,7 +73,12 @@ internal static class Program
             throw new FileNotFoundException("Input shader file not found.", inputPath);
 
         var glsl = File.ReadAllText(inputPath);
-        var words = CompileGlslToSpirv(glsl, stage, inputPath);
+        BakeGlslText(glsl, stage, inputPath, outputPath);
+    }
+
+    private static void BakeGlslText(string glsl, ShaderStage stage, string sourcePath, string outputPath)
+    {
+        var words = CompileGlslToSpirv(glsl, stage, sourcePath);
         var bytes = new byte[words.Length * sizeof(uint)];
         for (var i = 0; i < words.Length; i++)
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(i * sizeof(uint), sizeof(uint)), words[i]);
@@ -63,23 +87,52 @@ internal static class Program
         if (!string.IsNullOrWhiteSpace(outputDir))
             Directory.CreateDirectory(outputDir);
         File.WriteAllBytes(outputPath, bytes);
-        Console.WriteLine($"Baked SPIR-V | stage={stage} source={inputPath} output={outputPath}");
+        Console.WriteLine($"Baked SPIR-V | stage={stage} source={sourcePath} output={outputPath}");
+    }
+
+    private static string MergeShaderInclude(string includeText, string mainText)
+    {
+        var nl = mainText.IndexOf('\n');
+        if (nl < 0)
+            return includeText + Environment.NewLine + mainText;
+        var firstLine = mainText[..(nl + 1)];
+        var rest = mainText[(nl + 1)..];
+        return firstLine + includeText + Environment.NewLine + rest;
+    }
+
+    private static bool TryInferStageFromFileName(string fileName, out ShaderStage stage)
+    {
+        if (fileName.Contains(".vert.", StringComparison.OrdinalIgnoreCase) ||
+            fileName.Contains("_vert.", StringComparison.OrdinalIgnoreCase))
+        {
+            stage = ShaderStage.Vertex;
+            return true;
+        }
+
+        if (fileName.Contains(".frag.", StringComparison.OrdinalIgnoreCase) ||
+            fileName.Contains("_frag.", StringComparison.OrdinalIgnoreCase))
+        {
+            stage = ShaderStage.Fragment;
+            return true;
+        }
+
+        if (fileName.Contains(".comp.", StringComparison.OrdinalIgnoreCase) ||
+            fileName.Contains("_comp.", StringComparison.OrdinalIgnoreCase))
+        {
+            stage = ShaderStage.Compute;
+            return true;
+        }
+
+        stage = default;
+        return false;
     }
 
     private static ShaderStage InferStageFromFileName(string fileName)
     {
-        if (fileName.Contains(".vert.", StringComparison.OrdinalIgnoreCase) ||
-            fileName.Contains("_vert.", StringComparison.OrdinalIgnoreCase))
-            return ShaderStage.Vertex;
-        if (fileName.Contains(".frag.", StringComparison.OrdinalIgnoreCase) ||
-            fileName.Contains("_frag.", StringComparison.OrdinalIgnoreCase))
-            return ShaderStage.Fragment;
-        if (fileName.Contains(".comp.", StringComparison.OrdinalIgnoreCase) ||
-            fileName.Contains("_comp.", StringComparison.OrdinalIgnoreCase))
-            return ShaderStage.Compute;
-
-        throw new InvalidOperationException(
-            $"Cannot infer shader stage from filename '{fileName}'. Expected '.vert.', '.frag.', or '.comp.' marker.");
+        if (!TryInferStageFromFileName(fileName, out var stage))
+            throw new InvalidOperationException(
+                $"Cannot infer shader stage from filename '{fileName}'. Expected '.vert.', '.frag.', or '.comp.' marker.");
+        return stage;
     }
 
     private static uint[] CompileGlslToSpirv(string glsl, ShaderStage stage, string sourcePath)
