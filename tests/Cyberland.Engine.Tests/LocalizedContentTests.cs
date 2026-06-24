@@ -368,7 +368,7 @@ public sealed class LocalizedContentTests
         var lc = new LocalizedContent(new LocalizationManager(), new VirtualFileSystem(), "en");
         var renderer = new RecordingRenderer();
         var textureId = await lc.TryLoadLocalizedTextureAsync("Textures/missing.png", renderer);
-        Assert.Equal(TextureId.MaxValue, textureId);
+        Assert.Equal(renderer.MissingTextureId, textureId);
         Assert.Equal(0, renderer.RegisterTextureRgbaCallCount);
     }
 
@@ -378,7 +378,7 @@ public sealed class LocalizedContentTests
         var lc = new LocalizedContent(new LocalizationManager(), new VirtualFileSystem(), "en");
         var renderer = new RecordingRenderer();
         var textureId = lc.TryLoadLocalizedTexture("Textures/missing.png", renderer);
-        Assert.Equal(TextureId.MaxValue, textureId);
+        Assert.Equal(renderer.MissingTextureId, textureId);
         Assert.Equal(0, renderer.RegisterTextureRgbaCallCount);
     }
 
@@ -397,7 +397,7 @@ public sealed class LocalizedContentTests
             var lc = new LocalizedContent(new LocalizationManager(), vfs, "en");
             var renderer = new RecordingRenderer();
             var textureId = lc.TryLoadLocalizedTexture("Textures/bad.png", renderer);
-            Assert.Equal(TextureId.MaxValue, textureId);
+            Assert.Equal(renderer.MissingTextureId, textureId);
             Assert.Equal(0, renderer.RegisterTextureRgbaCallCount);
         }
         finally
@@ -425,6 +425,38 @@ public sealed class LocalizedContentTests
 
             Assert.NotEqual(TextureId.MaxValue, textureId);
             Assert.Equal(1, renderer.RegisterTextureRgbaCallCount);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void TryResolveAtlasManifestPath_rejects_blank_paths()
+    {
+        var lc = new LocalizedContent(new LocalizationManager(), new VirtualFileSystem(), "en");
+        Assert.Null(lc.TryResolveAtlasManifestPath("  ", localeInvariant: false));
+    }
+
+    [Fact]
+    public void LocalizedContent_TryResolveAtlasManifestPath_honors_localeInvariant()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-atlas-loc-" + Guid.NewGuid());
+        var atlasDir = Path.Combine(root, "Textures", "Atlases");
+        Directory.CreateDirectory(atlasDir);
+        File.WriteAllText(Path.Combine(atlasDir, "ui.atlas.json"), """{"schemaVersion":1,"pages":[],"regions":[]}""");
+        var deDir = Path.Combine(root, "Locale", "de", "Textures", "Atlases");
+        Directory.CreateDirectory(deDir);
+        File.WriteAllText(Path.Combine(deDir, "ui.atlas.json"), """{"schemaVersion":1,"pages":[],"regions":[]}""");
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var lc = new LocalizedContent(new LocalizationManager(), vfs, "de");
+            Assert.Equal("Locale/de/Textures/Atlases/ui.atlas.json", lc.TryResolveLocalizedAtlas("Textures/Atlases/ui.atlas.json"));
+            Assert.Equal("Textures/Atlases/ui.atlas.json", lc.TryResolveAtlasManifestPath("Textures/Atlases/ui.atlas.json", localeInvariant: true));
+            Assert.Null(lc.TryResolveAtlasManifestPath("Textures/Atlases/missing.atlas.json", localeInvariant: true));
         }
         finally
         {

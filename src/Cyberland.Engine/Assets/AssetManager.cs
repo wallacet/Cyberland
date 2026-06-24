@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Formats;
 using Cyberland.Engine.Rendering;
 
 namespace Cyberland.Engine.Assets;
@@ -53,11 +54,46 @@ public sealed class AssetManager
     /// <summary>Load a texture from the VFS into the renderer on the calling thread.</summary>
     public TextureId LoadTexture(string path, IRenderer renderer)
     {
-        var bytes = LoadBytes(path);
-        using var image = Image.Load<Rgba32>(bytes);
-        var rgba = new byte[image.Width * image.Height * 4];
-        image.CopyPixelDataTo(rgba);
-        return renderer.RegisterTextureRgba(rgba, image.Width, image.Height);
+        var result = TryLoadTexture(path, renderer);
+        if (result.Status != TextureLoadStatus.Ok)
+            throw new FileNotFoundException(path);
+        return result.Id;
+    }
+
+    /// <summary>
+    /// Loads a texture without throwing; returns <see cref="IRenderer.MissingTextureId"/> and a status on failure.
+    /// </summary>
+    public TextureLoadResult TryLoadTexture(string path, IRenderer renderer)
+    {
+        ArgumentNullException.ThrowIfNull(renderer);
+        if (!_vfs.TryOpenRead(path, out var stream))
+        {
+            TextureLoadDiagnostics.LogFailureOnce(path, TextureLoadStatus.NotFound);
+            return new TextureLoadResult(renderer.MissingTextureId, TextureLoadStatus.NotFound);
+        }
+
+        using (stream)
+        {
+            try
+            {
+                using var image = Image.Load<Rgba32>(stream);
+                var rgba = new byte[image.Width * image.Height * 4];
+                image.CopyPixelDataTo(rgba);
+                var id = renderer.RegisterTextureRgba(rgba, image.Width, image.Height);
+                if (id == TextureId.MaxValue)
+                {
+                    TextureLoadDiagnostics.LogFailureOnce(path, TextureLoadStatus.GpuRegistrationFailed);
+                    return new TextureLoadResult(renderer.MissingTextureId, TextureLoadStatus.GpuRegistrationFailed);
+                }
+
+                return new TextureLoadResult(id, TextureLoadStatus.Ok);
+            }
+            catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException or NotSupportedException)
+            {
+                TextureLoadDiagnostics.LogFailureOnce(path, TextureLoadStatus.DecodeFailed);
+                return new TextureLoadResult(renderer.MissingTextureId, TextureLoadStatus.DecodeFailed);
+            }
+        }
     }
 
     /// <summary>Loads UTF-8 text (JSON, shaders, locale files). Strips a leading UTF-8 BOM when present.</summary>

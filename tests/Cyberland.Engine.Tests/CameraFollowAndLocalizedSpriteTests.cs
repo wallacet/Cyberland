@@ -1,4 +1,5 @@
 using Cyberland.Engine.Core.Ecs;
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
@@ -107,13 +108,13 @@ public sealed class CameraFollowAndLocalizedSpriteTests
     }
 
     [Fact]
-    public void SpriteLocalizedAssetSystem_keep_existing_path_preserves_missing_textures()
+    public void SpriteLocalizedAssetSystem_failed_albedo_uses_missing_texture_even_when_keep_existing()
     {
         var renderer = new RecordingRenderer();
         var host = new GameHostServices
         {
             Renderer = renderer,
-            LocalizedContent = new FakeLocalizedContent(renderer, TextureId.MaxValue)
+            LocalizedContent = new FakeLocalizedContent(renderer, renderer.MissingTextureId)
         };
 
         var world = new World();
@@ -135,7 +136,7 @@ public sealed class CameraFollowAndLocalizedSpriteTests
         system.OnLateUpdate(query, 0f);
 
         ref readonly var sprite = ref world.Get<Sprite>(spriteEntity);
-        Assert.Equal(renderer.WhiteTextureId, sprite.AlbedoTextureId);
+        Assert.Equal(renderer.MissingTextureId, sprite.AlbedoTextureId);
     }
 
     [Fact]
@@ -193,6 +194,17 @@ public sealed class CameraFollowAndLocalizedSpriteTests
             Assert.Same(_renderer, renderer);
             return _textureId;
         }
+
+        public TextureLoadResult TryLoadTextureFromCanonical(string canonicalContentPath, IRenderer renderer)
+        {
+            Assert.Same(_renderer, renderer);
+            return new TextureLoadResult(_textureId, TextureLoadStatus.Ok);
+        }
+
+        public string? TryResolveLocalizedAtlas(string canonicalManifestPath) => canonicalManifestPath;
+
+        public string? TryResolveAtlasManifestPath(string canonicalManifestPath, bool localeInvariant) =>
+            localeInvariant ? canonicalManifestPath : canonicalManifestPath;
 
         public Stream? TryOpenLocalizedRead(string canonicalContentPath) => null;
     }

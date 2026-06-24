@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 using Cyberland.Engine.Core.Ecs;
@@ -71,32 +72,44 @@ public sealed class ParticleRenderSystem : IParallelSystem, IParallelLateUpdate
                         "Cyberland.Engine.ParticleRenderSystem",
                         $"Particle emitter submissions exceeded budget ({MaxSubmittedParticlesPerEmitter}); keeping deterministic prefix of runtime particles.");
                 }
-                for (var p = 0; p < submitCount; p++)
-                {
-                    var center = new Vector2D<float>(
-                        originX + em.RuntimePx[p],
-                        originY + em.RuntimePy[p]);
-                    if (IsOutsideActiveCamera(center, he, in camera))
-                        continue;
 
-                    var req = new SpriteDrawRequest
+                var requests = ArrayPool<SpriteDrawRequest>.Shared.Rent(submitCount);
+                var write = 0;
+                try
+                {
+                    for (var p = 0; p < submitCount; p++)
                     {
-                        CenterWorld = center,
-                        HalfExtentsWorld = new Vector2D<float>(he, he),
-                        RotationRadians = 0f,
-                        Layer = em.Layer,
-                        SortKey = em.SortKey + p * 0.001f,
-                        AlbedoTextureId = em.AlbedoTextureId,
-                        NormalTextureId = defaultNormal,
-                        EmissiveTextureId = TextureId.MaxValue,
-                        ColorMultiply = WhiteColor,
-                        Alpha = 1f,
-                        EmissiveTint = WhiteEmissive,
-                        EmissiveIntensity = 0.6f,
-                        DepthHint = em.SortKey,
-                        UvRect = default
-                    };
-                    r.SubmitSprite(in req);
+                        var center = new Vector2D<float>(
+                            originX + em.RuntimePx[p],
+                            originY + em.RuntimePy[p]);
+                        if (IsOutsideActiveCamera(center, he, in camera))
+                            continue;
+
+                        requests[write++] = new SpriteDrawRequest
+                        {
+                            CenterWorld = center,
+                            HalfExtentsWorld = new Vector2D<float>(he, he),
+                            RotationRadians = 0f,
+                            Layer = em.Layer,
+                            SortKey = em.SortKey + p * 0.001f,
+                            AlbedoTextureId = em.AlbedoTextureId,
+                            NormalTextureId = defaultNormal,
+                            EmissiveTextureId = TextureId.MaxValue,
+                            ColorMultiply = WhiteColor,
+                            Alpha = 1f,
+                            EmissiveTint = WhiteEmissive,
+                            EmissiveIntensity = 0.6f,
+                            DepthHint = em.SortKey,
+                            UvRect = default
+                        };
+                    }
+
+                    if (write > 0)
+                        r.SubmitSprites(requests.AsSpan(0, write));
+                }
+                finally
+                {
+                    ArrayPool<SpriteDrawRequest>.Shared.Return(requests);
                 }
             });
         }

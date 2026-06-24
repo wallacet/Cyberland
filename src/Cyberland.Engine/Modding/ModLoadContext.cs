@@ -245,4 +245,18 @@ public sealed class ModLoadContext
         Console.WriteLine($"Mod baked atlas load | manifest={manifestPath} glyphs={result.GlyphCount} pages={result.PageCount}");
         return true;
     }
+
+    /// <summary>
+    /// Loads (or returns cached) a gameplay sprite atlas for the active culture via <see cref="GameHostServices.SpriteAtlasCatalog"/>.
+    /// </summary>
+    /// <param name="canonicalManifestPath">Canonical manifest path (e.g. <c>Textures/Atlases/ui.atlas.json</c>).</param>
+    /// <param name="localeInvariant">When true, skips locale overlays.</param>
+    /// <remarks>Call during <see cref="IMod.OnLoadAsync"/> for atlases needed on the first frame to avoid catalog miss + GPU upload on the render path.</remarks>
+    public SpriteAtlas LoadSpriteAtlas(string canonicalManifestPath, bool localeInvariant = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(canonicalManifestPath);
+        var catalog = Host.SpriteAtlasCatalog
+            ?? throw new InvalidOperationException("Sprite atlas catalog is not initialized.");
+        return catalog.GetOrLoad(canonicalManifestPath, Host.Renderer, localeInvariant);
+    }
 }

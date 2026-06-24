@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.spritegallery",
+  "name": "Cyberland Sprite Gallery (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.SpriteGallery.dll",
+  "contentRoot": "Content",
+  "loadOrder": 27,
+  "disabled": true
+}

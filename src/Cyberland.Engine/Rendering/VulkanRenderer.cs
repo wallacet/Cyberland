@@ -160,6 +160,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     private TextureId _whiteTextureId = TextureId.MaxValue;
     private TextureId _blackTextureId = TextureId.MaxValue;
     private TextureId _defaultNormalTextureId = TextureId.MaxValue;
+    private TextureId _missingTextureId = TextureId.MaxValue;
 
     /// <summary>True when swapchain uses an sRGB image format so the composite shader outputs linear and avoids double gamma.</summary>
     private bool _swapchainUsesSrgbFramebuffer;
@@ -334,6 +335,8 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IDisposable
     TextureId IRenderer.DefaultNormalTextureId => _defaultNormalTextureId;
 
     TextureId IRenderer.WhiteTextureId => _whiteTextureId;
+
+    TextureId IRenderer.MissingTextureId => _missingTextureId;
 
     IShaderModuleHandle IRenderer.CreateShaderModuleFromSpirv(ReadOnlySpan<byte> spirvBytes, string? debugName)
     {

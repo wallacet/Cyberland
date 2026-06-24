@@ -1,0 +1,63 @@
+---
+description: Sprite atlas manifest schema, locale overlays, binding vs localized PNG, and bake workflow
+globs: "**/Textures/Atlases/*.atlas.json,mods/**/Content/Scenes/**/*.json"
+alwaysApply: false
+---
+
+# Cyberland — Sprite atlas authoring
+
+Canonical reference mod: **`mods/Cyberland.Demo.SpriteGallery`** (rows A–H matrix).
+
+## Manifest schema (`*.atlas.json`)
+
+| Section | Purpose |
+|---------|---------|
+| `pages[]` | PNG paths per atlas page (`path` relative to mod `Content/`) |
+| `regions[]` | Named rects: `pixelRect`, optional `pivot`, `sizeWorld`, `nineSlice` |
+| `animations` | Frame-list clips: `regionNames`, `secondsPerFrame`, `loop` |
+| `sheets` | Uniform grid clips: `regionName`, `columns`, `frameCount`, timing |
+| `nineSlice` | UI-only insets on a region (used by retained HUD `image` nodes) |
+
+Hand-edit `animations`, `sheets`, and `nineSlice` after running **`scripts/Generate-SpriteAtlases.ps1`** (baker emits regions/pages only).
+
+## Locale overlays
+
+- Overlay manifest: `Content/Locale/{culture}/Textures/Atlases/{same relative path as base}`.
+- Overlay page PNGs: same folder tree under `Locale/{culture}/` (e.g. `Locale/de/Textures/Atlases/gallery.page0.png`).
+- Scene bindings always use **canonical** paths (`Textures/Atlases/gallery.atlas.json`); the catalog resolves culture at load time.
+
+## Binding precedence (`SpriteAtlasBinding`)
+
+1. `sheet` clip name (if set)
+2. else `animation` clip name
+3. else static `region` name
+
+Set **`localeInvariant: true`** to skip locale overlays and load the base manifest only (row E in SpriteGallery).
+
+## When to use which component
+
+| Need | Component |
+|------|-----------|
+| Atlas region / animation / sheet | `sprite-atlas-binding` |
+| Standalone PNG (VFS path, locale folder override) | `sprite-localized-asset` |
+
+Engine systems (mod does not register): **`SpriteAtlasAnimationSystem`** (early parallel), **`SpriteAtlasBindingSystem`** + **`SpriteLocalizedAssetSystem`** (late serial), **`SpriteRenderSystem`**.
+
+## UI `sourceTexture`
+
+- `manifest.json#region` — resolves via **`TextureSourceResolver`**; `nineSlice` comes from manifest unless JSON overrides (prefer manifest-only).
+- Builtins: `white`, `missing`, `defaultNormal`.
+
+## Performance
+
+Preload atlases in **`Mod.OnLoadAsync`** via **`context.LoadSpriteAtlas(...)`** so the first frame avoids catalog miss + GPU upload on the render path.
+
+## Release assets
+
+Large PNGs ship via per-mod **`content.release.manifest.json`** + **`scripts/Sync-CyberlandAssets.ps1`**, not git. See SpriteGallery README for **`Package-SpriteGallery-Assets.ps1`**.
+
+## Related rules
+
+- **cyberland-ui-json-authoring** — HUD `image` nodes and header band layout
+- **cyberland-demo-mod-authoring** — demo reading order includes SpriteGallery
+- **cyberland-design-goals** — asset distribution policy

@@ -27,11 +27,12 @@ Each demo is a **guided sample** for engine APIs. In git, **`manifest.json`** se
 | **`mousechase`** | **`Cyberland.Demo.MouseChase/`** | [README.md](Cyberland.Demo.MouseChase/README.md) |
 | **`idlegold`** | **`Cyberland.Demo.IdleGold/`** | [README.md](Cyberland.Demo.IdleGold/README.md) |
 | **`fonttest`** | **`Cyberland.Demo.FontTest/`** | [README.md](Cyberland.Demo.FontTest/README.md) |
+| **`spritegallery`** | **`Cyberland.Demo.SpriteGallery/`** | [README.md](Cyberland.Demo.SpriteGallery/README.md) |
 | **`whackamole`** | **`Cyberland.Demo.WhackAMole/`** | [README.md](Cyberland.Demo.WhackAMole/README.md) |
 | **`rts`** | **`Cyberland.Demo.Rts/`** | [README.md](Cyberland.Demo.Rts/README.md) |
 
 **Authoring contract for agents:** **`.cursor/rules/cyberland-demo-mod-authoring.mdc`**.
 
-**Retained UI (FontTest, MouseChase, IdleGold):** **`Content/Ui/*.json`** + scene **`uiPath`** on **`ui-document-root`** — see **`.cursor/rules/cyberland-ui-json-authoring.mdc`**.
+**Retained UI (FontTest, MouseChase, IdleGold, SpriteGallery):** **`Content/Ui/*.json`** + scene **`uiPath`** on **`ui-document-root`** — see **`.cursor/rules/cyberland-ui-json-authoring.mdc`**.
 
 **Engine patterns (all mods):** **`.cursor/rules/cyberland-mod-host-architecture.mdc`**, **`.cursor/rules/cyberland-mod-patterns-hdr.mdc`**, **`.cursor/rules/cyberland-mod-system-lifecycle.mdc`**.

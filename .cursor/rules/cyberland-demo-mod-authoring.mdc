@@ -11,7 +11,7 @@ Shipped demos under **`mods/Cyberland.Demo*`** are **teaching mods**: they shoul
 ## Index and run path
 
 - **Human index:** **`mods/README.md`** lists base + demo mods and links per-mod READMEs.
-- **Local run (recommended):** from repo root, `.\scripts\Run-CyberlandDemo-Test.ps1 -Demo <name>` toggles **`manifest.json`** **`disabled`**, runs **Cyberland.Host**, then restores **`disabled: true`**. Names: **`hdr`**, **`pong`**, **`snake`**, **`brick`**, **`mousechase`**, **`rts`**, **`idlegold`**, **`fonttest`**, **`whackamole`**.
+- **Local run (recommended):** from repo root, `.\scripts\Run-CyberlandDemo-Test.ps1 -Demo <name>` toggles **`manifest.json`** **`disabled`**, runs **Cyberland.Host**, then restores **`disabled: true`**. Names: **`hdr`**, **`pong`**, **`snake`**, **`brick`**, **`mousechase`**, **`rts`**, **`idlegold`**, **`fonttest`**, **`spritegallery`**, **`whackamole`**.
 - **Git:** keep **`"disabled": true`** on shipped demo manifests in commits (pre-commit enforces this).
 
 ## Suggested reading order (newcomers)
@@ -20,6 +20,7 @@ Shipped demos under **`mods/Cyberland.Demo*`** are **teaching mods**: they shoul
 2. Branch by topic:
    - **Arcade / session row:** Pong, Snake, BrickBreaker.
    - **Retained UI JSON + locale:** MouseChase, IdleGold (**`Content/Ui/`** + **`uiPath`**).
+   - **Sprite / atlas matrix:** SpriteGallery (**`spritegallery`**) — static regions, animations, sheets, locale overlays, missing textures, 9-slice HUD (after MouseChase, alongside FontTest).
    - **Idle + UI commands + MSDF sync load:** IdleGold.
    - **Custom fonts + atlas matrix + async pitfall:** FontTest.
    - **RTS-style camera, selection, deferred lights:** Rts.
@@ -97,7 +98,7 @@ Keep **`OnLoadAsync`** body comments for **registration order** where dependenci
 
 ## MSDF / font bootstrap (deadlock hazard)
 
-- **`ModLoader`** blocks until **`IMod.OnLoadAsync`** completes; **`LoadBakedMsdfAtlasAsync`** completion is tied to the render loop draining uploads. **Awaiting** that task from **`OnLoadAsync`** can **deadlock** startup (no frame → no drain → no completion). **FontTest** documents fire-and-forget async; **WhackAMole** / **IdleGold** use **synchronous** **`LoadBakedMsdfAtlas`** (or sync loop) when first-frame glyphs must exist.
+- **`ModLoader`** blocks until **`IMod.OnLoadAsync`** completes; **`LoadBakedMsdfAtlasAsync`** completion is tied to the render loop draining uploads. **Awaiting** that task from **`OnLoadAsync`** can **deadlock** startup (no frame → no drain → no completion). **FontTest** documents fire-and-forget async; **WhackAMole** / **IdleGold** / **SpriteGallery** use **synchronous** **`LoadBakedMsdfAtlas`** (or sync loop) when first-frame glyphs must exist. **SpriteGallery** also avoids **`bold: true`** on builtin UiSans (no Bold TTF registered).
 - **Pong**-style: kick off **`LoadBakedMsdfAtlasAsync`** without awaiting when first-frame fallback is acceptable per demo goals.
 
 Prefer one short **`///`** block in **`Mod.cs`** pointing here rather than duplicating long explanations in every mod.

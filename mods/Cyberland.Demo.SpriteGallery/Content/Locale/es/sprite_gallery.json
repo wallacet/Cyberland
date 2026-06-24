@@ -1,0 +1,15 @@
+{
+  "gallery.title": "Galería de sprites / texturas",
+  "gallery.hud.lang_hint": "Usa --lang=de para comparar filas D y E; --lang=es para la UI en español. G/H son texturas ausentes a propósito.",
+  "gallery.hud.missing_label": "Textura UI ausente:",
+  "gallery.col.feature": "Función",
+  "gallery.col.preview": "Vista previa",
+  "gallery.row.static": "A: Región estática del atlas",
+  "gallery.row.animation": "B: Clip de animación (blink)",
+  "gallery.row.sheet": "C: Clip de hoja (walk)",
+  "gallery.row.locale": "D: Animación localizada",
+  "gallery.row.locale_invariant": "E: Animación sin locale",
+  "gallery.row.localized_png": "F: PNG localizado",
+  "gallery.row.missing_atlas": "G: Manifiesto de atlas ausente",
+  "gallery.row.missing_png": "H: Ruta PNG ausente"
+}

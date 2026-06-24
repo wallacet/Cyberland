@@ -53,6 +53,15 @@ public sealed class GameHostServices
     /// <summary>Loader that seeds baked MSDF atlas pages/glyph entries before runtime fallback generation.</summary>
     internal BakedMsdfAtlasLoader BakedMsdfAtlasLoader { get; }
 
+    /// <summary>Localized gameplay sprite atlas cache; null until <see cref="InitializeSpriteAssets"/>.</summary>
+    public SpriteAtlasCatalog? SpriteAtlasCatalog { get; private set; }
+
+    /// <summary>Resolves UI <c>sourceTexture</c> strings; null until <see cref="InitializeSpriteAssets"/>.</summary>
+    public TextureSourceResolver? TextureSourceResolver { get; private set; }
+
+    /// <summary>Async atlas decode queue; null until <see cref="InitializeSpriteAssets"/>.</summary>
+    public SpriteAtlasAsyncLoader? SpriteAtlasAsyncLoader { get; private set; }
+
     /// <summary>Maps ECS entities to retained UI documents processed by <see cref="Scene.Systems.UiDocumentFrameSystem"/>.</summary>
     public UiDocumentRegistry UiDocuments { get; }
 
@@ -117,6 +126,18 @@ public sealed class GameHostServices
         ArgumentNullException.ThrowIfNull(getLocalized);
         _runtimeUi = new UiRuntime(vfs, getLocalized);
         _runtimeUi.SetRenderer(renderer);
+    }
+
+    /// <summary>
+    /// Creates sprite atlas and UI texture resolver services (call after <see cref="LocalizedContent"/> is assigned).
+    /// </summary>
+    public void InitializeSpriteAssets(VirtualFileSystem vfs)
+    {
+        ArgumentNullException.ThrowIfNull(vfs);
+        var assets = new AssetManager(vfs);
+        SpriteAtlasCatalog = new SpriteAtlasCatalog(assets, () => LocalizedContent);
+        TextureSourceResolver = new TextureSourceResolver(assets, () => LocalizedContent, () => SpriteAtlasCatalog);
+        SpriteAtlasAsyncLoader = new SpriteAtlasAsyncLoader(assets, () => LocalizedContent);
     }
 
     /// <summary>Optional hook invoked once per dequeued command after UI input runs on the render tick.</summary>

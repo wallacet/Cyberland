@@ -149,7 +149,8 @@ public sealed class SceneRuntimeEngineDeserializerTests
                      ]},
                      {"logicalId":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeee02","components":[
                        {"type":"cyberland.engine/trigger","data":{"shape":"Rectangle","halfExtents":{"x":8,"y":9}}},
-                       {"type":"cyberland.engine/sprite-localized-asset","data":{"canonicalAlbedoPath":"Textures/x.png","keepExistingOnMissing":false}}
+                       {"type":"cyberland.engine/sprite-localized-asset","data":{"canonicalAlbedoPath":"Textures/x.png","keepExistingOnMissing":false}},
+                       {"type":"cyberland.engine/sprite-atlas-binding","data":{"manifestPath":"Textures/Atlases/run.atlas.json","sheet":"run","localeInvariant":true,"reloadGeneration":2}}
                      ]},
                      {"logicalId":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeee03","components":[
                        {"type":"cyberland.engine/ui-document-root","data":{"sortKeyBase":901,"visible":false}}
@@ -189,6 +190,12 @@ public sealed class SceneRuntimeEngineDeserializerTests
         var asset = world.Get<SpriteLocalizedAsset>(target);
         Assert.Equal("Textures/x.png", asset.CanonicalAlbedoPath);
         Assert.False(asset.KeepExistingOnMissing);
+
+        var binding = world.Get<SpriteAtlasBinding>(target);
+        Assert.Equal("Textures/Atlases/run.atlas.json", binding.CanonicalManifestPath);
+        Assert.Equal("run", binding.SheetName);
+        Assert.True(binding.LocaleInvariant);
+        Assert.Equal(2, binding.ReloadGeneration);
 
         var uiRoot = LogicalActorLookup.Resolve(world, "eeeeeeee-eeee-eeee-eeee-eeeeeeeeee03");
         var docRoot = world.Get<UiDocumentRoot>(uiRoot);

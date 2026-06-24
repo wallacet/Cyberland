@@ -1,0 +1,15 @@
+{
+  "gallery.title": "Sprite / Texture Gallery",
+  "gallery.hud.lang_hint": "Use --lang=de to compare rows D vs E; --lang=es for Spanish UI. Rows G/H are intentional missing textures.",
+  "gallery.hud.missing_label": "UI missing texture:",
+  "gallery.col.feature": "Feature",
+  "gallery.col.preview": "Preview",
+  "gallery.row.static": "A: Static atlas region",
+  "gallery.row.animation": "B: Animation clip (blink)",
+  "gallery.row.sheet": "C: Sheet clip (walk)",
+  "gallery.row.locale": "D: Locale animation (overlay)",
+  "gallery.row.locale_invariant": "E: Locale-invariant animation",
+  "gallery.row.localized_png": "F: Localized PNG path",
+  "gallery.row.missing_atlas": "G: Missing atlas manifest",
+  "gallery.row.missing_png": "H: Missing PNG path"
+}

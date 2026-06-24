@@ -344,6 +344,12 @@ public sealed unsafe partial class VulkanRenderer
             _r._blackTextureId = RegisterTextureRgbaInternal(black, 1, 1, Format.R8G8B8A8Srgb);
             Span<byte> n = stackalloc byte[4] { 128, 128, 255, 255 };
             _r._defaultNormalTextureId = RegisterTextureRgbaInternal(n, 1, 1, Format.R8G8B8A8Srgb);
+            var missing = BuiltinTextures.CreateMissingTextureRgba(
+                BuiltinTextures.MissingTextureSize,
+                BuiltinTextures.MissingTextureSize,
+                BuiltinTextures.MissingTextureTileSize);
+            _r._missingTextureId = RegisterTextureRgbaInternal(missing, BuiltinTextures.MissingTextureSize,
+                BuiltinTextures.MissingTextureSize, Format.R8G8B8A8Srgb);
         }
 
         public void Dispose()

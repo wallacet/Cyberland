@@ -4,7 +4,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("hdr", "snake", "pong", "brick", "mousechase", "rts", "idlegold", "whackamole")]
+    [ValidateSet("hdr", "snake", "pong", "brick", "mousechase", "rts", "idlegold", "spritegallery", "whackamole")]
     [string] $Demo,
     [ValidateSet('Debug', 'Release')]
     [string] $Configuration = 'Release',
@@ -27,6 +27,7 @@ $relManifest = switch ($Demo) {
     "mousechase" { "mods\Cyberland.Demo.MouseChase\manifest.json" }
     "rts" { "mods\Cyberland.Demo.Rts\manifest.json" }
     "idlegold" { "mods\Cyberland.Demo.IdleGold\manifest.json" }
+    "spritegallery" { "mods\Cyberland.Demo.SpriteGallery\manifest.json" }
     "whackamole" { "mods\Cyberland.Demo.WhackAMole\manifest.json" }
 }
 

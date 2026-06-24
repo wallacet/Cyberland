@@ -7,7 +7,7 @@
 param(
     # Use non-mandatory with explicit throw so missing -Demo does not open an interactive prompt in CI / tasks.
     [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet("hdr", "snake", "pong", "brick", "mousechase", "rts", "idlegold", "fonttest", "whackamole")]
+    [ValidateSet("hdr", "snake", "pong", "brick", "mousechase", "rts", "idlegold", "fonttest", "spritegallery", "whackamole")]
     [string] $Demo,
     # Debug-Instrumented: keeps debug diagnostics/profiler behavior.
     # Release-Perf: use Release for throughput/perf validation.
@@ -35,7 +35,7 @@ param(
 )
 
 if ([string]::IsNullOrEmpty($Demo)) {
-    throw "Required: -Demo (hdr | snake | pong | brick | mousechase | rts | idlegold | fonttest | whackamole). Example: .\Run-CyberlandDemo-Test.ps1 -Demo hdr"
+    throw "Required: -Demo (hdr | snake | pong | brick | mousechase | rts | idlegold | fonttest | spritegallery | whackamole). Example: .\Run-CyberlandDemo-Test.ps1 -Demo hdr"
 }
 
 Set-StrictMode -Version Latest
@@ -53,6 +53,7 @@ $relManifest = switch ($Demo) {
     "rts" { "mods\Cyberland.Demo.Rts\manifest.json" }
     "idlegold" { "mods\Cyberland.Demo.IdleGold\manifest.json" }
     "fonttest" { "mods\Cyberland.Demo.FontTest\manifest.json" }
+    "spritegallery" { "mods\Cyberland.Demo.SpriteGallery\manifest.json" }
     "whackamole" { "mods\Cyberland.Demo.WhackAMole\manifest.json" }
 }
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.RuntimeScenes;
 using Cyberland.Engine.Rendering.Text;
@@ -81,7 +82,7 @@ public static class EngineUiElementDeserializers
     }
 
     /// <summary>Applies type-specific fields after shared fields.</summary>
-    public static void ApplyTypedFields(UiElement element, JsonElement node, IRenderer renderer)
+    public static void ApplyTypedFields(UiElement element, JsonElement node, IRenderer renderer, TextureSourceResolver? textureResolver = null)
     {
         switch (element)
         {
@@ -97,7 +98,7 @@ public static class EngineUiElementDeserializers
                 scroll.WheelScrollPixels = RuntimeJsonReaders.ReadFloat(node, "wheelScrollPixels", scroll.WheelScrollPixels);
                 break;
             case UiImage image:
-                image.SourceTextureId = ReadBuiltinTexture(node, "sourceTexture", renderer, image.SourceTextureId);
+                ApplyImageFields(image, node, renderer, textureResolver);
                 if (RuntimeJsonReaders.TryReadVec4(node, "tint", out var tint))
                     image.Tint = tint;
                 break;
@@ -142,13 +143,14 @@ public static class EngineUiElementDeserializers
         IRenderer renderer,
         ILocalizedContentStrings? strings,
         IReadOnlyDictionary<string, UiElementDeserializer> deserializers,
-        bool allowUnknownElementTypes)
+        bool allowUnknownElementTypes,
+        UiRuntime uiRuntime)
     {
         if (!node.TryGetProperty("children", out var children) || children.ValueKind != JsonValueKind.Array)
             return;
 
         foreach (var childNode in children.EnumerateArray())
-            UiRuntime.BuildAndAttachChild(parent, childNode, document, session, renderer, strings, deserializers, allowUnknownElementTypes);
+            uiRuntime.BuildAndAttachChild(parent, childNode, document, session, renderer, strings, deserializers, allowUnknownElementTypes);
     }
 
     /// <summary>Deserializes scroll-view <c>content</c> subtree into <see cref="UiScrollView.Content"/>.</summary>
@@ -160,7 +162,8 @@ public static class EngineUiElementDeserializers
         IRenderer renderer,
         ILocalizedContentStrings? strings,
         IReadOnlyDictionary<string, UiElementDeserializer> deserializers,
-        bool allowUnknownElementTypes)
+        bool allowUnknownElementTypes,
+        UiRuntime uiRuntime)
     {
         if (!node.TryGetProperty("content", out var contentNode) || contentNode.ValueKind != JsonValueKind.Object)
             return;
@@ -168,7 +171,7 @@ public static class EngineUiElementDeserializers
         while (scroll.Content.Children.Count > 0)
             scroll.Content.RemoveChild(scroll.Content.Children[0]);
 
-        var built = UiRuntime.BuildElement(contentNode, document, session, renderer, strings, deserializers, allowUnknownElementTypes);
+        var built = uiRuntime.BuildElement(contentNode, document, session, renderer, strings, deserializers, allowUnknownElementTypes);
         scroll.Content.AddChild(built);
     }
 
@@ -215,6 +218,34 @@ public static class EngineUiElementDeserializers
         text.MinFitSizePixels = RuntimeJsonReaders.ReadFloat(node, "minFitSizePixels", text.MinFitSizePixels);
     }
 
+    private static void ApplyImageFields(UiImage image, JsonElement node, IRenderer renderer, TextureSourceResolver? textureResolver)
+    {
+        var spec = RuntimeJsonReaders.ReadString(node, "sourceTexture");
+        if (!string.IsNullOrWhiteSpace(spec) && textureResolver is not null)
+        {
+            var resolved = textureResolver.Resolve(spec, renderer);
+            if (resolved.IsValid)
+            {
+                image.SourceTextureId = resolved.TextureId;
+                image.UvRect = resolved.UvRect;
+                image.SourcePixelWidth = Math.Max(1, resolved.SourcePixelWidth);
+                image.SourcePixelHeight = Math.Max(1, resolved.SourcePixelHeight);
+                if (!resolved.NineSlice.IsEmpty)
+                    image.NineSlice = resolved.NineSlice;
+            }
+        }
+        else
+        {
+            image.SourceTextureId = ReadBuiltinTexture(node, "sourceTexture", renderer, image.SourceTextureId);
+        }
+
+        if (node.TryGetProperty("nineSlice", out var ns) && ns.ValueKind == JsonValueKind.Array && ns.GetArrayLength() >= 4)
+        {
+            var arr = ns.EnumerateArray().ToArray();
+            image.NineSlice = new NineSliceInsets(arr[0].GetInt32(), arr[1].GetInt32(), arr[2].GetInt32(), arr[3].GetInt32());
+        }
+    }
+
     private static TextureId ReadBuiltinTexture(JsonElement node, string name, IRenderer renderer, TextureId fallback)
     {
         var s = RuntimeJsonReaders.ReadString(node, name);
@@ -224,7 +255,9 @@ public static class EngineUiElementDeserializers
             ? renderer.WhiteTextureId
             : s.Equals("defaultNormal", StringComparison.OrdinalIgnoreCase)
                 ? renderer.DefaultNormalTextureId
-                : fallback;
+                : s.Equals("missing", StringComparison.OrdinalIgnoreCase)
+                    ? renderer.MissingTextureId
+                    : fallback;
     }
 
     private static void ApplyLayoutPreset(UiElement element, JsonElement node)

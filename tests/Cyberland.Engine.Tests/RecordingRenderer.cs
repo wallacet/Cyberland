@@ -28,6 +28,7 @@ internal sealed class RecordingRenderer : IRenderer
     public FramePacing FramePacing { get; set; } = FramePacing.VSync;
     public TextureId DefaultNormalTextureId => 1;
     public TextureId WhiteTextureId => 2;
+    public TextureId MissingTextureId => 4;
 
     public List<SpriteDrawRequest> Sprites { get; } = new();
     /// <summary>

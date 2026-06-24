@@ -9,6 +9,9 @@ using Cyberland.Engine.RuntimeUi;
 using Cyberland.Engine.UI.Controls;
 using Cyberland.Engine.UI.Core;
 using Cyberland.Engine.UI.Text;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using TextureId = System.UInt32;
 
 namespace Cyberland.Engine.Tests;
 
@@ -314,11 +317,11 @@ public sealed class UiRuntimeCoverageTests
 
         using (var noContent = JsonDocument.Parse("{}"))
             EngineUiElementDeserializers.BuildScrollViewContent(
-                scroll, noContent.RootElement, uiDoc, session, renderer, null, map, false);
+                scroll, noContent.RootElement, uiDoc, session, renderer, null, map, false, ui);
 
         using (var badContent = JsonDocument.Parse("""{"content":"not-an-object"}"""))
             EngineUiElementDeserializers.BuildScrollViewContent(
-                scroll, badContent.RootElement, uiDoc, session, renderer, null, map, false);
+                scroll, badContent.RootElement, uiDoc, session, renderer, null, map, false, ui);
     }
 
     [Fact]
@@ -351,7 +354,7 @@ public sealed class UiRuntimeCoverageTests
         var renderer = new RecordingRenderer();
         var ui = CreateUiRuntime(new VirtualFileSystem());
         EngineUiElementDeserializers.BuildScrollViewContent(
-            scroll, json.RootElement, uiDoc, session, renderer, null, GetDeserializers(ui), false);
+            scroll, json.RootElement, uiDoc, session, renderer, null, GetDeserializers(ui), false, ui);
         Assert.Single(scroll.Content.Children);
         Assert.True(session.ElementsById.ContainsKey("inner"));
     }
@@ -377,6 +380,98 @@ public sealed class UiRuntimeCoverageTests
         Assert.Throws<ArgumentNullException>(() => host.InitializeRuntimeUi(null!, new RecordingRenderer(), () => null));
         Assert.Throws<ArgumentNullException>(() => host.InitializeRuntimeUi(new VirtualFileSystem(), null!, () => null));
         Assert.Throws<ArgumentNullException>(() => host.InitializeRuntimeUi(new VirtualFileSystem(), new RecordingRenderer(), null!));
+    }
+
+    [Fact]
+    public async Task UiRuntime_image_sourceTexture_uses_texture_resolver_and_nine_slice_override()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-ui-resolver-" + Guid.NewGuid());
+        var atlasDir = Path.Combine(root, "Content", "Ui", "Textures", "Atlases");
+        Directory.CreateDirectory(atlasDir);
+        using (var img = new Image<Rgba32>(32, 32))
+            img.SaveAsPng(Path.Combine(atlasDir, "p.png"));
+        File.WriteAllText(Path.Combine(atlasDir, "panel.atlas.json"), """
+            {"schemaVersion":1,"pages":[{"path":"Content/Ui/Textures/Atlases/p.png"}],"regions":[{"name":"panel","pageIndex":0,"pixelRect":[0,0,32,32],"nineSlice":[6,6,6,6]}]}
+            """);
+        var json = """
+            {
+              "schemaVersion": 1,
+              "root": {
+                "type": "cyberland.engine/panel",
+                "children": [{
+                  "type": "cyberland.engine/image",
+                  "sourceTexture": "Content/Ui/Textures/Atlases/panel.atlas.json#panel",
+                  "nineSlice": [8, 8, 8, 8],
+                  "layout": { "preset": "centerFixed", "width": 64, "height": 48 }
+                }]
+              }
+            }
+            """;
+        var uiPath = Path.Combine(root, "Content", "Ui", "resolver.json");
+        await File.WriteAllTextAsync(uiPath, json);
+        var vfs = new VirtualFileSystem();
+        vfs.Mount(root);
+        var assets = new AssetManager(vfs);
+        var catalog = new SpriteAtlasCatalog(assets, () => null);
+        var resolver = new TextureSourceResolver(assets, () => null, () => catalog);
+        var ui = new UiRuntime(vfs, () => null);
+        var renderer = new RecordingRenderer();
+        ui.SetRenderer(renderer);
+        ui.SetTextureSourceResolver(() => resolver);
+        var result = await ui.LoadDocumentAsync("Content/Ui/resolver.json");
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void ApplyTypedFields_image_without_resolver_uses_builtin_fallback()
+    {
+        var image = new UiImage();
+        var renderer = new RecordingRenderer();
+        using var json = JsonDocument.Parse("""{"sourceTexture":"missing","nineSlice":[2,2,2,2]}""");
+        EngineUiElementDeserializers.ApplyTypedFields(image, json.RootElement, renderer);
+        Assert.Equal(renderer.MissingTextureId, image.SourceTextureId);
+        Assert.Equal(2, image.NineSlice.Left);
+    }
+
+    [Fact]
+    public void ApplyTypedFields_image_with_resolver_applies_atlas_region()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-apply-img-" + Guid.NewGuid());
+        var dir = Path.Combine(root, "Textures", "Atlases");
+        Directory.CreateDirectory(dir);
+        using (var img = new Image<Rgba32>(8, 8))
+            img.SaveAsPng(Path.Combine(dir, "p.png"));
+        File.WriteAllText(Path.Combine(dir, "ui.atlas.json"), """
+            {"schemaVersion":1,"pages":[{"path":"Textures/Atlases/p.png"}],"regions":[{"name":"panel","pageIndex":0,"pixelRect":[0,0,8,8],"nineSlice":[1,1,1,1]}]}
+            """);
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var assets = new AssetManager(vfs);
+            var catalog = new SpriteAtlasCatalog(assets, () => null);
+            var resolver = new TextureSourceResolver(assets, () => null, () => catalog);
+            var renderer = new RecordingRenderer();
+            var image = new UiImage();
+            using var json = JsonDocument.Parse("""{"sourceTexture":"Textures/Atlases/ui.atlas.json#panel","nineSlice":[3,3,3,3]}""");
+            EngineUiElementDeserializers.ApplyTypedFields(image, json.RootElement, renderer, resolver);
+            Assert.NotEqual(TextureId.MaxValue, image.SourceTextureId);
+            Assert.Equal(3, image.NineSlice.Left);
+            Assert.Equal(8, image.SourcePixelWidth);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void UiRuntime_SetTextureSourceResolver_assigns_callback()
+    {
+        var ui = new UiRuntime(new VirtualFileSystem(), () => null);
+        ui.SetRenderer(new RecordingRenderer());
+        ui.SetTextureSourceResolver(() => null);
+        Assert.NotNull(ui);
     }
 
     private static UiRuntime CreateUiRuntime(VirtualFileSystem vfs)

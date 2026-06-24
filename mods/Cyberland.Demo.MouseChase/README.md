@@ -46,4 +46,5 @@ Tutorial game: mouse steering, burst click, **camera zoom** while following, **t
 
 ## Further reading
 
+- **`mods/Cyberland.Demo.SpriteGallery/README.md`** — full atlas/texture feature matrix (animations, sheets, locale overlays, missing textures). Run **`.\scripts\Sync-CyberlandAssets.ps1`** before first SpriteGallery run (PNGs ship via release bundle).
 - **`mods/README.md`**, **`.cursor/rules/cyberland-demo-mod-authoring.mdc`**.

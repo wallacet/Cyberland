@@ -135,9 +135,10 @@
                                                          }
                                             },
                                             {
-                                                "type":  "cyberland.engine/sprite-localized-asset",
+                                                "type":  "cyberland.engine/sprite-atlas-binding",
                                                 "data":  {
-                                                             "canonicalAlbedoPath":  "Textures/Pickups/shard.png"
+                                                             "manifestPath":  "Textures/Atlases/pickups.atlas.json",
+                                                             "region":  "shard"
                                                          }
                                             },
                                             {

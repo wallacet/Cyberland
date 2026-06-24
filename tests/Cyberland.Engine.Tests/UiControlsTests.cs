@@ -86,6 +86,56 @@ public sealed class UiControlsTests
     }
 
     [Fact]
+    public void UiImage_nine_slice_submits_multiple_quads()
+    {
+        var renderer = new RecordingRenderer();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var cache = new TextGlyphCache();
+
+        var img = new UiImage
+        {
+            SourceTextureId = renderer.WhiteTextureId,
+            NineSlice = new Cyberland.Engine.Assets.NineSliceInsets(8, 8, 8, 8),
+            SourcePixelWidth = 32,
+            SourcePixelHeight = 32,
+            Tint = new Vector4D<float>(1f, 1f, 1f, 1f)
+        };
+        UiLayoutPresets.CenterFixed(img, 100f, 80f);
+
+        var doc = new UiDocument();
+        doc.Root.AddChild(img);
+        doc.MeasureArrange(new Vector2D<float>(120f, 120f));
+        doc.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 300f, new UiRect(0f, 0f, 120f, 120f));
+        Assert.Equal(9, renderer.Sprites.Count);
+    }
+
+    [Fact]
+    public void UiImage_nine_slice_invalid_insets_falls_back_to_single_quad()
+    {
+        var renderer = new RecordingRenderer();
+        var fonts = new FontLibrary();
+        BuiltinFonts.AddTo(fonts);
+        var cache = new TextGlyphCache();
+
+        var img = new UiImage
+        {
+            SourceTextureId = renderer.WhiteTextureId,
+            NineSlice = new Cyberland.Engine.Assets.NineSliceInsets(100, 100, 100, 100),
+            SourcePixelWidth = 32,
+            SourcePixelHeight = 32,
+            Tint = new Vector4D<float>(1f, 1f, 1f, 1f)
+        };
+        UiLayoutPresets.CenterFixed(img, 100f, 80f);
+
+        var doc = new UiDocument();
+        doc.Root.AddChild(img);
+        doc.MeasureArrange(new Vector2D<float>(120f, 120f));
+        doc.DrawVisuals(renderer, fonts, cache, CoordinateSpace.ViewportSpace, 300f, new UiRect(0f, 0f, 120f, 120f));
+        Assert.Single(renderer.Sprites);
+    }
+
+    [Fact]
     public void UiImage_draw_submits_when_texture_assigned()
     {
         var renderer = new RecordingRenderer();

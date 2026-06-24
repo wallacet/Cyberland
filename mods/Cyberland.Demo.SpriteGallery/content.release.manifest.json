@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "modId": "cyberland.demo.spritegallery",
+  "releaseTag": "v0.1.0-spritegallery-assets",
+  "targetContentPath": "mods/Cyberland.Demo.SpriteGallery/Content",
+  "assetArchiveUrl": "https://github.com/wallacet/Cyberland/releases/download/v0.1.0-spritegallery-assets/cyberland.demo.spritegallery.content.v0.1.0.zip",
+  "sha256": "014c0333a1c66023d444655cbc35c7975ca25ffef033a9ed4817d9b32b9eda4b",
+  "maintainerNote": "Run .\\scripts\\Package-SpriteGallery-Assets.ps1, publish the zip to the release tag above, then set sha256 to the file digest. Players run .\\scripts\\Sync-CyberlandAssets.ps1 before first demo run."
+}

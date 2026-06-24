@@ -210,6 +210,20 @@ public static class EngineSceneComponentDeserializers
             };
         });
 
+        scenes.RegisterComponentDeserializer("cyberland.engine/sprite-atlas-binding", static (in SceneComponentDeserializeContext ctx) =>
+        {
+            ctx.World.GetOrAdd<SpriteAtlasBinding>(ctx.EntityId) = new SpriteAtlasBinding
+            {
+                CanonicalManifestPath = RuntimeJsonReaders.ReadString(ctx.Data, "manifestPath") ?? "",
+                RegionName = RuntimeJsonReaders.ReadString(ctx.Data, "region") ?? "",
+                AnimationName = RuntimeJsonReaders.ReadString(ctx.Data, "animation") ?? "",
+                SheetName = RuntimeJsonReaders.ReadString(ctx.Data, "sheet") ?? "",
+                ReloadGeneration = RuntimeJsonReaders.ReadInt(ctx.Data, "reloadGeneration", 1),
+                LoadedGeneration = RuntimeJsonReaders.ReadInt(ctx.Data, "loadedGeneration", 0),
+                LocaleInvariant = RuntimeJsonReaders.ReadBool(ctx.Data, "localeInvariant", false)
+            };
+        });
+
         scenes.RegisterComponentDeserializer("cyberland.engine/ui-document-root", static (in SceneComponentDeserializeContext ctx) =>
         {
             ctx.World.GetOrAdd<UiDocumentRoot>(ctx.EntityId) = new UiDocumentRoot

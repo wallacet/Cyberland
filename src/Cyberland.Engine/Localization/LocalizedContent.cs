@@ -104,22 +104,33 @@ public sealed class LocalizedContent : ILocalizedContent
     }
 
     /// <inheritdoc />
-    public TextureId TryLoadLocalizedTexture(string canonicalContentPath, IRenderer renderer)
+    public TextureId TryLoadLocalizedTexture(string canonicalContentPath, IRenderer renderer) =>
+        TryLoadTextureFromCanonical(canonicalContentPath, renderer).Id;
+
+    /// <inheritdoc />
+    public TextureLoadResult TryLoadTextureFromCanonical(string canonicalContentPath, IRenderer renderer)
     {
         var path = TryResolveLocalizedPath(canonicalContentPath);
         if (path is null)
-            return TextureId.MaxValue;
+            return new TextureLoadResult(renderer.MissingTextureId, TextureLoadStatus.NotFound);
+        return _assets.TryLoadTexture(path, renderer);
+    }
 
-        try
-        {
-            return _assets.LoadTexture(path, renderer);
-        }
-        // Bad bytes at the resolved VFS path (e.g. corrupt download, LFS pointer, or wrong file) are treated like missing
-        // so <see cref="Scene.SpriteLocalizedAsset.KeepExistingOnMissing"/> and callers can keep a safe fallback albedo.
-        catch (Exception ex) when (ex is InvalidImageContentException or UnknownImageFormatException)
-        {
-            return TextureId.MaxValue;
-        }
+    /// <inheritdoc />
+    public string? TryResolveLocalizedAtlas(string canonicalManifestPath) =>
+        TryResolveAtlasManifestPath(canonicalManifestPath, localeInvariant: false);
+
+    /// <inheritdoc />
+    public string? TryResolveAtlasManifestPath(string canonicalManifestPath, bool localeInvariant)
+    {
+        if (string.IsNullOrWhiteSpace(canonicalManifestPath))
+            return null;
+
+        var norm = canonicalManifestPath.Trim().Replace('\\', '/').TrimStart('/');
+        if (localeInvariant)
+            return _vfs.Exists(norm) ? norm : null;
+
+        return TryResolveLocalizedPath(norm);
     }
 
     /// <inheritdoc />

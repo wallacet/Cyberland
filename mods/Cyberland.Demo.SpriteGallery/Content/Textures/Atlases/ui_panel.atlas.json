@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "pages": [
+    { "path": "Textures/Atlases/ui_panel.page0.png" }
+  ],
+  "regions": [
+    {
+      "name": "panel_bg",
+      "pageIndex": 0,
+      "pixelRect": [0, 0, 64, 64],
+      "pivot": [0.5, 0.5],
+      "sizeWorld": [64, 64],
+      "nineSlice": [8, 8, 8, 8]
+    }
+  ],
+  "animations": {},
+  "sheets": {}
+}

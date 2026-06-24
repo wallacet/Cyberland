@@ -384,6 +384,9 @@ public sealed class GameApplication : IDisposable
         if (_renderer is null)
             throw new InvalidOperationException("Renderer must be initialized before deferred mod load.");
 
+        _host.InitializeSpriteAssets(_vfs);
+        _host.RuntimeUi?.SetTextureSourceResolver(() => _host.TextureSourceResolver);
+
         _presentationState = StartupPresentationState.LoadingWithProgress;
         using var __postModPhase = _host.StartupProgress.BeginPhase("host:startup:post-mod", 0.10f, "Finalizing startup");
         _scheduler.BeginDeferExecutionOrderRebuilds();

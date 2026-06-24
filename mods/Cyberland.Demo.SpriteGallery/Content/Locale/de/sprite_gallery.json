@@ -1,0 +1,15 @@
+{
+  "gallery.title": "Sprite- / Textur-Galerie",
+  "gallery.hud.lang_hint": "Mit --lang=de Zeilen D und E vergleichen; mit --lang=es spanische UI. G/H sind absichtlich fehlende Texturen.",
+  "gallery.hud.missing_label": "Fehlende UI-Textur:",
+  "gallery.col.feature": "Funktion",
+  "gallery.col.preview": "Vorschau",
+  "gallery.row.static": "A: Statische Atlas-Region",
+  "gallery.row.animation": "B: Animationsclip (blink)",
+  "gallery.row.sheet": "C: Sheet-Clip (walk)",
+  "gallery.row.locale": "D: Lokalisierte Animation (Overlay)",
+  "gallery.row.locale_invariant": "E: Locale-unabhängige Animation",
+  "gallery.row.localized_png": "F: Lokalisiertes PNG",
+  "gallery.row.missing_atlas": "G: Fehlendes Atlas-Manifest",
+  "gallery.row.missing_png": "H: Fehlende PNG-Pfad"
+}

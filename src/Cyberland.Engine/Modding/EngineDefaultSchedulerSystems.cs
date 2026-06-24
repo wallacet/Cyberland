@@ -26,11 +26,13 @@ public static class EngineDefaultSchedulerSystems
     /// <summary>
     /// Registers stock early engine systems onto an arbitrary <see cref="SystemScheduler"/> (used for additive runtime scenes).
     /// </summary>
-    public static void RegisterStockEarlySystems(SystemScheduler scheduler)
+    public static void RegisterStockEarlySystems(SystemScheduler scheduler, GameHostServices host)
     {
         ArgumentNullException.ThrowIfNull(scheduler);
+        ArgumentNullException.ThrowIfNull(host);
         scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
         scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
+        scheduler.RegisterParallel("cyberland.engine/sprite-atlas-animation", new SpriteAtlasAnimationSystem(host));
         scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
     }
 
@@ -68,6 +70,8 @@ public static class EngineDefaultSchedulerSystems
         afterEachStep?.Invoke();
         scheduler.RegisterSerial("cyberland.engine/sprite-localized-assets", new SpriteLocalizedAssetSystem(host));
         afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/sprite-atlas-bindings", new SpriteAtlasBindingSystem(host));
+        afterEachStep?.Invoke();
         scheduler.RegisterParallel("cyberland.engine/sprite-render", new SpriteRenderSystem(host));
         afterEachStep?.Invoke();
         scheduler.RegisterParallel("cyberland.engine/particle-render", new ParticleRenderSystem(host));
@@ -95,18 +99,21 @@ public static class EngineDefaultSchedulerSystems
         ArgumentNullException.ThrowIfNull(context);
 
         var scheduler = context.Scheduler;
+        var host = context.Host;
         var completed = 0;
         void ReportStep()
         {
             if (string.IsNullOrWhiteSpace(progressPhaseKey))
                 return;
             completed++;
-            context.ReportLoadProgress(progressPhaseKey!, completed / 3f);
+            context.ReportLoadProgress(progressPhaseKey!, completed / 4f);
         }
 
         scheduler.RegisterParallel("cyberland.engine/transform2d", new TransformHierarchySystem());
         ReportStep();
         scheduler.RegisterParallel("cyberland.engine/sprite-animation", new SpriteAnimationSystem());
+        ReportStep();
+        scheduler.RegisterParallel("cyberland.engine/sprite-atlas-animation", new SpriteAtlasAnimationSystem(host));
         ReportStep();
         scheduler.RegisterParallel("cyberland.engine/particle-sim", new ParticleSimulationSystem());
         ReportStep();
@@ -126,7 +133,7 @@ public static class EngineDefaultSchedulerSystems
 
         var host = context.Host;
         var completed = 0;
-        const float total = 19f;
+        const float total = 20f;
         void ReportStep()
         {
             if (string.IsNullOrWhiteSpace(progressPhaseKey))

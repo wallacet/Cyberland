@@ -97,7 +97,7 @@ public sealed class SceneRuntime : ISceneRuntime
             var parallelism = CreatePartitionedParallelism(1 + _additive.Count);
             var world = new World();
             var scheduler = new SystemScheduler(parallelism);
-            EngineDefaultSchedulerSystems.RegisterStockEarlySystems(scheduler);
+            EngineDefaultSchedulerSystems.RegisterStockEarlySystems(scheduler, _host);
             EngineDefaultSchedulerSystems.RegisterStockLateSystems(scheduler, _host);
 
             var entry = new AdditiveSceneEntry

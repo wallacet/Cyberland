@@ -33,7 +33,7 @@ Retained HUDs use **separate** files from scenes: **`Content/Ui/<name>.json`**, 
 | `panel`, `vertical-stack`, `horizontal-stack` | `spacing`, `backgroundColor`, `backgroundTexture` (`white`, `defaultNormal`) |
 | `grid` | `columnCount`, `spacing` |
 | `scroll-view` | `content` subtree (not `children` of viewport); `wheelScrollPixels` |
-| `image` | `sourceTexture`, `tint` |
+| `image` | `sourceTexture` (builtins `white`, `missing`, `defaultNormal`; `path.png`; `manifest.json#region`), optional `tint`, optional `nineSlice` override (prefer atlas manifest `nineSlice` on the region) |
 | `text-block`, `label` | `text` or `locKey` + `isLocalizationKey`, `fontFamily` (`UiSans`, `Mono`, or full id e.g. `fonttest.jost`), `sizePixels`, style flags |
 | `button` | `normalBackground`, `pressedBackground`; optional child `text-block` |
 | `radio-button` | `groupId`, `optionId`, `width`, `height`, tints |
@@ -54,6 +54,10 @@ var score = ids.Require<UiTextBlock>("hud.score");
 ```
 
 Events, simulation, and dynamic strings stay in C# systems — not in JSON.
+
+## Header band pattern
+
+For a fixed-height HUD chrome row (~156px): nest content inside a **`topStretch`** panel child (not the root). Put the 9-slice **`image`** as **`topStretch`** with the same **`height`** (not **`stretchAll`** — a fixed band leaves no vertical slack for a stretcher after siblings measure). Overlay labels with a **`vertical-stack`** sibling; scope any negative **`anchoredPosition`** to the header panel only.
 
 ## Related rules
 

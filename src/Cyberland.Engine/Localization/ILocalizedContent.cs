@@ -1,3 +1,4 @@
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Rendering;
 
 namespace Cyberland.Engine.Localization;
@@ -42,7 +43,7 @@ public interface ILocalizedContent
     Task<byte[]?> TryLoadLocalizedBytesAsync(string canonicalContentPath,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Loads a texture for the resolved localized path, or <see cref="TextureId.MaxValue"/> if missing.</summary>
+    /// <summary>Loads a texture for the resolved localized path, or <see cref="IRenderer.MissingTextureId"/> if missing or corrupt.</summary>
     Task<TextureId> TryLoadLocalizedTextureAsync(string canonicalContentPath,
         IRenderer renderer,
         CancellationToken cancellationToken = default);
@@ -52,10 +53,27 @@ public interface ILocalizedContent
     /// <see cref="IRenderer"/> from the host render / window thread; the async path may otherwise continue on a background thread.
     /// </summary>
     /// <returns>
-    /// <see cref="TextureId.MaxValue"/> if no file exists. Otherwise a registered id from
-    /// <see cref="IRenderer.RegisterTextureRgba"/> (or <see cref="TextureId.MaxValue"/> on decode/upload failure, matching async behavior).
+    /// <see cref="IRenderer.MissingTextureId"/> if no file exists or decode/upload fails. Otherwise a registered id from
+    /// <see cref="IRenderer.RegisterTextureRgba"/>.
     /// </returns>
     TextureId TryLoadLocalizedTexture(string canonicalContentPath, IRenderer renderer);
+
+    /// <summary>
+    /// Resolves a canonical content path to a localized VFS path, then loads via <see cref="AssetManager.TryLoadTexture"/>.
+    /// Preferred entry point for PNG and atlas page loads from gameplay or UI code.
+    /// </summary>
+    TextureLoadResult TryLoadTextureFromCanonical(string canonicalContentPath, IRenderer renderer);
+
+    /// <summary>
+    /// Resolves a canonical sprite atlas manifest path using the active culture chain (same rules as textures).
+    /// </summary>
+    /// <returns>Normalized VFS path to the manifest JSON, or <c>null</c> if nothing exists.</returns>
+    string? TryResolveLocalizedAtlas(string canonicalManifestPath);
+
+    /// <summary>
+    /// When <paramref name="localeInvariant"/> is true, loads only the non-localized <paramref name="canonicalManifestPath"/>.
+    /// </summary>
+    string? TryResolveAtlasManifestPath(string canonicalManifestPath, bool localeInvariant);
 
     /// <summary>Opens a stream for the resolved localized path, or <c>null</c> if missing.</summary>
     Stream? TryOpenLocalizedRead(string canonicalContentPath);

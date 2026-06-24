@@ -146,6 +146,9 @@ public interface IRenderer
     /// <summary>1×1 white texture.</summary>
     TextureId WhiteTextureId { get; }
 
+    /// <summary>Magenta/green checkerboard shown when albedo content fails to load.</summary>
+    TextureId MissingTextureId { get; }
+
     /// <summary>Queues one sprite for the next frame (thread-safe; see interface remarks).</summary>
     void SubmitSprite(in SpriteDrawRequest draw);
 

@@ -21,6 +21,7 @@ public sealed class UiRuntime : IUiRuntime
     private readonly Dictionary<(int From, int To), UiSchemaMigrator> _migrators = new();
     private readonly object _gate = new();
     private IRenderer? _renderer;
+    private Func<TextureSourceResolver?>? _getTextureResolver;
     private bool _engineDeserializersRegistered;
 
     /// <summary>Constructs UI runtime bound to VFS and localization.</summary>
@@ -37,6 +38,10 @@ public sealed class UiRuntime : IUiRuntime
         _renderer = renderer;
         EnsureEngineElementDeserializers(renderer);
     }
+
+    /// <summary>Supplies texture/atlas resolver for <c>sourceTexture</c> fields on UI images.</summary>
+    public void SetTextureSourceResolver(Func<TextureSourceResolver?> getResolver) =>
+        _getTextureResolver = getResolver;
 
     /// <inheritdoc />
     public void RegisterElementDeserializer(string typeId, UiElementDeserializer deserializer)
@@ -129,7 +134,7 @@ public sealed class UiRuntime : IUiRuntime
         return new UiAttachResult { Succeeded = true, Build = build };
     }
 
-    internal static UiElement BuildElement(
+    internal UiElement BuildElement(
         JsonElement node,
         UiDocument document,
         UiBuildSession session,
@@ -152,23 +157,23 @@ public sealed class UiRuntime : IUiRuntime
         var ctx = new UiElementDeserializeContext(node, document, session, renderer, strings);
         var element = del(in ctx);
         EngineUiElementDeserializers.ApplySharedElementFields(element, node, session);
-        EngineUiElementDeserializers.ApplyTypedFields(element, node, renderer);
+        EngineUiElementDeserializers.ApplyTypedFields(element, node, renderer, _getTextureResolver?.Invoke());
 
         if (element is UiScrollView scroll)
         {
             EngineUiElementDeserializers.BuildScrollViewContent(
-                scroll, node, document, session, renderer, strings, deserializers, allowUnknownElementTypes);
+                scroll, node, document, session, renderer, strings, deserializers, allowUnknownElementTypes, this);
         }
         else
         {
             EngineUiElementDeserializers.BuildChildren(
-                element, node, document, session, renderer, strings, deserializers, allowUnknownElementTypes);
+                element, node, document, session, renderer, strings, deserializers, allowUnknownElementTypes, this);
         }
 
         return element;
     }
 
-    internal static void BuildAndAttachChild(
+    internal void BuildAndAttachChild(
         UiElement parent,
         JsonElement childNode,
         UiDocument document,
@@ -193,9 +198,9 @@ public sealed class UiRuntime : IUiRuntime
     {
         var root = document.Root;
         EngineUiElementDeserializers.ApplySharedElementFields(root, rootNode, session);
-        EngineUiElementDeserializers.ApplyTypedFields(root, rootNode, renderer);
+        EngineUiElementDeserializers.ApplyTypedFields(root, rootNode, renderer, _getTextureResolver?.Invoke());
         EngineUiElementDeserializers.BuildChildren(
-            root, rootNode, document, session, renderer, strings, deserializers, allowUnknownElementTypes);
+            root, rootNode, document, session, renderer, strings, deserializers, allowUnknownElementTypes, this);
     }
 
     private void EnsureEngineElementDeserializers(IRenderer renderer)

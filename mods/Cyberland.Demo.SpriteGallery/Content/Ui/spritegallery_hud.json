@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "cyberland.engine/panel",
+    "layout": { "preset": "stretchAll" },
+    "children": [
+      {
+        "type": "cyberland.engine/panel",
+        "layout": { "preset": "topStretch", "height": 156 },
+        "children": [
+          {
+            "type": "cyberland.engine/image",
+            "id": "hud.panel",
+            "sourceTexture": "Textures/Atlases/ui_panel.atlas.json#panel_bg",
+            "layout": { "preset": "topStretch", "height": 156 }
+          },
+          {
+            "type": "cyberland.engine/vertical-stack",
+            "spacing": 6,
+            "margin": { "left": 20, "top": 14, "right": 20, "bottom": 12 },
+            "layout": {
+              "preset": "topStretch",
+              "height": 156,
+              "anchoredPosition": { "x": 0, "y": -156 }
+            },
+            "children": [
+              {
+                "type": "cyberland.engine/horizontal-stack",
+                "spacing": 12,
+                "crossAlignment": "Center",
+                "layout": { "preset": "topStretch", "height": 26 },
+                "children": [
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "id": "hud.title",
+                    "locKey": "gallery.title",
+                    "isLocalizationKey": true,
+                    "fontFamily": "UiSans",
+                    "sizePixels": 18,
+                    "color": { "x": 0.95, "y": 0.97, "z": 1, "w": 1 },
+                    "layout": { "preset": "topStretch", "height": 26 }
+                  },
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "id": "hud.fps",
+                    "text": "FPS -",
+                    "fontFamily": "Mono",
+                    "sizePixels": 14,
+                    "color": { "x": 0.7, "y": 0.95, "z": 0.85, "w": 1 },
+                    "layout": { "preset": "topRightFixed", "width": 88, "height": 22 }
+                  }
+                ]
+              },
+              {
+                "type": "cyberland.engine/text-block",
+                "id": "hud.locale_hint",
+                "locKey": "gallery.hud.lang_hint",
+                "isLocalizationKey": true,
+                "fontFamily": "UiSans",
+                "sizePixels": 14,
+                "color": { "x": 0.75, "y": 0.82, "z": 0.95, "w": 1 },
+                "layout": { "preset": "topStretch", "height": 36 }
+              },
+              {
+                "type": "cyberland.engine/horizontal-stack",
+                "spacing": 8,
+                "crossAlignment": "Center",
+                "layout": { "preset": "topStretch", "height": 28 },
+                "children": [
+                  {
+                    "type": "cyberland.engine/text-block",
+                    "id": "hud.missing_label",
+                    "locKey": "gallery.hud.missing_label",
+                    "isLocalizationKey": true,
+                    "fontFamily": "UiSans",
+                    "sizePixels": 14,
+                    "color": { "x": 0.7, "y": 0.78, "z": 0.92, "w": 1 },
+                    "layout": { "preset": "topLeftFixed", "width": 200, "height": 22 }
+                  },
+                  {
+                    "type": "cyberland.engine/image",
+                    "id": "hud.missing_builtin",
+                    "sourceTexture": "missing",
+                    "layout": { "preset": "topLeftFixed", "width": 24, "height": 24 }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

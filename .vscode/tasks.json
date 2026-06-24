@@ -532,6 +532,32 @@
       }
     },
     {
+      "label": "Cyberland: Package Sprite Gallery release assets",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Package-SpriteGallery-Assets.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Zips Sprite Gallery Content/ PNGs to artifacts/dist/cyberland.demo.spritegallery.content.v0.1.0.zip and prints sha256 — update mods/Cyberland.Demo.SpriteGallery/content.release.manifest.json, then upload the zip to the GitHub release tag.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
       "label": "Cyberland: Test demo (HDR / Vulkan intro)",
       "type": "shell",
       "command": "powershell.exe",
@@ -750,6 +776,34 @@
         "panel": "shared"
       },
       "detail": "Enables Cyberland.Demo.FontTest, clears artifacts/, runs the host until you exit, then disables the mod again.",
+      "icon": {
+        "id": "play",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "Cyberland: Test demo (Sprite Gallery)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "spritegallery"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Enables Cyberland.Demo.SpriteGallery, clears artifacts/, runs the host until you exit, then disables the mod again.",
       "icon": {
         "id": "play",
         "color": "terminal.ansiMagenta"
@@ -1015,6 +1069,39 @@
       }
     },
     {
+      "label": "Cyberland: Profile demo 30s (Sprite Gallery)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Run-CyberlandDemo-Test.ps1",
+        "-Demo",
+        "spritegallery",
+        "-RunMode",
+        "Debug-Instrumented",
+        "-EnableProfiler",
+        "-ProfileSeconds",
+        "30"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs Sprite Gallery demo for 30 seconds with frame profiler enabled, then exits and prints profiler report path.",
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
       "label": "Cyberland: Profile demo 30s (Whack-a-Mole)",
       "type": "shell",
       "command": "powershell.exe",
@@ -1196,6 +1283,67 @@
         "panel": "shared"
       },
       "detail": "Temporarily enables Whack-a-Mole, publishes Release + artifacts/dist zip, then restores manifest disabled:true.",
+      "icon": {
+        "id": "archive",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release with demo (Sprite Gallery)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-CyberlandDemo.ps1",
+        "-Demo",
+        "spritegallery",
+        "-Configuration",
+        "Release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Temporarily enables Sprite Gallery, publishes Host (Release portable), then restores manifest disabled:true so shipped zips stay unchanged.",
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Cyberland: Publish Release + zip with demo (Sprite Gallery)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Publish-CyberlandDemo.ps1",
+        "-Demo",
+        "spritegallery",
+        "-Configuration",
+        "Release",
+        "-Archive"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Temporarily enables Sprite Gallery, publishes Release + artifacts/dist zip, then restores manifest disabled:true.",
       "icon": {
         "id": "archive",
         "color": "terminal.ansiYellow"

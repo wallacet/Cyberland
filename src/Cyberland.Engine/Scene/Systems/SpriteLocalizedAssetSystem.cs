@@ -1,3 +1,4 @@
+using Cyberland.Engine.Assets;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Hosting;
 using Cyberland.Engine.Rendering;
@@ -63,25 +64,29 @@ public sealed class SpriteLocalizedAssetSystem : ISystem, ILateUpdate
             ? sprite.EmissiveTextureId
             : LoadTexture(localized, renderer, localizedAsset.CanonicalEmissivePath!);
 
+        // Albedo always shows the missing-texture checkerboard on failure (never silent skip).
+        sprite.AlbedoTextureId = albedo == renderer.MissingTextureId ? renderer.MissingTextureId : albedo;
+
         if (localizedAsset.KeepExistingOnMissing)
         {
-            if (albedo != TextureId.MaxValue)
-                sprite.AlbedoTextureId = albedo;
-            if (normal != TextureId.MaxValue)
+            if (normal != renderer.MissingTextureId)
                 sprite.NormalTextureId = normal;
-            if (emissive != TextureId.MaxValue)
+            if (emissive != renderer.MissingTextureId)
                 sprite.EmissiveTextureId = emissive;
         }
         else
         {
-            sprite.AlbedoTextureId = albedo == TextureId.MaxValue ? renderer.WhiteTextureId : albedo;
-            sprite.NormalTextureId = normal == TextureId.MaxValue ? renderer.DefaultNormalTextureId : normal;
-            sprite.EmissiveTextureId = emissive;
+            sprite.NormalTextureId = normal == renderer.MissingTextureId ? renderer.DefaultNormalTextureId : normal;
+            sprite.EmissiveTextureId = emissive == renderer.MissingTextureId ? TextureId.MaxValue : emissive;
         }
 
         localizedAsset.LoadedGeneration = localizedAsset.ReloadGeneration;
     }
 
-    private static TextureId LoadTexture(Localization.ILocalizedContent localized, IRenderer renderer, string canonicalPath) =>
-        localized.TryLoadLocalizedTexture(canonicalPath, renderer);
+    private static TextureId LoadTexture(Localization.ILocalizedContent localized, IRenderer renderer, string canonicalPath)
+    {
+        if (string.IsNullOrWhiteSpace(canonicalPath))
+            return renderer.MissingTextureId;
+        return localized.TryLoadTextureFromCanonical(canonicalPath, renderer).Id;
+    }
 }

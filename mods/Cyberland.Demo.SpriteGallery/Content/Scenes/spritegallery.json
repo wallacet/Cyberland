@@ -1,0 +1,387 @@
+{
+  "schemaVersion": 1,
+  "_comment": "Gallery rows A–H map to gallery.row.* locale keys. Column headers at world Y=528; rows step down by ~52px (A=474 … H=110), below the ~156px viewport HUD band. Preview sprites at X=720, labels at X=88.",
+  "entities": [
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000101",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 640, "localY": 360 } },
+        {
+          "type": "cyberland.engine/camera2d",
+          "data": {
+            "matchPresentationViewport": true,
+            "viewportWidth": 1280,
+            "viewportHeight": 720
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000102",
+      "components": [
+        { "type": "cyberland.engine/ambient-light", "data": { "intensity": 0.35 } }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000103",
+      "components": [
+        { "type": "cyberland.demo.spritegallery/gallery-state", "data": {} }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000104",
+      "components": [
+        { "type": "cyberland.demo.spritegallery/hud-root-tag", "data": {} },
+        {
+          "type": "cyberland.engine/ui-document-root",
+          "data": {
+            "uiPath": "Ui/spritegallery_hud.json",
+            "sortKeyBase": 820
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000110",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 528 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.col.feature",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.65, "y": 0.72, "z": 0.85, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000111",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 528 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.col.preview",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.65, "y": 0.72, "z": 0.85, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000201",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 474 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.row.static",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.88, "y": 0.92, "z": 1, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000202",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 474 } },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 16, "y": 16 },
+            "colorMultiply": { "x": 1, "y": 1, "z": 1, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/sprite-atlas-binding",
+          "data": {
+            "manifestPath": "Textures/Atlases/gallery.atlas.json",
+            "region": "icon_static"
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000203",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 422 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.row.animation",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.88, "y": 0.92, "z": 1, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000204",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 422 } },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 16, "y": 16 },
+            "colorMultiply": { "x": 1, "y": 1, "z": 1, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/sprite-atlas-binding",
+          "data": {
+            "manifestPath": "Textures/Atlases/gallery.atlas.json",
+            "animation": "blink"
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000205",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 370 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.row.sheet",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.88, "y": 0.92, "z": 1, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000206",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 370 } },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 16, "y": 16 },
+            "colorMultiply": { "x": 1, "y": 1, "z": 1, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/sprite-atlas-binding",
+          "data": {
+            "manifestPath": "Textures/Atlases/gallery.atlas.json",
+            "sheet": "walk"
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000207",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 318 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.row.locale",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.88, "y": 0.92, "z": 1, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000208",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 318 } },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 16, "y": 16 },
+            "colorMultiply": { "x": 1, "y": 1, "z": 1, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/sprite-atlas-binding",
+          "data": {
+            "manifestPath": "Textures/Atlases/gallery.atlas.json",
+            "animation": "blink",
+            "localeInvariant": false
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000209",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 266 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.row.locale_invariant",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.88, "y": 0.92, "z": 1, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000210",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 266 } },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 16, "y": 16 },
+            "colorMultiply": { "x": 1, "y": 1, "z": 1, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/sprite-atlas-binding",
+          "data": {
+            "manifestPath": "Textures/Atlases/gallery.atlas.json",
+            "animation": "blink",
+            "localeInvariant": true
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000211",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 214 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.row.localized_png",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.88, "y": 0.92, "z": 1, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000212",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 214 } },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 16, "y": 16 },
+            "colorMultiply": { "x": 1, "y": 1, "z": 1, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/sprite-localized-asset",
+          "data": {
+            "canonicalAlbedoPath": "Textures/Gallery/icon_static.png",
+            "keepExistingOnMissing": false
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000213",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 162 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.row.missing_atlas",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.95, "y": 0.75, "z": 0.8, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000214",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 162 } },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 16, "y": 16 },
+            "colorMultiply": { "x": 1, "y": 1, "z": 1, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/sprite-atlas-binding",
+          "data": {
+            "manifestPath": "Textures/Atlases/does_not_exist.atlas.json",
+            "region": "any"
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000215",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 88, "localY": 110 } },
+        {
+          "type": "cyberland.engine/bitmap-text",
+          "data": {
+            "content": "gallery.row.missing_png",
+            "isLocalizationKey": true,
+            "fontFamily": "UiSans",
+            "sizePixels": 14,
+            "coordinateSpace": "WorldSpace",
+            "sortKey": 120,
+            "color": { "x": 0.95, "y": 0.75, "z": 0.8, "w": 1 }
+          }
+        }
+      ]
+    },
+    {
+      "logicalId": "a7777777-7777-7777-7777-000000000216",
+      "components": [
+        { "type": "cyberland.engine/transform", "data": { "localX": 720, "localY": 110 } },
+        {
+          "type": "cyberland.engine/sprite",
+          "data": {
+            "halfExtents": { "x": 16, "y": 16 },
+            "colorMultiply": { "x": 1, "y": 1, "z": 1, "w": 1 }
+          }
+        },
+        {
+          "type": "cyberland.engine/sprite-localized-asset",
+          "data": {
+            "canonicalAlbedoPath": "Textures/Gallery/intentionally_missing.png",
+            "keepExistingOnMissing": false
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -151,6 +151,69 @@ public sealed class VirtualFileSystemAndAssetTests
     }
 
     [Fact]
+    public void AssetManager_TryLoadTexture_missing_returns_missing_id()
+    {
+        var assets = new AssetManager(new VirtualFileSystem());
+        var renderer = new RecordingRenderer();
+        var result = assets.TryLoadTexture("missing.png", renderer);
+        Assert.Equal(TextureLoadStatus.NotFound, result.Status);
+        Assert.Equal(renderer.MissingTextureId, result.Id);
+    }
+
+    [Fact]
+    public void AssetManager_TryLoadTexture_bad_bytes_returns_decode_failed()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-try-tex-" + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "bad.png"), "not png");
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var assets = new AssetManager(vfs);
+            var renderer = new RecordingRenderer();
+            var result = assets.TryLoadTexture("bad.png", renderer);
+            Assert.Equal(TextureLoadStatus.DecodeFailed, result.Status);
+            Assert.Equal(renderer.MissingTextureId, result.Id);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AssetManager_LoadTexture_throws_when_missing()
+    {
+        var assets = new AssetManager(new VirtualFileSystem());
+        var renderer = new RecordingRenderer();
+        Assert.Throws<FileNotFoundException>(() => assets.LoadTexture("missing.png", renderer));
+    }
+
+    [Fact]
+    public void AssetManager_TryLoadTexture_gpu_registration_failure_returns_status()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "cyb-gpu-fail-" + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+        using (var img = new Image<Rgba32>(2, 2))
+            img.SaveAsPng(Path.Combine(root, "ok.png"));
+        try
+        {
+            var vfs = new VirtualFileSystem();
+            vfs.Mount(root);
+            var assets = new AssetManager(vfs);
+            var renderer = new RecordingRenderer { RegisterTextureRgbaOverride = TextureId.MaxValue };
+            var result = assets.TryLoadTexture("ok.png", renderer);
+            Assert.Equal(TextureLoadStatus.GpuRegistrationFailed, result.Status);
+            Assert.Equal(renderer.MissingTextureId, result.Id);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public async Task AssetManager_LoadText_and_Json_roundtrip()
     {
         var root = Path.Combine(Path.GetTempPath(), "cyb asset " + Guid.NewGuid());

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "pages": [
+    { "path": "Textures/Atlases/gallery.page0.png" }
+  ],
+  "regions": [
+    {
+      "name": "frame_a",
+      "pageIndex": 0,
+      "pixelRect": [0, 0, 32, 32],
+      "pivot": [0.5, 0.5],
+      "sizeWorld": [32, 32]
+    },
+    {
+      "name": "frame_b",
+      "pageIndex": 0,
+      "pixelRect": [32, 0, 32, 32],
+      "pivot": [0.5, 0.5],
+      "sizeWorld": [32, 32]
+    },
+    {
+      "name": "icon_static",
+      "pageIndex": 0,
+      "pixelRect": [64, 0, 32, 32],
+      "pivot": [0.5, 0.5],
+      "sizeWorld": [32, 32]
+    },
+    {
+      "name": "walk_strip",
+      "pageIndex": 0,
+      "pixelRect": [0, 32, 128, 64],
+      "pivot": [0.5, 0.5],
+      "sizeWorld": [32, 32]
+    }
+  ],
+  "animations": {
+    "blink": {
+      "regionNames": ["frame_a", "frame_b"],
+      "secondsPerFrame": 0.25,
+      "loop": true
+    }
+  },
+  "sheets": {
+    "walk": {
+      "regionName": "walk_strip",
+      "columns": 4,
+      "frameCount": 8,
+      "secondsPerFrame": 0.08,
+      "loop": true
+    }
+  }
+}
