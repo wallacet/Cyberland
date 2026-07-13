@@ -52,6 +52,18 @@ public static class EngineDefaultSchedulerSystems
         afterEachStep?.Invoke();
         scheduler.RegisterSerial("cyberland.engine/camera-runtime-state", new CameraRuntimeStateSystem(host));
         afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/audio-listener", new AudioListenerSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/audio-session", new AudioSessionSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/global-audio-environment", new GlobalAudioEnvironmentSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterParallel("cyberland.engine/audio-environment-volumes", new AudioEnvironmentVolumeSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/audio-emitters", new AudioEmitterSystem(host));
+        afterEachStep?.Invoke();
+        scheduler.RegisterSerial("cyberland.engine/music", new MusicDirectorSystem(host));
+        afterEachStep?.Invoke();
         scheduler.RegisterSerial("cyberland.engine/viewport-layout", new ViewportAnchorSystem(host));
         afterEachStep?.Invoke();
         scheduler.RegisterParallel("cyberland.engine/lighting-ambient", new AmbientLightSystem(host));
@@ -133,7 +145,7 @@ public static class EngineDefaultSchedulerSystems
 
         var host = context.Host;
         var completed = 0;
-        const float total = 20f;
+        const float total = 26f;
         void ReportStep()
         {
             if (string.IsNullOrWhiteSpace(progressPhaseKey))

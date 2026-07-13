@@ -30,6 +30,7 @@ Each demo is a **guided sample** for engine APIs. In git, **`manifest.json`** se
 | **`spritegallery`** | **`Cyberland.Demo.SpriteGallery/`** | [README.md](Cyberland.Demo.SpriteGallery/README.md) |
 | **`whackamole`** | **`Cyberland.Demo.WhackAMole/`** | [README.md](Cyberland.Demo.WhackAMole/README.md) |
 | **`rts`** | **`Cyberland.Demo.Rts/`** | [README.md](Cyberland.Demo.Rts/README.md) |
+| **`audio`** | **`Cyberland.Demo.Audio/`** | [README.md](Cyberland.Demo.Audio/README.md) |
 
 **Authoring contract for agents:** **`.cursor/rules/cyberland-demo-mod-authoring.mdc`**.
 

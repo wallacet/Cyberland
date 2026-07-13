@@ -84,7 +84,7 @@ public sealed class GameApplication : IDisposable
     private readonly GameHostServices _host;
     private readonly string[] _commandLineArgs;
     private ILocalizedContent? _localizedContent;
-    private OpenALAudioDevice? _audio;
+    private OpenALAudioMixer? _audioMixer;
     private VulkanRenderer? _renderer;
     private IWindow? _window;
     private SilkInputService? _input;
@@ -102,7 +102,7 @@ public sealed class GameApplication : IDisposable
     private bool _firstPresentLogged;
     private bool _audioInitAttempted;
     private bool _audioInitLogged;
-    private Task<OpenALAudioDevice?>? _pendingAudioInitTask;
+    private Task<OpenALAudioMixer?>? _pendingAudioInitTask;
     private CancellationTokenSource? _audioInitCts;
     private double _startupLoadCallbackMs;
     private double _startupFirstPresentMs;
@@ -173,9 +173,13 @@ public sealed class GameApplication : IDisposable
         _window.Update += OnUpdate;
         _window.Render += OnRender;
         _window.Closing += OnClosing;
+        _window.FocusChanged += OnWindowFocusChanged;
 
         _window.Run();
     }
+
+    private void OnWindowFocusChanged(bool focused) =>
+        _host.Audio.SetWindowFocused(focused);
 
     private void OnLoad()
     {
@@ -783,13 +787,22 @@ public sealed class GameApplication : IDisposable
 
         _audioInitCts = new CancellationTokenSource();
         var token = _audioInitCts.Token;
+        // Mixer needs LocalizedContent (set during deferred host init). Poll briefly so OpenAL
+        // still boots in parallel with the first present path once locale wiring exists.
         _pendingAudioInitTask = Task.Run(() =>
         {
-            if (token.IsCancellationRequested)
-                return null;
             try
             {
-                return new OpenALAudioDevice();
+                for (var i = 0; i < 1000 && !token.IsCancellationRequested; i++)
+                {
+                    var lc = _localizedContent;
+                    if (lc is not null)
+                        return new OpenALAudioMixer(lc);
+
+                    Thread.Sleep(10);
+                }
+
+                return null;
             }
             catch (Exception ex)
             {
@@ -813,14 +826,17 @@ public sealed class GameApplication : IDisposable
         var sw = Stopwatch.StartNew();
         try
         {
-            _audio = _pendingAudioInitTask.GetAwaiter().GetResult();
+            _audioMixer = _pendingAudioInitTask.GetAwaiter().GetResult();
+            _host.Audio = _audioMixer is not null
+                ? _audioMixer
+                : new NullAudioService();
         }
         finally
         {
             sw.Stop();
             _audioInitLogged = true;
             Console.WriteLine(
-                $"Startup stage | audio.initialize.parallel.complete={sw.Elapsed.TotalMilliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms");
+                $"Startup stage | audio.initialize.parallel.complete={sw.Elapsed.TotalMilliseconds.ToString("0.###", CultureInfo.InvariantCulture)}ms ready={_host.Audio.IsReady}");
         }
     }
 
@@ -920,12 +936,13 @@ public sealed class GameApplication : IDisposable
         _audioInitCts?.Cancel();
         _audioInitCts?.Dispose();
         _audioInitCts = null;
-        if (_audio is null && _pendingAudioInitTask is not null && _pendingAudioInitTask.IsCompletedSuccessfully)
-            _audio = _pendingAudioInitTask.Result;
+        if (_audioMixer is null && _pendingAudioInitTask is not null && _pendingAudioInitTask.IsCompletedSuccessfully)
+            _audioMixer = _pendingAudioInitTask.Result;
         _input?.Dispose();
         _host.TextGlyphCache.Shutdown();
         _renderer?.Dispose();
-        _audio?.Dispose();
+        _audioMixer?.Dispose();
+        _host.Audio = new NullAudioService();
         _window?.Dispose();
     }
 }

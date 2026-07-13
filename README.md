@@ -305,7 +305,11 @@ Within each phase, order is still **global registration order**: each entry is *
 
 ### Audio (`Audio/`)
 
-- **`OpenALAudioDevice`** — optional; host continues without audio if OpenAL is missing.
+- **`IAudioService`** on **`GameHostServices.Audio`** — mod-facing playback (one-shots, loops, music crossfade, cues), open-ended string mix buses, duck rules, focus policy, gameplay pause, and localized clip loading. Never null: **`NullAudioService`** when OpenAL is unavailable.
+- **`OpenALAudioMixer`** — dedicated mixer thread owns the OpenAL context; ECS workers enqueue thread-safe commands. Built on **`OpenALAudioDevice`** (device/context bootstrap).
+- **Formats** — WAV (PCM 8/16-bit) and Ogg Vorbis (NVorbis); paths are canonical **`Sounds/…`** resolved through **`ILocalizedContent`** (`Content/Locale/{culture}/Sounds/…` overlays).
+- **ECS** — late systems `cyberland.engine/audio-listener`, `audio-session`, `global-audio-environment`, `audio-environment-volumes`, `audio-emitters`, `music`; scene JSON types `cyberland.engine/audio-emitter`, `music`, `global-audio-environment`, `audio-environment-volume`, `audio-listener-override`.
+- **Tutorial** — **`mods/Cyberland.Demo.Audio`** (`.\scripts\Run-CyberlandDemo-Test.ps1 -Demo audio`).
 
 ### Modding (`Modding/`)
 

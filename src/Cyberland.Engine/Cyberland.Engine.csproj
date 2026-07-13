@@ -22,9 +22,7 @@
     <EmbeddedResource Include="Rendering\Text\Baked\*.png" />
   </ItemGroup>
 
-  <Target Name="BakeEngineSpirvShaders" BeforeTargets="IncludeBakedSpirv"
-          Inputs="$(MSBuildThisFileDirectory)Rendering\Shaders\**\*.glsl"
-          Outputs="$(MSBuildThisFileDirectory)Rendering\Shaders\Spirv\**\*.spv">
+  <Target Name="BakeEngineSpirvShaders" BeforeTargets="IncludeBakedSpirv" Inputs="$(MSBuildThisFileDirectory)Rendering\Shaders\**\*.glsl" Outputs="$(MSBuildThisFileDirectory)Rendering\Shaders\Spirv\**\*.spv">
     <PropertyGroup>
       <_EngineShaderSourceDir>$(MSBuildThisFileDirectory)Rendering\Shaders</_EngineShaderSourceDir>
       <_EngineSpirvOutputDir>$(MSBuildThisFileDirectory)Rendering\Shaders\Spirv</_EngineSpirvOutputDir>
@@ -44,6 +42,7 @@
 
   <ItemGroup>
     <PackageReference Include="Glslang.NET" Version="1.2.0" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
     <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
     <PackageReference Include="Silk.NET.Maths" Version="2.23.0" />
     <PackageReference Include="Silk.NET.OpenAL" Version="2.23.0" />

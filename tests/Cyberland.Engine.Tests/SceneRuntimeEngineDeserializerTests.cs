@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cyberland.Engine.Assets;
+using Cyberland.Engine.Audio;
 using Cyberland.Engine.Core.Ecs;
 using Cyberland.Engine.Core.Tasks;
 using Cyberland.Engine.Hosting;
@@ -91,7 +92,12 @@ public sealed class SceneRuntimeEngineDeserializerTests
                        {"type":"cyberland.engine/spot-light","data":{}},
                        {"type":"cyberland.engine/point-light","data":{}},
                        {"type":"cyberland.engine/post-process-volume","data":{"hasBloomGain":true,"bloomGain":2}},
-                       {"type":"cyberland.engine/global-post-process","data":{"bloomEnabled":false}}
+                       {"type":"cyberland.engine/global-post-process","data":{"bloomEnabled":false}},
+                       {"type":"cyberland.engine/audio-emitter","data":{"clip":"Sounds/a.wav","space":"direct","bus":"sfx","loop":true,"playOnEnable":true,"gain":0.5,"pitch":1.1,"priority":2,"fadeInSeconds":0.2,"refDistance":10,"maxDistance":100,"rolloff":1.5,"pauseWithGameplay":false}},
+                       {"type":"cyberland.engine/music","data":{"clip":"Sounds/m.wav","bus":"music","loop":true,"crossfadeSeconds":0.5,"pauseWithGameplay":false,"priority":1}},
+                       {"type":"cyberland.engine/global-audio-environment","data":{"priority":1,"blendSeconds":0.5,"lowPassHz":1000,"busGains":[{"bus":"music","gain":1.1}]}},
+                       {"type":"cyberland.engine/audio-environment-volume","data":{"halfExtents":{"x":40,"y":50},"priority":2,"overrides":{"lowPassHz":500,"busGains":[{"bus":"sfx","gain":0.8}]}}},
+                       {"type":"cyberland.engine/audio-listener-override","data":{"active":true,"priority":3}}
                      ]}
                    ]}
                    """;
@@ -117,6 +123,13 @@ public sealed class SceneRuntimeEngineDeserializerTests
         Assert.True(rootWorld.Get<GlobalPostProcessSource>(eid).Settings.Shadows.Enabled);
         Assert.False(rootWorld.Get<Sprite>(eid).Visible);
         Assert.Equal(50, rootWorld.Get<Sprite>(eid).Layer);
+        Assert.True(rootWorld.Has<AudioEmitterSource>(eid));
+        Assert.Equal(AudioSpace.Direct, rootWorld.Get<AudioEmitterSource>(eid).Space);
+        Assert.True(rootWorld.Has<MusicSource>(eid));
+        Assert.True(rootWorld.Has<GlobalAudioEnvironmentSource>(eid));
+        Assert.True(rootWorld.Has<AudioEnvironmentVolumeSource>(eid));
+        Assert.True(rootWorld.Has<AudioListenerOverride>(eid));
+        Assert.True(rootWorld.Get<AudioListenerOverride>(eid).Active);
 
         // Idempotent: second spawn still uses registered engine deserializers.
         var again = await rt.SpawnIntoWorldAsync(rootWorld, "Content/Scenes/engine.json");

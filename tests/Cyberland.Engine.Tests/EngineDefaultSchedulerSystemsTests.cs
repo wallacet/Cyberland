@@ -30,6 +30,12 @@ public sealed class EngineDefaultSchedulerSystemsTests
 
         Assert.True(scheduler.SetEnabled("cyberland.engine/camera-follow", true));
         Assert.True(scheduler.SetEnabled("cyberland.engine/camera-submit", true));
+        Assert.True(scheduler.SetEnabled("cyberland.engine/audio-listener", true));
+        Assert.True(scheduler.SetEnabled("cyberland.engine/audio-session", true));
+        Assert.True(scheduler.SetEnabled("cyberland.engine/global-audio-environment", true));
+        Assert.True(scheduler.SetEnabled("cyberland.engine/audio-environment-volumes", true));
+        Assert.True(scheduler.SetEnabled("cyberland.engine/audio-emitters", true));
+        Assert.True(scheduler.SetEnabled("cyberland.engine/music", true));
         Assert.True(scheduler.SetEnabled("cyberland.engine/sprite-render", true));
         Assert.True(scheduler.SetEnabled("cyberland.engine/text-render", true));
         Assert.True(scheduler.SetEnabled("cyberland.engine/ui-command-drain", true));

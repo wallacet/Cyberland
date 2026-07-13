@@ -1,0 +1,9 @@
+{
+  "id": "cyberland.demo.audio",
+  "name": "Cyberland Audio (demo)",
+  "version": "0.1.0",
+  "entryAssembly": "Cyberland.Demo.Audio.dll",
+  "contentRoot": "Content",
+  "loadOrder": 25,
+  "disabled": true
+}

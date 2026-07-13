@@ -24,6 +24,8 @@ These require hardware or native UI and use **`[ExcludeFromCodeCoverage]`** with
 - `VulkanRenderer`
 - `GameApplication`
 - `OpenALAudioDevice`
+- `OpenALAudioMixer` (dedicated mixer thread + live OpenAL context)
+- `OggVorbisDecoder` (needs valid Ogg bitstreams; WAV decode is unit-tested)
 - `UserMessageDialog.ShowError` (user32 path); **do** test `WriteErrorToStderr` / stderr formatting when relevant.
 - `GlslSpirvCompiler`: **`ThrowIfSpirvIssues`** and **`LinkProgramOrThrow`** (toolchain-sensitive failure paths).
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Cyberland.Engine.Audio;
 using Cyberland.Engine.Diagnostics;
 using Cyberland.Engine.Rendering;
 using Cyberland.Engine.Rendering.Text;
@@ -238,6 +239,136 @@ public static class EngineSceneComponentDeserializers
             if (ctx.SpawnSession is not null && !string.IsNullOrWhiteSpace(uiPath))
                 ctx.SpawnSession.PendingUiDocuments.Add((ctx.EntityId, uiPath));
         });
+
+        scenes.RegisterComponentDeserializer("cyberland.engine/audio-emitter", static (in SceneComponentDeserializeContext ctx) =>
+        {
+            var spaceName = RuntimeJsonReaders.ReadString(ctx.Data, "space") ?? "world";
+            var space = spaceName.Equals("direct", StringComparison.OrdinalIgnoreCase) ? AudioSpace.Direct
+                : spaceName.Equals("cinematic", StringComparison.OrdinalIgnoreCase) ? AudioSpace.Cinematic
+                : AudioSpace.World;
+            ctx.World.GetOrAdd<AudioEmitterSource>(ctx.EntityId) = new AudioEmitterSource
+            {
+                Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
+                ClipPath = RuntimeJsonReaders.ReadString(ctx.Data, "clip") ?? "",
+                CueId = RuntimeJsonReaders.ReadString(ctx.Data, "cueId") ?? "",
+                Space = space,
+                BusId = RuntimeJsonReaders.ReadString(ctx.Data, "bus") ?? "",
+                Loop = RuntimeJsonReaders.ReadBool(ctx.Data, "loop", false),
+                PlayOnEnable = RuntimeJsonReaders.ReadBool(ctx.Data, "playOnEnable", false),
+                Gain = RuntimeJsonReaders.ReadFloat(ctx.Data, "gain", 1f),
+                Pitch = RuntimeJsonReaders.ReadFloat(ctx.Data, "pitch", 1f),
+                Priority = RuntimeJsonReaders.ReadInt(ctx.Data, "priority", 0),
+                FadeInSeconds = RuntimeJsonReaders.ReadFloat(ctx.Data, "fadeInSeconds", 0f),
+                RefDistance = RuntimeJsonReaders.ReadFloat(ctx.Data, "refDistance", 64f),
+                MaxDistance = RuntimeJsonReaders.ReadFloat(ctx.Data, "maxDistance", 480f),
+                Rolloff = RuntimeJsonReaders.ReadFloat(ctx.Data, "rolloff", 1f),
+                PauseWithGameplay = RuntimeJsonReaders.ReadBool(ctx.Data, "pauseWithGameplay", true),
+            };
+        });
+
+        scenes.RegisterComponentDeserializer("cyberland.engine/music", static (in SceneComponentDeserializeContext ctx) =>
+        {
+            ctx.World.GetOrAdd<MusicSource>(ctx.EntityId) = new MusicSource
+            {
+                Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
+                ClipPath = RuntimeJsonReaders.ReadString(ctx.Data, "clip") ?? "",
+                BusId = RuntimeJsonReaders.ReadString(ctx.Data, "bus") ?? AudioBusIds.Music,
+                Loop = RuntimeJsonReaders.ReadBool(ctx.Data, "loop", true),
+                CrossfadeSeconds = RuntimeJsonReaders.ReadFloat(ctx.Data, "crossfadeSeconds", 1.5f),
+                PauseWithGameplay = RuntimeJsonReaders.ReadBool(ctx.Data, "pauseWithGameplay", false),
+                Priority = RuntimeJsonReaders.ReadInt(ctx.Data, "priority", 0),
+            };
+        });
+
+        scenes.RegisterComponentDeserializer("cyberland.engine/global-audio-environment", static (in SceneComponentDeserializeContext ctx) =>
+        {
+            ctx.World.GetOrAdd<GlobalAudioEnvironmentSource>(ctx.EntityId) = new GlobalAudioEnvironmentSource
+            {
+                Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
+                Priority = RuntimeJsonReaders.ReadInt(ctx.Data, "priority", 0),
+                Settings = ReadAudioEnvironmentSettings(ctx.Data),
+            };
+        });
+
+        scenes.RegisterComponentDeserializer("cyberland.engine/audio-environment-volume", static (in SceneComponentDeserializeContext ctx) =>
+        {
+            var half = RuntimeJsonReaders.TryReadVec2(ctx.Data, "halfExtents", out var he)
+                ? he
+                : new Vector2D<float>(
+                    RuntimeJsonReaders.ReadFloat(ctx.Data, "halfExtentsX", 180f),
+                    RuntimeJsonReaders.ReadFloat(ctx.Data, "halfExtentsY", 140f));
+            var overridesEl = ctx.Data.TryGetProperty("overrides", out var ov) ? ov : ctx.Data;
+            ctx.World.GetOrAdd<AudioEnvironmentVolumeSource>(ctx.EntityId) = new AudioEnvironmentVolumeSource
+            {
+                Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
+                Volume = new AudioEnvironmentVolume
+                {
+                    HalfExtentsLocal = half,
+                    Priority = RuntimeJsonReaders.ReadInt(ctx.Data, "priority", 0),
+                    Overrides = ReadAudioEnvironmentOverrides(overridesEl),
+                },
+            };
+        });
+
+        scenes.RegisterComponentDeserializer("cyberland.engine/audio-listener-override", static (in SceneComponentDeserializeContext ctx) =>
+        {
+            ctx.World.GetOrAdd<AudioListenerOverride>(ctx.EntityId) = new AudioListenerOverride
+            {
+                Active = RuntimeJsonReaders.ReadBool(ctx.Data, "active", true),
+                Priority = RuntimeJsonReaders.ReadInt(ctx.Data, "priority", 0),
+            };
+        });
+    }
+
+    internal static AudioEnvironmentSettings ReadAudioEnvironmentSettings(JsonElement data)
+    {
+        var s = AudioEnvironmentSettings.Default;
+        s.BlendSeconds = RuntimeJsonReaders.ReadFloat(data, "blendSeconds", s.BlendSeconds);
+        s.LowPassHz = RuntimeJsonReaders.ReadFloat(data, "lowPassHz", s.LowPassHz);
+        s.MasterScale = RuntimeJsonReaders.ReadFloat(data, "masterScale", s.MasterScale);
+        s.BusGains = ReadBusGains(data);
+        return s;
+    }
+
+    internal static AudioEnvironmentOverrides ReadAudioEnvironmentOverrides(JsonElement data)
+    {
+        var o = new AudioEnvironmentOverrides();
+        if (data.TryGetProperty("blendSeconds", out _))
+        {
+            o.HasBlendSeconds = true;
+            o.BlendSeconds = RuntimeJsonReaders.ReadFloat(data, "blendSeconds", 1f);
+        }
+        if (data.TryGetProperty("lowPassHz", out _))
+        {
+            o.HasLowPassHz = true;
+            o.LowPassHz = RuntimeJsonReaders.ReadFloat(data, "lowPassHz", 22000f);
+        }
+        if (data.TryGetProperty("masterScale", out _))
+        {
+            o.HasMasterScale = true;
+            o.MasterScale = RuntimeJsonReaders.ReadFloat(data, "masterScale", 1f);
+        }
+        o.BusGains = ReadBusGains(data);
+        return o;
+    }
+
+    private static AudioBusGainEntry[]? ReadBusGains(JsonElement data)
+    {
+        if (!data.TryGetProperty("busGains", out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return null;
+        var list = new System.Collections.Generic.List<AudioBusGainEntry>();
+        foreach (var el in arr.EnumerateArray())
+        {
+            var bus = RuntimeJsonReaders.ReadString(el, "bus");
+            if (string.IsNullOrWhiteSpace(bus))
+                continue;
+            list.Add(new AudioBusGainEntry
+            {
+                BusId = bus,
+                Gain = RuntimeJsonReaders.ReadFloat(el, "gain", 1f),
+            });
+        }
+        return list.Count == 0 ? null : list.ToArray();
     }
 
     /// <summary>Reads sparse override fields from JSON; omitted fields leave their <c>Has*</c> flag false (no override).</summary>

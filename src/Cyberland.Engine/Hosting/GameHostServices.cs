@@ -1,4 +1,5 @@
 using Cyberland.Engine.Assets;
+using Cyberland.Engine.Audio;
 using Cyberland.Engine.Input;
 using Cyberland.Engine.Localization;
 using Cyberland.Engine.Rendering;
@@ -154,6 +155,12 @@ public sealed class GameHostServices
     /// Set during host bootstrap before mods run.
     /// </summary>
     public IInputService Input { get; set; } = null!;
+
+    /// <summary>
+    /// Audio playback and mix API. Defaults to <see cref="NullAudioService"/> until OpenAL init succeeds;
+    /// never null after host construction so mods can call without checks.
+    /// </summary>
+    public IAudioService Audio { get; set; } = new NullAudioService();
 
     /// <summary>
     /// Frame-stable active camera state published by engine camera runtime systems. Gameplay/layout code should prefer

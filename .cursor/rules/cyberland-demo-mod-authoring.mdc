@@ -11,7 +11,7 @@ Shipped demos under **`mods/Cyberland.Demo*`** are **teaching mods**: they shoul
 ## Index and run path
 
 - **Human index:** **`mods/README.md`** lists base + demo mods and links per-mod READMEs.
-- **Local run (recommended):** from repo root, `.\scripts\Run-CyberlandDemo-Test.ps1 -Demo <name>` toggles **`manifest.json`** **`disabled`**, runs **Cyberland.Host**, then restores **`disabled: true`**. Names: **`hdr`**, **`pong`**, **`snake`**, **`brick`**, **`mousechase`**, **`rts`**, **`idlegold`**, **`fonttest`**, **`spritegallery`**, **`whackamole`**.
+- **Local run (recommended):** from repo root, `.\scripts\Run-CyberlandDemo-Test.ps1 -Demo <name>` toggles **`manifest.json`** **`disabled`**, runs **Cyberland.Host**, then restores **`disabled: true`**. Names: **`hdr`**, **`pong`**, **`snake`**, **`brick`**, **`mousechase`**, **`rts`**, **`idlegold`**, **`fonttest`**, **`spritegallery`**, **`whackamole`**, **`audio`**.
 - **Git:** keep **`"disabled": true`** on shipped demo manifests in commits (pre-commit enforces this).
 
 ## Suggested reading order (newcomers)
@@ -21,6 +21,7 @@ Shipped demos under **`mods/Cyberland.Demo*`** are **teaching mods**: they shoul
    - **Arcade / session row:** Pong, Snake, BrickBreaker.
    - **Retained UI JSON + locale:** MouseChase, IdleGold (**`Content/Ui/`** + **`uiPath`**).
    - **Sprite / atlas matrix:** SpriteGallery (**`spritegallery`**) — static regions, animations, sheets, locale overlays, missing textures, 9-slice HUD (after MouseChase, alongside FontTest).
+   - **Audio:** Audio (**`audio`**) — buses, cues, ducking, spatial/direct/cinematic, music, environment volumes, localization.
    - **Idle + UI commands + MSDF sync load:** IdleGold.
    - **Custom fonts + atlas matrix + async pitfall:** FontTest.
    - **RTS-style camera, selection, deferred lights:** Rts.
